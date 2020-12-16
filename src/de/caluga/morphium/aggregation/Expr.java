@@ -203,7 +203,7 @@ public abstract class Expr {
     }
 
     public static Expr zip(List<Expr> inputs, Expr useLongestLength, Expr defaults) {
-        return new MapOpExpr("zip", Utils.getMap("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[inputs.size()]))).add("useLongestLength", useLongestLength).add("defaults", defaults));
+        return new MapOpExpr("zip", Utils.getMap("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[0]))).add("useLongestLength", useLongestLength).add("defaults", defaults));
     }
 
 
@@ -905,8 +905,8 @@ public abstract class Expr {
 
 
     private static class MapOpExpr extends Expr {
-        private String operation;
-        private Map<String, Expr> params;
+        private final String operation;
+        private final Map<String, Expr> params;
 
         private MapOpExpr(String type, Map<String, Expr> par) {
             if (!type.startsWith("$")) {
@@ -929,8 +929,8 @@ public abstract class Expr {
     }
 
     private static class OpExpr extends Expr {
-        private String operation;
-        private List<Expr> params;
+        private final String operation;
+        private final List<Expr> params;
 
         private OpExpr(String type, List<Expr> par) {
             if (!type.startsWith("$")) {
@@ -953,8 +953,8 @@ public abstract class Expr {
     }
 
     private static class OpExprNoList extends Expr {
-        private String operation;
-        private Expr params;
+        private final String operation;
+        private final Expr params;
 
         private OpExprNoList(String type, Expr par) {
             if (!type.startsWith("$")) {
@@ -974,7 +974,7 @@ public abstract class Expr {
 
     private static class FieldExpr extends Expr {
 
-        private String fieldRef;
+        private final String fieldRef;
 
         public FieldExpr(String fieldRef) {
             if (!fieldRef.startsWith("$")) {
@@ -991,7 +991,7 @@ public abstract class Expr {
 
     private static class StringExpr extends Expr {
 
-        private String str;
+        private final String str;
 
         public StringExpr(String str) {
             this.str = str;
@@ -1005,7 +1005,7 @@ public abstract class Expr {
 
     private static class IntExpr extends Expr {
 
-        private Integer number;
+        private final Integer number;
 
         public IntExpr(int str) {
             this.number = str;
@@ -1020,7 +1020,7 @@ public abstract class Expr {
 
     private static class DoubleExpr extends Expr {
 
-        private Double number;
+        private final Double number;
 
         public DoubleExpr(double str) {
             this.number = str;
@@ -1035,7 +1035,7 @@ public abstract class Expr {
 
     private static class BoolExpr extends Expr {
 
-        private Boolean bool;
+        private final Boolean bool;
 
         public BoolExpr(boolean b) {
             this.bool = b;
@@ -1049,7 +1049,7 @@ public abstract class Expr {
 
     private static class ArrayExpr extends Expr {
 
-        private List<Expr> arr;
+        private final List<Expr> arr;
 
         public ArrayExpr(Expr... vals) {
             this.arr = Arrays.asList(vals);
@@ -1057,7 +1057,7 @@ public abstract class Expr {
 
         @Override
         public Object toQueryObject() {
-            return Arrays.asList(arr.stream().map((x) -> x.toQueryObject()).toArray());
+            return Arrays.asList(arr.stream().map(Expr::toQueryObject).toArray());
         }
     }
 }

@@ -11,7 +11,7 @@ import java.util.Map;
  */
 public class DeleteBulkRequest extends BulkRequest {
     private Map<String, Object> query;
-    private boolean multiple;
+    private boolean multiple = false;
 
     public boolean isMultiple() {
         return multiple;

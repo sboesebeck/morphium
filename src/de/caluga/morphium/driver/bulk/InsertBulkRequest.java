@@ -9,7 +9,7 @@ import java.util.Map;
  * insert bulk request entry
  **/
 public class InsertBulkRequest extends BulkRequest {
-    private List<Map<String, Object>> toInsert;
+    private final List<Map<String, Object>> toInsert;
 
     public InsertBulkRequest(List<Map<String, Object>> objToInsert) {
         toInsert = objToInsert;
@@ -17,11 +17,6 @@ public class InsertBulkRequest extends BulkRequest {
 
     public List<Map<String, Object>> getToInsert() {
         return toInsert;
-    }
-
-    @SuppressWarnings("unused")
-    public void setToInsert(List<Map<String, Object>> toInsert) {
-        this.toInsert = toInsert;
     }
 
 }

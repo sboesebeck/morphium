@@ -45,7 +45,17 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         assert (cfg.getHostSeed().size() == 2);
         assert (cfg.getHostSeed().get(0).endsWith(":27018"));
         assert (cfg.getHostSeed().get(1).endsWith(":27099"));
+    }
 
+
+    @Test
+    public void testEnum() {
+        Properties p = new Properties();
+        p.setProperty("morphium.indexCappedCheck", "WARN_ON_STARTUP");
+        MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
+        assert (cfg.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP));
+        assert (cfg.isAutoValuesEnabled());
+        assert (cfg.getHostSeed().size() == 0);
     }
 
     @Test

@@ -1,7 +1,11 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.mapping.BsonGeoMapper;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.geospatial.Geo;
+import de.caluga.morphium.query.geospatial.GeoType;
+import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.test.mongo.suite.data.CustomMappedObject;
 import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
@@ -20,6 +24,19 @@ import java.util.Map;
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class CustomMapperTest extends MorphiumTestBase {
+
+    @Test
+    public void BsonGeoMapperTest() {
+        BsonGeoMapper m = new BsonGeoMapper();
+        Geo g = new Point(12.0, 13.0);
+        Object marshalled = m.marshall(g);
+        Geo res = m.unmarshall(marshalled);
+        assert (res.getType() != null);
+        assert (res.getType().equals(GeoType.POINT));
+        assert (((List) res.getCoordinates()).get(0).equals(12.0));
+        assert (((List) res.getCoordinates()).get(1).equals(13.0));
+
+    }
 
     @Test
     public void customMappedObjectTest() {

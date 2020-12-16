@@ -58,34 +58,6 @@ public class MorphiumBulkContext<T> {
         postEvents.forEach(Runnable::run);
     }
 
-    @SuppressWarnings("unused")
-    public void runBulk(AsyncOperationCallback c) {
-        if (c == null) {
-            firePre();
-            try {
-                ctx.execute();
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
-            firePost();
-        } else {
-            Thread thr = new Thread(() -> {
-                firePre();
-                try {
-                    Map<String, Object> ret = ctx.execute();
-                    //noinspection unchecked
-                    c.onOperationSucceeded(AsyncOperationType.BULK, null, 0, null, null, ret);
-                } catch (Exception e) {
-                    //noinspection unchecked
-                    c.onOperationError(AsyncOperationType.BULK, null, 0, null, e, null);
-                }
-                firePost();
-            });
-            thr.setName("run-bulk-thr");
-            thr.start();
-        }
-    }
-
     private void createUpdateRequest(Query<T> query, String command, Map values, boolean upsert, boolean multiple) {
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(query.toQueryObject());

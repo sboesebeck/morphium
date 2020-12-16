@@ -1,7 +1,5 @@
 package de.caluga.test.mongo.suite;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -46,49 +44,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst.add(new Simple());
         lst.add(new Simple());
 
-        List serializedList = om.serializeIterable(lst, null);
+        List serializedList = om.serializeIterable(lst, null, null);
         assert (serializedList.size() == 3);
 
         List<Simple> deserializedList = om.deserializeList(serializedList);
         log.info("Deserialized");
     }
-
-    @Test
-    public void speedCheck() throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.enable(SerializationFeature.INDENT_OUTPUT);
-
-        log.info("Checking jackson!");
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            String json = mapper.writeValueAsString(s);
-
-            Msg obj = mapper.readValue(json, Msg.class);
-        }
-        long dur = System.currentTimeMillis() - start;
-
-        log.info("Took " + dur);
-
-        MorphiumObjectMapper mom = morphium.getMapper();
-        mom.getMorphium().getConfig().setWarnOnNoEntitySerialization(true);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 1000; i++) {
-            Msg s = new Msg();
-            s.setName("test-" + (int) (System.currentTimeMillis() % 42));
-            s.setValue("Test");
-            for (int t = 0; t == 10; t++) s.setValue(s.getValue() + s.getValue());
-            Map m = mom.serialize(s);
-
-            mom.deserialize(Msg.class, m);
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("USing morphium: " + dur);
-    }
-
 
     @Test
     public void customTypeMapperTest() {
@@ -203,7 +164,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             new Thread(() -> {
                 MorphiumObjectMapper om = morphium.getMapper();
-                assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+                assert (om.getCollectionName(CachedObject.class).equals("cached_object_" + TestEntityNameProvider.number.get())) : "Cached object test failed";
                 Thread.yield();
                 assert (om.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
                 Thread.yield();
@@ -576,13 +537,27 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
         assert (so2 != null);
-        assert (so2.listOfSetOfStrings.size() == 2);
+        so2.setOfStrings.contains("test");
+        so2.setOfStrings.contains("test2");
+        so2.setOfStrings.contains("test3");
+        assert (so2.setOfUC.iterator().next() instanceof UncachedObject);
 
+        assert (so2.listOfSetOfStrings.size() == 2);
         Set<String> firstSetOfStrings = so2.listOfSetOfStrings.get(0);
         assert (firstSetOfStrings.size() == 2);
+        assert (firstSetOfStrings.contains("Test1"));
+        assert (firstSetOfStrings.contains("Test2"));
+        Set<String> secondSetOfStrings = so2.listOfSetOfStrings.get(1);
+        assert (secondSetOfStrings.size() == 2);
+        assert (secondSetOfStrings.contains("Test3"));
+        assert (secondSetOfStrings.contains("Test4"));
 
         Set<String> t1 = so2.mapOfSetOfStrings.get("t1");
-        assert (t1 instanceof Set);
+        assert (t1.contains("test1"));
+        assert (t1.contains("test11"));
+        Set<String> t2 = so2.mapOfSetOfStrings.get("t2");
+        assert (t2.contains("test2"));
+        assert (t2.contains("test21"));
     }
 
     @Test

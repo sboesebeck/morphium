@@ -42,24 +42,12 @@ public class ReplicaSetStatus {
         return set;
     }
 
-    public void setSet(String set) {
-        this.set = set;
-    }
-
     public int getMyState() {
         return myState;
     }
 
-    public void setMyState(int myState) {
-        this.myState = myState;
-    }
-
     public Date getDate() {
         return date;
-    }
-
-    public void setDate(Date date) {
-        this.date = date;
     }
 
     public List<ReplicaSetNode> getMembers() {
@@ -83,88 +71,45 @@ public class ReplicaSetStatus {
         return syncSourceHost;
     }
 
-    public void setSyncSourceHost(String syncSourceHost) {
-        this.syncSourceHost = syncSourceHost;
-    }
-
     public int getTerm() {
         return term;
     }
 
-    public void setTerm(int term) {
-        this.term = term;
-    }
 
     public int getSyncSourceId() {
         return syncSourceId;
-    }
-
-    public void setSyncSourceId(int syncSourceId) {
-        this.syncSourceId = syncSourceId;
     }
 
     public long getHeartbeatIntervalMillis() {
         return heartbeatIntervalMillis;
     }
 
-    public void setHeartbeatIntervalMillis(long heartbeatIntervalMillis) {
-        this.heartbeatIntervalMillis = heartbeatIntervalMillis;
-    }
-
     public int getMajorityVoteCount() {
         return majorityVoteCount;
-    }
-
-    public void setMajorityVoteCount(int majorityVoteCount) {
-        this.majorityVoteCount = majorityVoteCount;
     }
 
     public int getWriteMajorityCount() {
         return writeMajorityCount;
     }
 
-    public void setWriteMajorityCount(int writeMajorityCount) {
-        this.writeMajorityCount = writeMajorityCount;
-    }
-
     public int getVotingMembersCount() {
         return votingMembersCount;
-    }
-
-    public void setVotingMembersCount(int votingMembersCount) {
-        this.votingMembersCount = votingMembersCount;
     }
 
     public int getWritableVotingMembersCount() {
         return writableVotingMembersCount;
     }
 
-    public void setWritableVotingMembersCount(int writableVotingMembersCount) {
-        this.writableVotingMembersCount = writableVotingMembersCount;
-    }
-
     public long getLastStableRecoveryTimestamp() {
         return lastStableRecoveryTimestamp;
-    }
-
-    public void setLastStableRecoveryTimestamp(long lastStableRecoveryTimestamp) {
-        this.lastStableRecoveryTimestamp = lastStableRecoveryTimestamp;
     }
 
     public Map<String, Object> getOptimes() {
         return optimes;
     }
 
-    public void setOptimes(Map<String, Object> optimes) {
-        this.optimes = optimes;
-    }
-
     public Map<String, Object> getElectionCandidateMetrics() {
         return electionCandidateMetrics;
-    }
-
-    public void setElectionCandidateMetrics(Map<String, Object> electionCandidateMetrics) {
-        this.electionCandidateMetrics = electionCandidateMetrics;
     }
 
     public int getActiveNodes() {
@@ -178,6 +123,7 @@ public class ReplicaSetStatus {
                 for (ConfNode c : config.getMembers()) {
                     if (c.getId() == n.getId() && c.getHidden() != null && c.getHidden()) {
                         ignore = true;
+                        break;
                     }
                 }
                 if (!ignore) {

@@ -782,7 +782,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unset(Enum... field) {
-        List<String> lst = Arrays.asList(field).stream().map((x) -> x.name()).collect(Collectors.toList());
+        List<String> lst = Arrays.stream(field).map(Enum::name).collect(Collectors.toList());
         params.add(Utils.getMap("$unset",lst));
         return this;
     }

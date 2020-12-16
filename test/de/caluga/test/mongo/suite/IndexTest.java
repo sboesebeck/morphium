@@ -1,10 +1,13 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.test.mongo.suite.data.CappedCol;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -30,6 +33,43 @@ public class IndexTest extends MorphiumTestBase {
         assert (idx.get(1).get("blub").equals(1));
     }
 
+    @Test
+    public void checkIndexTest() throws Exception {
+        log.info("Starting check");
+        Thread.sleep(100);
+        morphium.dropCollection(UncachedObject.class);
+        morphium.dropCollection(IndexedObject.class);
+        morphium.dropCollection(CappedCol.class);
+        morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.NO_CHECK);
+        morphium.storeNoCache(new UncachedObject("value", 12));
+        Thread.sleep(100);
+        morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
+        morphium.store(new IndexedObject("name", 123));
+
+        Map<Class<?>, List<Map<String, Object>>> missing = morphium.checkIndices();
+        assert (missing.size() != 0);
+        assert (missing.get(UncachedObject.class) != null);
+        assert (missing.get(IndexedObject.class) == null);
+        assert (missing.get(CappedCol.class) != null);
+        morphium.ensureIndex(UncachedObject.class, missing.get(UncachedObject.class).get(0));
+        Thread.sleep(100);
+        List<Map<String, Object>> missingForCached = morphium.getMissingIndicesFor(UncachedObject.class);
+        assert (missingForCached.size() < missing.get(UncachedObject.class).size());
+        //look for capping info
+        boolean found = false;
+        for (Map<String, Object> info : missing.get(CappedCol.class)) {
+            if (info.containsKey("__capped_size") && info.containsKey("__capped_entries")) {
+                found = true;
+                break;
+            }
+        }
+        assert (found);
+
+        morphium.ensureIndicesFor(UncachedObject.class);
+        Thread.sleep(1600); //waiting for writebuffer and mongodb
+        assert (morphium.getMissingIndicesFor(UncachedObject.class).isEmpty());
+
+    }
 
     @Test
     public void indexOnNewCollTest() throws Exception {

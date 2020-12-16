@@ -6,36 +6,71 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class BigMessagesTest extends MorphiumTestBase {
 
     @Test
-    public void testBigMessage() throws Exception{
-        Messaging sender=new Messaging(morphium,100,true,true,10);
-        sender.start();
-        Messaging receiver=new Messaging(morphium);
-        receiver.start();
-        receiver.addListenerForMessageNamed("bigMsg",(msg,m)->{
-            long dur=System.currentTimeMillis()-m.getTimestamp();
-            long dur2=System.currentTimeMillis()-(Long)m.getMapValue().get("ts");
-            log.info("Received #"+m.getMapValue().get("msgNr")+" after "+dur+"ms Dur2: "+dur2);
-            return null;
-        });
+    public void testBigMessage() throws Exception {
+        final AtomicInteger count = new AtomicInteger();
+        morphium.dropCollection(Msg.class, "msg", null);
+        Thread.sleep(1000);
+        Messaging sender = new Messaging(morphium, 100, true, true, 10);
+        Messaging receiver = new Messaging(morphium);
+        try {
+            sender.setUseChangeStream(true).start();
+            receiver.setUseChangeStream(true).start();
+            receiver.addListenerForMessageNamed("bigMsg", (msg, m) -> {
+                long dur = System.currentTimeMillis() - m.getTimestamp();
+                long dur2 = System.currentTimeMillis() - (Long) m.getMapValue().get("ts");
+                log.info("Received #" + m.getMapValue().get("msgNr") + " after " + dur + "ms Dur2: " + dur2);
+                count.incrementAndGet();
+                return null;
+            });
 
-        StringBuilder txt=new StringBuilder();
-        txt.append("Test");
-        for (int i=0;i<12;i++){
-            txt.append(txt.toString()+"/"+txt.toString());
+            int amount = 25;
+
+            for (int i = 0; i < amount; i++) {
+                StringBuilder txt = new StringBuilder();
+                txt.append("Test");
+                for (int t = 0; t < 6 * Math.random() + 5; t++) {
+                    txt.append(txt.toString() + "/" + txt.toString());
+                }
+                log.info(i + ". Text Size: " + txt.length());
+                Thread.yield();
+                Msg big = new Msg();
+                big.setName("bigMsg");
+                big.setTtl(3000000);
+                big.setValue(txt.toString());
+                big.setMapValue(Utils.getMap("msgNr", i));
+                big.getMapValue().put("ts", System.currentTimeMillis());
+                big.setTimestamp(System.currentTimeMillis());
+                sender.sendMessage(big);
+            }
+            long start = System.currentTimeMillis();
+            while (count.get() < amount) {
+                if (count.get() % 10 == 0) {
+                    log.info("... messages recieved: " + count.get());
+                }
+                Thread.sleep(500);
+                if (System.currentTimeMillis() - start > 10000) {
+                    log.error("Message was lost: ");
+                    log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
+                    for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
+                        log.info("Msg: " + m.getMsgId());
+                        if (m.getProcessedBy() != null) {
+                            for (String pb : m.getProcessedBy()) {
+                                log.info("Processed by: " + pb);
+                            }
+                        }
+
+                    }
+                }
+            }
+        } finally {
+            sender.terminate();
+            receiver.terminate();
         }
-        log.info("Text Size: "+txt.length());
-        for (int i = 0; i < 300; i++) {
-            Msg big=new Msg();
-            big.setName("bigMsg");
-            big.setTtl(30000);
-            big.setValue(txt.toString());
-            big.setMapValue(Utils.getMap("msgNr",i));
-            big.getMapValue().put("ts",System.currentTimeMillis());
-            big.setTimestamp(System.currentTimeMillis());
-            sender.sendMessage(big);
-        }
+
     }
 }

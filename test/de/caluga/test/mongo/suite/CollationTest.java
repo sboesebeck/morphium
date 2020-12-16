@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.query.Query;
@@ -24,14 +25,46 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
         Thread.sleep(150);
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de")).sort("value").asList();
+        Collation col = new Collation("de", false, Collation.CaseFirst.LOWER, Collation.Strength.TERTIARY, false, Collation.Alternate.SHIFTED, Collation.MaxVariable.SPACE, false, false);
+        assert (col.getLocale().equals("de"));
+        assert (!col.getCaseLevel());
+        assert (col.getCaseFirst().equals(Collation.CaseFirst.LOWER));
+        assert (!col.getNumericOrdering());
+        assert (!col.getBackwards());
+        assert (!col.getNormalization());
+        assert (col.getStrength().equals(Collation.Strength.TERTIARY));
+        assert (col.getAlternate().equals(Collation.Alternate.SHIFTED));
+        assert (col.getMaxVariable().equals(Collation.MaxVariable.SPACE));
+
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(col).sort("value").asList();
         String result = "";
         for (UncachedObject u : lst) {
             log.info("value: " + u.getValue());
             result += u.getValue();
         }
         assert (result.equals("aAbBcC")) : "Wrong ordering: " + result;
-
+        col.normalization(true)
+                .numericOrdering(true)
+                .backwards(true)
+                .alternate(Collation.Alternate.NON_IGNORABLE)
+                .strength(Collation.Strength.SECONDARY)
+                .maxVariable(Collation.MaxVariable.PUNCT)
+                .caseLevel(true)
+                .caseFirst(Collation.CaseFirst.UPPER);
+        assert (col.getLocale().equals("de"));
+        assert (col.getCaseLevel());
+        assert (col.getCaseFirst().equals(Collation.CaseFirst.UPPER));
+        assert (col.getNumericOrdering());
+        assert (col.getBackwards());
+        assert (col.getNormalization());
+        assert (col.getStrength().equals(Collation.Strength.SECONDARY));
+        assert (col.getAlternate().equals(Collation.Alternate.NON_IGNORABLE));
+        assert (col.getMaxVariable().equals(Collation.MaxVariable.PUNCT));
+        assert (col.getMaxVariable().getMongoText() != null);
+        assert (col.getAlternate().getMongoText() != null);
+        assert (col.getStrength().getMongoValue() != 0);
+        assert (col.getCaseFirst().getMongoText() != null);
+        log.info("Query: " + Utils.toJsonString(col.toQueryObject()));
     }
 
     @Test

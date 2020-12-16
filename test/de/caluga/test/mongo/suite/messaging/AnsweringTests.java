@@ -12,6 +12,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class AnsweringTests extends MorphiumTestBase {
@@ -133,7 +134,7 @@ public class AnsweringTests extends MorphiumTestBase {
             lastMsgId = question.getMsgId();
             onlyAnswers.sendMessage(question);
             log.info("Send Message with id: " + question.getMsgId());
-            Thread.sleep(2000);
+            Thread.sleep(1000);
             cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             assert (cnt == 1);
 
@@ -141,8 +142,156 @@ public class AnsweringTests extends MorphiumTestBase {
             m1.terminate();
             m2.terminate();
             onlyAnswers.terminate();
-            Thread.sleep(1000);
+            Thread.sleep(100);
 
+        }
+
+    }
+
+    @Test
+    public void answerListenerTest() throws Exception {
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        try {
+            m1.setSenderId("m1");
+            m2.setSenderId("m2");
+            m3.setSenderId("m3");
+            m1.start();
+            m2.start();
+            m3.start();
+
+
+            //different behaviour:
+            //NONE: no listener will be called for answers. Waiting For messages will still pe processed
+            //ONLY_MINE: just answers directly sent to me will be processed (usually, because I sent the query)
+            //ALL: well, all answers will be passed on to listeners
+            final ConcurrentHashMap<String, AtomicInteger> receivedById = new ConcurrentHashMap<>();
+
+            m1.addListenerForMessageNamed("test", ((msg, m) -> {
+                receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
+                receivedById.get(msg.getSenderId()).incrementAndGet();
+                return null;
+            }));
+            m2.addMessageListener(((msg, m) -> {
+                receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
+                receivedById.get(msg.getSenderId()).incrementAndGet();
+                return null;
+            }));
+
+            m3.addListenerForMessageNamed("test", ((msg, m) -> {
+                receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
+                receivedById.get(msg.getSenderId()).incrementAndGet();
+                return null;
+            }));
+            m3.addListenerForMessageNamed("test2", ((msg, m) -> {
+                receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
+                receivedById.get(msg.getSenderId()).incrementAndGet();
+                return null;
+            }));
+
+
+            //sending an answer to all (broadcast)
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            Msg answer = new Msg("test", "An answer", "42");
+            answer.setInAnswerTo(new MorphiumId());
+            m3.sendMessage(answer);
+            Thread.sleep(100);
+            assert (receivedById.size() == 2);
+            assert (receivedById.get("m1").get() == 1);
+            assert (receivedById.get("m2").get() == 1);
+
+            //sending a direct message
+            receivedById.clear();
+            answer = new Msg("test", "An answer", "42");
+            answer.setInAnswerTo(new MorphiumId());
+            answer.setRecipient("m2");
+            m3.sendMessage(answer);
+            Thread.sleep(100);
+            assert (receivedById.size() == 1) : "Wrong number of receivers: " + receivedById.size();
+            assert (receivedById.get("m1") == null);
+            assert (receivedById.get("m2").get() == 1);
+
+            //exclusive answer!
+            receivedById.clear();
+            answer = new Msg("test", "An answer", "42");
+            answer.setInAnswerTo(new MorphiumId());
+            answer.setExclusive(true);
+//            answer.setTtl(100000);
+            m3.sendMessage(answer);
+            Thread.sleep(500);
+            assert (receivedById.size() == 1) : "Receive count is " + receivedById.size();
+            assert ((receivedById.get("m1") == null && receivedById.get("m2").get() == 1)
+                    || (receivedById.get("m2") == null && receivedById.get("m1").get() == 1));
+
+            //
+            receivedById.clear();
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
+            receivedById.clear();
+            answer = new Msg("test", "An answer", "42");
+            answer.setInAnswerTo(new MorphiumId());
+            answer.setRecipient("m2");
+            m3.sendMessage(answer);
+            Thread.sleep(100);
+            assert (receivedById.size() == 1);
+            assert (receivedById.get("m1") == null);
+            assert (receivedById.get("m2").get() == 1);
+
+            //
+            receivedById.clear();
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
+            receivedById.clear();
+            answer = new Msg("test", "An answer", "42");
+            answer.setInAnswerTo(new MorphiumId());
+            answer.setExclusive(true);
+            m3.sendMessage(answer);
+            Thread.sleep(1500);
+            assert (receivedById.size() == 1) : "Wrong result, expected one, got: " + receivedById.size();
+            assert (receivedById.get("m1").get() == 1);
+            assert (!receivedById.containsKey("m2"));
+
+            //checking wait for
+            MessageListener<Msg> listener = new MessageListener<Msg>() {
+                @Override
+                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                    return m.createAnswerMsg();
+                }
+            };
+            m1.addListenerForMessageNamed("test2", listener);
+            receivedById.clear();
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
+            m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
+            receivedById.clear();
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 400);
+            Thread.sleep(500);
+            assert (receivedById.size() == 1);
+
+            receivedById.clear();
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m3.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            receivedById.clear();
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 1400);
+            Thread.sleep(500); //wait for onMessage to be called
+            assert (receivedById.size() == 1);
+
+            receivedById.clear();
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
+            m3.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
+            receivedById.clear();
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 1400);
+            Thread.sleep(500); //wait for onMessage to be called
+            assert (receivedById.size() == 0);
+
+        } finally {
+            m3.terminate();
+            m2.terminate();
+            m1.terminate();
         }
 
     }
@@ -160,17 +309,24 @@ public class AnsweringTests extends MorphiumTestBase {
         m2.start();
         m3.start();
 
-        m3.addListenerForMessageNamed("test", (msg, m) -> {
-            log.info("INcoming message");
+        m3.addListenerForMessageNamed("test_answer_exclusive", (msg, m) -> {
+            log.info("Incoming message");
             return m.createAnswerMsg();
         });
 
-        Msg m = new Msg("test", "important", "value");
+        Msg m = new Msg("test_answer_exclusive", "important", "value");
         m.setExclusive(true);
-        Msg answer = m1.sendAndAwaitFirstAnswer(m, 60000);
-        Thread.sleep(500);
+        Msg answer = m1.sendAndAwaitFirstAnswer(m, 1000);
         assert (answer != null);
-        assert (answer.getProcessedBy().size() == 1);
+        assert (answer.getProcessedBy().size() == 1) : "Size wrong: " + answer.getProcessedBy();
+
+        try {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+        } catch (Exception e) {
+        }
+
     }
 
 
@@ -210,9 +366,12 @@ public class AnsweringTests extends MorphiumTestBase {
             log.info("... got it.");
         }
 
-        m1.terminate();
-        m2.terminate();
-        mSrv.terminate();
+        try {
+            m1.terminate();
+            m2.terminate();
+            mSrv.terminate();
+        } catch (Exception e) {
+        }
 
     }
 
@@ -227,12 +386,12 @@ public class AnsweringTests extends MorphiumTestBase {
         mTst.start();
 
 
-        mTst.addListenerForMessageNamed("somethign else", (msg, m) -> {
+        mTst.addListenerForMessageNamed("something else", (msg, m) -> {
             log.info("incoming message??");
             return null;
         });
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> {
+        m2.addListenerForMessageNamed("q_getAnswer", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             msg.sendMessage(answer);
             Thread.sleep(1000);
@@ -245,7 +404,7 @@ public class AnsweringTests extends MorphiumTestBase {
         m1.sendMessage(m3);
         Thread.sleep(1000);
 
-        Msg question = new Msg("question", "question", "a value");
+        Msg question = new Msg("q_getAnswer", "question", "a value");
         question.setPriority(5);
         List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
         assert (answers != null && !answers.isEmpty());
@@ -271,24 +430,28 @@ public class AnsweringTests extends MorphiumTestBase {
         m1.start();
         m2.start();
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> {
+        m2.addListenerForMessageNamed("q_wait_for", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
 
         for (int i = 0; i < 100; i++) {
             log.info("Sending msg " + i);
-            Msg question = new Msg("question", "question" + i, "a value " + i);
+            Msg question = new Msg("q_wait_for", "question" + i, "a value " + i);
             question.setPriority(5);
             long start = System.currentTimeMillis();
-            Msg answer = m1.sendAndAwaitFirstAnswer(question, 15000);
+            Msg answer = m1.sendAndAwaitFirstAnswer(question, 2500);
             long dur = System.currentTimeMillis() - start;
             assert (answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
             log.info("... ok - took " + dur + " ms");
         }
-        m1.terminate();
-        m2.terminate();
+        try {
+            m1.terminate();
+            m2.terminate();
+            mor.close();
+        } catch (Exception e) {
+        }
         mor.close();
     }
 
@@ -300,12 +463,12 @@ public class AnsweringTests extends MorphiumTestBase {
         m1.start();
         m2.start();
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> m.createAnswerMsg());
+        m2.addListenerForMessageNamed("q_no_listener", (msg, m) -> m.createAnswerMsg());
 
         m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
         Thread.sleep(1000);
 
-        Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("question", "question", "a value"), 5000);
+        Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
         assert (answer != null);
         m1.terminate();
         m2.terminate();
@@ -320,25 +483,19 @@ public class AnsweringTests extends MorphiumTestBase {
         sender.start();
         recipient.start();
         gotMessage1 = false;
-        recipient.addListenerForMessageNamed("query", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                gotMessage1 = true;
-                Msg answer = m.createAnswerMsg();
-                answer.setName("queryAnswer");
-                answer.setMsg("the answer");
-                //msg.storeMessage(answer);
-                return answer;
-            }
+        recipient.addListenerForMessageNamed("query", (msg, m) -> {
+            gotMessage1 = true;
+            Msg answer = m.createAnswerMsg();
+            answer.setName("queryAnswer");
+            answer.setMsg("the answer");
+            //msg.storeMessage(answer);
+            return answer;
         });
         gotMessage2 = false;
-        sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                gotMessage2 = true;
-                assert (m.getInAnswerTo() != null);
-                return null;
-            }
+        sender.addListenerForMessageNamed("queryAnswer", (msg, m) -> {
+            gotMessage2 = true;
+            assert (m.getInAnswerTo() != null);
+            return null;
         });
 
         sender.sendMessage(new Msg("query", "a query", "avalue"));

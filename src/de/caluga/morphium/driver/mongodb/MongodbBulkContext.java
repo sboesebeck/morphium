@@ -33,14 +33,13 @@ public class MongodbBulkContext extends BulkRequestContext {
 
     private final List<BulkRequest> requests;
 
-    public MongodbBulkContext(Morphium m, String db, String collection, MongoDriver driver, boolean ordered, int batchSize, WriteConcern wc) {
+    public MongodbBulkContext(Morphium m, String db, String collection, MongoDriver driver, boolean ordered, WriteConcern wc) {
         super(m);
         this.driver = driver;
         this.ordered = ordered;
         this.db = db;
         this.collection = collection;
         this.wc = wc;
-        setBatchSize(batchSize);
 
         requests = new ArrayList<>();
     }
@@ -63,12 +62,6 @@ public class MongodbBulkContext extends BulkRequestContext {
         return in;
     }
 
-    @Override
-    public StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore) {
-        StoreBulkRequest store = new StoreBulkRequest(toStore);
-        addRequest(store);
-        return store;
-    }
 
     @Override
     public DeleteBulkRequest addDeleteBulkRequest() {

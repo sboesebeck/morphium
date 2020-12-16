@@ -43,7 +43,7 @@ public class Msg {
     private String sender;
     private String senderHost;
     private List<String> recipients;
-    private Object inAnswerTo;
+    private MorphiumId inAnswerTo;
     //payload goes here
     private String name;
     private String msg;
@@ -65,9 +65,9 @@ public class Msg {
 //        exclusive = false;
     }
 
-    public Msg(String name, String msg, String value) {
-        this(name, msg, value, 30000, false);
-    }
+  public Msg(String name, String msg, String value) {
+      this(name, msg, value, 30000, false);
+  }
 
     public Msg(String name, String msg, String value, long ttl) {
         this(name, msg, value, ttl, false);
@@ -87,8 +87,9 @@ public class Msg {
         return priority;
     }
 
-    public void setPriority(int priority) {
+    public Msg setPriority(int priority) {
         this.priority = priority;
+        return this;
     }
 
     @SuppressWarnings("unused")
@@ -101,12 +102,13 @@ public class Msg {
      *
      * @param exclusive
      */
-    public void setExclusive(boolean exclusive) {
+    public Msg setExclusive(boolean exclusive) {
         if (!exclusive) {
             lockedBy = "ALL";
         } else {
             lockedBy = null;
         }
+        return this;
     }
 
     @SuppressWarnings("unused")
@@ -114,8 +116,9 @@ public class Msg {
         return senderHost;
     }
 
-    public void setSenderHost(String senderHost) {
+    public Msg setSenderHost(String senderHost) {
         this.senderHost = senderHost;
+        return this;
     }
 
     @SuppressWarnings("unused")
@@ -123,11 +126,12 @@ public class Msg {
         return deleteAt;
     }
 
-    public void setDeleteAt(Date deleteAt) {
+    public Msg setDeleteAt(Date deleteAt) {
         this.deleteAt = deleteAt;
+        return this;
     }
 
-    public void addRecipient(String id) {
+    public Msg addRecipient(String id) {
         if (recipients == null) {
             recipients = new ArrayList<>();
 
@@ -135,29 +139,34 @@ public class Msg {
         if (!recipients.contains(id)) {
             recipients.add(id);
         }
+        return this;
     }
 
     @SuppressWarnings("unused")
-    public void removeRecipient(String id) {
+    public Msg removeRecipient(String id) {
         if (recipients != null) {
 
             recipients.remove(id);
         }
+        return this;
     }
 
-    public void addValue(String key, Object value) {
+    public Msg addValue(String key, Object value) {
         if (mapValue == null) {
             mapValue = new HashMap<>();
+        } else {
+            mapValue.put(key, value);
         }
-        mapValue.put(key, value);
+        return this;
     }
 
     @SuppressWarnings("unused")
-    public void removeValue(String key) {
+    public Msg removeValue(String key) {
         if (mapValue == null) {
-            return;
+            return this;
         }
         mapValue.remove(key);
+        return this;
     }
 
     @SuppressWarnings("unused")
@@ -165,48 +174,54 @@ public class Msg {
         return mapValue;
     }
 
-    public void setMapValue(Map<String, Object> mapValue) {
+    public Msg setMapValue(Map<String, Object> mapValue) {
         this.mapValue = mapValue;
+        return this;
     }
 
     public List<String> getTo() {
         return recipients;
     }
 
-    public void setTo(List<String> to) {
+    public Msg setTo(List<String> to) {
         this.recipients = to;
+        return this;
     }
 
-    public Object getInAnswerTo() {
+    public MorphiumId getInAnswerTo() {
         return inAnswerTo;
     }
 
-    public void setInAnswerTo(Object inAnswerTo) {
+    public Msg setInAnswerTo(MorphiumId inAnswerTo) {
         this.inAnswerTo = inAnswerTo;
+        return this;
     }
 
     public MorphiumId getMsgId() {
         return msgId;
     }
 
-    public void setMsgId(MorphiumId msgId) {
+    public Msg setMsgId(MorphiumId msgId) {
         this.msgId = msgId;
+        return this;
     }
 
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public Msg setName(String name) {
         this.name = name;
+        return this;
     }
 
     public long getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(long timestamp) {
+    public Msg setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+        return this;
     }
 
     public List<String> getProcessedBy() {
@@ -216,20 +231,23 @@ public class Msg {
         return processedBy;
     }
 
-    public void setProcessedBy(List<String> processedBy) {
+    public Msg setProcessedBy(List<String> processedBy) {
         this.processedBy = processedBy;
+        return this;
     }
 
-    public void addProcessedId(String id) {
+    public Msg addProcessedId(String id) {
         getProcessedBy().add(id);
+        return this;
     }
 
     public String getLockedBy() {
         return lockedBy;
     }
 
-    public void setLockedBy(String lockedBy) {
+    public Msg setLockedBy(String lockedBy) {
         this.lockedBy = lockedBy;
+        return this;
     }
 
     @SuppressWarnings("unused")
@@ -237,32 +255,36 @@ public class Msg {
         return locked;
     }
 
-    public void setLocked(long locked) {
+    public Msg setLocked(long locked) {
         this.locked = locked;
+        return this;
     }
 
     public String getSender() {
         return sender;
     }
 
-    public void setSender(String sender) {
+    public Msg setSender(String sender) {
         this.sender = sender;
+        return this;
     }
 
     public long getTtl() {
         return ttl;
     }
 
-    public void setTtl(long ttl) {
+    public Msg setTtl(long ttl) {
         this.ttl = ttl;
+        return this;
     }
 
     public String getMsg() {
         return msg;
     }
 
-    public void setMsg(String msg) {
+    public Msg setMsg(String msg) {
         this.msg = msg;
+        return this;
     }
 
     public List<Object> getAdditional() {
@@ -292,8 +314,9 @@ public class Msg {
         return value;
     }
 
-    public void setValue(String value) {
+    public Msg setValue(String value) {
         this.value = value;
+        return this;
     }
 
     @Override
@@ -342,6 +365,9 @@ public class Msg {
         timestamp = System.currentTimeMillis();
     }
 
+    public boolean isAnswer() {
+        return inAnswerTo != null;
+    }
 
     public Msg createAnswerMsg() {
         Msg ret = new Msg(name, msg, value, ttl);
@@ -359,10 +385,11 @@ public class Msg {
         messaging.sendMessage(m);
     }
 
-    public void setRecipient(String id) {
+    public Msg setRecipient(String id) {
         if (recipients == null) recipients = new ArrayList<>();
         recipients.clear();
         recipients.add(id);
+        return this;
     }
 
     public List<String> getRecipients() {
@@ -371,6 +398,20 @@ public class Msg {
 
     public void setRecipients(List<String> recipients) {
         this.recipients = recipients;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Msg)) return false;
+        Msg msg = (Msg) o;
+        return Objects.equals(getMsgId(), msg.getMsgId());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getMsgId());
     }
 
     public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}

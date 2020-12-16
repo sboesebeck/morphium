@@ -7,7 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static de.caluga.morphium.aggregation.Expr.*;
 
@@ -21,9 +23,40 @@ public class AggregationExprTest extends TestCase {
         assert (s.equals("{ \"$abs\" :  [ -12] } "));
     }
 
+    public void testRegexMatch() {
+        Expr e = regexMatch(string("input"), string("a*"), string("options"));
+        String j = Utils.toJsonString(e.toQueryObject());
+    }
+
+    public void testRegexFind() {
+        Expr e = regexFind(string("input"), string("a*"), string("options"));
+        String j = Utils.toJsonString(e.toQueryObject());
+    }
+
+    public void testRegexFindAll() {
+        Expr e = regexFindAll(string("input"), string("a*"), string("options"));
+        String j = Utils.toJsonString(e.toQueryObject());
+    }
+
+    public void testReplaceOne() {
+        Expr e = replaceOne(string("input"), string("a*"), string("replace"));
+        String j = Utils.toJsonString(e.toQueryObject());
+    }
+
+    public void testReplaceAll() {
+        Expr e = replaceAll(string("input"), string("a*"), string("replace"));
+        String j = Utils.toJsonString(e.toQueryObject());
+    }
+
+
     public void testField() {
         Expr fld = field("test");
         assert (fld.toQueryObject().equals("$test"));
+    }
+
+    public void dateTest() {
+        Expr dt = date(new Date());
+        assert (dt.toQueryObject() instanceof Date);
     }
 
 
@@ -672,6 +705,27 @@ public class AggregationExprTest extends TestCase {
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$convert\" : { \"input\" : 230, \"to\" : 2, \"onError\" : \"error\", \"onNull\" : \"null\" }  } "));
     }
 
+    public void testConvert2() {
+        Expr e = convert(intExpr(230), intExpr(2));
+        log.info(Utils.toJsonString(e.toQueryObject()));
+        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$convert\" : { \"input\" : 230, \"to\" : 2 }  } "));
+    }
+
+
+    public void testConvert3() {
+        Expr e = convert(intExpr(230), intExpr(2), string("error"));
+        log.info(Utils.toJsonString(e.toQueryObject()));
+        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$convert\" : { \"input\" : 230, \"to\" : 2, \"onError\" : \"error\" }  } "));
+    }
+
+    public void testDateFromParts2() {
+        Expr e = dateFromParts(intExpr(2020));
+        e = dateFromParts(intExpr(2020), intExpr(12), intExpr(12), intExpr(12));
+        e = dateFromParts(intExpr(2020), intExpr(12), intExpr(12), intExpr(12), intExpr(12), intExpr(12));
+        e = dateFromParts(intExpr(2020), intExpr(12), intExpr(12), intExpr(12), intExpr(12), intExpr(12), intExpr(12));
+    }
+
+
     public void testIsNumber() {
         Expr e = isNumber(doubleExpr(1.28));
         log.info(Utils.toJsonString(e.toQueryObject()));
@@ -808,6 +862,60 @@ public class AggregationExprTest extends TestCase {
         Expr e = let(Utils.getMap("var1", Expr.field("testField")), first(field("var1")));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$let\" : { \"vars\" : { \"var1\" : \"$testField\" } , \"in\" : { \"$first\" : \"$var1\" }  }  } "));
+
+    }
+
+    public void testIsoDateFromParts() {
+        Expr e = isoDateFromParts(intExpr(2020));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        e = isoDateFromParts(intExpr(2020), intExpr(2));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48), intExpr(23));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(23);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48), intExpr(23), intExpr(59));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(23);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(59);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48), intExpr(23), intExpr(59), intExpr(38));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(23);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(59);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(38);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48), intExpr(23), intExpr(59), intExpr(38), intExpr(999));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(23);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(59);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(38);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(999);
+
+        e = isoDateFromParts(intExpr(2020), intExpr(2), intExpr(48), intExpr(23), intExpr(59), intExpr(38), intExpr(999), string("UTC"));
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(48);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(23);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(59);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(38);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(999);
+        assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue("UTC");
 
     }
 

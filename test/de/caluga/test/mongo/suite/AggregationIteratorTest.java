@@ -35,6 +35,16 @@ public class AggregationIteratorTest extends MorphiumTestBase {
         }
         assert (count == 0) : "Count is not null now: " + count;
 
+        //checking other methods
+
+        maps.setMultithreaddedAccess(true);
+        maps.getNumberOfThreads();
+        maps.setWindowSize(10);
+        assert (maps.getWindowSize() == 10);
+        assert (maps.getNumberOfAvailableThreads() != 0);
+        assert (maps.getCurrentBuffer() == null);
+        assert (maps.getCurrentBufferSize() == 0);
+
 
         Aggregator<UncachedObject, AggRes> agg2 = morphium.createAggregator(UncachedObject.class, AggRes.class);
 
