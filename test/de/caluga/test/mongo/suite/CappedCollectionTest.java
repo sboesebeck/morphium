@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite;
 
-import de.caluga.morphium.annotations.Capped;
+import de.caluga.test.mongo.suite.data.CappedCol;
 import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -77,13 +77,4 @@ public class CappedCollectionTest extends MorphiumTestBase {
     }
 
 
-    @Capped(maxEntries = 10, maxSize = 100000)
-    public static class CappedCol extends UncachedObject {
-        public CappedCol() {
-        }
-
-        public CappedCol(String value, int counter) {
-            super(value, counter);
-        }
-    }
 }

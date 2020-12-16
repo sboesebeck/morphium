@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite.jms;
 
+import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
-import de.caluga.morphium.messaging.jms.JMSTextMessage;
-import de.caluga.morphium.messaging.jms.JMSTopic;
+import de.caluga.morphium.messaging.jms.*;
 import de.caluga.test.mongo.suite.MorphiumTestBase;
 import org.junit.Test;
 
@@ -22,16 +22,55 @@ public class BasicJMSTests extends MorphiumTestBase {
         Topic dest = new JMSTopic("test1");
 
         JMSConsumer con = ctx2.createConsumer(dest);
-        con.setMessageListener(message -> log.info("Got Message!"));
+        con.setMessageListener(message -> {
+            log.info("Got Message!");
+            if (message instanceof JMSTextMessage) {
+                log.info("Got Text Message");
+            } else if (message instanceof JMSMapMessage) {
+                log.info("... Map Message");
+            } else if (message instanceof JMSObjectMessage) {
+                log.info("... got Object message");
+            } else if (message instanceof JMSBytesMessage) {
+                log.info("Got byte message");
+                try {
+                    ((JMSBytesMessage) message).readBoolean();
+                    ((JMSBytesMessage) message).readInt();
+                } catch (JMSException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        });
         Thread.sleep(1000);
         pr1.send(dest, "A test");
+        JMSTextMessage m = new JMSTextMessage();
+        m.setText("test");
+        pr1.send(dest, m);
 
+        JMSMapMessage mm = new JMSMapMessage();
+        mm.setDouble("dbl", 1.3);
+        pr1.send(dest, mm);
+
+        JMSBytesMessage mb = new JMSBytesMessage();
+        mb.writeBoolean(true);
+        mb.writeInt(1);
+        mb.writeChar('a');
+        mb.writeFloat(1.4f);
+        mb.writeDouble(1.4d);
+        mb.writeLong(123L);
+        mb.writeShort((short) 12);
+        mb.writeUTF("Hello");
+
+
+        JMSObjectMessage mo = new JMSObjectMessage();
+        mo.setObject("an object");
+        pr1.send(dest, mo);
         ctx1.close();
         ctx2.close();
     }
 
     @Test
-    public void synchronousSendRecieveTest() throws Exception {
+    public void synchronousSendReceiveTest() throws Exception {
         JMSConnectionFactory factory = new JMSConnectionFactory(morphium);
         JMSContext ctx1 = factory.createContext();
         JMSContext ctx2 = factory.createContext();
@@ -63,7 +102,59 @@ public class BasicJMSTests extends MorphiumTestBase {
         Thread.sleep(5000);
         assert (exchange.get("sent") != null);
         assert (exchange.get("received") != null);
+
+        ctx1.close();
+        ctx2.close();
     }
 
+
+    @Test
+    public void consumerProducerTest() throws Exception {
+        Messaging m = new Messaging(morphium, 10, true);
+        Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
+        m.start();
+        Messaging m2 = new Messaging(morphium, 10, true);
+        Producer producer = new Producer(m2);
+
+        producer.send(new JMSTopic("jmstopic_test"), "This is the body");
+        Message msg = consumer.receive();
+
+        assert (msg != null);
+
+        m.terminate();
+        m2.terminate();
+
+        consumer.close();
+
+
+    }
+
+
+    @Test
+    public void consumerProducerQueueTest() throws Exception {
+        Messaging m = new Messaging(morphium, 10, true);
+        Consumer consumer = new Consumer(m, new JMSQueue());
+        m.start();
+        Messaging m2 = new Messaging(morphium, 10, true);
+        Producer producer = new Producer(m2);
+
+        Messaging m3 = new Messaging(morphium, 10, true);
+        Consumer consumer2 = new Consumer(m3, new JMSQueue());
+
+        producer.send(new JMSQueue(), "This is the body");
+        Message msg = consumer.receive(1000);
+        Message msg2 = consumer2.receive(1000);
+        assert (msg != null || msg2 != null);
+        assert (msg != msg2);
+
+        m.terminate();
+        m2.terminate();
+        m3.terminate();
+
+        consumer.close();
+        consumer2.close();
+
+
+    }
 
 }

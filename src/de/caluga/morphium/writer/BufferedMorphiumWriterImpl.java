@@ -1069,7 +1069,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         void queue(BulkRequestContext ctx);
     }
 
-    private class WriteBufferEntry {
+    private static class WriteBufferEntry {
         private final String collection;
         private BufferedBulkOp toRun;
         private AsyncOperationCallback cb;
@@ -1136,7 +1136,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
     }
 
-    private class AsyncOpAdapter<T> implements AsyncOperationCallback<T> {
+    private static class AsyncOpAdapter<T> implements AsyncOperationCallback<T> {
 
         @Override
         public void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param) {

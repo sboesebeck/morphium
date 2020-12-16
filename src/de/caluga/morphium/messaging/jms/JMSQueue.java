@@ -7,6 +7,14 @@ public class JMSQueue extends JMSDestination implements Queue {
 
     private String queueName;
 
+    public JMSQueue() {
+        this("queue");
+    }
+
+    public JMSQueue(String name) {
+        setQueueName(name);
+    }
+
     @Override
     public String getQueueName() throws JMSException {
         return queueName;

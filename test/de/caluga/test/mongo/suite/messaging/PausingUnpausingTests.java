@@ -25,9 +25,9 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    private List<Msg> list = new ArrayList<>();
+    private final List<Msg> list = new ArrayList<>();
 
-    private AtomicInteger queueCount = new AtomicInteger(1000);
+    private final AtomicInteger queueCount = new AtomicInteger(1000);
 
 
     @Test
@@ -48,38 +48,40 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             return new Msg(m.getName(), "got message", "value", 5000);
         });
 
-        m1.start();
+        try {
+            m1.start();
 
-        m1.pauseProcessingOfMessagesNamed("tst1");
+            m1.pauseProcessingOfMessagesNamed("tst1");
 
-        sender.sendMessage(new Msg("test", "a message", "the value"));
-        Thread.sleep(1200);
-        assert (gotMessage1);
+            sender.sendMessage(new Msg("test", "a message", "the value"));
+            Thread.sleep(1200);
+            assert (gotMessage1);
 
-        gotMessage1 = false;
+            gotMessage1 = false;
 
-        sender.sendMessage(new Msg("tst1", "a message", "the value"));
-        Thread.sleep(1200);
-        assert (!gotMessage1);
+            sender.sendMessage(new Msg("tst1", "a message", "the value"));
+            Thread.sleep(1200);
+            assert (!gotMessage1);
 
-        Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
-        log.info("Processing was paused for ms " + l);
-        //m1.findAndProcessPendingMessages("tst1");
-        Thread.sleep(200);
+            Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
+            log.info("Processing was paused for ms " + l);
+            //m1.findAndProcessPendingMessages("tst1");
+            Thread.sleep(200);
 
-        assert (gotMessage1);
-        gotMessage1 = false;
-        Thread.sleep(200);
-        assert (!gotMessage1);
+            assert (gotMessage1);
+            gotMessage1 = false;
+            Thread.sleep(200);
+            assert (!gotMessage1);
 
-        gotMessage1 = false;
-        sender.sendMessage(new Msg("tst1", "a message", "the value"));
-        Thread.sleep(1200);
-        assert (gotMessage1);
+            gotMessage1 = false;
+            sender.sendMessage(new Msg("tst1", "a message", "the value"));
+            Thread.sleep(1200);
+            assert (gotMessage1);
+        } finally {
+            m1.terminate();
+            sender.terminate();
+        }
 
-
-        m1.terminate();
-        sender.terminate();
 
     }
 
@@ -241,48 +243,51 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             return null;
         });
         m1.start();
-        log.info("receiver id: " + m1.getSenderId());
+        try {
+            log.info("receiver id: " + m1.getSenderId());
 
-        log.info("Testing with non-exclusive messages");
-        Msg m = new Msg("test", "test1", "test", 3000000);
-        m.setExclusive(false);
-        sender.sendMessage(m);
+            log.info("Testing with non-exclusive messages");
+            Msg m = new Msg("test", "test1", "test", 3000000);
+            m.setExclusive(false);
+            sender.sendMessage(m);
 
-        m = new Msg("test", "test2", "test", 3000000);
-        m.setExclusive(false);
-        sender.sendMessage(m);
+            m = new Msg("test", "test2", "test", 3000000);
+            m.setExclusive(false);
+            sender.sendMessage(m);
 
-        Thread.sleep(200);
-        assert (!gotMessage1);
-        assert (!gotMessage2);
+            Thread.sleep(200);
+            assert (!gotMessage1);
+            assert (!gotMessage2);
 
-        Thread.sleep(5200);
-        assert (gotMessage1);
-        assert (gotMessage2);
+            Thread.sleep(5200);
+            assert (gotMessage1);
+            assert (gotMessage2);
 
-        log.info("... done!");
-        log.info("Testing with exclusive messages...");
+            log.info("... done!");
+            log.info("Testing with exclusive messages...");
 
 
-        gotMessage1 = gotMessage2 = false;
+            gotMessage1 = gotMessage2 = false;
 
-        m = new Msg("test", "test1", "test", 3000000);
-        m.setExclusive(true);
-        sender.sendMessage(m);
+            m = new Msg("test", "test1", "test", 3000000);
+            m.setExclusive(true);
+            sender.sendMessage(m);
 
-        m = new Msg("test", "test2", "test", 3000000);
-        m.setExclusive(true);
-        sender.sendMessage(m);
-        Thread.sleep(200);
-        assert (!gotMessage1);
-        assert (!gotMessage2);
+            m = new Msg("test", "test2", "test", 3000000);
+            m.setExclusive(true);
+            sender.sendMessage(m);
+            Thread.sleep(200);
+            assert (!gotMessage1);
+            assert (!gotMessage2);
 
-        Thread.sleep(5000);
-        assert (gotMessage1);
-        assert (gotMessage2);
+            Thread.sleep(5000);
+            assert (gotMessage1);
+            assert (gotMessage2);
+        } finally {
+            sender.terminate();
+            m1.terminate();
+        }
 
-        sender.terminate();
-        m1.terminate();
 
     }
 

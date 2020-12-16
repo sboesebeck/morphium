@@ -14,8 +14,6 @@ import java.util.Map;
 @SuppressWarnings("WeakerAccess")
 public abstract class BulkRequestContext {
     private final Morphium morphium;
-    private boolean odererd = false;
-    private int batchSize;
 
     public BulkRequestContext(Morphium m) {
         morphium = m;
@@ -25,32 +23,10 @@ public abstract class BulkRequestContext {
         return morphium;
     }
 
-    @SuppressWarnings("unused")
-    public boolean isOdererd() {
-        return odererd;
-    }
 
-    @SuppressWarnings("unused")
-    public void setOdererd(boolean odererd) {
-        this.odererd = odererd;
-    }
-
-    @SuppressWarnings("unused")
-    public int getBatchSize() {
-        return batchSize;
-    }
-
-    public void setBatchSize(int batchSize) {
-        this.batchSize = batchSize;
-    }
-
-    @SuppressWarnings("RedundantThrows")
     public abstract Map<String, Object> execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
-
-    @SuppressWarnings("unused")
-    public abstract StoreBulkRequest addStoreBulkRequest(List<Map<String, Object>> toStore);
 
     public abstract InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert);
 

@@ -1,15 +1,19 @@
 package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.annotations.Transient;
+import de.caluga.morphium.annotations.lifecycle.PreStore;
 
 import javax.jms.BytesMessage;
 import javax.jms.JMSException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class JMSBytesMessage extends JMSMessage implements BytesMessage {
-    private byte[] body;
+    private List<Byte> body;
 
     @Transient
     private ByteArrayInputStream bin;
@@ -17,14 +21,27 @@ public class JMSBytesMessage extends JMSMessage implements BytesMessage {
     @Transient
     private ByteArrayOutputStream bout;
 
+
+    @PreStore
+    public void preStore() {
+        body = new ArrayList<>();
+        for (byte b : bout.toByteArray()) {
+            body.add(b);
+        }
+    }
+
     @Override
     public long getBodyLength() throws JMSException {
-        return body.length;
+        return body.size();
     }
 
     private ByteArrayInputStream getByteIn() {
         if (bin == null) {
-            bin = new ByteArrayInputStream(body);
+            byte[] b = new byte[body.size()];
+            for (int i = 0; i < b.length; i++) {
+                b[i] = body.get(i);
+            }
+            bin = new ByteArrayInputStream(b);
         }
         return bin;
     }

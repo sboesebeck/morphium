@@ -25,7 +25,10 @@ public class OplogMonitorTest extends MorphiumTestBase {
         };
         OplogMonitor olm = new OplogMonitor(morphium);
         olm.addListener(lst);
+        assert (olm.getNameSpace() == null);
+        assert (!olm.isUseRegex());
         olm.start();
+        assert (olm.isRunning());
 
         Thread.sleep(100);
         UncachedObject u = new UncachedObject("test", 123);

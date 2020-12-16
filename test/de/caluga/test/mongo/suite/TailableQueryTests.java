@@ -5,6 +5,7 @@ import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.CappedCol;
 import org.junit.Test;
 
 import java.util.List;
@@ -19,17 +20,17 @@ public class TailableQueryTests extends MorphiumTestBase {
     @Test
     public void tailableTest() throws Exception {
         Morphium m = morphium;
-        m.dropCollection(CappedCollectionTest.CappedCol.class);
-        CappedCollectionTest.CappedCol o = new CappedCollectionTest.CappedCol("Test1", 1);
+        m.dropCollection(CappedCol.class);
+        CappedCol o = new CappedCol("Test1", 1);
         m.store(o);
-        m.store(new CappedCollectionTest.CappedCol("Test 2", 2));
+        m.store(new CappedCol("Test 2", 2));
         Thread.sleep(100);
         found = false;
         new Thread(() -> {
-            Query<CappedCollectionTest.CappedCol> q = m.createQueryFor(CappedCollectionTest.CappedCol.class);
-            q.tail(10, 0, new AsyncCallbackAdapter<CappedCollectionTest.CappedCol>() {
+            Query<CappedCol> q = m.createQueryFor(CappedCol.class);
+            q.tail(10, 0, new AsyncCallbackAdapter<CappedCol>() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query<CappedCollectionTest.CappedCol> q, long duration, List<CappedCollectionTest.CappedCol> result, CappedCollectionTest.CappedCol entity, Object... param) {
+                public void onOperationSucceeded(AsyncOperationType type, Query<CappedCol> q, long duration, List<CappedCol> result, CappedCol entity, Object... param) {
                     log.info("Got incoming!!! " + entity.getValue() + " " + entity.getCounter());
                     found = true;
                     if (entity.getValue().equals("Test 3 - quit")) {
@@ -44,7 +45,7 @@ public class TailableQueryTests extends MorphiumTestBase {
         assert (found);
         found = false;
         log.info("Storing 3...");
-        m.store(new CappedCollectionTest.CappedCol("Test 3 - quit", 3));
+        m.store(new CappedCol("Test 3 - quit", 3));
         Thread.sleep(1500);
         assert (found);
 

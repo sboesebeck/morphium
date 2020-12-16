@@ -17,6 +17,7 @@ public class DeleteTest extends MorphiumTestBase {
     @Test
     public void uncachedDeleteSingle() throws Exception {
         createUncachedObjects(10);
+
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 10);
         UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();

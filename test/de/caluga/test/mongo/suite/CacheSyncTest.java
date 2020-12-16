@@ -335,7 +335,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
             @Override
             public void preClear(Class cls) throws CacheSyncVetoException {
-                throw new CacheSyncVetoException("not clearing");
+                throw new CacheSyncVetoException("not clearing", new RuntimeException("Just a test"));
             }
 
             @Override
