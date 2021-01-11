@@ -1031,6 +1031,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreStore(ent, false);
                 morphium.inc(StatisticKeys.WRITES);
 
+                Entity entityDefinition = morphium.getARHelper().getAnnotationFromHierarchy(ent.getClass(), Entity.class);
+                boolean convertCamelCase = false;
+                if (entityDefinition != null && entityDefinition.translateCamelCase() || entityDefinition == null && morphium.getConfig().isCamelCaseConversionEnabled()) {
+                    convertCamelCase = true;
+                }
+
                 Map<String, Object> find = new HashMap<>();
 
                 find.put("_id", id);
@@ -1049,7 +1055,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
                             }
 
-                            if (en != null && en.translateCamelCase() || en == null && morphium.getConfig().isCamelCaseConversionEnabled()) {
+                            if (convertCamelCase) {
                                 f = morphium.getARHelper().convertCamelCase(f);
                             }
                         }
