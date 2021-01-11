@@ -1049,7 +1049,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
                             }
 
-                            if (en != null && en.translateCamelCase() || en != null && morphium.getConfig().isCamelCaseConversionEnabled()) {
+                            if (en != null && en.translateCamelCase() || en == null && morphium.getConfig().isCamelCaseConversionEnabled()) {
                                 f = morphium.getARHelper().convertCamelCase(f);
                             }
                         }
