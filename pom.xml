@@ -2,13 +2,8 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>4.2.5</version>
+    <version>4.2.5-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <parent>
-        <groupId>org.sonatype.oss</groupId>
-        <artifactId>oss-parent</artifactId>
-        <version>9</version>
-    </parent>
     <name>Morphium</name>
     <url>http://caluga.de</url>
     <description>
