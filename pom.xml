@@ -186,8 +186,8 @@
                 <extensions>true</extensions>
                 <configuration>
                     <!-- The Base URL of Nexus instance where we want to stage -->
-                    <serverId>sonatype-nexus</serverId>
                     <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <serverId>sonatype-nexus-staging</serverId>
                 </configuration>
             </plugin>
         </plugins>
@@ -377,9 +377,9 @@
             </snapshots>
         </repository>
         <repository>
-            <id>sonatype-nexus</id>
+            <id>sonatype-nexus-staging</id>
             <name>Sonatype Nexus Release Repository</name>
-	    <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <url>https://oss.sonatype.orgservice/local/staging/deploy/maven2/</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -392,12 +392,12 @@
 
     <distributionManagement>
         <snapshotRepository>
-            <id>sonatype-nexus</id>
+            <id>sonatype-nexus-snapshots</id>
             <name>Sonatype Nexus Snapshots</name>
             <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </snapshotRepository>
         <repository>
-            <id>sonatype-nexus</id>
+            <id>sonatype-nexus-staging</id>
             <name>Nexus Release Repository</name>
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
