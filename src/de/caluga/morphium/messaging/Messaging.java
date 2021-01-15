@@ -950,7 +950,11 @@ public class Messaging extends Thread implements ShutdownListener {
             c.put(n, new ArrayList<>());
             listenerByName = c;
         }
-        listenerByName.get(n).add(l);
+        if (listenerByName.get(n).contains(l)) {
+            log.error("cowardly refusing to add already registered listener for name " + n);
+        } else {
+            listenerByName.get(n).add(l);
+        }
     }
 
     public void removeListenerForMessageNamed(String n, MessageListener l) {
@@ -1042,7 +1046,11 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void addMessageListener(MessageListener l) {
-        listeners.add(l);
+        if (listeners.contains(l)) {
+            log.error("Cowardly refusing to add already registered listener");
+        } else {
+            listeners.add(l);
+        }
     }
 
     public void removeMessageListener(MessageListener l) {
