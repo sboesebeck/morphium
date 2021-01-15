@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>4.2.6-SNAPSHOT</version>
+    <version>4.2.5-SNAPSHOT</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.sonatype.oss</groupId>
@@ -187,7 +187,8 @@
                 <configuration>
                     <!-- The Base URL of Nexus instance where we want to stage -->
                     <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                    <serverId>sonatype-nexus-staging</serverId>
+		    <serverId>ossrh</serverId>
+	      	    <autoReleaseAfterClose>true</autoReleaseAfterClose>
                 </configuration>
             </plugin>
         </plugins>
@@ -364,40 +365,14 @@
     </dependencies>
 
 
-    <repositories>
-        <repository>
-            <id>sonatype-nexus-snapshots</id>
-            <name>Sonatype Nexus Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>sonatype-nexus-staging</id>
-            <name>Sonatype Nexus Release Repository</name>
-            <url>https://oss.sonatype.orgservice/local/staging/deploy/maven2/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-
-    </repositories>
-
     <distributionManagement>
         <snapshotRepository>
-            <id>sonatype-nexus-snapshots</id>
+            <id>ossrh</id>
             <name>Sonatype Nexus Snapshots</name>
             <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </snapshotRepository>
         <repository>
-            <id>sonatype-nexus-staging</id>
+            <id>ossrh</id>
             <name>Nexus Release Repository</name>
             <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
