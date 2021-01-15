@@ -343,7 +343,10 @@ public class Messaging extends Thread implements ShutdownListener {
                             handleAnswer(obj);
                             return running;
                         }
-
+                        if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
+                            //ignoring incoming message, we do not have listener for
+                            return running;
+                        }
                         if (pauseMessages.containsKey(obj.getName())) return running;
                         if (obj != null && obj.isExclusive()
                                 && (obj.getLockedBy() == null || obj.getLockedBy().equals(id))

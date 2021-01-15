@@ -5,6 +5,7 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import sun.reflect.annotation.ExceptionProxy;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -273,6 +274,30 @@ public class UpdateTest extends MorphiumTestBase {
         assert (lc2.getEmbeddedObjectList() != null);
         assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
+    }
+
+
+    @Test
+    public void updateUsingFieldsTest() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 1001);
+        morphium.store(uc);
+
+        Thread.sleep(100);
+        uc.setValue("new Value");
+        uc.setCounter(0);
+        uc.setDval(4.0d);
+        uc.setLongData(new long[]{42l});
+
+        morphium.updateUsingFields(uc, "value", "longData");
+
+        Thread.sleep(100);
+        UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());
+        assert (uc2.getCounter() == 1001);
+        assert (uc2.getLongData() != null);
+        assert (uc2.getLongData()[0] == 42);
+        assert (uc2.getDval() == 0);
+
+
     }
 
     public enum Value {
