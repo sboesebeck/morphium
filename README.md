@@ -11,7 +11,7 @@ Morphium - Java Messaging (and POJO Mapper) based on MongoDB
 
 Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
 - actively developed
-- used by a number of projects (including holidayinsider.com and holidays.hrs.de/, simplesystem.com)
+- used by a number of projects (including holidayinsider.com and holidays.hrs.de/, simplesystem.com, genios.de)
 - Transparent access to MongoDB
 - Transparent declarative (Annotation based) caching
 - Annotation based definition of mappings
