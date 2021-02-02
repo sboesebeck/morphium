@@ -94,7 +94,8 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
                 }
 
                 assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
-
+                assert (m.getMapValue().size() == 1);
+                assert (m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
                 log.info("M3 got answer " + m.toString());
                 assert (lastMsgId != null) : "Last message == null?";
                 assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
