@@ -154,9 +154,8 @@ public class Msg {
     public Msg addValue(String key, Object value) {
         if (mapValue == null) {
             mapValue = new HashMap<>();
-        } else {
-            mapValue.put(key, value);
         }
+        mapValue.put(key, value);
         return this;
     }
 
