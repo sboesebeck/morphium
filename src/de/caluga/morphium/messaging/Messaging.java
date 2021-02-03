@@ -1180,7 +1180,7 @@ public class Messaging extends Thread implements ShutdownListener {
         long start = System.currentTimeMillis();
         while (!waitingForAnswers.containsKey(theMessage.getMsgId()) || waitingForAnswers.get(theMessage.getMsgId()).size() == 0) {
             if (!running) {
-                return null;
+                 throw new RuntimeException("Messaging shutting down - abort waiting!");
             }
             if (System.currentTimeMillis() - start > timeoutInMs) {
                 log.error("Did not receive answer " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
