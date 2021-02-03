@@ -1174,18 +1174,25 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
+        return sendAndAwaitFirstAnswer(theMessage, timeoutInMs, true);
+    }
+
+    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         theMessage.setMsgId(new MorphiumId());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
         sendMessage(theMessage);
         long start = System.currentTimeMillis();
         while (!waitingForAnswers.containsKey(theMessage.getMsgId()) || waitingForAnswers.get(theMessage.getMsgId()).size() == 0) {
             if (!running) {
-                 throw new RuntimeException("Messaging shutting down - abort waiting!");
+                throw new SystemShutdownException("Messaging shutting down - abort waiting!");
             }
             if (System.currentTimeMillis() - start > timeoutInMs) {
                 log.error("Did not receive answer " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
                 waitingForMessages.remove(theMessage.getMsgId());
-                throw new RuntimeException("Did not receive answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
+                if (throwExceptionOnTimeout) {
+                    throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
+                }
+                return null;
             }
             Thread.yield();
         }
@@ -1197,6 +1204,10 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
+        return sendAndAwaitAnswers(theMessage, numberOfAnswers, timeout, false);
+    }
+
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
         if (theMessage.getMsgId() == null)
             theMessage.setMsgId(new MorphiumId());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
@@ -1209,10 +1220,14 @@ public class Messaging extends Thread implements ShutdownListener {
                     break;
                 }
             }
-            if (System.currentTimeMillis() - start > timeout) {
-                break;
+            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()) == null || waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
+                throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
             }
+            if (System.currentTimeMillis() - start > timeout) break;
             Thread.yield();
+        }
+        if (!running) {
+            throw new SystemShutdownException("Messaging shutting down - abort waiting!");
         }
         waitingForMessages.remove(theMessage.getMsgId());
         return (List<T>) waitingForAnswers.remove(theMessage.getMsgId());
@@ -1298,5 +1313,17 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public enum ReceiveAnswers {
         NONE, ONLY_MINE, ALL,
+    }
+
+    public static class MessageTimeoutException extends RuntimeException {
+        public MessageTimeoutException(String msg) {
+            super(msg);
+        }
+    }
+
+    public static class SystemShutdownException extends RuntimeException {
+        public SystemShutdownException(String msg) {
+            super(msg);
+        }
     }
 }
