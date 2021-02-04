@@ -964,6 +964,9 @@ public class Messaging extends Thread implements ShutdownListener {
         }
         HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
         c.get(n).remove(l);
+        if (c.get(n).isEmpty()) {
+            c.remove(n);
+        }
         listenerByName = c;
 
     }
