@@ -525,7 +525,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 q.f(Msg.Fields.name).nin(pausedMessagesKeys);
 
             }
-            if (listeners.isEmpty() && !listenerByName.isEmpty()) {
+            if (listeners.isEmpty() && !listenerByName.isEmpty() && !listenerByName.keySet().isEmpty()) {
                 q.f(Msg.Fields.name).in(listenerByName.keySet());
 
             }
