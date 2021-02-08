@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import org.junit.Test;
@@ -51,6 +52,17 @@ public class LastAccessTest extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void createOnUpsert() throws Exception {
+        morphium.dropCollection(TstObjLA.class);
+
+        morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, (AsyncOperationCallback<TstObjLA>) null);
+        TstObjLA tst = morphium.createQueryFor(TstObjLA.class).get();
+        assert (tst.getIntValue() == 12);
+        assert (tst.getValue().equals("a test"));
+        assert (tst.getCreationTime() != 0);
+
+    }
 
     @Test
     public void createdTestStringId() throws Exception {
@@ -91,6 +103,53 @@ public class LastAccessTest extends MorphiumTestBase {
 
     }
 
+    @Test
+    public void testLastAccessInc() throws Exception {
+        TstObjLA la = new TstObjLA();
+        la.setValue("value");
+
+        morphium.store(la);
+
+        morphium.reread(la);
+
+        assert (la.creationTime != 0);
+        assert (la.lastChange != 0);
+
+        la.setValue("new Value");
+        morphium.store(la);
+        morphium.reread(la);
+        long lc = la.getLastChange();
+        assert (la.getCreationTime() != la.getLastChange());
+
+        morphium.set(la, "value", "set");
+        morphium.reread(la);
+        assert (lc != la.getLastChange());
+        lc = la.getLastChange();
+        la.setIntValue(41);
+        morphium.store(la);
+        morphium.reread(la);
+
+        assert (lc != la.getLastChange());
+        lc = la.getLastChange();
+        morphium.inc(la, "int_value", 1);
+        morphium.reread(la);
+        assert (la.getIntValue() == 42);
+        assert (lc != la.getLastChange());
+
+        //now using ID
+        lc = la.getLastChange();
+        Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
+        morphium.set(q, "int_value", 1);
+        morphium.reread(la);
+        assert (la.getIntValue() == 1);
+        assert (lc != la.getLastChange());
+
+        lc = la.getLastChange();
+        morphium.inc(q, "int_value", 41);
+        morphium.reread(la);
+        assert (la.getIntValue() == 42);
+        assert (lc != la.getLastChange());
+    }
 
     @Entity
     @NoCache
@@ -174,6 +233,23 @@ public class LastAccessTest extends MorphiumTestBase {
         private long creationTime;
 
         private String value;
+        private int intValue;
+
+        public MorphiumId getId() {
+            return id;
+        }
+
+        public void setId(MorphiumId id) {
+            this.id = id;
+        }
+
+        public int getIntValue() {
+            return intValue;
+        }
+
+        public void setIntValue(int intValue) {
+            this.intValue = intValue;
+        }
 
         public long getLastAccess() {
             return lastAccess;
