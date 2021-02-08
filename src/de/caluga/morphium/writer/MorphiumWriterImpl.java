@@ -1501,11 +1501,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private void handleCreationTimeOnUpsert(Class cls, String coll, Map<String, Object> query, Map<String, Object> update, boolean upsert) {
         if (upsert && morphium.getARHelper().isAnnotationPresentInHierarchy(cls, CreationTime.class) && morphium.isAutoValuesEnabledForThread()) {
             Map<String, Object> qobj = morphium.simplifyQueryObject(query);
-            if (update != null) {
-                for (String k : update.keySet()) {
-                    qobj.putAll(((Map) update.get(k)));
-                }
-            }
             long cnt = 1;
             try {
                 cnt = morphium.getDriver().count(getDbName(), coll, qobj, null, null);
@@ -1513,19 +1508,28 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 logger.error("Error counting", e);
             }
             if (cnt == 0) {
-                String creationTimeField = morphium.getARHelper().getCreationTimeField(cls);
-                Class<?> type = morphium.getARHelper().getField(cls, creationTimeField).getType();
-                if (type.equals(Date.class)) {
-                    qobj.put(creationTimeField, new Date());
-                } else if (type.equals(Long.class) || type.equals(long.class)) {
-                    qobj.put(creationTimeField, System.currentTimeMillis());
-                } else if (type.equals(String.class)) {
-                    qobj.put(creationTimeField, new Date().toString());
-                } else {
-                    logger.error("Could not set CreationTime.... wrong type " + type.getName());
+                List<String> flds = morphium.getARHelper().getFields(cls, CreationTime.class);
+                for (String creationTimeField : flds) {
+                    Class<?> type = morphium.getARHelper().getField(cls, creationTimeField).getType();
+                    if (type.equals(Date.class)) {
+                        qobj.put(creationTimeField, new Date());
+                    } else if (type.equals(Long.class) || type.equals(long.class)) {
+                        qobj.put(creationTimeField, System.currentTimeMillis());
+                    } else if (type.equals(String.class)) {
+                        qobj.put(creationTimeField, new Date().toString());
+                    } else {
+                        logger.error("Could not set CreationTime.... wrong type " + type.getName());
+                    }
                 }
             }
             update.putIfAbsent("$set", new HashMap<>());
+            //Remove values, that are part of the query, but also in the update part
+            //keep only the updates
+            for (Map.Entry e : update.entrySet()) {
+                for (Map.Entry<String, Object> f : ((Map<String, Object>) e.getValue()).entrySet()) {
+                    qobj.remove(f.getKey());
+                }
+            }
             ((Map) update.get("$set")).putAll(qobj);
         }
     }
