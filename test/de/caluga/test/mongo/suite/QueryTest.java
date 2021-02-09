@@ -215,61 +215,6 @@ public class QueryTest extends MorphiumTestBase {
 
     }
 
-
-    public void testTestComplexQuery() {
-    }
-
-    public void testTestComplexQuery1() {
-    }
-
-    public void testComplexQueryCount() {
-    }
-
-    public void testComplexQueryOne() {
-    }
-
-    public void testTestComplexQueryOne() {
-    }
-
-    public void testTestComplexQueryOne1() {
-    }
-
-    public void testGetLimit() {
-    }
-
-    public void testGetSkip() {
-    }
-
-    public void testGetSort() {
-    }
-
-    public void testTestClone() {
-    }
-
-    public void testGetReadPreferenceLevel() {
-    }
-
-    public void testSetReadPreferenceLevel() {
-    }
-
-    public void testGetWhere() {
-    }
-
-    public void testGetMorphium() {
-    }
-
-    public void testSetMorphium() {
-    }
-
-    public void testSetExecutor() {
-    }
-
-    public void testGetById() {
-    }
-
-    public void testTestGetById() {
-    }
-
     public void testSet() {
     }
 

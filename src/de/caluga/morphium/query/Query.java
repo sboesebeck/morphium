@@ -342,8 +342,16 @@ public interface Query<T> extends Cloneable {
     void setExecutor(ThreadPoolExecutor executor);
 
 
+    @Deprecated
     void getById(Object id, AsyncOperationCallback<T> callback);
 
+    /**
+     * deprecatedc - use morphium.findById() instead.
+     *
+     * @param id
+     * @return
+     */
+    @Deprecated
     T getById(Object id);
 
     void set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);

@@ -12,6 +12,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
@@ -22,6 +23,7 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.query.QueryImpl;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
@@ -2104,6 +2106,34 @@ public class Morphium implements AutoCloseable {
 
     public <T> T findById(Class<? extends T> type, Object id) {
         return findById(type, id, null);
+    }
+
+    public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
+        inc(StatisticKeys.READS);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
+        long start = System.currentTimeMillis();
+        if (useCache) {
+            if (getCache().getFromIDCache(type, id) != null) {
+                inc(StatisticKeys.CHITS);
+                T res = getCache().getFromIDCache(type, id);
+                List<T> result = new ArrayList<>();
+                result.add(res);
+                callback.onOperationSucceeded(AsyncOperationType.READ, createQueryFor(type).setCollectionName(collection), System.currentTimeMillis() - start, result, res);
+            }
+            inc(StatisticKeys.CMISS);
+        } else {
+            inc(StatisticKeys.NO_CACHED_READS);
+
+        }
+
+
+        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
+        if (ls.isEmpty()) {
+            throw new RuntimeException("Cannot find by ID on non-Entity");
+        }
+
+        createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get(callback);
     }
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
