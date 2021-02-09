@@ -1134,6 +1134,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    @Deprecated
     public void getById(final Object id, final AsyncOperationCallback<T> callback) {
         if (callback == null) {
             throw new IllegalArgumentException("Callback is null");
@@ -1153,6 +1154,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    @Deprecated
     public T getById(Object id) {
         @SuppressWarnings("unchecked") List<String> flds = getARHelper().getFields(type, Id.class);
         if (flds == null || flds.isEmpty()) {
