@@ -62,16 +62,16 @@ public class BufferedWriterTest extends MorphiumTestBase {
         waitForWrites();
 
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
-        morphium.inc(q, "counter", 1, true, false);
+        morphium.inc(q, UncachedObject.Fields.counter, 1, true, false);
 
-        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(101);
-        morphium.inc(q, "counter", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(101);
+        morphium.inc(q, UncachedObject.Fields.counter, 1.0, true, false);
 
-        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(201);
-        morphium.dec(q, "counter", 1.0, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(201);
+        morphium.dec(q, UncachedObject.Fields.counter, 1.0, true, false);
 
-        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(300);
-        morphium.set(q, "counter", 1, true, false);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(300);
+        morphium.set(q, UncachedObject.Fields.counter, 1, true, false);
 
         waitForAsyncOperationToStart(10000);
         waitForWrites();
@@ -114,8 +114,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
         waitForWrites();
         Thread.sleep(1000);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100);
 
 
         q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
@@ -125,10 +125,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
         Thread.sleep(1000);
 
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(101).countAll() == 100);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(202).countAll() == 1);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(0.1).countAll() == 1);
-        assert (morphium.createQueryFor(BufferedByTimeObject.class).f("dval").eq(1.1).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(202).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(0.1).countAll() == 1);
+        assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100);
 
     }
 
@@ -140,15 +140,15 @@ public class BufferedWriterTest extends MorphiumTestBase {
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
-        Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1, true, false);
         assert (wr.writeBufferCount() >= 1);
 
-        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1.0, true, false);
         assert (wr.writeBufferCount() >= 1);
 
-        q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
+        q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.dec(q, "dval", 1.0, true, false);
         assert (wr.writeBufferCount() >= 1);
 
@@ -197,6 +197,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySize() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
+        waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeObject bo = new BufferedBySizeObject();
@@ -211,7 +212,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             int writeBufferCount = morphium.getWriteBufferCount();
             System.out.println("Amount written: " + count + " but Write buffer: " + writeBufferCount);
             Thread.sleep(10);
-            if (writeBufferCount == 0) {
+            if (writeBufferCount == 0 && count == 1500) {
                 break;
             }
         }
@@ -221,6 +222,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferByTime() throws Exception {
         morphium.dropCollection(BufferedByTimeObject.class);
+        waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
@@ -233,6 +235,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
             long count = morphium.createQueryFor(BufferedByTimeObject.class).countAll();
             if (count == amount) {
+                log.info("Found proper amount...");
                 break;
             }
             System.out.println("Amount written: " + count + " but Write buffer: " + morphium.getWriteBufferCount());
@@ -426,6 +429,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
         public void setCount(int count) {
             this.count = count;
         }
+
+        public enum Fields {myId, value, count}
     }
 
     @WriteBuffer(size = 10, timeout = 1000)

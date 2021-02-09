@@ -48,7 +48,7 @@ public class SequenceTest extends MorphiumTestBase {
         SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
         sg.getNextValue(); //initializing
 
-        Sequence s = morphium.createQueryFor(Sequence.class).f("name").eq("test").get();
+        Sequence s = morphium.createQueryFor(Sequence.class).f(Sequence.Fields.name).eq("test").get();
         s.setLockedBy("noone");
         morphium.store(s);
         waitForWrites();

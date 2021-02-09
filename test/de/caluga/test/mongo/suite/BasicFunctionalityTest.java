@@ -517,7 +517,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         q = q.f("counter").gt(5).sort("counter", "-value");
         t = q.toString();
         q = morphium.createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5);
+        q = q.f(CachedObject.Fields.counter).gt(5);
         s = q.toString();
         assert (!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
     }

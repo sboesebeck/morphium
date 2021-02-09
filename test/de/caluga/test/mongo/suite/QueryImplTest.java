@@ -55,19 +55,19 @@ public class QueryImplTest extends MorphiumTestBase {
 
         q = q.q(); //new query
         q = q.f("counter").gte(5).f("counter").lte(10);
-        q.or(q.q().f("counter").eq(15), q.q().f("counter").eq(22));
+        q.or(q.q().f("counter").eq(15), q.q().f(UncachedObject.Fields.counter).eq(22));
         dbObject = q.toQueryObject();
         str = Utils.toJsonString(dbObject);
         assert (str != null) : "ToString is NULL?!?!?";
 
-        System.out.println("Query: " + str);
+        log.info("Query: " + str);
     }
 
 
     @Test
     public void testComplexAndOr() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").lt(100).or(q.q().f("counter").eq(50), q.q().f("counter").eq(101));
+        q = q.f("counter").lt(100).or(q.q().f("counter").eq(50), q.q().f(UncachedObject.Fields.counter).eq(101));
         String s = Utils.toJsonString(q.toQueryObject());
         log.info("Query: " + s);
         assert (s.trim().equals("{ \"$and\" :  [ { \"counter\" : { \"$lt\" : 100 }  } , { \"$or\" :  [ { \"counter\" : 50 } , { \"counter\" : 101 } ] } ] }"));

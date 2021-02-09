@@ -39,7 +39,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         super.createUncachedObjects(1000);
         waitForWrites();
         Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
-        uc = uc.f("counter").lt(100);
+        uc = uc.f(UncachedObject.Fields.counter).lt(100);
         log.info("deleting...");
         morphium.delete(uc, new AsyncCallbackAdapter<Query<UncachedObject>>() {
             @Override
@@ -57,7 +57,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         assert (asyncCall);
         asyncCall = false;
         uc = uc.q();
-        uc.f("counter").mod(3, 2);
+        uc.f(UncachedObject.Fields.counter).mod(3, 2);
         log.info("Updating...");
         morphium.set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
@@ -76,7 +76,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         waitForWrites();
         Thread.sleep(100);
 
-        long counter = morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll();
+        long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
         assert counter > 0 : "Counter is: " + counter;
         assert (asyncCall);
     }
@@ -87,7 +87,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         asyncCall = false;
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").lt(1000);
+        q = q.f(UncachedObject.Fields.counter).lt(1000);
         q.asList(new AsyncCallbackAdapter<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -118,7 +118,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         asyncCall = false;
         createUncachedObjects(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").lt(1000);
+        q = q.f(UncachedObject.Fields.counter).lt(1000);
         q.countAll(new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {

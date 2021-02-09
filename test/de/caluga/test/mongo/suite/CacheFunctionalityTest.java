@@ -61,7 +61,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
             if (i % 100 == 0) {
                 log.info("Reached " + i);
             }
-            CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(amount + 1).get();
+            CachedObject o = morphium.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).eq(amount + 1).get();
             assert (o == null);
             List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).f("counter").gt(amount + 1).asList();
             assert (lst == null || lst.size() == 0);
