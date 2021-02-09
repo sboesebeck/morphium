@@ -256,7 +256,7 @@ public interface Query<T> extends Cloneable {
 
     AnnotationAndReflectionHelper getARHelper();
 
-    void setARHelpter(AnnotationAndReflectionHelper ar);
+    void setARHelper(AnnotationAndReflectionHelper ar);
 
     Query<T> rawQuery(Map<String, Object> query);
 
@@ -289,14 +289,35 @@ public interface Query<T> extends Cloneable {
 
     /**
      * same as copmplexQuery(query,0,1).get(0);
+     * deprecated user rawQuery().get()
      *
      * @param query - query
      * @return type
      */
+
+    @Deprecated
     T complexQueryOne(Map<String, Object> query);
 
+    /**
+     * deprecated use rawQuery().get();
+     *
+     * @param query
+     * @param sort
+     * @param skip
+     * @return
+     */
+    @Deprecated
     T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort, int skip);
 
+
+    /**
+     * deprecated, user rawQuery().get()
+     *
+     * @param query
+     * @param sort
+     * @return
+     */
+    @Deprecated
     T complexQueryOne(Map<String, Object> query, Map<String, Integer> sort);
 
     int getLimit();
