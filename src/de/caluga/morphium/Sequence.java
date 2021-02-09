@@ -72,4 +72,7 @@ public class Sequence {
                 ", lockedBy='" + lockedBy + '\'' +
                 '}';
     }
+
+
+    public enum Fields {lockedAt, lockedBy, name, currentValue}
 }

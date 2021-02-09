@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite;
 
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.mongo.suite.data.VersionedEntity;
 import org.junit.Test;
 
@@ -50,12 +51,12 @@ public class VersioningTest extends MorphiumTestBase {
 
         Thread.sleep(100);
 
-        morphium.set(morphium.createQueryFor(VersionedEntity.class).f("value").eq("value10"), "counter", 1234);
+        morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value10"), UncachedObject.Fields.counter, 1234);
         Thread.sleep(100);
 
-        VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f("value").eq("value10").get();
+        VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value10").get();
         assert (ve.getTheVersionNumber() == 2);
-        ve = morphium.createQueryFor(VersionedEntity.class).f("value").eq("value11").get();
+        ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value11").get();
         assert (ve.getTheVersionNumber() == 1);
     }
 

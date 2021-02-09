@@ -522,31 +522,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.UPDATE);
     }
 
-    @Override
-    public <T> void set(final T toSet, final String collection, final String field, final Object value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
-        if (c == null) {
-            c = new AsyncOpAdapter<>();
-        }
-        //        final AsyncOperationCallback<T> callback = c;
-        morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(toSet.getClass(), collection, ctx -> {
-            //                directWriter.set(toSet, collection, field, value, upsert, multiple, callback);
-            morphium.firePreUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-            @SuppressWarnings("unchecked") Query<Object> query = (Query<Object>) morphium.createQueryFor(toSet.getClass()).f(morphium.getARHelper().getIdFieldName(toSet)).eq(morphium.getARHelper().getId(toSet));
-            if (collection != null) {
-                query.setCollectionName(collection);
-            }
-            UpdateBulkRequest wr = ctx.addUpdateBulkRequest();
-            wr.setUpsert(upsert);
-            wr.setMultiple(multiple);
-            wr.setQuery(query.toQueryObject());
-            morphium.getCache().clearCacheIfNecessary(toSet.getClass());
-            String fld = morphium.getARHelper().getFieldName(query.getType(), field);
-            wr.setCmd(Utils.getMap("$set", Utils.getMap(fld, value)));
-            morphium.firePostUpdateEvent(toSet.getClass(), MorphiumStorageListener.UpdateTypes.SET);
-        }, c, AsyncOperationType.SET);
-    }
-
 
     @Override
     public <T> void set(final Query<T> query, final Map<String, Object> values, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
@@ -1134,6 +1109,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         public void setTimestamp(long timestamp) {
             this.timestamp = timestamp;
         }
+    }
+
+    @Override
+    public <T> void set(T toSet, String collection, Map<String, Object> values, boolean upsert, AsyncOperationCallback<T> callback) {
+        Query<T> id = morphium.createQueryFor((Class<T>) toSet.getClass()).f("_id").eq(morphium.getId(toSet));
+        set(id, values, upsert, false, callback);
     }
 
     private static class AsyncOpAdapter<T> implements AsyncOperationCallback<T> {

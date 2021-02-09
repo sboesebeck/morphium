@@ -30,7 +30,7 @@ public class Aggregation extends MorphiumTestBase {
         //eingangsdaten reduzieren
         a = a.project("counter");
         //Filtern
-        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
+        a = a.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(100));
         //Sortieren - für $first/$last
         a = a.sort("counter");
         //limit der Daten
@@ -70,13 +70,13 @@ public class Aggregation extends MorphiumTestBase {
         a = a.project(Utils.getMap("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
         //Filtern
 //        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
-        a = a.match(Expr.gt(Expr.field("counter"), Expr.intExpr(100)));
+        a = a.match(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(100)));
         //Sortieren - für $first/$last
         a = a.sort("counter");
         //limit der Daten
         a = a.limit(15);
         //group by - in dem Fall alle, könnte auch beliebig sein
-        a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field("counter"))).expr("summe", Expr.sum(Expr.field("counter"))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
+        a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
         //a = a.group("null").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
         //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
 

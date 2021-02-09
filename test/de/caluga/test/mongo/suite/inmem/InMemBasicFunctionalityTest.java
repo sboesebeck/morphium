@@ -40,7 +40,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     public void whereTest() {
         createUncachedObjects(NO_OBJECTS);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.where("this.counter<10").f("counter").gt(5);
+        q.where("this.counter<10").f(UncachedObject.Fields.counter).gt(5);
         log.info(q.toQueryObject().toString());
 
         List<UncachedObject> lst = q.asList();
@@ -109,7 +109,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         }
         Thread.sleep(600);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").gt(0).sort("value", "-counter");
+        q = q.f(UncachedObject.Fields.counter).gt(0).sort("value", "-counter");
         List<UncachedObject> lst = q.asList();
 //        lst.sort(((o1, o2) -> {
 //            if (o1.getCounter()==o2.getCounter()){
@@ -131,7 +131,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             last = uc.getCounter();
         }
 
-        q = q.q().f("counter").gt(0).sort("counter", "-value");
+        q = q.q().f(UncachedObject.Fields.counter).gt(0).sort("counter", "-value");
         List<UncachedObject> lst2 = q.asList();
         last = 0;
 
@@ -143,10 +143,10 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         log.info("Sorted");
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").gt(0).limit(5).sort("-counter");
+        q = q.f(UncachedObject.Fields.counter).gt(0).limit(5).sort("-counter");
         int st = q.asList().size();
         q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").gt(0).sort("-counter").limit(5);
+        q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter").limit(5);
         assert (st == q.asList().size()) : "List length differ?";
 
     }
@@ -267,7 +267,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 //            morphium.store(o);
 //        }
 //        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-//        q.where("this.counter<10").f("counter").gt(5);
+//        q.where("this.counter<10").f(UncachedObject.Fields.counter).gt(5);
 //        log.info(q.toQueryObject().toString());
 //
 //        List<UncachedObject> lst = q.asList();
@@ -290,7 +290,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         }
         Thread.sleep(1000);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").exists().f("value").eq("Uncached 1");
+        q = q.f(UncachedObject.Fields.counter).exists().f(UncachedObject.Fields.value).eq("Uncached 1");
         long c = q.countAll();
         assert (c == 1) : "Count wrong: " + c;
 
@@ -307,7 +307,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             morphium.store(o);
         }
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").notExists().f("value").eq("Uncached 1");
+        q = q.f(UncachedObject.Fields.counter).notExists().f(UncachedObject.Fields.value).eq("Uncached 1");
         long c = q.countAll();
         assert (c == 0);
     }
@@ -361,7 +361,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         }
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.or(q.q().f("counter").lt(10), q.q().f("value").eq("Uncached 50"));
+        q.or(q.q().f(UncachedObject.Fields.counter).lt(10), q.q().f(UncachedObject.Fields.value).eq("Uncached 50"));
         log.info("Query string: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
         for (UncachedObject o : lst) {
@@ -441,7 +441,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         start = System.currentTimeMillis();
         for (int i = 1; i <= NO_OBJECTS; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q.f("counter").eq(i);
+            q.f(UncachedObject.Fields.counter).eq(i);
             List<UncachedObject> l = q.asList();
             assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
             UncachedObject fnd = l.get(0);
@@ -464,7 +464,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
                 i = 1;
             }
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-            q.f("counter").eq(i);
+            q.f(UncachedObject.Fields.counter).eq(i);
             List<CachedObject> l = q.asList();
             assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? " + i;
             CachedObject fnd = l.get(0);
@@ -521,21 +521,21 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     @Test
     public void checkToStringUniqueness() {
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-        q = q.f("value").eq("Test").f("counter").gt(5);
+        q = q.f(CachedObject.Fields.value).eq("Test").f(CachedObject.Fields.counter).gt(5);
         String t = q.toString();
         log.info("Tostring: " + q.toString());
         q = morphium.createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5).f("value").eq("Test");
+        q = q.f(CachedObject.Fields.counter).gt(5).f(CachedObject.Fields.value).eq("Test");
         String s = q.toString();
         if (!s.equals(t)) {
             log.warn("Warning: order is important s=" + s + " and t=" + t);
         }
 
         q = morphium.createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5).sort("counter", "-value");
+        q = q.f(CachedObject.Fields.counter).gt(5).sort("counter", "-value");
         t = q.toString();
         q = morphium.createQueryFor(CachedObject.class);
-        q = q.f("counter").gt(5);
+        q = q.f(CachedObject.Fields.counter).gt(5);
         s = q.toString();
         assert (!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
     }
@@ -872,21 +872,21 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 
         morphium.reread(uc);
         assert (uc.getValue() == null);
-        UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("value").eq(null).get();
+        UncachedObject o = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq(null).get();
         assert (o != null);
         assert (o.getValue() == null);
         assert (o.getCounter() == 10);
 
-        List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).f("value").in(Arrays.asList("null", null)).asList();
+        List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).in(Arrays.asList("null", null)).asList();
         assert (list.size() == 2);
         assert (list.get(0).getValue() == null || list.get(1).getValue() == null);
         assert (list.get(0).getCounter() == 10 || list.get(1).getCounter() == 10);
 
-        list = morphium.createQueryFor(UncachedObject.class).f("value").nin(Arrays.asList("null")).asList();
+        list = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).nin(Arrays.asList("null")).asList();
         assert (list.size() == 1);
         assert (list.get(0).getValue() == null);
 
-        list = morphium.createQueryFor(UncachedObject.class).f("value").nin(Arrays.asList((String) null)).asList();
+        list = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).nin(Arrays.asList((String) null)).asList();
         assert (list.size() == 1);
         assert (list.get(0).getValue().equals("null"));
     }

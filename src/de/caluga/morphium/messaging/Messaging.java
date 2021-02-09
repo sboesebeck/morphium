@@ -728,7 +728,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                 if (receiveAnswers.equals(ReceiveAnswers.NONE) || (receiveAnswers.equals(ReceiveAnswers.ONLY_MINE) && msg.getRecipients() != null && !msg.getRecipients().contains(id))) {
                     if (msg.isExclusive() && msg.getLockedBy() != null && msg.getLockedBy().equals(id)) {
-                        morphium.set(msg, getCollectionName(), "locked_by", null, false, false, null);
+                        morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
                     }
                     removeProcessingFor(msg);
                     continue;
@@ -819,7 +819,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (mre.isContinueProcessing()) {
                             updateProcessedBy(msg);
                             if (msg.isExclusive()) {
-                                morphium.set(msg, getCollectionName(), "locked_by", null, false, false, null);
+                                morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
                             }
                             processing.remove(msg.getMsgId());
 
