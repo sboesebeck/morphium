@@ -251,27 +251,40 @@ public interface Query<T> extends Cloneable {
      * @param query
      * @return
      */
+    @Deprecated
     List<T> complexQuery(Map<String, Object> query);
 
     AnnotationAndReflectionHelper getARHelper();
 
     void setARHelpter(AnnotationAndReflectionHelper ar);
 
+    Query<T> rawQuery(Map<String, Object> query);
+
     /**
      * just sends the given query to the MongoDBDriver and masrhalls objects as listed
      * ignores all other query settings!!!!!
      * bound directly to mong
      * no field name tanslations done!
+     * deprecated, use rawQuery instead
      *
      * @param query - query to be sent
      * @param skip  - amount to skip
      * @param limit - maximium number of results
      * @return list of objects matching query
      */
+    @Deprecated
     List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit);
 
+    @Deprecated
     List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit);
 
+    /**
+     * deprecated, use rawQuery and standard count() methods
+     *
+     * @param query
+     * @return
+     */
+    @Deprecated
     long complexQueryCount(Map<String, Object> query);
 
     /**

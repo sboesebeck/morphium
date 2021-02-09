@@ -25,7 +25,7 @@ public class QueryImplTest extends MorphiumTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
 
 
-        q.or(q.q().f("counter").lte(15),
+        q.or(q.q().f(UncachedObject.Fields.counter).lte(15),
                 q.q().f("counter").gte(10),
                 q.q().f("counter").lt(15).f("counter").gt(10).f("value").eq("hallo").f("value").ne("test")
         );

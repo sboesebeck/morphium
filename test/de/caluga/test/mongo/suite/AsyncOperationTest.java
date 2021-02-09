@@ -59,7 +59,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
         uc = uc.q();
         uc.f(UncachedObject.Fields.counter).mod(3, 2);
         log.info("Updating...");
-        morphium.set(uc, "counter", 0, false, true, new AsyncOperationCallback<UncachedObject>() {
+        morphium.set(uc, UncachedObject.Fields.counter, 0, false, true, new AsyncOperationCallback<UncachedObject>() {
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("Objects updated");

@@ -116,7 +116,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
         Thread.sleep(600);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").gt(0).sort("-counter", "value");
+        q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "value");
         List<UncachedObject> lst = q.asList();
         assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
 

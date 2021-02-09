@@ -161,4 +161,7 @@ public class ComplexObject {
                 ", nullValue=" + nullValue +
                 '}';
     }
+
+
+    public enum Fields {created, cRef, einText, embed, embeddedObjectList, entityEmbeded, id, lastAccess, nullValue, ref, trans, changed}
 }
