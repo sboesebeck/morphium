@@ -125,6 +125,8 @@ public interface Query<T> extends Cloneable {
      */
     Query<T> sort(Map<String, Integer> n);
 
+    Query<T> sortEnum(Map<Enum, Integer> n);
+
     /**
      * set order by prefixing field names with - for reverse ordering (+ or nothing default)
      *
@@ -314,11 +316,15 @@ public interface Query<T> extends Cloneable {
 
     void set(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
+    void setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
     void set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void set(String field, Object value, AsyncOperationCallback<T> cb);
 
     void set(Enum field, Object value, AsyncOperationCallback<T> cb);
+
+    void setEnum(Map<Enum, Object> map, AsyncOperationCallback<T> cb);
 
     void set(Map<String, Object> map, AsyncOperationCallback<T> cb);
 
@@ -326,11 +332,15 @@ public interface Query<T> extends Cloneable {
 
     void set(Enum field, Object value, boolean upsert, boolean multiple);
 
+    void setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple);
+
     void set(Map<String, Object> map, boolean upsert, boolean multiple);
 
     void set(String field, Object value);
 
     void set(Enum field, Object value);
+
+    void setEnum(Map<Enum, Object> map);
 
     void set(Map<String, Object> map);
 
@@ -464,6 +474,8 @@ public interface Query<T> extends Cloneable {
     T findOneAndDelete();
 
     T findOneAndUpdate(Map<String, Object> update);
+
+    T findOneAndUpdateEnums(Map<Enum, Object> update);
 
     boolean isAutoValuesEnabled();
 

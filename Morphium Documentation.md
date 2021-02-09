@@ -13,7 +13,9 @@ This document is a documentation for _Morphium_ in the current (4.2) version. It
 
 This documentation covers all features _Morphium_ has to offer.
 
-Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework. Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the messaging subsystem first. 
+Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework.
+Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the mess'aging
+subsystem first.
 
 ## Using _Morphium_ as a messaging system
 _Morphium_ itself is simple to use, easy to customise to your needs and was built for high performance and scalability. The messaging system is no different. It relies on the `watch` functionality, that MongoDB offers since V3.6 (you can also use messaging with older versions of MongoDB, but it will result in polling for new messages). With that feature, the messages are _pushed_ to all listeners. This makes it a very efficient messaging system based on MongoDB.
@@ -64,7 +66,9 @@ queueMessage is running asynchronously, which means, that the message is _not_ d
 
 
 ### Answering messages
-_Morphium_ is able to answer any message for you. Your listener implementation only needs to return an instance of the `Msg`-Class(fn). This will then be sent back to the sender as an answer. 
+
+_Morphium_ is able to answer any message for you. Your listener implementation only needs to return an instance of
+the `Msg`-Class. This will then be sent back to the sender as an answer.
 
 When sending a message, you also may wait for the incoming answer. The Messaging class offers a method for that purpose:
 
@@ -125,10 +129,14 @@ _Attention_: if you have long running tasks triggered by messages, you should pa
 #### Multithreading / Multimessage processing
 When instantiating Messaging, you can specify two booleans:
 
-- multithreading: if true, every incoming message will be processed in an own thread (Executor - see MorphiumConfig below). That means, several messages can be processed in parallel
-- processMultiple: this setting is only important in case of startup or unpausing(fn). If true, messaging will lock all(fn) messages available for this listener and process them one by one (or in parallel if multithreading is enabled). 
-These settings are influenced by other settings:
-- `messagingWindowSize` in MorphiumConfig or as constructor parameter / setter in Messaging: this defines how many messages are marked for processing at once. Those might be processed in parallel (depending whether `processMultiple` is true, and the executor configuration, how many threads can be run in parallel)
+- multithreading: if true, every incoming message will be processed in an own thread (Executor - see MorphiumConfig
+  below). That means, several messages can be processed in parallel
+- processMultiple: this setting is only important in case of startup or unpausing. If true, messaging will lock all
+  messages available for this listener and process them one by one (or in parallel if multithreading is enabled). These
+  settings are influenced by other settings:
+- `messagingWindowSize` in MorphiumConfig or as constructor parameter / setter in Messaging: this defines how many
+  messages are marked for processing at once. Those might be processed in parallel (depending whether `processMultiple`
+  is true, and the executor configuration, how many threads can be run in parallel)
 - `useChangeStream` in Messaging. Usually messaging determines by the cluster status, whether or not to use the changestream or not. If in a cluster, use it, if not use polling. But if you explicitly want to use polling, you can set this value to `false`. The advantage here might be, that the messages are processed by priority with every poll. This might be useful depending on your usecase. If this is set to false (or you are connected to an single instance), the `pause` configuration option (aka polling frequency) in  Messaging will determine how fast your messages can be consumed. __Attention__ high polling frequency (a low `pause` value), will increase the load on MongoDB.
 -  `ThreadPoolMessagingCoreSize` in MorphiumConfig: If you define messaging to be multithreaded it will spawn a new thread with each incoming message. this is the core size of the corresponding thread pool. If your messaging instance is not configured for multithreading, this setting is not used. 
 - `ThreadPoolMessagingMaxSize`: max size of the thread pool. similar to above. 
@@ -540,11 +548,19 @@ Hence we built __Morphium__ and we named it similar to _morphia_ to show where t
 
 _Morphium_ is built with flexibility, thread safety, performance and cluster awareness in mind. 
 
-- flexibility: it is possible to exchange most of the internal implementations of _Morphium_. You could have your own Driver class for connecting to MongoDB(fn) or have a custom implementation for the query processing. 
+- flexibility: it is possible to exchange most of the internal implementations of _Morphium_. You could have your own
+  Driver class for connecting to MongoDB or have a custom implementation for the query processing.
 - thread safety: all aspects of _Morphium_ were tested multithreaded so that it can be used in production
-- performance: one of the main goals of _Morphium_ was to improve performance. The Object Mapping in use is a custom implementation that was built especially for _Morphium_, is very fast and to improve speed even further, caching is part of the core features of _Morphium_
-- cluster awareness: this is essential nowadays for high availability or just mere speed. _Morphium_s caches are all cluster aware which means you will not end up with dirty reads in a clustered environment when using _Morphium_(fn)
-- independent from mongoDB Driver: _Morphium_ does not have a direct dependency on the mongoDB java driver, instead it considers it to be provided. This means, you can have a different version of the driver in use than the one _Morphium_ was last tested with (you do not need the latest and grates, usually it is backward compatible). In addition to that, _Morphium_ does not directly use MongoDB or BSON classes but offers its own implementation. For example the `MorphiumId`, wich is a drop in replacement for `ObjectId`.
+- performance: one of the main goals of _Morphium_ was to improve performance. The Object Mapping in use is a custom
+  implementation that was built especially for _Morphium_, is very fast and to improve speed even further, caching is
+  part of the core features of _Morphium_
+- cluster awareness: this is essential nowadays for high availability or just mere speed. _Morphium_s caches are all
+  cluster aware which means you will not end up with dirty reads in a clustered environment when using _Morphium_
+- independent from mongoDB Driver: _Morphium_ does not have a direct dependency on the mongoDB java driver, instead it
+  considers it to be provided. This means, you can have a different version of the driver in use than the one _Morphium_
+  was last tested with (you do not need the latest and grates, usually it is backward compatible). In addition to
+  that, _Morphium_ does not directly use MongoDB or BSON classes but offers its own implementation. For example
+  the `MorphiumId`, wich is a drop in replacement for `ObjectId`.
 
 
 ### Concepts
@@ -582,8 +598,11 @@ There are some additional features built upon this architecture:
 #### POJO Mapping
 _Morphium_ is capable of mapping standard Java objects (POJOs - plain old java objects) to MongoDB documents and back. This should make it possible to seemlessly integrate MongoDB into your application.
 #### Declarative caching
-When working with databases - not only NoSQL ones - you need to consider caching. _Morphium_ integrates transparent declarative caching by entity to your application, if needed. Just define your caching needs in the `@Cache` annotation.(fn)
-The cache uses any JavaCache compatible cache implementation (like EHCache), but provides an own implementation if nothing is specified otherwise.
+
+When working with databases - not only NoSQL ones - you need to consider caching. _Morphium_ integrates transparent
+declarative caching by entity to your application, if needed. Just define your caching needs in the `@Cache` annotation.
+The cache uses any JavaCache compatible cache implementation (like EHCache), but provides an own implementation if
+nothing is specified otherwise.
 
 There are two kinds of caches: read cache and write cache.
 

@@ -51,12 +51,11 @@ public interface MorphiumWriter {
      * changes an object in DB AND in Memory...
      * the Object toSet WILL be modified!
      *
-     * @param toSet entity to set values in both in mongo and in memory
-     * @param field field
-     * @param value value to set
+     * @param toSet   entity to set values in both in mongo and in memory
+     * @param values: contains name/values to set to the given object!
      */
 
-    <T> void set(T toSet, String collection, String field, Object value, boolean insertIfNotExists, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> void set(T toSet, String collection, Map<String, Object> values, boolean upsert, AsyncOperationCallback<T> callback);
 
     /**
      * will change an entry in mongodb-collection corresponding to given class object
