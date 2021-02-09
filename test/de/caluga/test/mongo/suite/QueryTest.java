@@ -205,21 +205,16 @@ public class QueryTest extends MorphiumTestBase {
     }
 
     @Test
-    public void testComplexQuery() throws Exception {
+    public void testRawQuery() throws Exception {
         createUncachedObjects(100);
         Thread.sleep(100);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        List<UncachedObject> lst = q.complexQuery(Utils.getMap("counter", 12));
+        List<UncachedObject> lst = q.rawQuery(Utils.getMap("counter", 12)).asList();
         assert (lst.size() == 1);
 
     }
 
-    public void testGetARHelper() {
-    }
-
-    public void testSetARHelpter() {
-    }
 
     public void testTestComplexQuery() {
     }

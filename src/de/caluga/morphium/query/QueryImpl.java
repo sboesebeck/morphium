@@ -164,7 +164,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
-        setARHelpter(m.getARHelper());
+        setARHelper(m.getARHelper());
         andExpr = new ArrayList<>();
         orQueries = new ArrayList<>();
         norQueries = new ArrayList<>();
@@ -370,7 +370,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
-    public void setARHelpter(AnnotationAndReflectionHelper ar) {
+    public void setARHelper(AnnotationAndReflectionHelper ar) {
         arHelper = ar;
     }
 
