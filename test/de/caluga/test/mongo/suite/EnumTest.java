@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.test.mongo.suite.data.TestEnum;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -85,6 +86,4 @@ public class EnumTest extends MorphiumTestBase {
             log.info("Got enum: " + e.getTst());
         }
     }
-
-
 }

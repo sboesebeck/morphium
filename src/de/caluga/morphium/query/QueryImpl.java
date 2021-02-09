@@ -335,6 +335,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public T findOneAndUpdateEnums(Map<Enum, Object> update) {
+        Map<String, Object> updates = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : update.entrySet()) {
+            updates.put(e.getKey().name(), e.getValue());
+        }
+        return findOneAndUpdate(updates);
+    }
+
+    @Override
     public AnnotationAndReflectionHelper getARHelper() {
         if (arHelper == null) {
             arHelper = morphium.getARHelper();
@@ -632,6 +641,16 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public Query<T> sort(Map<String, Integer> n) {
         sort = n;
+        return this;
+    }
+
+    @Override
+    public Query<T> sortEnum(Map<Enum, Integer> n) {
+        sort = new HashMap<>();
+        for (Map.Entry<Enum, Integer> e : n.entrySet()) {
+            sort.put(e.getKey().name(), e.getValue());
+        }
+
         return this;
     }
 
@@ -1270,6 +1289,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        Map<String, Object> m = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : map.entrySet()) {
+            m.put(e.getKey().name(), e.getValue());
+        }
+        set(m, upsert, multiple, cb);
+    }
+
+    @Override
     public void set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
         morphium.set(this, map, upsert, multiple, cb);
     }
@@ -1282,6 +1310,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void set(Enum field, Object value, AsyncOperationCallback<T> cb) {
         morphium.set(this, field, value, cb);
+    }
+
+    @Override
+    public void setEnum(Map<Enum, Object> map, AsyncOperationCallback<T> cb) {
+        Map<String, Object> m = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : map.entrySet()) {
+            m.put(e.getKey().name(), e.getValue());
+        }
+        set(m, false, false, cb);
     }
 
     @Override
@@ -1300,6 +1337,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple) {
+        Map<String, Object> m = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : map.entrySet()) {
+            m.put(e.getKey().name(), e.getValue());
+        }
+        set(m, upsert, multiple, null);
+    }
+
+    @Override
     public void set(Map<String, Object> map, boolean upsert, boolean multiple) {
         morphium.set(this, map, upsert, multiple);
     }
@@ -1312,6 +1358,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public void set(Enum field, Object value) {
         morphium.set(this, field, value);
+    }
+
+    @Override
+    public void setEnum(Map<Enum, Object> map) {
+        Map<String, Object> m = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : map.entrySet()) {
+            m.put(e.getKey().name(), e.getValue());
+        }
+        set(m, false, false, null);
     }
 
     @Override

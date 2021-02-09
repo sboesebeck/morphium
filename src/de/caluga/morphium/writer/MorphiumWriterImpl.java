@@ -865,85 +865,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void set(final T toSet, final String col, final String field, final Object v, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        WriterTask<T> r = new WriterTask<T>() {
-            private AsyncOperationCallback<T> callback;
+    public <T> void set(final T toSet, final String col, final Map<String, Object> values, final boolean upsert, AsyncOperationCallback<T> callback) {
 
-            @Override
-            public void setCallback(AsyncOperationCallback cb) {
-                callback = cb;
+        Query<T> q = (Query<T>) morphium.createQueryFor(toSet.getClass()).f("_id").eq(morphium.getId(toSet));
+        set(q, values, upsert, false, callback);
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            Field fld = morphium.getARHelper().getField(toSet.getClass(), entry.getKey());
+            try {
+                fld.set(toSet, entry.getValue());
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException("could not set value to field: " + entry.getKey());
             }
-
-            @Override
-            public void run() {
-                Class cls = toSet.getClass();
-                Object value = v;
-                morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
-                value = marshallIfNecessary(value);
-                String collection = col;
-                if (collection == null) {
-                    collection = morphium.getMapper().getCollectionName(cls);
-                }
-                Map<String, Object> query = new HashMap<>();
-                query.put("_id", morphium.getId(toSet));
-                Field f = morphium.getARHelper().getField(cls, field);
-                if (f == null) {
-                    throw new RuntimeException("Unknown field: " + field);
-                }
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
-
-                Map<String, Object> update;
-                if (value != null) {
-                    update = Utils.getMap("$set", Utils.getMap(fieldName, value instanceof Enum ? ((Enum) value).name() : value));
-                } else {
-                    update = Utils.getMap("$set", Utils.getMap(fieldName, null));
-                }
-                handleLastChange(cls, update);
-                handleCreationTimeOnUpsert(cls, collection, query, update, upsert);
-
-
-                Entity en = morphium.getARHelper().getAnnotationFromHierarchy(toSet.getClass(), Entity.class);
-
-                WriteConcern wc = morphium.getWriteConcernForClass(cls);
-                long start = System.currentTimeMillis();
-
-                try {
-                    if (upsert) checkIndexAndCaps(cls, collection, callback);
-//                    if (upsert && morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), collection)) {
-//                        createCappedCollationColl(cls, collection);
-//                        morphium.ensureIndicesFor(cls, collection, callback);
-//                    }
-                    if (en != null && en.autoVersioning()) {
-                        List<String> versionFields = morphium.getARHelper().getFields(cls, Version.class);
-                        query.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getValue(toSet, versionFields.get(0)));
-                        update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(toSet, versionFields.get(0))) + 1L);
-                    }
-                    Map<String, Object> res = morphium.getDriver().update(getDbName(), collection, query, update, multiple, upsert, null, wc);
-                    if (en != null && en.autoVersioning() && res.get("modified").equals(0L)) {
-                        throw new ConcurrentModificationException("could not modify");
-                    }
-                    long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(cls, update, dur, false, WriteAccessType.SINGLE_UPDATE);
-                    morphium.getCache().clearCacheIfNecessary(cls);
-                    morphium.inc(StatisticKeys.WRITES);
-                    try {
-                        f.set(toSet, v);
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException(e);
-                    }
-                    if (callback != null) {
-                        callback.onOperationSucceeded(AsyncOperationType.SET, null, System.currentTimeMillis() - start, null, toSet, field, v);
-                    }
-                } catch (Exception e) {
-                    if (callback == null) {
-                        throw new RuntimeException(e);
-                    }
-                    callback.onOperationError(AsyncOperationType.SET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field, v);
-                }
-                morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
-            }
-        };
-        submitAndBlockIfNecessary(callback, r);
+        }
     }
 
 

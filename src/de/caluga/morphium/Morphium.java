@@ -888,6 +888,12 @@ public class Morphium implements AutoCloseable {
 
     }
 
+    ////////
+    /////
+    /// SET with Query
+    //
+    //
+
     /**
      * will change an entry in mongodb-collection corresponding to given class object
      * if query is too complex, upsert might not work!
@@ -902,7 +908,7 @@ public class Morphium implements AutoCloseable {
      */
     @SuppressWarnings("unused")
     public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple) {
-        set(query, field.name(), val, upsert, multiple, (AsyncOperationCallback<T>) null);
+        set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
@@ -917,7 +923,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
-        set(query, field, val, upsert, multiple, (AsyncOperationCallback<T>) null);
+        set(query, field, val, upsert, multiple, null);
     }
 
     public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
@@ -937,19 +943,65 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
     }
 
-
+    /**
+     * set current date into one field
+     *
+     * @param query
+     * @param field
+     * @param upsert
+     * @param multiple
+     * @param <T>
+     */
     public <T> void currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
-        set(query, Utils.getMap("$currentDate", Utils.getMap("field", 1)), upsert, multiple);
+        set(query, Utils.getMap("$currentDate", Utils.getMap(field, 1)), upsert, multiple);
     }
 
+    public <T> void currentDate(final Query<?> query, Enum field, boolean upsert, boolean multiple) {
+        set(query, Utils.getMap("$currentDate", Utils.getMap(field.name(), 1)), upsert, multiple);
+    }
+
+    ////////
+    /////
+    //
+    // SET with object
+    //
     @SuppressWarnings("unused")
     public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, callback);
     }
 
-    @SuppressWarnings("unused")
-    public void set(Object toSet, Enum field, Object value) {
+    public <T> void set(T toSet, Enum field, Object value) {
         set(toSet, field.name(), value, null);
+    }
+
+    @SuppressWarnings("unused")
+    public <T> void set(T toSet, String collection, Enum field, Object value) {
+        set(toSet, collection, field.name(), value, false, null);
+    }
+
+    public <T> void set(final T toSet, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+        set(toSet, field.name(), value, upserts, callback);
+    }
+
+    public <T> void set(final T toSet, final Map<Enum, Object> values) {
+        set(toSet, getMapper().getCollectionName(toSet.getClass()), false, values, null);
+    }
+
+    public <T> void set(String inCollection, final Map<Enum, Object> values, final T into) {
+        set(into, inCollection, false, values, null);
+    }
+
+    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
+        set(toSet, collection, upserts, values, null);
+
+    }
+
+    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
+        Map<String, Object> strValues = new HashMap<>();
+        for (Map.Entry<Enum, Object> e : values.entrySet()) {
+            strValues.put(e.getKey().name(), e.getValue());
+        }
+        set(toSet, collection, strValues, upserts, callback);
     }
 
     /**
@@ -961,15 +1013,27 @@ public class Morphium implements AutoCloseable {
      * @param field - the field to change
      * @param value - the value to set
      */
-    public void set(final Object toSet, final String field, final Object value) {
+    public <T> void set(final T toSet, final String field, final Object value) {
         set(toSet, field, value, null);
     }
 
-    public <T> void set(final T toSet, final String field, final Object value, boolean upserts, boolean multiple, AsyncOperationCallback<T> callback) {
-        set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, multiple, callback);
+    public <T> void set(final T toSet, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+        set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, callback);
     }
 
-    public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void set(final Map<String, Object> values, final T into) {
+        set(into, getMapper().getCollectionName(into.getClass()), values, false, null);
+    }
+
+    public <T> void set(final T toSet, String collection, final Map<String, Object> values) {
+        set(toSet, collection, values, false, null);
+    }
+
+    public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
+        set(toSet, collection, values, upserts, null);
+    }
+
+    public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts, AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -980,17 +1044,26 @@ public class Morphium implements AutoCloseable {
             return;
         }
         annotationHelper.callLifecycleMethod(PreUpdate.class, toSet);
-        getWriterForClass(toSet.getClass()).set(toSet, collection, field, value, upserts, multiple, callback);
+        getWriterForClass(toSet.getClass()).set(toSet, collection, values, upserts, callback);
         annotationHelper.callLifecycleMethod(PostUpdate.class, toSet);
     }
 
+    public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+        set(toSet, collection, Utils.getMap(field, value), upserts, callback);
+    }
+
     public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
-        set(toSet, field, value, false, false, callback);
+        set(toSet, field, value, false, callback);
 
     }
 
-
+    ///////////////////////////////
+    //////////////////////
+    ///////////////
+    ////////////
     ////////// DEC and INC Methods
+    /////
+    //
 
     @SuppressWarnings({"UnusedDeclaration"})
     public void dec(Query<?> query, Enum field, double amount, boolean upsert, boolean multiple) {
@@ -1068,7 +1141,6 @@ public class Morphium implements AutoCloseable {
         inc(query, field, -amount.doubleValue(), false, false);
     }
 
-
     @SuppressWarnings("unused")
     public void inc(Query<?> query, String field, long amount) {
         inc(query, field, amount, false, false);
@@ -1124,11 +1196,19 @@ public class Morphium implements AutoCloseable {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public <T> void inc(final Query<T> query, final Map<String, Number> toUptad, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+        Map<String, Number> toUpdate = new HashMap<>();
+        for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
+            toUpdate.put(e.getKey().name(), e.getValue());
+        }
+        inc(matching, toUpdate, upsert, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
-        getWriterForClass(query.getType()).inc(query, toUptad, upsert, multiple, callback);
+        getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
     public void inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
@@ -1147,11 +1227,19 @@ public class Morphium implements AutoCloseable {
         inc(query, name, amount, upsert, multiple, null);
     }
 
+    public <T> void inc(final Query<T> query, final Enum field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        inc(query, field.name(), amount, upsert, multiple, callback);
+    }
+
     public <T> void inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+    }
+
+    public <T> void inc(final Query<T> query, final Enum field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1161,12 +1249,20 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
+    public <T> void inc(final Query<T> query, final Enum field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        inc(query, field.name(), amount, upsert, multiple, callback);
+    }
+
     public <T> void inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
 
+    }
+
+    public <T> void inc(final Query<T> query, final Enum field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1194,8 +1290,16 @@ public class Morphium implements AutoCloseable {
      * calles <code>inc(toDec,field,-amount);</code>
      */
     @SuppressWarnings("unused")
+    public void dec(Object toDec, Enum field, double amount) {
+        dec(toDec, field.name(), amount);
+    }
+
     public void dec(Object toDec, String field, double amount) {
         inc(toDec, field, -amount);
+    }
+
+    public void dec(Object toDec, Enum field, int amount) {
+        dec(toDec, field.name(), amount);
     }
 
     public void dec(Object toDec, String field, int amount) {
@@ -1203,21 +1307,42 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
+    public void dec(Object toDec, Enum field, long amount) {
+        dec(toDec, field.name(), amount);
+    }
+
     public void dec(Object toDec, String field, long amount) {
         inc(toDec, field, -amount);
     }
 
     @SuppressWarnings("unused")
+    public void dec(Object toDec, Enum field, Number amount) {
+        dec(toDec, field.name(), amount);
+    }
+
     public void dec(Object toDec, String field, Number amount) {
         inc(toDec, field, -amount.doubleValue());
+    }
+
+    public void inc(final Object toSet, final Enum field, final long i) {
+        inc(toSet, field.name(), i, null);
     }
 
     public void inc(final Object toSet, final String field, final long i) {
         inc(toSet, field, i, null);
     }
 
+    public void inc(final Object toSet, final Enum field, final int i) {
+        inc(toSet, field.name(), i, null);
+
+    }
+
     public void inc(final Object toSet, final String field, final int i) {
         inc(toSet, field, i, null);
+    }
+
+    public void inc(final Object toSet, final Enum field, final double i) {
+        inc(toSet, field.name(), i, null);
     }
 
     public void inc(final Object toSet, final String field, final double i) {
@@ -1225,24 +1350,52 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
+    public void inc(final Object toSet, final Enum field, final Number i) {
+        inc(toSet, field.name(), i, null);
+    }
+
     public void inc(final Object toSet, final String field, final Number i) {
         inc(toSet, field, i, null);
+    }
+
+    public <T> void inc(final T toSet, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, field.name(), i, callback);
     }
 
     public <T> void inc(final T toSet, final String field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
+    public <T> void inc(final T toSet, final Enum field, final int i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, field.name(), i, callback);
+    }
+
     public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, final Enum field, final long i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, field.name(), i, callback);
     }
 
     public <T> void inc(final T toSet, final String field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
+    public <T> void inc(final T toSet, final Enum field, final Number i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, field.name(), i, callback);
+    }
+
     public <T> void inc(final T toSet, final String field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, Enum collection, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, field.name(), i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, collection, field.name(), i, callback);
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final double i, final AsyncOperationCallback<T> callback) {
@@ -1258,6 +1411,10 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
+    public <T> void inc(final T toSet, String collection, final Enum field, final int i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, collection, field.name(), i, callback);
+    }
+
     public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
@@ -1271,6 +1428,10 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
+    public <T> void inc(final T toSet, String collection, final Enum field, final long i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, collection, field.name(), i, callback);
+    }
+
     public <T> void inc(final T toSet, String collection, final String field, final long i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
@@ -1282,6 +1443,10 @@ public class Morphium implements AutoCloseable {
             return;
         }
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
+    }
+
+    public <T> void inc(final T toSet, String collection, final Enum field, final Number i, final AsyncOperationCallback<T> callback) {
+        inc(toSet, collection, field.name(), i, callback);
     }
 
     public <T> void inc(final T toSet, String collection, final String field, final Number i, final AsyncOperationCallback<T> callback) {
