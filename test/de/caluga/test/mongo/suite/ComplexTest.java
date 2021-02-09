@@ -154,11 +154,19 @@ public class ComplexTest extends MorphiumTestBase {
         Map<String, Object> query = new HashMap<>();
         query.put("counter", Utils.getMap("$lt", 10));
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        List<UncachedObject> lst = q.complexQuery(query);
+        List<UncachedObject> lst = q.rawQuery(query).asList();
         assert (lst != null && !lst.isEmpty()) : "Nothing found?";
+        assert (lst.size() == 9);
         for (UncachedObject o : lst) {
             assert (o.getCounter() < 10) : "Wrong counter: " + o.getCounter();
         }
+        //test for iterator
+        int cnt = 0;
+        for (UncachedObject o : q.asIterable()) {
+            assert (o.getCounter() < 10) : "Wrong counter: " + o.getCounter();
+            cnt++;
+        }
+        assert (cnt == 9);
     }
 
 
@@ -223,10 +231,10 @@ public class ComplexTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        UncachedObject uc = q.complexQuery(Utils.getMap("counter", 10)).get(0);
+        UncachedObject uc = q.rawQuery(Utils.getMap("counter", 10)).asList().get(0);
         assert (uc.getCounter() == 10);
 
-        assert (q.complexQuery(Utils.getMap("counter", Utils.getMap("$lte", 50))).size() == 50);
-        assert (q.complexQueryCount(Utils.getMap("counter", Utils.getMap("$lte", 50))) == 50);
+        assert (q.q().rawQuery(Utils.getMap("counter", Utils.getMap("$lte", 50))).countAll() == 50);
+        assert (q.q().rawQuery(Utils.getMap("counter", Utils.getMap("$lte", 50))).asList().size() == 50);
     }
 }

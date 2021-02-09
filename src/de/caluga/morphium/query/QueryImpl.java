@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class QueryImpl<T> implements Query<T>, Cloneable {
     private static final Logger log = LoggerFactory.getLogger(Query.class);
     private String where;
+    private Map<String, Object> rawQuery;
     private Class<? extends T> type;
     private List<FilterExpression> andExpr;
     private List<Query<T>> orQueries;
@@ -184,10 +185,27 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return q;
     }
 
+    /**
+     * use rawQuery instead
+     *
+     * @param query
+     * @return
+     */
+    @Deprecated
     public List<T> complexQuery(Map<String, Object> query) {
         return complexQuery(query, (String) null, 0, 0);
     }
 
+
+    /**
+     * use rawQuery() instead
+     *
+     * @param query
+     * @param sort
+     * @param skip
+     * @param limit
+     * @return
+     */
     @Override
     public List<T> complexQuery(Map<String, Object> query, String sort, int skip, int limit) {
         Map<String, Integer> srt = new LinkedHashMap<>();
@@ -369,6 +387,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public Query<T> rawQuery(Map<String, Object> query) {
+        if ((orQueries != null && !orQueries.isEmpty()) ||
+                (norQueries != null && !norQueries.isEmpty()) ||
+                (andExpr != null && !andExpr.isEmpty()) ||
+                where != null) {
+            throw new IllegalArgumentException("Cannot add raw query, when standard query already set!");
+        }
+        rawQuery = query;
+        return this;
+    }
+
+    /**
+     * use rawQuery to set query, and standard API
+     *
+     * @param query - query to be sent
+     * @param sort
+     * @param skip  - amount to skip
+     * @param limit - maximium number of results
+     * @return
+     */
+    @Override
+    @Deprecated
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
         Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
@@ -504,43 +544,61 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> addChild(FilterExpression ex) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add child expression when raw query is defined!");
+        }
         andExpr.add(ex);
         return this;
     }
 
     @Override
     public Query<T> where(String wh) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add where when raw query is defined!");
+        }
         where = wh;
         return this;
     }
 
     public MongoField<T> f(Enum f) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
+        }
         return f(f.name());
     }
 
     @Override
     public MongoField<T> f(String... f) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
+        }
         StringBuilder b = new StringBuilder();
         for (String e : f) {
             b.append(e);
             b.append(".");
         }
-        b.deleteCharAt(b.length());
+        b.deleteCharAt(b.length() - 1);
         return f(b.toString());
     }
 
     @Override
     public MongoField<T> f(Enum... f) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
+        }
         StringBuilder b = new StringBuilder();
         for (Enum e : f) {
             b.append(e.name());
             b.append(".");
         }
-        b.deleteCharAt(b.length());
+        b.deleteCharAt(b.length() - 1);
         return f(b.toString());
     }
 
     public MongoField<T> f(String f) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
+        }
         StringBuilder fieldPath = new StringBuilder();
         String cf;
         Class<?> clz = type;
@@ -598,12 +656,18 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @SafeVarargs
     @Override
     public final Query<T> or(Query<T>... qs) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add or queries when raw query is defined!");
+        }
         orQueries.addAll(Arrays.asList(qs));
         return this;
     }
 
     @Override
     public Query<T> or(List<Query<T>> qs) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add or queries when raw query is defined!");
+        }
         orQueries.addAll(qs);
         return this;
     }
@@ -616,6 +680,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @SafeVarargs
     @Override
     public final Query<T> nor(Query<T>... qs) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add nor queries when raw query is defined!");
+        }
         norQueries.addAll(Arrays.asList(qs));
         return this;
     }
@@ -729,7 +796,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return count;
 
         }
-        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty()) {
+        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             if (morphium.getDriver().getTransactionContext() != null) {
                 try {
                     ret = morphium.getDriver().count(getDB(), getCollectionName(), this.toQueryObject(), getCollation(), getRP());
@@ -776,6 +843,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Map<String, Object> toQueryObject() {
+        if (this.rawQuery != null) {
+            return this.rawQuery;
+        }
         Map<String, Object> o = new LinkedHashMap<>();
         List<Map<String, Object>> lst = new ArrayList<>();
         boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
@@ -831,6 +901,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> expr(Expr exp) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add filter expression when raw query is defined!");
+        }
         FilterExpression fe = new FilterExpression();
         fe.setField("$expr");
 
@@ -841,6 +914,9 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Query<T> matchesJsonSchema(Map<String, Object> schemaDef) {
+        if (rawQuery != null) {
+            throw new IllegalArgumentException("Cannot add jason schema match when raw query is defined!");
+        }
         FilterExpression fe = new FilterExpression();
         fe.setField("$jsonSchema");
         fe.setValue(schemaDef);
