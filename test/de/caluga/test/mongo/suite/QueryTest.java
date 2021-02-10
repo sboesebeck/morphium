@@ -154,6 +154,17 @@ public class QueryTest extends MorphiumTestBase {
         assert (q.countAll() == 10) : "Wrong amount: " + q.countAll();
     }
 
+
+    @Test
+    public void testCountAllWhere() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        q.where("this.counter<100");
+        q.limit(1);
+        assert (q.countAll() == 10) : "Wrong amount: " + q.countAll();
+    }
+
     @Test
     public void testAsyncCountAll() throws Exception {
         createUncachedObjects(10);

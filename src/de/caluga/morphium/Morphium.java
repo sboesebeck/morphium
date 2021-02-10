@@ -446,18 +446,15 @@ public class Morphium implements AutoCloseable {
     }
 
 
-    /**
-     * search for objects similar to template concerning all given fields.
-     * If no fields are specified, all NON Null-Fields are taken into account
-     * if specified, field might also be null
-     *
-     * @param template - what to search for
-     * @param fields   - fields to use for searching
-     * @param <T>      - type
-     * @return result of search
-     */
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public <T> List<T> findByTemplate(T template, String... fields) {
+    public <T> Query<T> createQueryByTemplate(T template, Enum... fields) {
+        String[] flds = new String[fields.length];
+        for (int i = 0; i < fields.length; i++) {
+            flds[i] = fields[i].name();
+        }
+        return createQueryByTemplate(template, flds);
+    }
+
+    public <T> Query<T> createQueryByTemplate(T template, String... fields) {
         Class cls = template.getClass();
         List<String> flds;
         if (fields.length > 0) {
@@ -473,7 +470,27 @@ public class Morphium implements AutoCloseable {
                 logger.error("Could not read field " + f + " of object " + cls.getName());
             }
         }
-        return q.asList();
+        return q;
+    }
+
+    public <T> List<T> findByTemplate(T template, Enum... fields) {
+        return createQueryByTemplate(template, fields).asList();
+    }
+
+    /**
+     * search for objects similar to template concerning all given fields.
+     * If no fields are specified, all NON Null-Fields are taken into account
+     * if specified, field might also be null
+     *
+     * @param template - what to search for
+     * @param fields   - fields to use for searching
+     * @param <T>      - type
+     * @return result of search
+     */
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public <T> List<T> findByTemplate(T template, String... fields) {
+
+        return createQueryByTemplate(template, fields).asList();
     }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
