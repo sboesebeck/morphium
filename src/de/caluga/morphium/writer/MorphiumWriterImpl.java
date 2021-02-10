@@ -1721,7 +1721,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (RuntimeException e) {
                     if (callback == null) {
-                        return; //throw new RuntimeException(e);
+                        throw new RuntimeException(e);
                     }
                     callback.onOperationError(AsyncOperationType.PUSH, query, System.currentTimeMillis() - start, e.getMessage(), e, null, field, value, upsert, multiple);
                 }

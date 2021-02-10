@@ -561,15 +561,24 @@ _Morphium_ is built with flexibility, thread safety, performance and cluster awa
   was last tested with (you do not need the latest and grates, usually it is backward compatible). In addition to
   that, _Morphium_ does not directly use MongoDB or BSON classes but offers its own implementation. For example
   the `MorphiumId`, wich is a drop in replacement for `ObjectId`.
-
+- Clear Design Idea: code for reading from MongoDB is encapsulated in `Query` or `QueryImpl` respectively. All code for
+  writing to MongoDB is encapsulated in `Morphium` itself. For convenience there are some calls from one to another, but
+  the actual code is located as stated.
 
 ### Concepts
-*_Morphium_* is built to be very flexible and can be used in almost any environment. So the architecture needs to be flexible and sustainable at the same time. Hence it's possible to use your own implementation for the cache if you want to.
+
+*_Morphium_* is built to be very flexible and can be used in almost any environment. So the architecture needs to be
+flexible and sustainable at the same time. Hence it's possible to use your own implementation for the cache if you want
+to.
 
 There are four major components of *_Morphium_*:
 
-1.  the *_Morphium_* Instance: This is you main entry point for interaction with Mongo. Here you create Queries and you write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled by the Query-Object
-2.  Query-Object: you need a query object to do reads from mongo. This is usually created by using `_Morphium_.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some things changed (update) and alike. 
+1. the *_Morphium_* Instance: This is you main entry point for interaction with Mongo. Here you create Queries and you
+   write data to mongo. All writes will then be forwarded to the configured Writer implementation, all reads are handled
+   by the Query-Object
+2. Query-Object: you need a query object to do reads from mongo. This is usually created by
+   using `_Morphium_.createQueryFor(Class<T> cls)`. With a Query, you can easily get data from database or have some
+   things changed (update) and alike.
 3.  the Cache: For every request that should be sent to mongo, *_Morphium_* checks first, whether this collection is to be cached and if there is already a result being stored for the corresponding request.
 4.  The Writers: there are 3 different types of writers in *_Morphium_*: The Default Writer (`_Morphium_Writer`) - writes directly to database, waiting for the response, the BufferedWriter (`BufferedWriter`) - does not write directly. All writes are stored in a buffer which is then processed as a bulk. The last type of writer ist the asynchronous writer (`AsyncWriter`) which is similar to the buffered one, but starts writing immediately - only asynchronous. *_Morphium_* decides which writer to use depending on the configuration and the annotations of the given Entities. But you can _always_ use asynchronous calls just by adding a`AsyncCallback` implementation to your request.
 

@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -13,9 +14,7 @@ import junit.framework.TestCase;
 import org.junit.Test;
 import sun.reflect.annotation.ExceptionProxy;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -355,220 +354,174 @@ public class QueryTest extends MorphiumTestBase {
         assert (uc.getIntData()[1] == 123);
     }
 
-    public void testTestPush1() {
-    }
-
-    public void testTestPush2() {
-    }
-
-    public void testPushAll() {
-    }
-
-    public void testTestPushAll() {
-    }
-
-    public void testTestPushAll1() {
-    }
-
-    public void testTestPushAll2() {
-    }
-
-    public void testPullAll() {
-    }
-
-    public void testTestPullAll() {
-    }
-
-    public void testTestPullAll1() {
-    }
-
-    public void testTestPullAll2() {
-    }
-
-    public void testPull() {
-    }
-
-    public void testTestPull() {
-    }
-
-    public void testTestPull1() {
-    }
-
-    public void testTestPull2() {
-    }
-
-    public void testInc() {
-    }
-
-    public void testTestInc() {
-    }
-
-    public void testTestInc1() {
-    }
-
-    public void testTestInc2() {
-    }
-
-    public void testTestInc3() {
-    }
-
-    public void testTestInc4() {
-    }
-
-    public void testTestInc5() {
-    }
-
-    public void testTestInc6() {
-    }
-
-    public void testTestInc7() {
-    }
-
-    public void testTestInc8() {
-    }
-
-    public void testTestInc9() {
-    }
-
-    public void testTestInc10() {
-    }
-
-    public void testTestInc11() {
-    }
-
-    public void testTestInc12() {
-    }
-
-    public void testTestInc13() {
-    }
-
-    public void testTestInc14() {
-    }
-
-    public void testTestInc15() {
-    }
-
-    public void testTestInc16() {
-    }
-
-    public void testTestInc17() {
-    }
-
-    public void testTestInc18() {
-    }
-
-    public void testDec() {
-    }
-
-    public void testTestDec() {
-    }
-
-    public void testTestDec1() {
-    }
-
-    public void testTestDec2() {
-    }
-
-    public void testTestDec3() {
-    }
-
-    public void testTestDec4() {
-    }
-
-    public void testTestDec5() {
-    }
-
-    public void testTestDec6() {
-    }
-
-    public void testTestDec7() {
-    }
-
-    public void testTestDec8() {
-    }
-
-    public void testTestDec9() {
-    }
-
-    public void testTestDec10() {
-    }
-
-    public void testTestDec11() {
-    }
-
-    public void testTestDec12() {
-    }
-
-    public void testTestDec13() {
-    }
-
-    public void testTestDec14() {
-    }
-
-    public void testGetNumberOfPendingRequests() {
-    }
-
-    public void testGetCollectionName() {
-    }
-
-    public void testSetCollectionName() {
-    }
-
-    public void testTextSearch() {
-    }
-
-    public void testTestTextSearch() {
-    }
-
-    public void testTestF1() {
-    }
-
-    public void testTestF2() {
-    }
-
-    public void testDelete() {
-    }
-
-    public void testFindOneAndDelete() {
-    }
-
-    public void testFindOneAndUpdate() {
-    }
-
-    public void testFindOneAndUpdateEnums() {
-    }
-
-    public void testIsAutoValuesEnabled() {
-    }
-
-    public void testSetAutoValuesEnabled() {
-    }
-
-    public void testGetTags() {
-    }
-
-    public void testAddTag() {
-    }
-
-    public void testDisableAutoValues() {
-    }
-
-    public void testEnableAutoValues() {
-    }
-
-    public void testText() {
-    }
-
-    public void testTestText() {
-    }
-
-    public void testTestText1() {
-    }
-
-    public void testTestText2() {
-    }
-
-    public void testTestText3() {
+    @Test
+    public void testPushAll() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 10055);
+        morphium.store(uc);
+        Thread.sleep(50);
+        List<Integer> lst = Arrays.asList(42, 123);
+
+        morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pushAll(UncachedObject.Fields.intData, lst);
+        Thread.sleep(100);
+        morphium.reread(uc);
+        assert (uc.getIntData() != null);
+        assert (uc.getIntData()[0] == 42);
+        assert (uc.getIntData()[1] == 123);
+    }
+
+    @Test
+    public void testPull() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 1021);
+        uc.setIntData(new int[]{12, 23, 52, 42});
+        morphium.store(uc);
+        Thread.sleep(100);
+        morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, 12, false, false, null);
+        morphium.reread(uc);
+        assert (uc.getIntData().length == 3);
+        assert (uc.getIntData()[0] != 12);
+    }
+
+    @Test
+    public void testTestPull() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 1021);
+        uc.setIntData(new int[]{12, 23, 52, 42});
+        morphium.store(uc);
+        Thread.sleep(100);
+        morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, Expr.lte(Expr.intExpr(20)), false, false, null);
+        morphium.reread(uc);
+        assert (uc.getIntData().length == 3);
+        assert (uc.getIntData()[0] != 12);
+
+    }
+
+    @Test
+    public void testInc() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .inc(UncachedObject.Fields.counter, 100);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).gte(100).countAll();
+        assert (cnt != 0);
+        assert (cnt == 1);
+    }
+
+    @Test
+    public void testInc2() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .inc(UncachedObject.Fields.counter, 100, false, true);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).gte(100).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
+    }
+
+
+    @Test
+    public void testInc3() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .inc(UncachedObject.Fields.dval, 0.2, false, true);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.dval).eq(0.2).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
+    }
+
+    @Test
+    public void testIncAsync() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        AtomicInteger ai = new AtomicInteger(0);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .inc(UncachedObject.Fields.dval, 0.2, false, true, new AsyncCallbackAdapter<UncachedObject>() {
+                    @Override
+                    public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                        ai.incrementAndGet();
+                    }
+                });
+        Thread.sleep(50);
+        assert (ai.get() == 1);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.dval).eq(0.2).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
+    }
+
+
+    @Test
+    public void testDec() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .dec(UncachedObject.Fields.counter, 100);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(0).countAll();
+        assert (cnt != 0);
+        assert (cnt == 1);
+    }
+
+
+    @Test
+    public void testDec2() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .dec(UncachedObject.Fields.counter, 100, false, true);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(0).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
+    }
+
+
+    @Test
+    public void testDec3() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .dec(UncachedObject.Fields.dval, 0.2, false, true);
+        Thread.sleep(50);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
+    }
+
+    @Test
+    public void testDecAsync() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        AtomicInteger ai = new AtomicInteger(0);
+        morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.counter).lt(5)
+                .dec(UncachedObject.Fields.dval, 0.2, false, true, new AsyncCallbackAdapter<UncachedObject>() {
+                    @Override
+                    public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                        ai.incrementAndGet();
+                    }
+                });
+        Thread.sleep(50);
+        assert (ai.get() == 1);
+        long cnt = morphium.createQueryFor(UncachedObject.class)
+                .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
+        assert (cnt != 0);
+        assert (cnt == 4);
     }
 
 

@@ -418,6 +418,14 @@ public interface Query<T> extends Cloneable {
 
     void pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
+    void pull(Enum field, Expr value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void pull(Enum field, Expr value, boolean upsert, boolean multiple);
+
+    void pull(Enum field, Expr value);
+
+    void inc(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
     void inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void inc(String field, Integer value, boolean upsert, boolean multiple);
@@ -427,6 +435,8 @@ public interface Query<T> extends Cloneable {
     void inc(String field, Integer value);
 
     void inc(Enum field, Integer value);
+
+    void inc(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void inc(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
@@ -438,6 +448,8 @@ public interface Query<T> extends Cloneable {
 
     void inc(Enum field, Double value);
 
+    void inc(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
     void inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void inc(String field, Long value, boolean upsert, boolean multiple);
@@ -447,6 +459,8 @@ public interface Query<T> extends Cloneable {
     void inc(String field, Long value);
 
     void inc(Enum field, Long value);
+
+    void inc(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void inc(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
@@ -458,6 +472,12 @@ public interface Query<T> extends Cloneable {
 
     void inc(Enum field, Number value);
 
+    ////////
+
+    void dec(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void dec(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
     void dec(String field, Integer value, boolean upsert, boolean multiple);
 
     void dec(Enum field, Integer value, boolean upsert, boolean multiple);
@@ -465,6 +485,10 @@ public interface Query<T> extends Cloneable {
     void dec(String field, Integer value);
 
     void dec(Enum field, Integer value);
+
+    void dec(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void dec(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void dec(String field, Double value, boolean upsert, boolean multiple);
 
@@ -474,6 +498,10 @@ public interface Query<T> extends Cloneable {
 
     void dec(Enum field, Double value);
 
+    void dec(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void dec(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
     void dec(String field, Long value, boolean upsert, boolean multiple);
 
     void dec(Enum field, Long value, boolean upsert, boolean multiple);
@@ -481,6 +509,10 @@ public interface Query<T> extends Cloneable {
     void dec(String field, Long value);
 
     void dec(Enum field, Long value);
+
+    void dec(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
+
+    void dec(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb);
 
     void dec(String field, Number value, boolean upsert, boolean multiple);
 

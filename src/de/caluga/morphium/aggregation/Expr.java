@@ -226,24 +226,48 @@ public abstract class Expr {
         return new OpExpr("cmp", Arrays.asList(e1, e2));
     }
 
+    public static Expr eq(Expr e1) {
+        return new OpExprNoList("eq", e1);
+    }
+
     public static Expr eq(Expr e1, Expr e2) {
         return new OpExpr("eq", Arrays.asList(e1, e2));
+    }
+
+    public static Expr ne(Expr e1) {
+        return new OpExprNoList("ne", e1);
     }
 
     public static Expr ne(Expr e1, Expr e2) {
         return new OpExpr("ne", Arrays.asList(e1, e2));
     }
 
+    public static Expr gt(Expr e1) {
+        return new OpExprNoList("gt", e1);
+    }
+
     public static Expr gt(Expr e1, Expr e2) {
         return new OpExpr("gt", Arrays.asList(e1, e2));
+    }
+
+    public static Expr lt(Expr e1) {
+        return new OpExprNoList("lt", e1);
     }
 
     public static Expr lt(Expr e1, Expr e2) {
         return new OpExpr("lt", Arrays.asList(e1, e2));
     }
 
+    public static Expr gte(Expr e1) {
+        return new OpExprNoList("gte", e1);
+    }
+
     public static Expr gte(Expr e1, Expr e2) {
         return new OpExpr("gte", Arrays.asList(e1, e2));
+    }
+
+    public static Expr lte(Expr e1) {
+        return new OpExprNoList("lte", e1);
     }
 
     public static Expr lte(Expr e1, Expr e2) {
