@@ -23,7 +23,6 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.query.QueryImpl;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
@@ -33,7 +32,6 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import net.sf.cglib.proxy.Enhancer;
@@ -42,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.text.SimpleDateFormat;
@@ -820,7 +819,69 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings({"UnusedDeclaration"})
     public void pushAll(Query<?> query, Enum field, List<Object> value, boolean upsert, boolean multiple) {
-        push(query, field.name(), value, upsert, multiple);
+        pushAll(query, field.name(), value, upsert, multiple);
+    }
+
+    public void push(Object entity, String field, Object value, boolean upsert) {
+        push(entity, null, field, value, upsert);
+    }
+
+    public void push(Object entity, String collection, String field, Object value, boolean upsert) {
+        Object id = getId(entity);
+        if (!upsert || id != null) {
+            Query<?> id1 = createQueryFor(entity.getClass()).f("_id").eq(id);
+            if (collection != null) {
+                id1.setCollectionName(collection);
+            }
+            push(id1, field, value, upsert, false);
+        }
+        Field fld = getARHelper().getField(entity.getClass(), field);
+        try {
+            if (fld.getType().isArray()) {
+                //array handling
+                Object a = fld.get(entity);
+                Object arr = null;
+                if (a == null) {
+                    arr = Array.newInstance(((Class) fld.getGenericType()).getComponentType(), 1);
+                    Array.set(arr, 0, value);
+                } else {
+                    arr = Array.newInstance(((Class) fld.getGenericType()).getComponentType(), Array.getLength(a) + 1);
+                    for (int i = 0; i < Array.getLength(a); i++) {
+                        Array.set(arr, i, Array.get(a, i));
+                    }
+                    Array.set(arr, Array.getLength(a), value);
+                }
+                fld.set(entity, arr);
+            } else if (Collection.class.isAssignableFrom(fld.getType())) {
+                //collection / List etc.
+                Collection v = null;
+
+                v = (Collection) fld.get(entity);
+
+                if (v == null) {
+                    v = new ArrayList();
+                    v.add(value);
+                    fld.set(entity, v);
+                } else {
+                    v.add(value);
+                }
+
+
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Could not update entity", e);
+        }
+        if (upsert && id == null) {
+            store(entity);
+        }
+    }
+
+    public void push(Object entity, String collection, Enum field, Object value, boolean upsert) {
+        push(entity, collection, field.name(), value, upsert);
+    }
+
+    public void push(Object entity, Enum field, Object value, boolean upsert) {
+        push(entity, field.name(), value, upsert);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
