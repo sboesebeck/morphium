@@ -8,6 +8,7 @@ import com.mongodb.event.ClusterListener;
 import com.mongodb.event.CommandListener;
 import com.mongodb.event.ConnectionPoolListener;
 import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
@@ -937,6 +938,19 @@ public class Morphium implements AutoCloseable {
         wr.pushPull(false, query, field, value, upsert, multiple, callback);
     }
 
+    public <T> void pull(final T entity, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (entity == null) throw new IllegalArgumentException("Null Entity cannot be pulled...");
+        pull((Query<T>) createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
+    }
+
+    public <T> void pull(final Query<T> query, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null || field == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        MorphiumWriter wr = getWriterForClass(query.getType());
+        wr.pushPull(false, query, field, value, upsert, multiple, callback);
+    }
+
     public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean upsert, final boolean multiple) {
         pushAll(query, field, value, upsert, multiple, null);
     }
@@ -1140,12 +1154,12 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, Number amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), -amount.doubleValue(), upsert, multiple);
+        dec(query, field.name(), amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
     public void dec(Query<?> query, Enum field, int amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), -amount, upsert, multiple);
+        dec(query, field.name(), amount, upsert, multiple);
     }
 
     public void dec(Query<?> query, String field, double amount, boolean upsert, boolean multiple) {
@@ -1274,6 +1288,21 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
+    public <T> void dec(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+        Map<String, Number> toUpdate = new HashMap<>();
+        for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
+            toUpdate.put(e.getKey().name(), e.getValue());
+        }
+        dec(matching, toUpdate, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
+    }
+
     public void inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
         inc(query, name, amount, upsert, multiple, null);
     }
@@ -1333,6 +1362,52 @@ public class Morphium implements AutoCloseable {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+
+    }
+
+    public <T> void dec(final Query<T> query, final Enum field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        dec(query, field.name(), amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final Enum field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        dec(query, field.name(), amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final Enum field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        dec(query, field.name(), amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+
+    }
+
+    public <T> void dec(final Query<T> query, final Enum field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        dec(query, field.name(), amount, upsert, multiple, callback);
+    }
+
+    public <T> void dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        if (query == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+        getWriterForClass(query.getType()).inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
 
     }
 
@@ -2102,7 +2177,7 @@ public class Morphium implements AutoCloseable {
 
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
         Query<T> q = config.getQueryFact().createQuery(this, type);
-        q.setMorphium(this);
+        //q.setMorphium(this);
         q.setAutoValuesEnabled(isAutoValuesEnabledForThread());
         return q;
     }
@@ -2170,56 +2245,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
-        inc(StatisticKeys.READS);
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
-        long start = System.currentTimeMillis();
-        if (useCache) {
-            if (getCache().getFromIDCache(type, id) != null) {
-                inc(StatisticKeys.CHITS);
-                T res = getCache().getFromIDCache(type, id);
-                List<T> result = new ArrayList<>();
-                result.add(res);
-                callback.onOperationSucceeded(AsyncOperationType.READ, createQueryFor(type).setCollectionName(collection), System.currentTimeMillis() - start, result, res);
-            }
-            inc(StatisticKeys.CMISS);
-        } else {
-            inc(StatisticKeys.NO_CACHED_READS);
-
-        }
-
-
-        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
-        if (ls.isEmpty()) {
-            throw new RuntimeException("Cannot find by ID on non-Entity");
-        }
-
-        createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get(callback);
+        createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get(callback);
     }
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
-        inc(StatisticKeys.READS);
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
-
-        if (useCache) {
-            if (getCache().getFromIDCache(type, id) != null) {
-                inc(StatisticKeys.CHITS);
-                return getCache().getFromIDCache(type, id);
-            }
-            inc(StatisticKeys.CMISS);
-        } else {
-            inc(StatisticKeys.NO_CACHED_READS);
-
-        }
-
-
-        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
-        if (ls.isEmpty()) {
-            throw new RuntimeException("Cannot find by ID on non-Entity");
-        }
-
-        return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
+        return createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get();
     }
 
     public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {

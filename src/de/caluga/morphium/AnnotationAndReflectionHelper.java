@@ -759,7 +759,13 @@ public class AnnotationAndReflectionHelper {
     }
 
     public String getIdFieldName(Object o) {
-        Class<?> cls = getRealClass(o.getClass());
+        Class<?> cls;
+        if (o instanceof Class) {
+            cls = getRealClass((Class<?>) o);
+        } else {
+            cls = getRealClass(o.getClass());
+        }
+
         List<String> flds = getFields(cls, Id.class);
         if (flds == null || flds.isEmpty()) {
             throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());

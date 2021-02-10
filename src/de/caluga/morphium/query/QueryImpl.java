@@ -1536,6 +1536,21 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public void pull(Enum field, Expr value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.pull(this, field.name(), value.toQueryObject(), upsert, multiple, cb);
+    }
+
+    @Override
+    public void pull(Enum field, Expr value, boolean upsert, boolean multiple) {
+        pull(field, value, upsert, multiple, null);
+    }
+
+    @Override
+    public void pull(Enum field, Expr value) {
+        pull(field, value, false, false, null);
+    }
+
+    @Override
     public void inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
         morphium.inc(this, field, value, upsert, multiple, cb);
     }
@@ -1586,6 +1601,25 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.inc(this, field, value);
     }
 
+    @Override
+    public void inc(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        inc(field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        inc(field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        inc(field.name(), value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void inc(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        inc(field.name(), value, upsert, multiple, cb);
+    }
 
     @Override
     public void inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
@@ -1659,6 +1693,45 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.dec(this, field, value);
     }
 
+    @Override
+    public void dec(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+
+    }
+
+    @Override
+    public void dec(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    @Override
+    public void dec(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        morphium.dec(this, field, value, upsert, multiple, cb);
+    }
 
     @Override
     public void dec(String field, Double value, boolean upsert, boolean multiple) {
