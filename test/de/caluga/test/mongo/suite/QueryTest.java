@@ -11,7 +11,9 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import junit.framework.TestCase;
 import org.junit.Test;
+import sun.reflect.annotation.ExceptionProxy;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -178,17 +180,6 @@ public class QueryTest extends MorphiumTestBase {
         assert (c.get() == 10);
     }
 
-    public void testGet() {
-    }
-
-    public void testTestGet() {
-    }
-
-    public void testIdList() {
-    }
-
-    public void testTestIdList() {
-    }
 
     @Test
     public void testQ() {
@@ -215,58 +206,153 @@ public class QueryTest extends MorphiumTestBase {
 
     }
 
-    public void testSet() {
+    @Test
+    public void testSet() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).set(UncachedObject.Fields.value, "changed", false, false, null);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 1);
     }
 
-    public void testTestSet() {
+    @Test
+    public void testTestSet() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(3).set(UncachedObject.Fields.value, "changed", true, true, null);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 2);
     }
 
-    public void testSetEnum() {
+    @Test
+    public void testSetEnum() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<Enum, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value, "changed");
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).setEnum(m, false, false);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 1);
     }
 
-    public void testTestSet1() {
+    @Test
+    public void testSetEnum2() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<Enum, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value, "changed");
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(3).setEnum(m, false, true);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 2);
     }
 
-    public void testTestSet2() {
+    @Test
+    public void testSetEnum3() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<Enum, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value, "changed");
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(1000).f(UncachedObject.Fields.counter).lt(1002).setEnum(m, true, true);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 1);
     }
 
-    public void testTestSet3() {
+
+    @Test
+    public void testSetEnumAsync() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<Enum, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value, "changed");
+        AtomicLong cnt = new AtomicLong(0);
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(2).setEnum(m, new AsyncOperationCallback<UncachedObject>() {
+            @Override
+            public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                log.info("success!");
+                log.info(Utils.toJsonString(param));
+                cnt.incrementAndGet();
+            }
+
+            @Override
+            public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
+
+            }
+        });
+        while (cnt.get() == 0) {
+            Thread.yield();
+        }
+
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 1);
     }
 
-    public void testTestSetEnum() {
+
+    @Test
+    public void testSetUpsert() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(10002).set(UncachedObject.Fields.value, "new", true, true, null);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("new").asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).getCounter() == 10002);
     }
 
-    public void testTestSet4() {
+    @Test
+    public void testTestSet2() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<String, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value.name(), "changed");
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(2).set(m);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
+        assert (lst.size() == 1);
     }
 
-    public void testTestSet5() {
+    @Test
+    public void testTestSet3() throws Exception {
+        createUncachedObjects(100);
+        Thread.sleep(100);
+        Map<String, Object> m = new HashMap<>();
+        m.put(UncachedObject.Fields.value.name(), "new");
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(10002).set(m, true, true, null);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("new").asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).getCounter() == 10002);
     }
 
-    public void testTestSet6() {
+
+    @Test
+    public void testPush() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 10055);
+        morphium.store(uc);
+        Thread.sleep(50);
+        morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
+                .push(UncachedObject.Fields.intData, 42);
+        morphium.reread(uc);
+        assert (uc.getIntData() != null);
+        assert (uc.getIntData()[0] == 42);
     }
 
-    public void testTestSetEnum1() {
-    }
-
-    public void testTestSet7() {
-    }
-
-    public void testTestSet8() {
-    }
-
-    public void testTestSet9() {
-    }
-
-    public void testTestSetEnum2() {
-    }
-
-    public void testTestSet10() {
-    }
-
-    public void testPush() {
-    }
-
-    public void testTestPush() {
+    @Test
+    public void testTestPush() throws Exception {
+        UncachedObject uc = new UncachedObject("value", 10055);
+        morphium.store(uc);
+        Thread.sleep(50);
+        morphium.push(uc, UncachedObject.Fields.intData, 42, false);
+        assert (uc.getIntData() != null);
+        assert (uc.getIntData()[0] == 42);
+        morphium.push(uc, UncachedObject.Fields.intData, 123, false);
+        assert (uc.getIntData() != null);
+        assert (uc.getIntData()[0] == 42);
+        assert (uc.getIntData()[1] == 123);
     }
 
     public void testTestPush1() {
@@ -485,33 +571,45 @@ public class QueryTest extends MorphiumTestBase {
     public void testTestText3() {
     }
 
-    public void testSetProjection() {
+
+    @Test
+    public void testTestSetProjection() throws Exception {
+        UncachedObject uc = new UncachedObject("test", 2);
+        uc.setDval(3.14152);
+        morphium.store(uc);
+        Thread.sleep(100);
+
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).
+                setProjection(UncachedObject.Fields.counter, UncachedObject.Fields.dval).asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).getValue() == null);
+        assert (lst.get(0).getDval() != 0);
+        assert (lst.get(0).getCounter() != 0);
     }
 
-    public void testAddProjection() {
+    @Test
+    public void testTestAddProjection2() throws Exception {
+        UncachedObject uc = new UncachedObject("test", 2);
+        uc.setDval(3.14152);
+        morphium.store(uc);
+        Thread.sleep(100);
+
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).addProjection(UncachedObject.Fields.counter)
+                .addProjection(UncachedObject.Fields.dval).asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).getValue() == null);
+        assert (lst.get(0).getDval() != 0);
+        assert (lst.get(0).getCounter() != 0);
     }
 
-    public void testTestAddProjection() {
+    @Test
+    public void testHideFieldInProjection() throws Exception {
+        createUncachedObjects(10);
+        Thread.sleep(50);
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.value).asList();
+        assert (lst.size() == 1);
+        assert (lst.get(0).getValue() == null);
     }
 
-    public void testTestAddProjection1() {
-    }
 
-    public void testTestSetProjection() {
-    }
-
-    public void testTestAddProjection2() {
-    }
-
-    public void testHideFieldInProjection() {
-    }
-
-    public void testTestHideFieldInProjection() {
-    }
-
-    public void testGetFieldListForQuery() {
-    }
-
-    public void testDistinct() {
-    }
 }
