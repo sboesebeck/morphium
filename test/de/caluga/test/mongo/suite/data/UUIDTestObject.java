@@ -18,4 +18,6 @@ public class UUIDTestObject {
     public UUID id;
 
     public UUID uuidValue;
+
+    public enum Fields {uuidValue, id}
 }

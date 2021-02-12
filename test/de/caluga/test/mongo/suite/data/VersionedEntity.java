@@ -25,4 +25,6 @@ public class VersionedEntity extends UncachedObject {
     public void setTheVersionNumber(long theVersionNumber) {
         this.theVersionNumber = theVersionNumber;
     }
+
+    public enum Fields {boolData, counter, doubleData, dval, floatData, intData, longData, morphiumId, theVersionNumber, value, binaryData}
 }

@@ -8,10 +8,7 @@ import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.LimitToFields;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.UUIDTestObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.data.*;
 
 import net.sf.cglib.proxy.Enhancer;
 import net.sf.cglib.proxy.FixedValue;
@@ -87,7 +84,7 @@ public class AnnotationAndReflectionHelperTest {
 
     @Test
     public void testHasAdditionalData() {
-        assertThat(helper.hasAdditionalData(AdditionalDataTest.AddDat.class)).isTrue();
+        assertThat(helper.hasAdditionalData(AdditionalDataEntity.class)).isTrue();
     }
 
     @Test

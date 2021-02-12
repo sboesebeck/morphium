@@ -860,6 +860,8 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         @Id
         public ObjectId id;
         public String value;
+
+        public enum Fields {value, id}
     }
 
 
@@ -871,6 +873,9 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         public Map<String, MorphiumId> idMap;
         public MorphiumId simpleId;
         public String value;
+
+
+        public enum Fields {idMap, others, simpleId, value, id}
     }
 
 }

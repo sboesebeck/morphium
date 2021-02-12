@@ -70,4 +70,6 @@ public class LazyLoadingObject {
     public void setName(String name) {
         this.name = name;
     }
+
+    public enum Fields {lazyCached, lazyLst, lazyUncached, name, id}
 }

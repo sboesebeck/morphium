@@ -44,4 +44,6 @@ public class Person {
     public void setBirthday(Date birthday) {
         this.birthday = birthday;
     }
+
+    public enum Fields {id, name, birthday}
 }

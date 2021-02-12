@@ -48,6 +48,8 @@ public class ArrayTest extends MorphiumTestBase {
         public void setStringArr(String[] stringArr) {
             this.stringArr = stringArr;
         }
+
+        public enum Fields {intArr, name, stringArr, id}
     }
 
     @Test

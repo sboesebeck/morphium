@@ -65,5 +65,5 @@ public class CachedObject {
     }
 
 
-    public enum Fields {counter, id, value}
+    public enum Fields {id, value, counter}
 }
