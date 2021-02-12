@@ -52,4 +52,6 @@ public class CustomMappedObject {
         return this.getIntValue() == that.getIntValue();
 
     }
+
+    public enum Fields {name, value, intValue}
 }

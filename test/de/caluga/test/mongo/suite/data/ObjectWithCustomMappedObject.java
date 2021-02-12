@@ -53,4 +53,6 @@ public class ObjectWithCustomMappedObject {
             Map<String, CustomMappedObject> customMappedObjectMap) {
         this.customMappedObjectMap = customMappedObjectMap;
     }
+
+    public enum Fields {customMappedObjectList, customMappedObjectMap, id, customMappedObject}
 }

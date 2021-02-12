@@ -92,4 +92,7 @@ public class ValidationTestObject {
     public void setEmail(String email) {
         this.email = email;
     }
+
+
+    public enum Fields {email, friends, id, theInt, whenever, whereever, anotherInt}
 }

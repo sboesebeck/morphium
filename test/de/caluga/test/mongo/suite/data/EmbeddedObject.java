@@ -71,4 +71,6 @@ public class EmbeddedObject {
         result = 31 * result + (int) (testValueLong ^ (testValueLong >>> 32));
         return result;
     }
+
+    public enum Fields {testValueLong, value, name}
 }

@@ -21,13 +21,13 @@ public class SetContainer {
     @Id
     MorphiumId id;
     @Property
-    private Set<String> stringSet;
+    private final Set<String> stringSet;
     private String name;
     @Property
-    private Set<Long> longSet;
+    private final Set<Long> longSet;
     @Reference
-    private Set<UncachedObject> refSet;
-    private Set<EmbeddedObject> embeddedObjectsSet;
+    private final Set<UncachedObject> refSet;
+    private final Set<EmbeddedObject> embeddedObjectsSet;
 
     public SetContainer() {
         stringSet = new LinkedHashSet<>();
@@ -84,5 +84,5 @@ public class SetContainer {
         return embeddedObjectsSet;
     }
 
-    public enum Fields {stringList, name, longList, refList, embeddedObjectList, id}
+    public enum Fields {id, longSet, name, refSet, stringSet, embeddedObjectsSet}
 }

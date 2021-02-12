@@ -66,4 +66,6 @@ public class MapListObject {
     public void setId(MorphiumId id) {
         this.id = id;
     }
+
+    public enum Fields {listValue, mapListValue, mapValue, name, id}
 }

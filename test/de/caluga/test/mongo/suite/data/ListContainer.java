@@ -22,13 +22,13 @@ public class ListContainer {
     @Id
     MorphiumId id;
     @Property
-    private List<String> stringList;
+    private final List<String> stringList;
     private String name;
     @Property
-    private List<Long> longList;
+    private final List<Long> longList;
     @Reference
-    private List<UncachedObject> refList;
-    private List<EmbeddedObject> embeddedObjectList;
+    private final List<UncachedObject> refList;
+    private final List<EmbeddedObject> embeddedObjectList;
 
     public ListContainer() {
         stringList = new ArrayList<>();
@@ -85,5 +85,5 @@ public class ListContainer {
         return embeddedObjectList;
     }
 
-    public enum Fields {stringList, name, longList, refList, embeddedObjectList, id}
+    public enum Fields {id, longList, name, refList, stringList, embeddedObjectList}
 }

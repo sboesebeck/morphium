@@ -49,4 +49,6 @@ public class ListWildcardContainer {
     public void setEmbeddedObjectList(List<? extends EmbeddedObject> embeddedObjectList) {
         this.embeddedObjectList = embeddedObjectList;
     }
+
+    public enum Fields {id, name, embeddedObjectList}
 }
