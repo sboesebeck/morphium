@@ -3,12 +3,17 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Expr;
+import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ComplexObject;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import junit.framework.TestCase;
 import org.junit.Test;
@@ -573,6 +578,45 @@ public class QueryTest extends MorphiumTestBase {
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.value).asList();
         assert (lst.size() == 1);
         assert (lst.get(0).getValue() == null);
+    }
+
+
+    @Test
+    public void testSubDocs() throws Exception {
+        SubDocTest sd = new SubDocTest();
+        morphium.store(sd);
+
+        Query<SubDocTest> q = morphium.createQueryFor(SubDocTest.class).f(SubDocTest.Fields.id).eq(sd.getId());
+
+        q.push("sub_docs.test.subtest", "this value added");
+        q.push("sub_docs.test.subtest", "this value added2");
+        assert (q.get().subDocs.size() != 0);
+
+    }
+
+    @Entity
+    public static class SubDocTest {
+        @Id
+        private MorphiumId id;
+        private Map<String, Map<String, List<String>>> subDocs;
+
+        public Map<String, Map<String, List<String>>> getSubDocs() {
+            return subDocs;
+        }
+
+        public void setSubDocs(Map<String, Map<String, List<String>>> subDocs) {
+            this.subDocs = subDocs;
+        }
+
+        public MorphiumId getId() {
+            return id;
+        }
+
+        public void setId(MorphiumId id) {
+            this.id = id;
+        }
+
+        public enum Fields {subDocs, id}
     }
 
 
