@@ -1457,6 +1457,8 @@ public class MongoDriver implements MorphiumDriver {
                     //log.error("",e);
                     if (e.getMessage().contains("E11000 duplicate key error")) {
                         throw new ConcurrentModificationException("Version mismach - write failed", e);
+                    } else {
+                        throw e;
                     }
                 }
 
