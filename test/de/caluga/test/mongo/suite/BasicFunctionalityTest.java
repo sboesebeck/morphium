@@ -88,7 +88,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             log.info("Got DB: " + s);
             morphium.reconnectToDb(s);
             log.info("Logged in...");
-            Thread.sleep(1000);
+            Thread.sleep(100);
         }
 
         morphium.reconnectToDb("morphium_test");
@@ -111,7 +111,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             o.setValue("Uncached " + i % 2);
             morphium.store(o);
         }
-        Thread.sleep(600);
+        Thread.sleep(500);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "value");
         List<UncachedObject> lst = q.asList();
@@ -266,7 +266,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             o.setValue("Uncached " + i);
             morphium.store(o);
         }
-        Thread.sleep(1000);
+        Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("value").eq("Uncached 1");
         long c = q.countAll();
@@ -307,7 +307,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
 
         assert (last.getMorphiumId() != null) : "ID null?!?!?";
-        Thread.sleep(1000);
+        Thread.sleep(100);
         UncachedObject uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
@@ -375,7 +375,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         long dur = System.currentTimeMillis() - start;
         log.info("Storing single took " + dur + " ms");
         //        assert (dur < NO_OBJECTS * 5) : "Storing took way too long";
-        Thread.sleep(1500);
+        Thread.sleep(500);
         log.info("Searching for objects");
 
         checkUncached();
@@ -407,7 +407,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.storeList(lst);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing a list  took " + dur + " ms");
-        Thread.sleep(1000);
+        Thread.sleep(100);
         checkUncached();
         assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
@@ -469,11 +469,11 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
 
         long dur = System.currentTimeMillis() - start;
         log.info("Storing (in Cache) single took " + dur + " ms");
-        waitForAsyncOperationToStart(1000000);
+        waitForAsyncOperationToStart(100000);
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
-        Thread.sleep(3500);
+        Thread.sleep(500);
         randomCheck();
         Map<String, Double> statistics = morphium.getStatistics();
         Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
@@ -711,7 +711,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             lst.add(uc);
         }
         morphium.insert(lst);
-        Thread.sleep(500);
+        Thread.sleep(200);
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         System.err.println("Found " + c);
         assert (c == 100);
@@ -835,6 +835,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.store(uc);
         UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
         assert (ret.getValue().equals("value"));
+        Thread.sleep(100);
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 0);
 
     }
@@ -862,8 +863,14 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             return;
         }
 
-        Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)))
-                .add("key", Utils.getMap("_id", "hashed")));
+        try {
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)))
+                    .add("key", Utils.getMap("_id", "hashed")));
+
+
+        } catch (MorphiumDriverException e) {
+            log.error("Sharding is enabled, but morphium_test sharding is not it seems");
+        }
 
 
         createUncachedObjects(10000);
@@ -879,7 +886,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         uc = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).get();
         uc.setValue("another value");
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
         assert (uc.getValue().equals("another value"));
 
@@ -895,10 +902,14 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             return;
         }
 
-        Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(StringIdTestEntity.class)))
-                .add("key", Utils.getMap("_id", "hashed")));
 
+        try {
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(StringIdTestEntity.class)))
+                    .add("key", Utils.getMap("_id", "hashed")));
 
+        } catch (MorphiumDriverException e) {
+            log.error("Sharding is enabled, but morphium_test sharding is not it seems");
+        }
         StringIdTestEntity uc = new StringIdTestEntity();
         uc.value = "test123e";
         morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
@@ -916,7 +927,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         uc = morphium.createQueryFor(StringIdTestEntity.class).f(StringIdTestEntity.Fields.value).eq("test123").get();
         uc.value = "another value";
         morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
         assert (uc.value.equals("another value"));
 

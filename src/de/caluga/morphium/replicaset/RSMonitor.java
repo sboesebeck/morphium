@@ -180,15 +180,21 @@ public class RSMonitor {
                 //                        "maxWriteBatchSize" : 1000,
                 return status;
             } catch (Exception e) {
-                logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
+
                 if (e.getMessage().contains(" 'not running with --replSet'")) {
                     logger.warn("Mongo not configured for replicaset! Disabling monitoring for now");
                     morphium.getConfig().setReplicasetMonitoring(false);
                     terminate();
-                }
-                logger.warn("Tried connection to: ");
-                for (String adr : morphium.getConfig().getHostSeed()) {
-                    logger.warn("   " + adr);
+                } else if (e.getMessage().contains("replSetGetStatus is not supported")) {
+                    logger.warn("Replicaset check not possible - not supported!");
+                    morphium.getConfig().setReplicasetMonitoring(false);
+                    terminate();
+                } else {
+                    logger.warn("Could not get Replicaset status: " + e.getMessage(), e);
+                    logger.warn("Tried connection to: ");
+                    for (String adr : morphium.getConfig().getHostSeed()) {
+                        logger.warn("   " + adr);
+                    }
                 }
             }
         }

@@ -76,7 +76,7 @@ public class MorphiumTestBase {
 
     @org.junit.AfterClass
     public static void tearDownClass() {
-        LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
+       // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
     }
 
@@ -173,6 +173,11 @@ public class MorphiumTestBase {
                 morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
             }
         }
+        int num = TestEntityNameProvider.number.incrementAndGet();
+        log.info("------------------------------------------------");
+        log.info("----------------------------------------");
+        log.info("-----------------------------");
+        log.info("------ > TestNumber: " + num);
         log.info("Init complete");
     }
 
@@ -258,11 +263,6 @@ public class MorphiumTestBase {
         logStats(morphium);
         morphium.getCache().resetCache();
         morphium.resetStatistics();
-        int num = TestEntityNameProvider.number.incrementAndGet();
-        log.info("------------------------------------------------");
-        log.info("----------------------------------------");
-        log.info("-----------------------------");
-        log.info("------ > TestNumber: " + num);
 //        morphium.dropCollection(UncachedObject.class);
 //        morphium.clearCachefor(CachedObject.class);
 //        morphium.dropCollection(CachedObject.class);

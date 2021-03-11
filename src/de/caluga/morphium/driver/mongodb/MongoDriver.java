@@ -1420,6 +1420,7 @@ public class MongoDriver implements MorphiumDriver {
                     filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
                     toUpdate.put(MorphiumDriver.VERSION_NAME, (Long) toUpdate.get(MorphiumDriver.VERSION_NAME) + 1l);
                 }
+
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
                 Document tDocument = new Document(toUpdate);
@@ -1430,11 +1431,16 @@ public class MongoDriver implements MorphiumDriver {
                         tDocument.put(k, b);
                     }
                 }
+                ReplaceOptions r = new ReplaceOptions();
+                if (tDocument.get("_id") instanceof String) { //should only be necessary when dealing with strings
+                    r.collation(com.mongodb.client.model.Collation.builder().locale("simple").build());
+                }
+                r.upsert(true);
+
                 tDocument.remove("_id"); //not needed
                 //noinspection unchecked
                 try {
-                    ReplaceOptions r = new ReplaceOptions();
-                    r.upsert(true);
+
                     UpdateResult res;
                     if (currentTransaction.get() == null) {
                         //noinspection unchecked

@@ -102,7 +102,7 @@ public class Morphium implements AutoCloseable {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
         cfg.addHostToSeed(host);
-        cfg.setReplicasetMonitoring(false);
+        //cfg.setReplicasetMonitoring(false);
         setConfig(cfg);
 
     }
@@ -110,6 +110,7 @@ public class Morphium implements AutoCloseable {
     public Morphium(String host, int port, String db) {
         this();
         MorphiumConfig cfg = new MorphiumConfig(db, 100, 5000, 5000);
+        //cfg.setReplicasetMonitoring(false);
         cfg.addHostToSeed(host, port);
 
         setConfig(cfg);
