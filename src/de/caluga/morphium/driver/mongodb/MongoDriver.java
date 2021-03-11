@@ -1408,9 +1408,7 @@ public class MongoDriver implements MorphiumDriver {
             int updated = 0;
             for (Map<String, Object> toUpdate : objs) {
 
-                UpdateOptions o = new UpdateOptions();
                 Document filter = new Document();
-                o.upsert(true);
                 Object id = toUpdate.get("_id");
 //                o.upsert(id == null);
                 if (id instanceof MorphiumId) {

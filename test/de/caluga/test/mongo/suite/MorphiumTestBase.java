@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
@@ -12,8 +14,10 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import io.github.classgraph.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,7 +168,10 @@ public class MorphiumTestBase {
             }
 
             morphium = new Morphium(cfg);
-
+            for (String coll : morphium.listCollections()) {
+                log.info("Dropping collection " + coll);
+                morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
+            }
         }
         log.info("Init complete");
     }
@@ -249,6 +256,17 @@ public class MorphiumTestBase {
     public void tearDown() {
         if (morphium == null) return;
         logStats(morphium);
+        morphium.getCache().resetCache();
+        morphium.resetStatistics();
+        int num = TestEntityNameProvider.number.incrementAndGet();
+        log.info("------------------------------------------------");
+        log.info("----------------------------------------");
+        log.info("-----------------------------");
+        log.info("------ > TestNumber: " + num);
+//        morphium.dropCollection(UncachedObject.class);
+//        morphium.clearCachefor(CachedObject.class);
+//        morphium.dropCollection(CachedObject.class);
+//        morphium.dropCollection(ComplexObject.class);
 //        try {
 //            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
 //            f.setAccessible(true);
@@ -303,41 +321,41 @@ public class MorphiumTestBase {
 //        } catch (Exception e) {
 //            log.error("Could not shutdown properly!", e);
 //        }
-        try {
-            log.info("---------------------------------------- Re-connecting to mongo");
-            int num = TestEntityNameProvider.number.incrementAndGet();
-            log.info("------ > Number: " + num);
-
-            log.info("resetting DB...");
-//            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
-//            for (String col : lst) {
-//                log.info("Dropping " + col);
-//                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
+//        try {
+//            log.info("---------------------------------------- Re-connecting to mongo");
+//            int num = TestEntityNameProvider.number.incrementAndGet();
+//            log.info("------ > Number: " + num);
+//
+//            log.info("resetting DB...");
+////            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
+////            for (String col : lst) {
+////                log.info("Dropping " + col);
+////                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
+////            }
+//            boolean ok = false;
+//
+//            while (!ok) {
+//                try {
+//                    morphium.getDriver().drop(morphium.getConfig().getDatabase(), WriteConcern.getWc(1, true, false, 1000));
+//                    ok = true;
+//                } catch (MorphiumDriverException e) {
+//                    Thread.sleep(200);
+//                    e.printStackTrace();
+//                }
 //            }
-            boolean ok = false;
-
-            while (!ok) {
-                try {
-                    morphium.getDriver().drop(morphium.getConfig().getDatabase(), WriteConcern.getWc(1, true, false, 1000));
-                    ok = true;
-                } catch (MorphiumDriverException e) {
-                    Thread.sleep(200);
-                    e.printStackTrace();
-                }
-            }
-
-            //morphium.getCache().resetCache();
-            morphium.close();
-            morphium = null;
-            System.gc();
-            init();
-//            morphium.reset();
+//
+//            //morphium.getCache().resetCache();
+//            morphium.close();
 //            morphium = null;
-//            Thread.sleep(200);
-        } catch (Exception e) {
-            log.error("Error during preparation!");
-            e.printStackTrace();
-        }
+//            System.gc();
+//            init();
+////            morphium.reset();
+////            morphium = null;
+////            Thread.sleep(200);
+//        } catch (Exception e) {
+//            log.error("Error during preparation!");
+//            e.printStackTrace();
+//        }
 
     }
 

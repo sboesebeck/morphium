@@ -5,14 +5,14 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.mongodb.MongoDriver;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -25,10 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author stephan
@@ -853,6 +850,86 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.reread(uc);
         assert (uc.getCounter() == 42);
 
+    }
+
+
+    @Test
+    public void shardingReplacementTest() throws Exception {
+        try {
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("listShards", 1));
+        } catch (MorphiumDriverException e) {
+            log.info("Not sharded, it seems");
+            return;
+        }
+
+        Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)))
+                .add("key", Utils.getMap("_id", "hashed")));
+
+
+        createUncachedObjects(10000);
+        UncachedObject uc = new UncachedObject("toReplace", 1234);
+        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
+        Thread.sleep(100);
+        uc.setValue("again");
+        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
+
+        morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
+        assert (uc.getValue().equals("again"));
+
+        uc = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).get();
+        uc.setValue("another value");
+        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
+        Thread.sleep(1000);
+        morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
+        assert (uc.getValue().equals("another value"));
+
+    }
+
+
+    @Test
+    public void shardingStringIdReplacementTest() throws Exception {
+        try {
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("listShards", 1));
+        } catch (MorphiumDriverException e) {
+            log.info("Not sharded, it seems");
+            return;
+        }
+
+        Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(StringIdTestEntity.class)))
+                .add("key", Utils.getMap("_id", "hashed")));
+
+
+        StringIdTestEntity uc = new StringIdTestEntity();
+        uc.value = "test123e";
+        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
+        Thread.sleep(100);
+        uc.value = "again";
+        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
+
+        morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
+        assert (uc.value.equals("again"));
+
+
+        uc = new StringIdTestEntity();
+        uc.value = "test123";
+        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
+        uc = morphium.createQueryFor(StringIdTestEntity.class).f(StringIdTestEntity.Fields.value).eq("test123").get();
+        uc.value = "another value";
+        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
+        Thread.sleep(1000);
+        morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
+        assert (uc.value.equals("another value"));
+
+    }
+
+    
+    @Entity
+    public static class StringIdTestEntity {
+        @Id
+        public String id;
+        public String value;
+
+        public enum Fields {value, id}
     }
 
     @Entity
