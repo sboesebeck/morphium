@@ -49,7 +49,7 @@ public class AutoVariableTest extends MorphiumTestBase {
                 assert (lc.lastChangeDate == null);
                 assert (lc.lastChangeString == null);
 
-                morphium.set(lc, "value", "set", false, false, null);
+                morphium.set(lc, "value", "set", false, null);
                 morphium.reread(lc);
                 assert (lc.lastChange == 0);
                 assert (lc.lastChangeDate == null);
@@ -97,7 +97,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert (lc.lastChangeDate != null);
         assert (lc.lastChangeString != null);
 
-        morphium.set(lc, "value", "set", false, false, null);
+        morphium.set(lc, "value", "set", false, null);
         morphium.reread(lc);
         assert (lc.lastChange != 0);
         assert (lc.lastChangeDate != null);
@@ -154,7 +154,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert (lc.lastChangeDate == null);
         assert (lc.lastChangeString == null);
 
-        morphium.set(lc, "value", "set", false, false, null);
+        morphium.set(lc, "value", "set", false, null);
         morphium.reread(lc);
         assert (lc.lastChange == 0);
         assert (lc.lastChangeDate == null);

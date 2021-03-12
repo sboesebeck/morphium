@@ -260,6 +260,9 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
                             return running;
                         }
+                        if (obj.getSender().equals(id)) {
+                            return running;
+                        }
                         if (obj.getInAnswerTo() != null) {
                             handleAnswer(obj);
 
@@ -428,9 +431,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         }
-        if (obj.isExclusive() && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
-            morphium.set(obj, getCollectionName(), "locked_by", false, false, null);
-        }
+//        if (obj.isExclusive() && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
+//            morphium.set(obj, getCollectionName(), "locked_by","NONE", false, null);
+//        }
 
     }
 
@@ -768,7 +771,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.error("msg was deleted!");
                     processing.remove(msg.getMsgId());
                     return;
-                } else if (msg1.isExclusive() && !msg1.getLockedBy().equals(id)) {
+                } else if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id)) {
                     log.error(msg1.getMsgId() + " was overlocked by " + msg1.getLockedBy());
                     removeProcessingFor(msg1);
                     return;
