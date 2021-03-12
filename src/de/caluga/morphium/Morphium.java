@@ -2267,7 +2267,28 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
-        return createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get();
+        inc(StatisticKeys.READS);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
+
+        if (useCache) {
+            if (getCache().getFromIDCache(type, id) != null) {
+                inc(StatisticKeys.CHITS);
+                return getCache().getFromIDCache(type, id);
+            }
+            inc(StatisticKeys.CMISS);
+        } else {
+            inc(StatisticKeys.NO_CACHED_READS);
+
+        }
+
+
+        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
+        if (ls.isEmpty()) {
+            throw new RuntimeException("Cannot find by ID on non-Entity");
+        }
+
+        return createQueryFor(type).setCollectionName(collection).f(ls.get(0)).eq(id).get();
     }
 
     public <T> List<T> findByField(Class<? extends T> cls, String fld, Object val) {
@@ -2883,6 +2904,10 @@ public class Morphium implements AutoCloseable {
         return stats;
     }
 
+
+    public List<ShutdownListener> getShutDownListeners() {
+        return shutDownListeners;
+    }
 
     public void addShutdownListener(ShutdownListener l) {
         shutDownListeners.add(l);

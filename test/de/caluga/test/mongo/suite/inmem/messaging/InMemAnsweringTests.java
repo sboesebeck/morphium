@@ -164,22 +164,26 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             final ConcurrentHashMap<String, AtomicInteger> receivedById = new ConcurrentHashMap<>();
 
             m1.addListenerForMessageNamed("test", ((msg, m) -> {
+                log.info("m1 got msg test");
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
             }));
             m2.addMessageListener(((msg, m) -> {
+                log.info("m2 got msg");
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
             }));
 
             m3.addListenerForMessageNamed("test", ((msg, m) -> {
+                log.info("m3 got msg test");
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
             }));
             m3.addListenerForMessageNamed("test2", ((msg, m) -> {
+                log.info("m3 got msg test2");
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
@@ -189,7 +193,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             //sending an answer to all (broadcast)
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
-            Msg answer = new Msg("test", "An answer", "42");
+            Msg answer = new Msg("test", "An answer", "41");
             answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
             Thread.sleep(1000);
@@ -198,6 +202,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             assert (receivedById.get("m2").get() == 1);
 
             //sending a direct message
+            log.info("Sending direct message");
             receivedById.clear();
             answer = new Msg("test", "An answer", "42");
             answer.setInAnswerTo(new MorphiumId());
@@ -209,8 +214,9 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             assert (receivedById.get("m2").get() == 1);
 
             //exclusive answer!
+            log.info("Exclusive answer test");
             receivedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An exclusive answer", "43");
             answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
 //            answer.setTtl(100000);
@@ -225,7 +231,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             receivedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An answer", "44");
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
@@ -239,7 +245,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             receivedById.clear();
-            answer = new Msg("test", "An answer", "42");
+            answer = new Msg("test", "An answer", "45");
             answer.setInAnswerTo(new MorphiumId());
             answer.setExclusive(true);
             m3.sendMessage(answer);
@@ -261,7 +267,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             receivedById.clear();
-            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 1400);
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "46").setRecipient("m1"), 1400);
             Thread.sleep(1000);
             assert (receivedById.size() == 1);
 
@@ -270,7 +276,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             receivedById.clear();
-            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 1400);
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 1400);
             Thread.sleep(1000); //wait for onMessage to be called
             assert (receivedById.size() == 1);
 
@@ -279,7 +285,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             receivedById.clear();
-            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 1400);
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "48").setRecipient("m1"), 1400);
             Thread.sleep(1000); //wait for onMessage to be called
             assert (receivedById.size() == 0);
 

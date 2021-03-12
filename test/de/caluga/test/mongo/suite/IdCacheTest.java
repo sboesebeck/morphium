@@ -6,6 +6,7 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.Test;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -27,15 +28,17 @@ public class IdCacheTest extends MorphiumTestBase {
         }
 
         waitForWrites();
-        Thread.sleep(3000);
+        Thread.sleep(500);
 
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").lt(30);
         List<CachedObject> lst = q.asList();
         String k = morphium.getCache().getCacheKey(q);
         assert (lst.size() == 29) : "Size matters! " + lst.size();
-        Thread.sleep(1000);
+        Thread.sleep(100);
+        Map<String, Integer> sizes = morphium.getCache().getSizes();
         MorphiumId id = lst.get(0).getId();
+
         CachedObject c = morphium.findById(CachedObject.class, id);
         assert (lst.get(0) == c) : "Object differ?";
 

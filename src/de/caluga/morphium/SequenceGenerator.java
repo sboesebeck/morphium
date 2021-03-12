@@ -107,12 +107,12 @@ public class SequenceGenerator {
             }
             Map<String, Object> values = new HashMap<>();
             Sequence sequence = seq.get();
-            if (recLevel > 2000) {
+            if (recLevel > 50) {
                 log.error("Could not get lock on Sequence " + name + " Checking timestamp...");
                 if (System.currentTimeMillis() - sequence.getLockedAt() > 1000 * 30) {
                     log.error("Was locked for more than 30s - assuming error, resetting lock");
                     //sequence.setLockedBy(null);
-                    morphium.set(sequence, "locked_by", null);
+                    morphium.unset(sequence, "locked_by");
                     //noinspection EmptyCatchBlock
                     try {
                         Thread.sleep(500);
@@ -124,7 +124,9 @@ public class SequenceGenerator {
                     recLevel = 1;
                     continue;
                 }
-                throw new RuntimeException("Getting lock on sequence " + name + " failed!");
+                if (recLevel > 1000) {
+                    throw new RuntimeException("Getting lock on sequence " + name + " failed!");
+                }
             }
 
             seq = seq.q().f("name").eq(name).f("locked_by").eq(null);

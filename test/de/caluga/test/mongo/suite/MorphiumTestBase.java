@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -178,7 +179,67 @@ public class MorphiumTestBase {
         log.info("----------------------------------------");
         log.info("-----------------------------");
         log.info("------ > TestNumber: " + num);
+
+
         log.info("Init complete");
+    }
+
+    @org.junit.After
+    public void tearDown() throws InterruptedException {
+        if (morphium == null) return;
+        logStats(morphium);
+        morphium.getCache().resetCache();
+        morphium.resetStatistics();
+        //looking for registered shutdownListeners
+        List<ShutdownListener> toRemove = new ArrayList<>();
+        for (ShutdownListener l : morphium.getShutDownListeners()) {
+            if (l instanceof Messaging) {
+                ((Messaging) l).terminate();
+                log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                while (((Messaging) l).isRunning()) {
+                    log.info("Waiting for messaging to finish");
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        //swallow
+                    }
+                }
+                toRemove.add(l);
+                morphium.dropCollection(Msg.class, ((Messaging) l).getCollectionName(), null);
+            } else if (l instanceof OplogMonitor) {
+                try {
+                    ((OplogMonitor) l).stop();
+                    while (((OplogMonitor) l).isRunning()) {
+                        log.info("Waiting for oplogmonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    Field f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                    toRemove.add(l);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else if (l instanceof ChangeStreamMonitor) {
+                try {
+                    log.info("Changestream Monitor still running");
+                    ((ChangeStreamMonitor) l).terminate();
+                    while (((ChangeStreamMonitor) l).isRunning()) {
+                        log.info("Waiting for changestreamMonitor to finish");
+                        Thread.sleep(100);
+                    }
+                    Field f = l.getClass().getDeclaredField("listeners");
+                    f.setAccessible(true);
+                    ((Collection) f.get(l)).clear();
+                    toRemove.add(l);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        for (ShutdownListener t : toRemove) {
+            morphium.removeShutdownListener(t);
+        }
     }
 
     public boolean waitForAsyncOperationToStart(int maxWaits) {
@@ -257,107 +318,6 @@ public class MorphiumTestBase {
         }
     }
 
-    @org.junit.After
-    public void tearDown() {
-        if (morphium == null) return;
-        logStats(morphium);
-        morphium.getCache().resetCache();
-        morphium.resetStatistics();
-//        morphium.dropCollection(UncachedObject.class);
-//        morphium.clearCachefor(CachedObject.class);
-//        morphium.dropCollection(CachedObject.class);
-//        morphium.dropCollection(ComplexObject.class);
-//        try {
-//            Field f = morphium.getClass().getDeclaredField("shutDownListeners");
-//            f.setAccessible(true);
-//            List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
-//            for (ShutdownListener l : listeners) {
-//                if (l instanceof Messaging) {
-//                    Messaging msg = (Messaging) l;
-//                    if (msg.isRunning()) {
-//                        msg.terminate();
-//                        log.info("Terminating still running messaging..." + msg.getSenderId());
-//                        while (msg.isRunning()) {
-//                            log.info("Waiting for messaging to finish");
-//                            log.info("Messaging " + msg.getSenderId() + " still running");
-//                            Thread.sleep(100);
-//                        }
-//                        log.info("Messaging terminated");
-//                    }
-//                    ((Collection) f.get(morphium)).clear();
-//                } else if (l instanceof OplogMonitor) {
-//
-//                    OplogMonitor om = (OplogMonitor) l;
-//                    if (om.isRunning()) {
-//                        om.stop();
-//                        while (om.isRunning()) {
-//                            log.info("Waiting for oplogmonitor to finish");
-//                            Thread.sleep(100);
-//                        }
-//                        f = l.getClass().getDeclaredField("listeners");
-//                        f.setAccessible(true);
-//                        ((Collection) f.get(l)).clear();
-//                    }
-//                } else if (l instanceof ChangeStreamMonitor) {
-//
-//                    log.info("Changestream Monitor still running");
-//                    ChangeStreamMonitor csm = (ChangeStreamMonitor) l;
-//                    if (csm.isRunning()) {
-//                        csm.terminate();
-//                        while (csm.isRunning()) {
-//                            log.info("Waiting for changestreamMonitor to finish");
-//                            Thread.sleep(100);
-//                        }
-//                        log.info("ChangeStreamMonitor terminated!");
-//                        f = l.getClass().getDeclaredField("listeners");
-//                        f.setAccessible(true);
-//                        ((Collection) f.get(l)).clear();
-//                    }
-////                } else if (l instanceof BufferedMorphiumWriterImpl) {
-////                    BufferedMorphiumWriterImpl buf = (BufferedMorphiumWriterImpl) l;
-////                    buf.close();
-//                }
-//            }
-//        } catch (Exception e) {
-//            log.error("Could not shutdown properly!", e);
-//        }
-//        try {
-//            log.info("---------------------------------------- Re-connecting to mongo");
-//            int num = TestEntityNameProvider.number.incrementAndGet();
-//            log.info("------ > Number: " + num);
-//
-//            log.info("resetting DB...");
-////            List<String> lst = morphium.getDriver().getCollectionNames(morphium.getConfig().getDatabase());
-////            for (String col : lst) {
-////                log.info("Dropping " + col);
-////                morphium.getDriver().drop(morphium.getConfig().getDatabase(), col, morphium.getWriteConcernForClass(UncachedObject.class));
-////            }
-//            boolean ok = false;
-//
-//            while (!ok) {
-//                try {
-//                    morphium.getDriver().drop(morphium.getConfig().getDatabase(), WriteConcern.getWc(1, true, false, 1000));
-//                    ok = true;
-//                } catch (MorphiumDriverException e) {
-//                    Thread.sleep(200);
-//                    e.printStackTrace();
-//                }
-//            }
-//
-//            //morphium.getCache().resetCache();
-//            morphium.close();
-//            morphium = null;
-//            System.gc();
-//            init();
-////            morphium.reset();
-////            morphium = null;
-////            Thread.sleep(200);
-//        } catch (Exception e) {
-//            log.error("Error during preparation!");
-//            e.printStackTrace();
-//        }
-
-    }
 
     public void waitForWrites() {
         waitForWrites(morphium);
