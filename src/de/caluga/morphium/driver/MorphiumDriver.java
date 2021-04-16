@@ -162,6 +162,8 @@ public interface MorphiumDriver {
     @SuppressWarnings("unused")
     Map<String, Object> getDBStats(String db) throws MorphiumDriverException;
 
+    Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
+
     @SuppressWarnings("unused")
     Map<String, Object> getOps(long threshold) throws MorphiumDriverException;
 

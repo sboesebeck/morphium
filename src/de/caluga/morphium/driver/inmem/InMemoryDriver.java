@@ -73,7 +73,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
         MorphiumTypeMapper<ObjectId> typeMapper = getObjectIdTypeMapper();
         mapper.registerCustomMapperFor(ObjectId.class, typeMapper);
-        log.info("Read in json: " + b.toString());
+        log.info("Read in json: " + b);
         InMemDumpContainer cnt = mapper.deserialize(InMemDumpContainer.class, b.toString());
         log.info("Restoring DB " + cnt.getDb() + " dump from " + new Date(cnt.getCreated()));
         setDatabase(cnt.getDb(), cnt.getData());
@@ -477,9 +477,14 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<String, Object> getDBStats(String db) {
         Map<String, Object> ret = new ConcurrentHashMap<>();
         ret.put("collections", getDB(db).size());
-
-
         return ret;
+    }
+
+    @Override
+    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+        Map<String, Object> ret = new ConcurrentHashMap<>();
+        ret.put("entries", getDB(db).get(coll).size());
+        return null;
     }
 
     @Override

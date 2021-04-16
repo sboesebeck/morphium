@@ -805,6 +805,15 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
+    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+        return DriverHelper.doCall(() -> {
+            Document ret = mongo.getDatabase(db).runCommand(new Document("collStats", coll));
+            return convertBSON(ret);
+        }, retriesOnNetworkError, sleepBetweenErrorRetries);
+        //        return null;
+    }
+
+    @Override
     public Map<String, Object> getOps(long threshold) {
         throw new RuntimeException("Not implemented yet, sorry...");
         //        return null;
@@ -1344,7 +1353,7 @@ public class MongoDriver implements MorphiumDriver {
                     }
                     break;
                 default:
-                    log.error("Unhandeled read preference: " + readPreference.toString());
+                    log.error("Unhandeled read preference: " + readPreference);
                     prf = null;
 
             }
