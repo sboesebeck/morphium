@@ -9,12 +9,15 @@ _Morphium_ started as a feature rich access layer and POJO mapper for MongoDB in
 But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customisable and stable. 
 
 ## About this document
-This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic understanding of MongoDB and a good knowledge on _Morphium_. If you want to know about MongoDB's features, that _Morphium_ implements here, have a look at the official MongoDB pages and the documentation there.
+This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic
+understanding of MongoDB and installed and maybe used _Morphium_ already. If you want to know about MongoDB's features,
+that _Morphium_ makes available in java and are referenced here, have a look at the official MongoDB pages and the
+documentation there.
 
 This documentation covers all features _Morphium_ has to offer.
 
 Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework.
-Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the mess'aging
+Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the messaging
 subsystem first.
 
 ## Using _Morphium_ as a messaging system

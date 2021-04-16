@@ -1143,6 +1143,24 @@ public class Morphium implements AutoCloseable {
         annotationHelper.callLifecycleMethod(PostUpdate.class, toSet);
     }
 
+    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
+        return getDriver().getDBStats(db);
+    }
+
+    public Map<String, Object> getDbStats() throws MorphiumDriverException {
+        return getDriver().getDBStats(getConfig().getDatabase());
+    }
+
+
+    public Map<String, Object> getCollStats(Class<?> coll) throws MorphiumDriverException {
+        return getDriver().getCollStats(getConfig().getDatabase(), getMapper().getCollectionName(coll));
+
+    }
+
+    public Map<String, Object> getCollStats(String coll) throws MorphiumDriverException {
+        return getDriver().getCollStats(getConfig().getDatabase(), coll);
+    }
+
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, Utils.getMap(field, value), upserts, callback);
     }
