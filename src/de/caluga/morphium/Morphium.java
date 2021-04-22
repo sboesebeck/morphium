@@ -312,18 +312,22 @@ public class Morphium implements AutoCloseable {
             if (missing != null && !missing.isEmpty()) {
                 for (Class cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
-                        if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP)) {
-                            logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
-                            if (cappedMissing(missing.get(cls))) {
-                                logger.warn("No capped settings missing for " + cls.getName());
+                        try {
+                            if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP)) {
+                                logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
+                                if (cappedMissing(missing.get(cls))) {
+                                    logger.warn("No capped settings missing for " + cls.getName());
+                                }
+                            } else if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
+                                logger.warn("Creating missing indices for entity " + cls.getName());
+                                ensureIndicesFor(cls);
+                                if (cappedMissing(missing.get(cls))) {
+                                    logger.warn("applying capped settings for entity " + cls.getName());
+                                    ensureCapped(cls);
+                                }
                             }
-                        } else if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
-                            logger.warn("Creating missing indices for entity " + cls.getName());
-                            ensureIndicesFor(cls);
-                            if (cappedMissing(missing.get(cls))) {
-                                logger.warn("applying capped settings for entity " + cls.getName());
-                                ensureCapped(cls);
-                            }
+                        } catch (Exception e) {
+                            logger.error("Could not process indices for entity " + cls.getName(), e);
                         }
                     }
                 }
