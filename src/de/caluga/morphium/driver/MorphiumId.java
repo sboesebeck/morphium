@@ -35,7 +35,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
     private final short pid;
     private final int counter;
     private final int timestamp;
-    private int machineId;
+    private final int machineId;
 
     public MorphiumId() {
         this((Date) null);
@@ -216,7 +216,19 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
     }
 
     public long getTime() {
-        return timestamp * 1000;
+        return (long) timestamp * 1000L;
+    }
+
+    public short getPid() {
+        return pid;
+    }
+
+    public int getCounter() {
+        return counter;
+    }
+
+    public int getMachineId() {
+        return machineId;
     }
 
     public String toString() {
