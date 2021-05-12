@@ -59,6 +59,7 @@ import com.mongodb.event.ConnectionRemovedEvent;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;

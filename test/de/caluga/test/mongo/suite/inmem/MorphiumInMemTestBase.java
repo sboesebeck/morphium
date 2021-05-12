@@ -4,6 +4,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.inmem.InMemAggregator;
+import de.caluga.morphium.driver.inmem.InMemAggregatorFactory;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
@@ -36,6 +38,8 @@ public class MorphiumInMemTestBase {
         cfg.setDatabase("test");
         cfg.setDriverClass(InMemoryDriver.class.getName());
         cfg.setReplicasetMonitoring(false);
+        cfg.setAggregatorFactory(new InMemAggregatorFactory());
+        cfg.setAggregatorClass(InMemAggregator.class);
         morphium = new Morphium(cfg);
         log.info("Done!");
     }

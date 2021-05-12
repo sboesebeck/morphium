@@ -172,6 +172,8 @@ public interface Aggregator<T, R> {
     Aggregator<T, R> skip(int num);
 
     @SuppressWarnings("unused")
+    Aggregator<T, R> unwind(Expr listField);
+
     Aggregator<T, R> unwind(String listField);
 
     Aggregator<T, R> sort(String... prefixed);

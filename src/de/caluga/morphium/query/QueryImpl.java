@@ -980,6 +980,53 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     }
 
     @Override
+    public List<Map<String, Object>> asMapList() {
+        morphium.inc(StatisticKeys.READS);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        Class type = Map.class;
+        String ck = morphium.getCache().getCacheKey(this);
+        if (useCache) {
+            if (morphium.getCache().isCached(type, ck)) {
+                morphium.inc(StatisticKeys.CHITS);
+                return morphium.getCache().getFromCache(type, ck);
+            }
+            morphium.inc(StatisticKeys.CMISS);
+        } else {
+            morphium.inc(StatisticKeys.NO_CACHED_READS);
+
+        }
+        long start = System.currentTimeMillis();
+
+        Map<String, Object> lst = getFieldListForQuery();
+
+
+        List<Map<String, Object>> ret = new ArrayList<>();
+        ret.clear();
+        try {
+
+            Map<String, Object> findMetaData = new HashMap<>();
+            ret = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
+            srv = (String) findMetaData.get("server");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+
+        }
+        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+
+        if (useCache) {
+            morphium.getCache().addToCache(ck, type, ret);
+        }
+        morphium.firePostLoad(ret);
+        return ret;
+    }
+
+    @Override
+    public MorphiumQueryIterator<Map<String, Object>> asMapIterable() {
+        return null;
+    }
+
+    @Override
     public List<T> asList() {
         morphium.inc(StatisticKeys.READS);
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
@@ -2068,7 +2115,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ", type=" + type.getName() +
                 ", skip=" + skip +
                 ", limit=" + limit +
-                ", andExpr=" + and.toString() +
+                ", andExpr=" + and +
                 ", orQueries=" + ors +
                 ", norQueries=" + nors +
                 ", sort=" + sort +
@@ -2077,7 +2124,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 ", where='" + where + '\'' +
                 '}';
         if (fieldList != null) {
-            ret += " Fields " + fieldList.toString();
+            ret += " Fields " + fieldList;
 
         }
         return ret;

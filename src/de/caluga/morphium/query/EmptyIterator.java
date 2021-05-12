@@ -2,6 +2,7 @@ package de.caluga.morphium.query;
 
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class EmptyIterator<T> implements MorphiumQueryIterator<T> {
     private Query<T> q;
@@ -24,6 +25,11 @@ public class EmptyIterator<T> implements MorphiumQueryIterator<T> {
     @Override
     public void setQuery(Query<T> q) {
         this.q = q;
+    }
+
+    @Override
+    public Map<String, Object> nextMap() {
+        return null;
     }
 
     @Override

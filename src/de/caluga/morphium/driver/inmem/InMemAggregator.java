@@ -1,26 +1,19 @@
-package de.caluga.morphium.aggregation;
+package de.caluga.morphium.driver.inmem;
 
-import de.caluga.morphium.Collation;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ObjectMapperImpl;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
+import de.caluga.morphium.aggregation.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-/**
- * User: Stephan Bösebeck
- * Date: 30.08.12
- * Time: 16:24
- * <p/>
- */
-public class AggregatorImpl<T, R> implements Aggregator<T, R> {
+public class InMemAggregator<T, R> implements Aggregator<T, R> {
+    private final Logger log = LoggerFactory.getLogger(InMemAggregator.class);
     private final List<Map<String, Object>> params = new ArrayList<>();
     private final List<Group<T, R>> groups = new ArrayList<>();
     private Class<? extends T> type;
@@ -91,11 +84,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> project(Map<String, Object> m) {
         Map<String, Object> p = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            if (e.getValue() instanceof Expr) {
-                p.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
-            } else {
-                p.put(e.getKey(), e.getValue());
-            }
+            p.put(e.getKey(), e.getValue());
         }
         Map<String, Object> map = Utils.getMap("$project", p);
 
@@ -106,7 +95,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> project(String fld, Expr e) {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(fld, e.toQueryObject());
+        map.put(fld, e);
         return project(map);
     }
 
@@ -130,11 +119,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> addFields(Map<String, Object> m) {
         Map<String, Object> ret = new LinkedHashMap<>();
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            if (e.getValue() instanceof Expr) {
-                ret.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
-            } else {
-                ret.put(e.getKey(), e.getValue());
+            if (!(e.getValue() instanceof Expr)) {
+                throw new IllegalArgumentException("InMemAggregator only works with Expr");
             }
+            ret.put(e.getKey(), e.getValue());
         }
 
         Map<String, Object> o = Utils.getMap("$addFields", ret);
@@ -160,7 +148,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> match(Expr q) {
-        params.add(Utils.getMap("$match", Utils.getMap("$expr", q.toQueryObject())));
+        params.add(Utils.getMap("$match", Utils.getMap("$expr", q)));
         return this;
     }
 
@@ -178,17 +166,15 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     @Override
-    public Aggregator<T, R> unwind(Expr listField) {
+    public Aggregator<T, R> unwind(String listField) {
         Map<String, Object> o = Utils.getMap("$unwind", listField);
         params.add(o);
         return this;
     }
 
-    @Override
-    public Aggregator<T, R> unwind(String listField) {
-        Map<String, Object> o = Utils.getMap("$unwind", listField);
+    public Aggregator<T, R> unwind(Expr field) {
+        Map<String, Object> o = Utils.getMap("$unwind", field);
         params.add(o);
         return this;
     }
@@ -308,7 +294,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                     long start = System.currentTimeMillis();
                     List<R> result = deserializeList();
 
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
+                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, InMemAggregator.this);
                 } catch (MorphiumDriverException e) {
                     e.printStackTrace();
                 }
@@ -329,36 +315,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return result;
     }
 
-    @Override
-    public List<Map<String, Object>> aggregateMap() {
-        try {
-            return morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
-        if (callback == null) {
-            try {
-                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
-
-        } else {
-
-            morphium.queueTask(() -> {
-                try {
-                    long start = System.currentTimeMillis();
-                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
-                } catch (MorphiumDriverException e) {
-                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
-                }
-            });
-        }
+        //TODO implement
     }
 
     @Override
@@ -389,6 +349,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      * the fields included in each output document.
      * <p>
      * $bucket only produces output documents for buckets that contain at least one input document.
+     * wear)
      *
      * @param groupBy:    Expression to group by, usually a field name
      * @param boundaries: Boundaries for the  buckets
@@ -400,13 +361,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> bucket(Expr groupBy, List<Expr> boundaries, Expr preset, Map<String, Expr> output) {
         Map<String, Object> out = new LinkedHashMap<>();
         for (Map.Entry<String, Expr> e : output.entrySet()) {
-            out.put(e.getKey(), e.getValue().toQueryObject());
+            out.put(e.getKey(), e.getValue());
         }
         List<Object> bn = new ArrayList<>();
-        boundaries.stream().forEach(x -> bn.add(x.toQueryObject()));
-        Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
+        boundaries.stream().forEach(x -> bn.add(x));
+        Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", (Object) groupBy)
                 .add("boundaries", bn)
-                .add("default", preset.toQueryObject())
+                .add("default", preset)
                 .add("output", Utils.getQueryObjectMap(output))
         );
         params.add(m);
@@ -420,10 +381,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (output != null) {
             out = new LinkedHashMap<>();
             for (Map.Entry<String, Expr> e : output.entrySet()) {
-                out.put(e.getKey(), e.getValue().toQueryObject());
+                out.put(e.getKey(), e.getValue());
             }
         }
-        Utils.UtilsMap<String, Object> bucketAuto = Utils.getMap("groupBy", groupBy.toQueryObject());
+        Utils.UtilsMap<String, Object> bucketAuto = Utils.getMap("groupBy", groupBy);
         bucketAuto.add("buckets", numBuckets);
         Utils.UtilsMap<String, Object> map = Utils.getMap("$bucketAuto", bucketAuto);
 
@@ -529,7 +490,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         Utils.UtilsMap<String, Object> add = Utils.getMap("from", (Object) fromCollection)
-                .add("startWith", startWith.toQueryObject())
+                .add("startWith", startWith)
                 .add("connectFromField", connectFromField)
                 .add("connectToField", connectToField)
                 .add("as", as);
@@ -539,7 +500,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (depthField != null)
             add.add("depthField", depthField);
         if (restrictSearchWithMatch != null)
-            add.add("restrictSearchWithMatch", restrictSearchWithMatch.toQueryObject());
+            add.add("restrictSearchWithMatch", restrictSearchWithMatch);
 
         return this;
     }
@@ -635,14 +596,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (pipeline != null && pipeline.size() > 0) {
             List lst = new ArrayList();
             for (Expr e : pipeline) {
-                lst.add(e.toQueryObject());
+                lst.add(e);
             }
             m.put("pipeline", lst);
         }
         if (let != null) {
             Map<String, Object> map = new HashMap<>();
             for (Map.Entry<String, Expr> e : let.entrySet()) {
-                map.put(e.getKey(), e.getValue().toQueryObject());
+                map.put(e.getKey(), e.getValue());
             }
             m.put("let", map);
         }
@@ -708,19 +669,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> redact(Expr redact) {
-        params.add(Utils.getMap("$redact", redact.toQueryObject()));
+        params.add(Utils.getMap("$redact", redact));
         return this;
     }
 
     @Override
     public Aggregator<T, R> replaceRoot(Expr newRoot) {
-        params.add(Utils.getMap("$replaceRoot", Utils.getMap("newRoot", newRoot.toQueryObject())));
+        params.add(Utils.getMap("$replaceRoot", Utils.getMap("newRoot", newRoot)));
         return this;
     }
 
     @Override
     public Aggregator<T, R> replaceWith(Expr newDoc) {
-        params.add(Utils.getMap("$replaceWith", newDoc.toQueryObject()));
+        params.add(Utils.getMap("$replaceWith", newDoc));
         return this;
     }
 
@@ -758,7 +719,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
      */
     @Override
     public Aggregator<T, R> sortByCount(Expr sortby) {
-        params.add(Utils.getMap("$sortByCount", sortby.toQueryObject()));
+        params.add(Utils.getMap("$sortByCount", sortby));
         return this;
     }
 
@@ -791,14 +752,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> unset(Enum... field) {
         List<String> lst = Arrays.stream(field).map(Enum::name).collect(Collectors.toList());
-        params.add(Utils.getMap("$unset",lst));
+        params.add(Utils.getMap("$unset", lst));
         return this;
     }
 
     @Override
     public Aggregator<T, R> genericStage(String stageName, Object param) {
-        if (param instanceof Expr) {
-            param = ((Expr) param).toQueryObject();
+        if (!(param instanceof Expr)) {
+            throw new IllegalArgumentException("inMemAggregation only works with Expr");
         }
         if (!stageName.startsWith("$")) {
             stageName = "$" + stageName;
@@ -811,5 +772,245 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> collation(Collation collation) {
         this.collation = collation;
         return this;
+    }
+
+
+    private List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object>> data) {
+        if (step.keySet().size() != 1) {
+            throw new IllegalArgumentException("Pipeline start wrong");
+        }
+        String stage = step.keySet().stream().findFirst().get();
+        List<Map<String, Object>> ret = new ArrayList<>();
+
+        switch (stage) {
+            case "$set":
+            case "$project":
+            case "$addFields":
+                for (Map<String, Object> o : data) {
+                    Map<String, Object> obj = new HashMap<>(o);
+                    ret.add(obj);
+                    Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+                    for (String k : op.keySet()) {
+                        Object value = op.get(k);
+                        if (value instanceof String && ((String) value).startsWith("$")) {
+                            obj.put(k, obj.get(((String) value).substring(1)));
+                        } else if (value instanceof Expr) {
+                            obj.put(k, ((Expr) value).evaluate(obj));
+                        } else if (value instanceof Map) {
+
+                            for (String fld : ((Map<String, Object>) value).keySet()) {
+                                if (obj.get(fld) instanceof Expr) {
+                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
+                                } else {
+                                    log.error("InMemoryAggregation oly works with Expr");
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case "$group":
+                Map<String, Object> group = (Map<String, Object>) step.get(stage);
+                Map<Object, Map<String, Object>> res = new HashMap<>();
+                for (Map<String, Object> obj : data) {
+                    Map<String, Object> o = new HashMap<>(obj);
+                    Object id = group.get("_id");
+
+                    if (id instanceof Map) {
+                        //deal with combined Group IDs
+                    } else {
+                        if (id.toString().startsWith("$")) {
+                            id = o.get(id.toString().substring(1));
+                        }
+                        res.putIfAbsent(id, new HashMap<>());
+                        res.get(id).putIfAbsent("_id", id);
+                        for (String fld : group.keySet()) {
+                            Object opValue = group.get(fld);
+                            if (opValue instanceof Map) {
+                                //expression?
+                                String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
+                                switch (op) {
+                                    case "$accumulator":
+                                    case "$addToSet":
+                                    case "$avg":
+                                        res.get(id).putIfAbsent(fld, Utils.getMap("sum", 0).add("count", 0).add("avg", 0));
+                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                            //field reference
+                                            Number count = (Number) ((Map) res.get(id).get(fld)).get("count");
+                                            count = count.intValue() + 1;
+                                            ((Map) res.get(id).get(fld)).put("count", count);
+                                            Number current = (Number) ((Map) res.get(id).get(fld)).get("sum");
+                                            Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                            Number sum = current.doubleValue() + v.doubleValue();
+                                            ((Map) res.get(id).get(fld)).put("sum", sum);
+                                            ((Map) res.get(id).get(fld)).put("avg", (sum.doubleValue() / count.doubleValue()));
+                                        } else {
+                                            log.error("Average with no $-reference?");
+                                        }
+                                        break;
+                                    case "$first":
+                                        res.get(id).putIfAbsent(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                                        break;
+                                    case "$last":
+                                        res.get(id).put(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                                        break;
+                                    case "$max":
+                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                            Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                            res.get(id).putIfAbsent(fld, oVal);
+                                            if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
+                                                res.get(id).put(fld, oVal);
+                                            }
+                                        }
+                                        break;
+                                    case "$min":
+                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                            Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                            res.get(id).putIfAbsent(fld, oVal);
+                                            if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
+                                                res.get(id).put(fld, oVal);
+                                            }
+                                        }
+                                        break;
+                                    case "$mergeObjects":
+                                    case "$push":
+                                    case "$stdDevPop":
+                                    case "$stdDevSamp":
+                                    case "$sum":
+                                        res.get(id).putIfAbsent(fld, 0);
+                                        Number current = (Number) res.get(id).get(fld);
+                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                            //field reference
+                                            Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                        } else if (((Map<?, ?>) opValue).get(op) instanceof Number) {
+                                            Number v = (Number) ((Map<?, ?>) opValue).get(op);
+                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                        } else if (((Map<?, ?>) opValue).get(op) instanceof Expr) {
+                                            Number v = (Number) (o.get(((Expr) ((Map<?, ?>) opValue).get(op)).evaluate(o)));
+                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                        }
+                                        break;
+                                    default:
+                                        log.error("unknown accumulator " + op);
+                                        break;
+
+                                }
+                            } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
+                                opValue = o.get(opValue.toString().substring(1));
+                                res.get(id).put(fld, opValue);
+                            }
+                        }
+                    }
+
+
+                }
+                for (Map<String, Object> v : res.values()) {
+                    ret.add(v);
+                }
+                break;
+            case "$skip":
+            case "$limit":
+                Object op = step.get(stage);
+                if (op instanceof Expr) {
+                    op = ((Expr) op).evaluate(new HashMap<>());
+                }
+                int idx = ((Number) op).intValue();
+                if (stage.equals("§limit")) {
+                    ret.addAll(data.subList(0, idx));
+                } else {
+                    ret.addAll(data.subList(idx, data.size() - idx));
+                }
+                break;
+            case "$match":
+                for (Map<String, Object> o : data) {
+                    if (QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), o)) {
+                        ret.add(o);
+                    }
+                }
+                break;
+            case "$unwind":
+                op = step.get(stage);
+                for (Map<String, Object> o : data) {
+                    List lst;
+                    String n;
+                    if (op instanceof Map) {
+                        op = ((Map) op).get("path");
+                    }
+                    if (op instanceof Expr) {
+                        lst = (List) ((Expr) op).evaluate(o);
+                        n = ((Expr) op).toQueryObject().toString();
+                    } else if (op instanceof String) {
+                        //should be a reference
+                        if (op.toString().startsWith("$")) {
+                            op = op.toString().substring(1);
+                        }
+                        n = op.toString();
+                        lst = (List) o.get(op.toString());
+                    } else {
+                        log.error("Wrong reference: " + op);
+                        break;
+                    }
+                    if (lst == null) {
+                        break;
+                    }
+                    for (Object value : lst) {
+                        Map<String, Object> result = new HashMap<>(o);
+                        if (n.startsWith("$")) n = n.substring(1);
+                        if (result.containsKey(n)) {
+                            result.put(n, value);
+                        } else {
+                            result.put(new AnnotationAndReflectionHelper(true).convertCamelCase(n), value);
+                        }
+                        ret.add(result);
+                    }
+                }
+                break;
+            case "$merge":
+            case "$planCacheStats":
+
+            case "$redact":
+            case "$replaceRoot":
+            case "$replaceWith":
+            case "$sample":
+            case "$search":
+
+            case "$sort":
+            case "$sortByCount":
+            case "$unionWith":
+            case "$currentOp":
+            case "$listLocalSessions":
+            case "$findAndModyfy":
+            case "$updatecase ":
+            case "$bucket":
+            case "$bucketAuto":
+            case "$collStats":
+            case "$listSessions":
+            case "$lookup":
+            case "$count":
+            case "$facet":
+            case "$indexStats":
+            case "$geoNear":
+            case "$graphLookup":
+            default:
+                log.error("unhandled Aggregation stage " + stage);
+
+        }
+        return ret;
+    }
+
+    @Override
+    public List<Map<String, Object>> aggregateMap() {
+        return doAggregation();
+    }
+
+    private List<Map<String, Object>> doAggregation() {
+        List<Map<String, Object>> result = getMorphium().createQueryFor(getSearchType()).asMapList();
+        for (Map<String, Object> step : getPipeline()) {
+            //evaluate each step
+            result = execStep(step, result);
+        }
+        return result;
     }
 }

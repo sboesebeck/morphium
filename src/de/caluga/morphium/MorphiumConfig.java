@@ -487,6 +487,8 @@ public class MorphiumConfig {
     public AggregatorFactory getAggregatorFactory() {
         if (aggregatorFactory == null) {
             aggregatorFactory = new AggregatorFactoryImpl(getAggregatorClass());
+        } else {
+            aggregatorFactory.setAggregatorClass(getAggregatorClass());
         }
         return aggregatorFactory;
     }
