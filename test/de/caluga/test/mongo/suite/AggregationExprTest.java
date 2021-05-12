@@ -663,9 +663,9 @@ public class AggregationExprTest extends TestCase {
     }
 
     public void testAtan2() {
-        Expr e = atan2(intExpr(23));
+        Expr e = atan2(intExpr(23), intExpr(2));
         log.info(Utils.toJsonString(e.toQueryObject()));
-        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$atan2\" : 23 } "));
+        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$atan2\" : [ 23, 2]} "));
     }
 
     public void testAsinh() {

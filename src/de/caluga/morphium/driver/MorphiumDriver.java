@@ -189,6 +189,7 @@ public interface MorphiumDriver {
 
     long estimatedDocumentCount(String db, String collection, ReadPreference rp);
 
+
     /**
      * just insert - no special handling
      *

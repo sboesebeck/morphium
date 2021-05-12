@@ -189,12 +189,16 @@ public interface Query<T> extends Cloneable {
      */
     List<T> asList();
 
+    List<Map<String, Object>> asMapList();
+
     void asList(AsyncOperationCallback<T> callback);
 
     /**
      * create an iterator / iterable for this query, default windowSize (10), prefetch windows 1
      */
     MorphiumQueryIterator<T> asIterable();
+
+    MorphiumQueryIterator<Map<String, Object>> asMapIterable();
 
     MorphiumQueryIterator<T> asIterable(int windowSize, Class<? extends MorphiumQueryIterator<T>> it);
 

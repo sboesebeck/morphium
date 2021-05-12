@@ -20,7 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     private final Logger log = LoggerFactory.getLogger(PrefetchingQueryIterator.class);
     private long lastAccess = System.currentTimeMillis();
-    private List<List<T>> prefetchBuffer; //each entry is one buffer
+    private List<List<Map<String, Object>>> prefetchBuffer; //each entry is one buffer
     private Query<T> query;
     private int batchsize;
     private MorphiumCursor cursor;
@@ -33,13 +33,13 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     @SuppressWarnings("unused")
-    public List<List<T>> getPrefetchBuffer() {
+    public List<List<Map<String, Object>>> getPrefetchBuffer() {
         checkAndUpdateLastAccess();
         return prefetchBuffer;
     }
 
     @SuppressWarnings("unused")
-    public void setPrefetchBuffer(List<List<T>> prefetchBuffer) {
+    public void setPrefetchBuffer(List<List<Map<String, Object>>> prefetchBuffer) {
         checkAndUpdateLastAccess();
         this.prefetchBuffer = prefetchBuffer;
     }
@@ -79,7 +79,11 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     @Override
     public List<T> getCurrentBuffer() {
         checkAndUpdateLastAccess();
-        return prefetchBuffer.get(0);
+        List<T> ret = new ArrayList<>();
+        for (Map<String, Object> o : prefetchBuffer.get(0)) {
+            ret.add(query.getMorphium().getMapper().deserialize(query.getType(), o));
+        }
+        return ret;
     }
 
     @Override
@@ -191,19 +195,15 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
 
     }
 
-    private List<T> getBatch(MorphiumCursor crs) {
+
+    private List<Map<String, Object>> getBatch(MorphiumCursor crs) {
         @SuppressWarnings("unchecked") List<Map<String, Object>> batch = crs.getBatch();
-        List<T> ret = new ArrayList<>();
+        List<Map<String, Object>> ret = new ArrayList<>();
         if (batch == null) {
             return ret;
         }
-        for (Map<String, Object> obj : batch) {
-            T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), obj);
-
-            ret.add(unmarshall);
-        }
-        query.getMorphium().firePostLoad(ret);
-        return ret;
+        query.getMorphium().firePostLoad(batch);
+        return batch;
     }
 
     private void startPrefetch() {
@@ -254,7 +254,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     @Override
-    public T next() {
+    public Map<String, Object> nextMap() {
         checkAndUpdateLastAccess();
 
         if (cursor == null && !startedAlready) {
@@ -272,8 +272,15 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
         while (prefetchBuffer.isEmpty() && cursor != null) {
             Thread.yield();
         }
-        //noinspection NonAtomicOperationOnVolatileField
         return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
+    }
+
+    @Override
+    public T next() {
+        //noinspection NonAtomicOperationOnVolatileField
+        Map<String, Object> o = nextMap();
+        if (o == null) return null;
+        return query.getMorphium().getMapper().deserialize(query.getType(), o);
     }
 
     private void checkAndUpdateLastAccess() {
