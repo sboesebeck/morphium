@@ -1694,8 +1694,22 @@ public class Morphium implements AutoCloseable {
         updateUsingFields(ent, null, fields);
     }
 
+    public void updateUsingFields(final Object ent, final Enum... fieldNames) {
+        updateUsingFields(ent, null, fieldNames);
+    }
+
+    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final Enum... fields) {
+        updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
+    }
+
     public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final String... fields) {
         updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
+    }
+
+    public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final Enum... fields) {
+        List<String> g = new ArrayList<>();
+        for (Enum e : fields) g.add(e.name());
+        updateUsingFields(ent, collection, callback, g.toArray(new String[]{}));
     }
 
     @SuppressWarnings("UnusedParameters")
