@@ -22,6 +22,7 @@ import de.caluga.morphium.query.geospatial.MultiPolygon;
 import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.morphium.query.geospatial.Polygon;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.bson.types.Binary;
 import org.bson.types.ObjectId;
@@ -790,7 +791,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fldType)) {
-                        log.error("Could not deserialize additional data into fld of type " + fldType.toString());
+                        log.error("Could not deserialize additional data into fld of type " + fldType);
                         continue;
                     }
                     Map<String, Object> data = new HashMap<>();
@@ -993,37 +994,23 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
                     if (valueFromDb.getClass().isArray()) {
 
-                        ArrayList lst = new ArrayList();
+                        List lst = new ArrayList();
                         //a real array!
                         if (valueFromDb.getClass().getComponentType().isPrimitive()) {
                             if (valueFromDb.getClass().getComponentType().equals(int.class)) {
-                                for (int i : (int[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject((int[]) valueFromDb));
                             } else if (valueFromDb.getClass().getComponentType().equals(double.class)) {
-                                for (double i : (double[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((double[]) valueFromDb)));
                             } else if (valueFromDb.getClass().getComponentType().equals(float.class)) {
-                                for (float i : (float[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((float[]) valueFromDb)));
                             } else if (valueFromDb.getClass().getComponentType().equals(boolean.class)) {
-                                for (boolean i : (boolean[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((boolean[]) valueFromDb)));
                             } else if (valueFromDb.getClass().getComponentType().equals(byte.class)) {
-                                for (byte i : (byte[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((byte[]) valueFromDb)));
                             } else if (valueFromDb.getClass().getComponentType().equals(char.class)) {
-                                for (char i : (char[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((char[]) valueFromDb)));
                             } else if (valueFromDb.getClass().getComponentType().equals(long.class)) {
-                                for (long i : (long[]) valueFromDb) {
-                                    lst.add(i);
-                                }
+                                lst = Arrays.asList(ArrayUtils.toObject(((long[]) valueFromDb)));
                             }
                         } else {
                             Collections.addAll(lst, (Object[]) valueFromDb);
@@ -1101,7 +1088,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         field.set(ret, ((Boolean) idValue).booleanValue());
                     } else {
                         log.error("ID type missmatch");
-                        throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + fieldType.toString() + "' but we got '" + idValueClass.toString() + "' from Mongo!");
+                        throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + fieldType + "' but we got '" + idValueClass + "' from Mongo!");
                     }
                 }
             }
