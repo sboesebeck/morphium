@@ -69,7 +69,7 @@ public class AnsweringTests extends MorphiumTestBase {
                     log.error("M1 got an answer, but did not ask?");
                     error = true;
                 }
-                log.info("M1 got message " + m.toString());
+                log.info("M1 got message " + m);
                 Msg answer = m.createAnswerMsg();
                 answer.setValue("This is the answer from m1");
                 answer.addValue("something", new Date());
@@ -83,7 +83,7 @@ public class AnsweringTests extends MorphiumTestBase {
                     log.error("wrongly received message?");
                     error = true;
                 }
-                log.info("M2 got message " + m.toString());
+                log.info("M2 got message " + m);
                 assert (m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
                 Msg answer = m.createAnswerMsg();
                 answer.setValue("This is the answer from m2");
@@ -99,10 +99,10 @@ public class AnsweringTests extends MorphiumTestBase {
                     error = true;
                 }
 
-                assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
+                assert (m.getInAnswerTo() != null) : "was not an answer? " + m;
                 assert (m.getMapValue().size() == 1);
                 assert (m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
-                log.info("M3 got answer " + m.toString());
+                log.info("M3 got answer " + m);
                 assert (lastMsgId != null) : "Last message == null?";
                 assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
                 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
@@ -243,7 +243,7 @@ public class AnsweringTests extends MorphiumTestBase {
             answer.setInAnswerTo(new MorphiumId());
             answer.setRecipient("m2");
             m3.sendMessage(answer);
-            Thread.sleep(100);
+            Thread.sleep(1000);
             assert (receivedById.size() == 1);
             assert (receivedById.get("m1") == null);
             assert (receivedById.get("m2").get() == 1);
