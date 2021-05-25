@@ -261,11 +261,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         List<Map<String, Object>> pipeline = new ArrayList<>(getPipeline());
         pipeline.add(Utils.getMap("$count", "num"));
         List<Map<String, Object>> res = null;
-        try {
-            res = getMorphium().getDriver().aggregate(getMorphium().getConfig().getDatabase(), getCollectionName(), pipeline, isExplain(), isUseDisk(), getCollation(), getMorphium().getReadPreferenceForClass(getSearchType()));
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        res = doAggregation();
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
         }
@@ -282,13 +278,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
-            try {
-                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
+            new Thread(() -> doAggregation());
         } else {
-
             morphium.queueTask(() -> {
                 try {
                     long start = System.currentTimeMillis();
@@ -303,7 +294,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     private List<R> deserializeList() throws MorphiumDriverException {
-        List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+        List<Map<String, Object>> r = doAggregation();
         List<R> result = new ArrayList<>();
         if (getResultType().equals(Map.class)) {
             result = (List<R>) r;
@@ -809,7 +800,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 }
                 break;
-
+            case "$count":
+                ret.add(Utils.getMap((String) step.get(stage), data.size()));
+                break;
             case "$group":
                 Map<String, Object> group = (Map<String, Object>) step.get(stage);
                 Map<Object, Map<String, Object>> res = new HashMap<>();
@@ -819,6 +812,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                     if (id instanceof Map) {
                         //deal with combined Group IDs
+                        //and expressions in IDs
                     } else {
                         if (id.toString().startsWith("$")) {
                             id = o.get(id.toString().substring(1));
@@ -833,6 +827,21 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 switch (op) {
                                     case "$accumulator":
                                     case "$addToSet":
+                                    case "$push":
+                                        Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                        res.get(id).putIfAbsent(fld, new ArrayList<>());
+                                        if (op.equals("$push")) {
+                                            ((List) res.get(id).get(fld)).add(setValue);
+                                        } else {
+                                            //not using HashSet, it would break the contract
+                                            List l = ((List) res.get(id).get(fld));
+                                            if (!l.contains(setValue)) {
+                                                l.add(setValue);
+                                            }
+                                        }
+
+                                        break;
+
                                     case "$avg":
                                         res.get(id).putIfAbsent(fld, Utils.getMap("sum", 0).add("count", 0).add("avg", 0));
                                         if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
@@ -874,7 +883,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         }
                                         break;
                                     case "$mergeObjects":
-                                    case "$push":
                                     case "$stdDevPop":
                                     case "$stdDevSamp":
                                     case "$sum":
@@ -975,8 +983,28 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$replaceWith":
             case "$sample":
             case "$search":
-
+                log.warn("The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
+                break;
             case "$sort":
+                Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
+                ret = new ArrayList<>(data);
+                ret.sort(new Comparator<Map<String, Object>>() {
+                    @Override
+                    public int compare(Map<String, Object> o1, Map<String, Object> o2) {
+                        for (String k : keysToSortBy.keySet()) {
+                            int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
+                            if (i != 0) {
+                                if (keysToSortBy.get(k).equals(-1)) {
+                                    i = -i;
+                                }
+                                //TextIndex ignored, will be handeled like normal sort
+                                return i;
+                            }
+                        }
+                        return 0;
+                    }
+                });
+
             case "$sortByCount":
             case "$unionWith":
             case "$currentOp":
@@ -988,7 +1016,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$collStats":
             case "$listSessions":
             case "$lookup":
-            case "$count":
             case "$facet":
             case "$indexStats":
             case "$geoNear":
