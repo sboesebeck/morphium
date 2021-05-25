@@ -38,9 +38,9 @@ import java.util.stream.Collectors;
 public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<MessagingCacheSyncListener> implements MessageListener, MorphiumStorageListener<Object> {
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
-    private Messaging messaging;
+    private final Messaging messaging;
     private boolean attached;
-    private AnnotationAndReflectionHelper annotationHelper;
+    private final AnnotationAndReflectionHelper annotationHelper;
 
     private boolean commitMessage = false;
 
@@ -297,6 +297,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
 
     @Override
     public Msg onMessage(Messaging msg, Msg m) {
+        if (m.isAnswer()) return null;
         Msg answer = new Msg("clearCacheAnswer", "processed", messaging.getSenderId());
         try {
             if (log.isDebugEnabled()) {
