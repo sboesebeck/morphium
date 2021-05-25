@@ -975,13 +975,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 }
                 break;
-            case "$merge":
-            case "$planCacheStats":
 
-            case "$redact":
-            case "$replaceRoot":
-            case "$replaceWith":
-            case "$sample":
             case "$search":
                 log.warn("The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
                 break;
@@ -1004,7 +998,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         return 0;
                     }
                 });
-
+            case "$merge":
+            case "$planCacheStats":
+            case "$redact":
+            case "$replaceRoot":
+            case "$replaceWith":
+            case "$sample":
             case "$sortByCount":
             case "$unionWith":
             case "$currentOp":
