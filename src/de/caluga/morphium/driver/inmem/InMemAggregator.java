@@ -925,7 +925,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     op = ((Expr) op).evaluate(new HashMap<>());
                 }
                 int idx = ((Number) op).intValue();
-                if (stage.equals("§limit")) {
+                if (stage.equals("$limit")) {
                     ret.addAll(data.subList(0, idx));
                 } else {
                     ret.addAll(data.subList(idx, data.size() - idx));
