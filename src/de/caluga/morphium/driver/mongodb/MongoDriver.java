@@ -488,6 +488,12 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
+            if (maxConnections == 0) {
+                maxConnections = 1;
+            }
+            if (minConnections == 0) {
+                minConnections = 1;
+            }
             MongoClientSettings.Builder o = MongoClientSettings.builder();
             o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern());
             //read preference check
