@@ -999,6 +999,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         return 0;
                     }
                 });
+                break;
             case "$lookup":
                 // from: <collection to join>,
                 //       localField: <field from the input documents>,
@@ -1029,12 +1030,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 }
                 break;
+            case "$sample":
+                int size = ((Number) ((Map) step.get(stage)).get("size")).intValue();
+                List o = new ArrayList(data);
+                Collections.shuffle(o);
+                ret = o.subList(0, size);
+                break;
             case "$merge":
             case "$planCacheStats":
             case "$redact":
             case "$replaceRoot":
             case "$replaceWith":
-            case "$sample":
             case "$sortByCount":
             case "$unionWith":
             case "$currentOp":
