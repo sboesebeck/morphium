@@ -1,6 +1,7 @@
 package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
@@ -37,10 +38,35 @@ public abstract class Expr {
         };
     }
 
+    /**
+     * returning a hard coded field reference, better use field(Enum,Class, Morphium) instead!
+     * field name here is hardcoded to field.name()!
+     *
+     * @param field
+     * @return
+     */
     public static Expr field(Enum field) {
         return field(field.name());
     }
 
+    /**
+     * generate field mapping according to @entity settings in class/Morphium config
+     *
+     * @param name
+     * @param type
+     * @param m
+     * @return
+     */
+    public static Expr field(Enum name, Class type, Morphium m) {
+        return field(m.getARHelper().getFieldName(type, name.name()));
+    }
+
+    /**
+     * returning a hard-coded field reference
+     *
+     * @param name
+     * @return
+     */
     public static Expr field(String name) {
         return new FieldExpr(name);
     }

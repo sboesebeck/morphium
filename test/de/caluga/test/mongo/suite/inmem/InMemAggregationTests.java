@@ -143,6 +143,21 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void inMemAggregationSampleTest() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("mod" + (i % 3), i);
+            morphium.store(u);
+        }
+
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.sample(10);
+        agg.sort("counter");
+        List<Map<String, Object>> lst = agg.aggregateMap();
+        assert (lst.size() == 10);
+        //hard to check randomness....
+    }
+
+    @Test
     public void inMemAggregationAddToSetTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
