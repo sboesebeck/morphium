@@ -2,6 +2,7 @@ package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 
@@ -113,7 +114,11 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
 
+    Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+
     Aggregator<T, R> out(String collection);
+
+    Aggregator<T, R> out(Class<?> type);
 
     Aggregator<T, R> out(String db, String collection);
 

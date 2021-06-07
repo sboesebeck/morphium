@@ -610,6 +610,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
+    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        String[] flds = new String[onFields.length];
+        int idx = 0;
+        for (String f : onFields) {
+            flds[idx] = morphium.getARHelper().getFieldName(intoCollection, f);
+            idx++;
+        }
+        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, matchAction, notMatchedAction, flds);
+    }
+
+    @Override
     public Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("collection", intoCollection));
         if (let != null) {
@@ -633,6 +644,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     public Aggregator<T, R> out(String collectionName) {
         params.add(Utils.getMap("$out", Utils.getMap("coll", collectionName)));
         return this;
+    }
+
+    @Override
+    public Aggregator<T, R> out(Class<?> type) {
+        return out(morphium.getMapper().getCollectionName(type));
     }
 
     @Override
@@ -1037,6 +1053,36 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 ret = o.subList(0, size);
                 break;
             case "$merge":
+                //{ $merge: {
+                //     into: <collection> -or- { db: <db>, coll: <collection> },
+                //     on: <identifier field> -or- [ <identifier field1>, ...],  // Optional
+                //     let: <variables>,                                         // Optional
+                //     whenMatched: <replace|keepExisting|merge|fail|pipeline>,  // Optional
+                //     whenNotMatched: <insert|discard|fail>                     // Optional
+                //} }
+
+                Map setting = ((Map<String, Object>) step.get(stage));
+                String db = morphium.getConfig().getDatabase();
+                String coll = "";
+                if (setting.get("into") instanceof Map) {
+                    db = (String) ((Map<String, Object>) setting.get("into")).get("db");
+                    coll = (String) ((Map<String, Object>) setting.get("into")).get("coll");
+                } else {
+                    coll = (String) (setting.get("into"));
+                }
+                if (setting.containsKey("on")) {
+                    //merge
+                    //need to lookup each entry, match it to on field
+                    String on = coll = (String) (setting.get("on"));
+                    //morphium.getDriver().find(db,coll,Utils.getMap(on,morphium.))
+                } else {
+                    try {
+                        morphium.getDriver().store(db, coll, data, null);
+                    } catch (MorphiumDriverException e) {
+                        log.error("Something went wrong with $merge", e);
+                    }
+                }
+                break;
             case "$planCacheStats":
             case "$redact":
             case "$replaceRoot":
