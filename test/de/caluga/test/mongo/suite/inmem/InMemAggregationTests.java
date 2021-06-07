@@ -4,6 +4,9 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -114,6 +117,32 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void inMemAggregationLookupTest() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("mod", i % 3);
+            morphium.store(u);
+        }
+        for (int i = 0; i < 5; i++) {
+            ModuloValue mv = new ModuloValue();
+            mv.setModValue(i);
+            mv.setTextRep("Modulo is " + i);
+            morphium.store(mv);
+        }
+
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.lookup(ModuloValue.class, UncachedObject.Fields.counter, ModuloValue.Fields.modValue, "modValue", null, null);
+        agg.unwind("modValue");
+        agg.group(Expr.field("_id")).first("modValue", Expr.field("mod_value"));
+        List<Map> ret = agg.aggregate();
+
+        assert (ret != null);
+        for (Map m : ret) {
+            assert (m.get("modValue") != null);
+            assert (((Map) m.get("modValue")).get("mod_value").equals(m.get("counter")));
+        }
+    }
+
+    @Test
     public void inMemAggregationAddToSetTest() throws Exception {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
@@ -174,6 +203,41 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         public void setMyCount(int myCount) {
             this.myCount = myCount;
         }
+    }
+
+
+    @Entity
+    public static class ModuloValue {
+        @Id
+        private MorphiumId id;
+        private int modValue;
+        private String textRep;
+
+        public MorphiumId getId() {
+            return id;
+        }
+
+        public void setId(MorphiumId id) {
+            this.id = id;
+        }
+
+        public int getModValue() {
+            return modValue;
+        }
+
+        public void setModValue(int modValue) {
+            this.modValue = modValue;
+        }
+
+        public String getTextRep() {
+            return textRep;
+        }
+
+        public void setTextRep(String textRep) {
+            this.textRep = textRep;
+        }
+
+        public enum Fields {modValue, textRep, id}
     }
 
 }
