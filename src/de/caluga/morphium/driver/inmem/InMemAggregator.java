@@ -570,7 +570,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
         return lookup(getMorphium().getMapper().getCollectionName(fromType),
-                localField.name(), foreignField.name(), outputArray, pipeline, let
+                getMorphium().getARHelper().getFieldName(getSearchType(), localField.name()), getMorphium().getARHelper().getFieldName(fromType, foreignField.name()), outputArray, pipeline, let
         );
 
     }
@@ -825,7 +825,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 //expression?
                                 String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
                                 switch (op) {
-                                    case "$accumulator":
                                     case "$addToSet":
                                     case "$push":
                                         Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
@@ -882,9 +881,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             }
                                         }
                                         break;
-                                    case "$mergeObjects":
-                                    case "$stdDevPop":
-                                    case "$stdDevSamp":
                                     case "$sum":
                                         res.get(id).putIfAbsent(fld, 0);
                                         Number current = (Number) res.get(id).get(fld);
@@ -900,6 +896,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             res.get(id).put(fld, current.doubleValue() + v.doubleValue());
                                         }
                                         break;
+                                    case "$accumulator":
+                                    case "$mergeObjects":
+                                    case "$stdDevPop":
+                                    case "$stdDevSamp":
+                                        throw new RuntimeException(op + " not implemented yet,sorry");
                                     default:
                                         log.error("unknown accumulator " + op);
                                         break;
@@ -998,6 +999,36 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         return 0;
                     }
                 });
+            case "$lookup":
+                // from: <collection to join>,
+                //       localField: <field from the input documents>,
+                //       foreignField: <field from the documents of the "from" collection>,
+                //       as: <output array field>
+
+                ret = new ArrayList<>();
+                Map<String, Object> lookup = (Map<String, Object>) step.get(stage);
+
+                String collection = (String) lookup.get("from");
+                String localField = (String) lookup.get("localField");
+                String foreignField = (String) lookup.get("foreignField");
+                List<Map<String, Object>> pipeline = (List<Map<String, Object>>) lookup.get("pipeline");
+                Map<String, Object> let = (Map<String, Object>) lookup.get("let");
+                String as = (String) lookup.get("as");
+                if (pipeline != null || let != null) {
+                    throw new IllegalArgumentException("pipeline/let is not supported yet.");
+                }
+                for (Map<String, Object> doc : data) {
+                    Object localValue = doc.get(localField);
+                    try {
+                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, Utils.getMap(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
+                        Map<String, Object> o = new HashMap<>(doc);
+                        o.put(as, other);
+                        ret.add(o);
+                    } catch (MorphiumDriverException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                break;
             case "$merge":
             case "$planCacheStats":
             case "$redact":
@@ -1014,7 +1045,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$bucketAuto":
             case "$collStats":
             case "$listSessions":
-            case "$lookup":
             case "$facet":
             case "$indexStats":
             case "$geoNear":
