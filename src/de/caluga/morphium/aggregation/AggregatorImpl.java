@@ -381,6 +381,21 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         return count(fld.name());
     }
 
+    @Override
+    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        String[] flds = new String[onFields.length];
+        int idx = 0;
+        for (String f : onFields) {
+            flds[idx] = morphium.getARHelper().getFieldName(intoCollection, f);
+            idx++;
+        }
+        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, matchAction, notMatchedAction, flds);
+    }
+
+    @Override
+    public Aggregator<T, R> out(Class<?> type) {
+        return out(morphium.getMapper().getCollectionName(type));
+    }
 
     /**
      * Categorizes incoming documents into groups, called buckets, based on a specified expression and
