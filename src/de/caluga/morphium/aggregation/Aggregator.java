@@ -110,11 +110,19 @@ public interface Aggregator<T, R> {
 
     Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let);
 
-    Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+    Aggregator<T, R> merge(String intoDb, String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
 
-    Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+    Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
 
-    Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+    Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+
+    Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields);
+
+    Aggregator<T, R> merge(String intoDb, String intoCollection);
+
+    Aggregator<T, R> merge(Class<?> intoCollection);
+
+    Aggregator<T, R> merge(String intoCollection);
 
     Aggregator<T, R> out(String collection);
 

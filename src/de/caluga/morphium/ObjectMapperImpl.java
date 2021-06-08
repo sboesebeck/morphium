@@ -1,27 +1,15 @@
 package de.caluga.morphium;
 
 import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.annotations.AdditionalData;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.ReadOnly;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.UseIfnull;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.BsonGeoMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
-import de.caluga.morphium.query.geospatial.Geo;
-import de.caluga.morphium.query.geospatial.LineString;
-import de.caluga.morphium.query.geospatial.MultiLineString;
-import de.caluga.morphium.query.geospatial.MultiPoint;
-import de.caluga.morphium.query.geospatial.MultiPolygon;
-import de.caluga.morphium.query.geospatial.Point;
-import de.caluga.morphium.query.geospatial.Polygon;
-
+import de.caluga.morphium.query.geospatial.*;
+import io.github.classgraph.*;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.bson.types.Binary;
@@ -31,25 +19,10 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import sun.reflect.ReflectionFactory;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
+import java.io.*;
+import java.lang.reflect.*;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -84,6 +57,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private final Map<Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
+    private final Map<String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
     private Morphium morphium;
 
     public ObjectMapperImpl() {
@@ -131,6 +105,30 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         customMappers.put(MultiPolygon.class, new BsonGeoMapper());
         customMappers.put(Polygon.class, new BsonGeoMapper());
         customMappers.put(LineString.class, new BsonGeoMapper());
+
+
+        //initializing type IDs
+        try (ScanResult scanResult =
+                     new ClassGraph()
+                             //                     .verbose()             // Enable verbose logging
+                             .enableAnnotationInfo()
+//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+                             .scan()) {
+            ClassInfoList entities =
+                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+            //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
+            log.info("Found " + entities.size() + " entities in classpath");
+            for (String cn : entities.getNames()) {
+                try {
+                    Class c = Class.forName(cn);
+                    classByCollectionName.put(getCollectionName(c), c);
+                } catch (ClassNotFoundException e) {
+                    log.error("Could not get class / collection " + cn);
+                }
+            }
+
+        }
+
 
     }
 
@@ -284,7 +282,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         o = annotationHelper.getRealObject(o);
         Entity e = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
         Embedded emb = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);
-        boolean objectIsEntity = e!= null || emb != null;
+        boolean objectIsEntity = e != null || emb != null;
         boolean warnOnNoEntitySerialization = morphium != null && morphium.getConfig() != null && morphium.getConfig().isWarnOnNoEntitySerialization();
         boolean objectSerializationEnabled = morphium == null || morphium.getConfig() == null || morphium.getConfig().isObjectSerializationEnabled();
         if (!objectIsEntity && !warnOnNoEntitySerialization) {
@@ -487,7 +485,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     v = serializeIterable(lst, fld.getType(), fld.getGenericType());
                                 }
                             } else if (v instanceof Iterable) {
-                                v = serializeIterable((Iterable)v, fld.getType(), fld.getGenericType());
+                                v = serializeIterable((Iterable) v, fld.getType(), fld.getGenericType());
                             } else if (v instanceof Calendar) {
                                 v = ((Calendar) v).getTime();
                             } else if (v.getClass().equals(MorphiumId.class)) {
@@ -1246,7 +1244,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return lst.stream().map(this::unmarshallInternal).collect(Collectors.toList());
     }
 
-    @SuppressWarnings({ "unchecked", "ConstantConditions" })
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     private void fillCollection(Reference ref, Type listType, Class elementClass, Type elementType, List<?> fromDB, Collection toFillIn) {
         if (ref != null) {
             for (Object obj : fromDB) {
@@ -1464,7 +1462,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         return toFill;
     }
 
-    @SuppressWarnings({ "unchecked", "ConstantConditions" })
+    @SuppressWarnings({"unchecked", "ConstantConditions"})
     protected void fillMap(Type mapType, Map<String, Object> fromDB, Map toFillIn) {
         Class keyClass = null;
         Class elementClass = null;
@@ -1521,5 +1519,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
             toFillIn.put(key, unmarshalled);
         }
+    }
+
+
+    @Override
+    public Class<?> getClassForCollectionName(String collectionName) {
+        return classByCollectionName.get(collectionName);
     }
 }

@@ -163,7 +163,6 @@ public class AnnotationAndReflectionHelper {
         return cls.getName();
     }
 
-
     public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
 
         if (classNameByType.containsKey(typeId)) {

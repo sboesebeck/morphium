@@ -201,6 +201,30 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         }
     }
 
+
+    @Test
+    public void inMemAggregationMerge() throws Exception {
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("mod" + (i % 3), i);
+            morphium.store(u);
+        }
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+        agg.unset(UncachedObject.Fields.value);
+        agg.merge("test", Aggregator.MergeActionWhenMatched.merge, Aggregator.MergeActionWhenNotMatched.insert);
+        List<Map> lst = agg.aggregate();
+        assert (lst.size() == 0);
+
+        List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
+        assert (l.size() != 0);
+        //checking stored after $unset
+        long lastCounter = -1;
+        for (UncachedObject o : l) {
+            assert (o.getValue() == null);
+            assert (o.getCounter() != lastCounter);
+            lastCounter = o.getCounter();
+        }
+    }
+
     @Test
     public void unwindTest() throws Exception {
         for (int i = 0; i < 100; i++) {

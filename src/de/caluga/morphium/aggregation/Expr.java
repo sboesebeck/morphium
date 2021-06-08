@@ -11,8 +11,10 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 
 public abstract class Expr {
+
+
     public static Expr abs(Expr e) {
-        return new OpExpr("abs", Arrays.asList(e)) {
+        return new OpExprNoList("abs", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 return Math.abs(((Number) e.evaluate(context)).doubleValue());
@@ -26,6 +28,11 @@ public abstract class Expr {
             public Object toQueryObject() {
                 return d;
             }
+
+            @Override
+            public Expr parseQueryObject(Object qo) {
+                return Expr.date((Date) qo);
+            }
         };
     }
 
@@ -35,7 +42,25 @@ public abstract class Expr {
             public Object toQueryObject() {
                 return new Date();
             }
+
+            @Override
+            public Expr parseQueryObject(Object qo) {
+                return Expr.date((Date) qo);
+            }
         };
+    }
+
+    public static Expr parse(Object o) {
+        throw new RuntimeException("not implemented yet, sorry");
+    }
+
+    public abstract Object toQueryObject();
+
+    public abstract Object evaluate(Map<String, Object> context);
+
+    //returns true, if this Expr can be parsed from qo
+    public boolean doesMatch(Object qo) {
+        throw new RuntimeException("not implemented yet");
     }
 
     /**
@@ -1748,9 +1773,6 @@ public abstract class Expr {
         };
     }
 
-    public abstract Object toQueryObject();
-
-    public abstract Object evaluate(Map<String, Object> context);
 
     private static class MapOpExpr extends ValueExpr {
         private final String operation;
@@ -1801,6 +1823,11 @@ public abstract class Expr {
         }
     }
 
+    //parse the query object and return the corresponding Expr
+    public Expr parseQueryObject(Object qo) {
+        throw new RuntimeException("not implemented yet");
+    }
+
     private static abstract class OpExprNoList extends Expr {
         private final String operation;
         private final Expr params;
@@ -1813,13 +1840,16 @@ public abstract class Expr {
             params = par;
         }
 
+        @Override
+        public boolean doesMatch(Object qo) {
+            return qo instanceof Map && ((Map) qo).containsKey(operation);
+        }
 
         @Override
         public Object toQueryObject() {
             return Utils.getMap(operation, params.toQueryObject());
         }
     }
-
 
     private static class FieldExpr extends Expr {
 
@@ -1844,6 +1874,16 @@ public abstract class Expr {
         }
 
         @Override
+        public boolean doesMatch(Object qo) {
+            return qo instanceof String && ((String) qo).startsWith("$");
+        }
+
+        @Override
+        public Expr parseQueryObject(Object qo) {
+            return Expr.field((String) qo);
+        }
+
+        @Override
         public Object toQueryObject() {
             return fieldRef;
         }
@@ -1855,6 +1895,16 @@ public abstract class Expr {
 
         public StringExpr(String str) {
             this.str = str;
+        }
+
+        @Override
+        public boolean doesMatch(Object qo) {
+            return qo instanceof String && !((String) qo).startsWith("$");
+        }
+
+        @Override
+        public Expr parseQueryObject(Object qo) {
+            return Expr.string((String) qo);
         }
 
         @Override
@@ -1872,11 +1922,20 @@ public abstract class Expr {
         }
 
         @Override
+        public boolean doesMatch(Object qo) {
+            return qo instanceof Integer;
+        }
+
+        @Override
+        public Expr parseQueryObject(Object qo) {
+            return intExpr(((Integer) qo));
+        }
+
+        @Override
         public Object toQueryObject() {
             return number;
         }
     }
-
 
     private static class DoubleExpr extends ValueExpr {
 
@@ -1887,23 +1946,18 @@ public abstract class Expr {
         }
 
         @Override
-        public Object toQueryObject() {
-            return number;
+        public boolean doesMatch(Object qo) {
+            return qo instanceof Double;
         }
-    }
 
-
-    private static class BoolExpr extends ValueExpr {
-
-        private final Boolean bool;
-
-        public BoolExpr(boolean b) {
-            this.bool = b;
+        @Override
+        public Expr parseQueryObject(Object qo) {
+            return doubleExpr((Double) qo);
         }
 
         @Override
         public Object toQueryObject() {
-            return bool;
+            return number;
         }
     }
 
@@ -1925,6 +1979,30 @@ public abstract class Expr {
         @Override
         public Object evaluate(Map<String, Object> context) {
             return toQueryObject();
+        }
+    }
+
+    private static class BoolExpr extends ValueExpr {
+
+        private final Boolean bool;
+
+        public BoolExpr(boolean b) {
+            this.bool = b;
+        }
+
+        @Override
+        public Object toQueryObject() {
+            return bool;
+        }
+
+        @Override
+        public boolean doesMatch(Object qo) {
+            return qo instanceof Boolean;
+        }
+
+        @Override
+        public Expr parseQueryObject(Object qo) {
+            return Expr.bool((Boolean) qo);
         }
     }
 }
