@@ -602,27 +602,60 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
+    @Override
+    public Aggregator<T, R> merge(String intoDb, String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        return merge(intoDb, intoCollection, null, null, matchAction, notMatchedAction, onFields);
+    }
 
     @Override
-    public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        return merge(morphium.getConfig().getDatabase(), intoCollection, let, matchAction, notMatchedAction, onFields);
+    public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        return merge(morphium.getConfig().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
 
     }
 
     @Override
-    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        String[] flds = new String[onFields.length];
-        int idx = 0;
-        for (String f : onFields) {
-            flds[idx] = morphium.getARHelper().getFieldName(intoCollection, f);
-            idx++;
+    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
+    }
+
+    @Override
+    public Aggregator<T, R> merge(String intoDb, String intoCollection) {
+        return merge(intoDb, intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+    }
+
+    @Override
+    public Aggregator<T, R> merge(Class<?> intoCollection) {
+        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+    }
+
+    @Override
+    public Aggregator<T, R> merge(String intoCollection) {
+        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, MergeActionWhenMatched.merge, MergeActionWhenNotMatched.insert);
+    }
+
+    @Override
+    public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
+
+    }
+
+    private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+        Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
+        List<String> flds = new ArrayList<>();
+        if (entity != null) {
+            for (String f : onFields) {
+                flds.add(morphium.getARHelper().getFieldName(entity, f));
+            }
+        } else {
+            log.warn("no entity know for collection " + intoCollection);
+            log.warn("cannot check field names / properties");
+            for (String f : onFields) {
+                flds.add(f);
+            }
         }
-        return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, matchAction, notMatchedAction, flds);
-    }
+        //morphium.getARHelper().getClassForTypeId(intoCollection);
 
-    @Override
-    public Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
-        Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("collection", intoCollection));
+        Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("coll", intoCollection));
         if (let != null) {
             doc.put("let", Utils.getNoExprMap((Map) let));
         }
@@ -633,9 +666,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             doc.put("whenNotMatched", notMatchedAction.name());
         }
         if (onFields != null && onFields.length != 0) {
-            doc.put("on", Arrays.asList(onFields));
+            doc.put("on", flds);
         }
-
+        if (pipeline != null) {
+            doc.put("whenMatched", pipeline);
+        }
         params.add(Utils.getMap("$merge", doc));
         return this;
     }
@@ -805,7 +840,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
             case "$project":
-                break;
             case "$set":
             case "$addFields":
                 for (Map<String, Object> o : data) {
@@ -1088,7 +1122,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 if (setting.containsKey("on")) {
                     //merge
                     //need to lookup each entry, match it to on field
-                    String on = (String) (setting.get("on"));
+                    List<String> on = (List<String>) (setting.get("on"));
                     MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
                     MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
                     List<Map<String, Object>> mergePipeline = null;
@@ -1104,7 +1138,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                     for (Map<String, Object> doc : data) {
                         try {
-                            List<Map<String, Object>> toMergeTo = morphium.getDriver().find(db, coll, Utils.getMap(on, doc.get(on)), null, null, 0, -1, 100, null, null, null);
+                            Map<String, Object> q = new HashMap<>();
+                            for (String onfld : on) {
+                                q.put(onfld, doc.get(onfld));
+                            }
+                            List<Map<String, Object>> toMergeTo = morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
                             if (toMergeTo == null || toMergeTo.size() == 0) {
                                 //not matched
                                 switch (notMatched) {
@@ -1114,6 +1152,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         continue;
                                     case insert:
                                         morphium.getDriver().store(db, coll, Arrays.asList(doc), null);
+                                        break;
                                     default:
                                         throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
                                 }

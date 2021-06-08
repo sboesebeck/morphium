@@ -6,6 +6,7 @@ package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -87,7 +88,13 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         }
     }
 
-
+    @Test
+    public void exprQueryTest() {
+        createUncachedObjects(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).expr(Expr.eq(Expr.field(UncachedObject.Fields.counter, UncachedObject.class, morphium), Expr.intExpr(42)));
+        List<UncachedObject> lst = q.asList();
+        assert (lst.size() == 1);
+    }
 
     @Test
     public void listCollections() {
@@ -365,7 +372,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         log.info("Query string: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
         for (UncachedObject o : lst) {
-            assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o.toString();
+            assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o;
             log.info(o.toString());
         }
         log.info("1st test passed");
@@ -523,7 +530,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         q = q.f(CachedObject.Fields.value).eq("Test").f(CachedObject.Fields.counter).gt(5);
         String t = q.toString();
-        log.info("Tostring: " + q.toString());
+        log.info("Tostring: " + q);
         q = morphium.createQueryFor(CachedObject.class);
         q = q.f(CachedObject.Fields.counter).gt(5).f(CachedObject.Fields.value).eq("Test");
         String s = q.toString();

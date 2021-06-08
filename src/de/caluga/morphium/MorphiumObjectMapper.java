@@ -51,4 +51,5 @@ public interface MorphiumObjectMapper {
     void setMorphium(Morphium m);
 
 
+    Class<?> getClassForCollectionName(String collectionName);
 }

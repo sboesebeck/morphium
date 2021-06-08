@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.inmem;
 
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -79,8 +80,13 @@ public class QueryHelper {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
                         assert (q.size() == 1);
+                        if (key.equals("$expr")) {
+                            //expr parsing?!?!?!?
+                        }
                         String k = q.keySet().iterator().next();
                         switch (k) {
+                            case "$eq":
+                                return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) == 0;
                             case "$lt":
                                 //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
@@ -171,6 +177,9 @@ public class QueryHelper {
                             case "$comment":
                                 continue;
                             case "$expr":
+                                Expr e = (Expr) q.get(k);
+                                Object ev = e.evaluate(toCheck);
+                                return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
                             case "$jsonSchema":
                             case "$type":
                             case "$regex":
