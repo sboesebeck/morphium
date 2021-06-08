@@ -790,8 +790,23 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         List<Map<String, Object>> ret = new ArrayList<>();
 
         switch (stage) {
-            case "$set":
+            case "$unset":
+                for (Map<String, Object> objm : data) {
+                    Map<String, Object> newO = new HashMap<>(objm);
+                    if (step.get(stage) instanceof List) {
+                        List<String> flds = (List<String>) step.get(stage);
+                        for (String f : flds) {
+                            newO.remove(f);
+                        }
+                    } else {
+                        newO.remove(step.get(stage));
+                    }
+                    ret.add(newO);
+                }
+                break;
             case "$project":
+                break;
+            case "$set":
             case "$addFields":
                 for (Map<String, Object> o : data) {
                     Map<String, Object> obj = new HashMap<>(o);
@@ -1073,8 +1088,96 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 if (setting.containsKey("on")) {
                     //merge
                     //need to lookup each entry, match it to on field
-                    String on = coll = (String) (setting.get("on"));
-                    //morphium.getDriver().find(db,coll,Utils.getMap(on,morphium.))
+                    String on = (String) (setting.get("on"));
+                    MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
+                    MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
+                    List<Map<String, Object>> mergePipeline = null;
+                    if (setting.containsKey("whenMatched")) {
+                        if (setting.get("whenMatched") instanceof Map) {
+                            mergePipeline = (List<Map<String, Object>>) setting.get("whenMatched");
+                        } else {
+                            matched = MergeActionWhenMatched.valueOf((String) setting.get("whenMatched"));
+                        }
+                    }
+                    if (setting.containsKey("whenNotMatched")) {
+                        notMatched = MergeActionWhenNotMatched.valueOf((String) setting.get("whenNotMatched"));
+                    }
+                    for (Map<String, Object> doc : data) {
+                        try {
+                            List<Map<String, Object>> toMergeTo = morphium.getDriver().find(db, coll, Utils.getMap(on, doc.get(on)), null, null, 0, -1, 100, null, null, null);
+                            if (toMergeTo == null || toMergeTo.size() == 0) {
+                                //not matched
+                                switch (notMatched) {
+                                    case fail:
+                                        throw new MorphiumDriverException("Aggregation merge step failed - no doc matched!");
+                                    case discard:
+                                        continue;
+                                    case insert:
+                                        morphium.getDriver().store(db, coll, Arrays.asList(doc), null);
+                                    default:
+                                        throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
+                                }
+                            } else if (toMergeTo.size() > 1) {
+                                throw new MorphiumDriverException("Aggregation merge step failed - on fields query returned more than one value. On-Fields are not unique");
+                            } else {
+                                Map<String, Object> mergeObject = toMergeTo.get(0);
+                                switch (matched) {
+                                    case merge:
+                                        if (mergePipeline != null) {
+                                            //need to run through pipeline....
+
+                                            for (Map<String, Object> mergePipelineStep : mergePipeline) {
+                                                String s = mergePipelineStep.keySet().stream().findFirst().get();
+
+                                                switch (s) {
+                                                    case "$set":
+                                                    case "$addFields":
+                                                        break;
+                                                    case "$unset":
+                                                        for (Map<String, Object> objm : data) {
+                                                            Map<String, Object> newO = new HashMap<>(objm);
+                                                            if (mergePipelineStep.get(s) instanceof List) {
+                                                                List<String> flds = (List<String>) mergePipelineStep.get(s);
+                                                                for (String f : flds) {
+                                                                    newO.remove(f);
+                                                                }
+                                                            } else {
+                                                                newO.remove(mergePipelineStep.get(s));
+                                                            }
+                                                            ret.add(newO);
+                                                        }
+                                                        break;
+                                                    case "$project":
+                                                        break;
+                                                    case "$replaceRoot":
+                                                    case "$replaceWith":
+                                                        break;
+                                                    default:
+                                                        throw new MorphiumDriverException("Aggregation error: unknown aggregation step in merge pipeline " + s);
+                                                }
+                                            }
+                                        } else {
+                                            if (mergeObject.containsKey("_id")) {
+                                                throw new MorphiumDriverException("Aggregation merge failure: referenced object keeps _id!");
+                                            }
+                                            //just merge
+                                            Map<String, Object> newDoc = new HashMap<>(doc);
+                                            newDoc.putAll(mergeObject);
+                                            morphium.getDriver().store(db, coll, Arrays.asList(mergeObject), null);
+                                        }
+                                        break;
+                                    case fail:
+                                    case replace:
+                                    case keepExisting:
+                                    default:
+                                        throw new IllegalArgumentException("unknown whenMatched action " + matched);
+                                }
+                            }
+                        } catch (MorphiumDriverException e) {
+                            e.printStackTrace();
+                        }
+
+                    }
                 } else {
                     try {
                         morphium.getDriver().store(db, coll, data, null);
@@ -1083,16 +1186,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 }
                 break;
-            case "$planCacheStats":
-            case "$redact":
             case "$replaceRoot":
             case "$replaceWith":
+                throw new RuntimeException("Not implemented yet, sorry!");
+            case "$planCacheStats":
+            case "$redact":
             case "$sortByCount":
             case "$unionWith":
             case "$currentOp":
             case "$listLocalSessions":
             case "$findAndModyfy":
-            case "$updatecase ":
+            case "$update":
             case "$bucket":
             case "$bucketAuto":
             case "$collStats":
