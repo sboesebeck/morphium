@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class InMemAggregator<T, R> implements Aggregator<T, R> {
@@ -998,11 +999,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
             case "$match":
-                for (Map<String, Object> o : data) {
-                    if (QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), o)) {
-                        ret.add(o);
-                    }
-                }
+                ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc)).collect(Collectors.toList());
                 break;
             case "$unwind":
                 op = step.get(stage);
@@ -1173,8 +1170,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                     case "$addFields":
                                                         break;
                                                     case "$unset":
-                                                        for (Map<String, Object> objm : data) {
-                                                            Map<String, Object> newO = new HashMap<>(objm);
+                                                        Map<String, Object> newO = new HashMap<>(doc);
                                                             if (mergePipelineStep.get(s) instanceof List) {
                                                                 List<String> flds = (List<String>) mergePipelineStep.get(s);
                                                                 for (String f : flds) {
@@ -1183,13 +1179,31 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                             } else {
                                                                 newO.remove(mergePipelineStep.get(s));
                                                             }
-                                                            ret.add(newO);
-                                                        }
+                                                        ret.add(newO);
                                                         break;
                                                     case "$project":
                                                         break;
                                                     case "$replaceRoot":
                                                     case "$replaceWith":
+                                                        Object newRoot;
+                                                        if (mergePipelineStep.get(s) instanceof Map) {
+                                                            newRoot = ((Map) mergePipelineStep.get(s)).get("newRoot");
+                                                        } else {
+                                                            newRoot = mergePipelineStep.get(s);
+                                                        }
+                                                        if (newRoot instanceof String) {
+                                                            if (newRoot.toString().startsWith("$")) {
+                                                                //fieldRef
+                                                                ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
+
+                                                            } else {
+                                                                throw new IllegalArgumentException("cannot replace root with single value");
+                                                            }
+                                                        } else {
+                                                            //parse expr!!!!!
+                                                            //EXPR PARSING NEEDED!!!!!
+                                                            throw new IllegalArgumentException("not implemented yet, sorry");
+                                                        }
                                                         break;
                                                     default:
                                                         throw new MorphiumDriverException("Aggregation error: unknown aggregation step in merge pipeline " + s);
@@ -1227,7 +1241,28 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 break;
             case "$replaceRoot":
             case "$replaceWith":
-                throw new RuntimeException("Not implemented yet, sorry!");
+                Object newRoot;
+                if (step.get(stage) instanceof Map) {
+                    newRoot = ((Map) step.get(stage)).get("newRoot");
+                } else {
+                    newRoot = step.get(stage);
+                }
+                if (newRoot instanceof String) {
+                    if (newRoot.toString().startsWith("$")) {
+                        //fieldRef
+                        for (Map<String, Object> doc : data) {
+                            ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
+                        }
+
+                    } else {
+                        throw new IllegalArgumentException("cannot replace root with single value");
+                    }
+                } else {
+                    //parse expr!!!!!
+                    //EXPR PARSING NEEDED!!!!!
+                    throw new IllegalArgumentException("not implemented yet, sorry");
+                }
+                break;
             case "$planCacheStats":
             case "$redact":
             case "$sortByCount":
