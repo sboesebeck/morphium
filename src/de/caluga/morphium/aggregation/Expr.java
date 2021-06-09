@@ -12,6 +12,10 @@ import java.util.*;
 
 public abstract class Expr {
 
+    public abstract Object toQueryObject();
+
+    public abstract Object evaluate(Map<String, Object> context);
+
 
     public static Expr abs(Expr e) {
         return new OpExprNoList("abs", e) {
@@ -53,10 +57,6 @@ public abstract class Expr {
     public static Expr parse(Object o) {
         throw new RuntimeException("not implemented yet, sorry");
     }
-
-    public abstract Object toQueryObject();
-
-    public abstract Object evaluate(Map<String, Object> context);
 
     //returns true, if this Expr can be parsed from qo
     public boolean doesMatch(Object qo) {

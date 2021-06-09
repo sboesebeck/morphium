@@ -71,7 +71,7 @@ public class QueryHelper {
                             return false;
                         }
                     }
-                    return true;
+                return true;
 
                 }
                 default:
