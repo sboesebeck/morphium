@@ -25,14 +25,14 @@ public class NoListenerTest extends MorphiumTestBase {
 
         Msg m = new Msg("test_listener", "a test", "42");
         sender.sendMessage(m);
-        Thread.sleep(100);
+        Thread.sleep(1000);
         morphium.reread(m);
 
         assert (m.getProcessedBy().size() == 1);
         r1.removeListenerForMessageNamed("test_listener", ml);
         m = new Msg("test_listener", "a test", "42");
         sender.sendMessage(m);
-        Thread.sleep(100);
+        Thread.sleep(1000);
         morphium.reread(m);
         assert (m.getProcessedBy() == null || m.getProcessedBy().size() == 0);
 

@@ -128,7 +128,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
-        Thread.sleep(200);
+        Thread.sleep(500);
         assert (count.get() == 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
         Thread.sleep(6500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time

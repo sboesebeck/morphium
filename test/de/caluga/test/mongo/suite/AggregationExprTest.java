@@ -20,7 +20,7 @@ public class AggregationExprTest extends TestCase {
         Object o = abs(intExpr(-12)).toQueryObject();
         String s = Utils.toJsonString(o);
         log.info("Json: " + s);
-        assert (s.equals("{ \"$abs\" :  [ -12] } "));
+        assert (s.equals("{ \"$abs\" : -12 } "));
     }
 
     public void testRegexMatch() {
@@ -665,7 +665,7 @@ public class AggregationExprTest extends TestCase {
     public void testAtan2() {
         Expr e = atan2(intExpr(23), intExpr(2));
         log.info(Utils.toJsonString(e.toQueryObject()));
-        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$atan2\" : [ 23, 2]} "));
+        assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$atan2\" :  [ 23, 2] } "));
     }
 
     public void testAsinh() {
