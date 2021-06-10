@@ -6,8 +6,12 @@ import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 
 public abstract class Expr {
@@ -17,17 +21,63 @@ public abstract class Expr {
     public abstract Object evaluate(Map<String, Object> context);
 
     public static Expr parse(Object o) {
-        throw new RuntimeException("not implemented yet, sorry");
-    }
+        Logger log = LoggerFactory.getLogger(Expr.class);
+        if (o instanceof Map) {
+            String k = (String) ((Map) o).keySet().stream().findFirst().get();
+            if (!k.startsWith("$")) {
+                return parse(o);
+            }
+            k = k.replaceAll("\\$", "");
+            for (Method m : Expr.class.getDeclaredMethods()) {
+                if (Modifier.isStatic(m.getModifiers())) {
+                    if (m.getName().equals(k) || m.getName().equals(k + "Expr")) {
+                        log.info("Got method for op: " + k + "  method: " + m.getName());
+                        try {
+                            Object p = ((Map) o).get("$" + k);
+                            if (p instanceof List) {
+                                List<Expr> l = new ArrayList();
+                                for (Object param : (List) p) {
+                                    l.add(parse(param));
+                                }
+                                p = l.toArray(new Expr[l.size()]);
+                            } else if (p instanceof Map) {
+                                Map map = new LinkedHashMap();
 
-    //returns true, if this Expr can be parsed from qo
-    public boolean doesMatch(Object qo) {
-        throw new RuntimeException("not implemented yet");
-    }
-
-    //parse the query object and return the corresponding Expr
-    public Expr parseQueryObject(Object qo) {
-        throw new RuntimeException("not implemented yet");
+                            }
+                            return (Expr) m.invoke(null, p);
+                        } catch (IllegalAccessException e) {
+                            e.printStackTrace();
+                        } catch (InvocationTargetException e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    }
+                }
+            }
+            throw new IllegalArgumentException("Unknown operation " + k);
+        } else if (o instanceof List) {
+            List<Expr> ret = new ArrayList<>();
+            for (Object e : ((List) o)) {
+                ret.add(parse(e));
+            }
+            return new ValueExpr() {
+                @Override
+                public Object toQueryObject() {
+                    return ret;
+                }
+            };
+        } else if (o instanceof String && ((String) o).startsWith("$")) {
+            //field Ref
+            return field(((String) o));
+        } else {
+            return new ValueExpr() {
+                @Override
+                public Object toQueryObject() {
+                    return o;
+                }
+            };
+        }
+        //throw new RuntimeException("parsing failed");
     }
 
     public static Expr abs(Expr e) {
@@ -46,10 +96,7 @@ public abstract class Expr {
                 return d;
             }
 
-            @Override
-            public Expr parseQueryObject(Object qo) {
-                return Expr.date((Date) qo);
-            }
+
         };
     }
 
@@ -60,10 +107,7 @@ public abstract class Expr {
                 return new Date();
             }
 
-            @Override
-            public Expr parseQueryObject(Object qo) {
-                return Expr.date((Date) qo);
-            }
+
         };
     }
 
@@ -122,7 +166,7 @@ public abstract class Expr {
                 for (Expr f : fld) {
                     sum = sum.doubleValue() + ((Number) f.evaluate(context)).doubleValue();
                 }
-                return null;
+                return sum;
             }
         };
     }
@@ -1836,10 +1880,6 @@ public abstract class Expr {
             params = par;
         }
 
-        @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof Map && ((Map) qo).containsKey(operation);
-        }
 
         @Override
         public Object toQueryObject() {
@@ -1869,15 +1909,6 @@ public abstract class Expr {
 
         }
 
-        @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof String && ((String) qo).startsWith("$");
-        }
-
-        @Override
-        public Expr parseQueryObject(Object qo) {
-            return Expr.field((String) qo);
-        }
 
         @Override
         public Object toQueryObject() {
@@ -1891,16 +1922,6 @@ public abstract class Expr {
 
         public StringExpr(String str) {
             this.str = str;
-        }
-
-        @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof String && !((String) qo).startsWith("$");
-        }
-
-        @Override
-        public Expr parseQueryObject(Object qo) {
-            return Expr.string((String) qo);
         }
 
         @Override
@@ -1918,16 +1939,6 @@ public abstract class Expr {
         }
 
         @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof Integer;
-        }
-
-        @Override
-        public Expr parseQueryObject(Object qo) {
-            return intExpr(((Integer) qo));
-        }
-
-        @Override
         public Object toQueryObject() {
             return number;
         }
@@ -1939,16 +1950,6 @@ public abstract class Expr {
 
         public DoubleExpr(double str) {
             this.number = str;
-        }
-
-        @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof Double;
-        }
-
-        @Override
-        public Expr parseQueryObject(Object qo) {
-            return doubleExpr((Double) qo);
         }
 
         @Override
@@ -1991,14 +1992,5 @@ public abstract class Expr {
             return bool;
         }
 
-        @Override
-        public boolean doesMatch(Object qo) {
-            return qo instanceof Boolean;
-        }
-
-        @Override
-        public Expr parseQueryObject(Object qo) {
-            return Expr.bool((Boolean) qo);
-        }
     }
 }
