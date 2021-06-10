@@ -865,6 +865,13 @@ public class AggregationExprTest extends TestCase {
 
     }
 
+    public void testLetEvaluation() {
+        Expr e = Expr.let(Utils.getMap("var1", Expr.field("testField")), Expr.abs(Expr.field("var1")));
+        Object result = e.evaluate(Utils.getMap("testField", 100));
+        assert (result != null);
+        assert (result.equals(100.0));
+    }
+
     public void testIsoDateFromParts() {
         Expr e = isoDateFromParts(intExpr(2020));
         assert ((Map<String, Object>) (((Map<String, Object>) e.toQueryObject()).get("$dateFromParts"))).containsValue(2020);

@@ -1,5 +1,6 @@
 package de.caluga.morphium.aggregation;
 
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ObjectMapperImpl;
@@ -20,12 +21,20 @@ public abstract class Expr {
 
     public abstract Object evaluate(Map<String, Object> context);
 
+    private static Map parseMap(Map<?, ?> o) {
+        Map<String, Expr> ret = new HashMap<>();
+        for (Map.Entry<?, ?> e : o.entrySet()) {
+            ret.put((String) e.getKey(), parse(e.getValue()));
+        }
+        return ret;
+    }
+
     public static Expr parse(Object o) {
         Logger log = LoggerFactory.getLogger(Expr.class);
         if (o instanceof Map) {
             String k = (String) ((Map) o).keySet().stream().findFirst().get();
             if (!k.startsWith("$")) {
-                return parse(o);
+                throw new IllegalArgumentException("no proper operation " + k);
             }
             k = k.replaceAll("\\$", "");
             for (Method m : Expr.class.getDeclaredMethods()) {
@@ -39,22 +48,44 @@ public abstract class Expr {
                                 for (Object param : (List) p) {
                                     l.add(parse(param));
                                 }
-                                p = l.toArray(new Expr[l.size()]);
-                            } else if (p instanceof Map) {
-                                Map map = new LinkedHashMap();
+                                if (m.getParameterCount() == 1 && m.getParameterTypes()[0].equals(List.class)) {
+                                    p = l;
+                                } else if (l.size() != m.getParameterCount() && !m.getParameterTypes()[0].isArray()) {
+                                    log.warn("wrong number of method params, maybe overloaded?");
+                                    continue;
+                                } else if (l.size() == 1) {
+                                    p = l.get(0);
+                                } else {
+                                    p = l.toArray(new Expr[l.size()]);
+                                }
 
+                            } else if (p instanceof Map) {
+                                p = parseMap((Map) p);
+                            } else {
+                                p = parse(p);
                             }
+                            if (p.getClass().isArray()) {
+                                if (m.getParameterCount() != ((Object[]) p).length) {
+                                    log.debug("WRong method, maybe... parameter count mismatch");
+                                    continue;
+                                }
+                            } else if (m.getParameterCount() > 1) {
+                                log.debug("Wrong method, maybe... method needs more than one param, but we only have one");
+                                continue;
+
+                            } else if (m.getParameterCount() == 1 && m.getParameterTypes()[0].isArray() && !p.getClass().isArray()) {
+                                m.setAccessible(true);
+                                return (Expr) m.invoke(null, new Object[]{new Expr[]{(Expr) p}});
+                            }
+                            m.setAccessible(true);
                             return (Expr) m.invoke(null, p);
-                        } catch (IllegalAccessException e) {
-                            e.printStackTrace();
-                        } catch (InvocationTargetException e) {
-                            e.printStackTrace();
+                        } catch (Exception e) {
+                            //e.printStackTrace();
                         }
-                        return null;
                     }
                 }
             }
-            throw new IllegalArgumentException("Unknown operation " + k);
+            throw new IllegalArgumentException("could not parse operation " + k);
         } else if (o instanceof List) {
             List<Expr> ret = new ArrayList<>();
             for (Object e : ((List) o)) {
@@ -172,15 +203,30 @@ public abstract class Expr {
     }
 
     public static Expr doubleExpr(double d) {
-        return new DoubleExpr(d);
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
+                return d;
+            }
+        };
     }
 
     public static Expr intExpr(int i) {
-        return new IntExpr(i);
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
+                return i;
+            }
+        };
     }
 
     public static Expr bool(boolean v) {
-        return new BoolExpr(v);
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
+                return v;
+            }
+        };
     }
 
     public static Expr arrayExpr(Expr... elem) {
@@ -188,7 +234,12 @@ public abstract class Expr {
     }
 
     public static Expr string(String str) {
-        return new StringExpr(str);
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
+                return str;
+            }
+        };
     }
 
     public static Expr ceil(Expr e) {
@@ -334,6 +385,15 @@ public abstract class Expr {
         };
     }
 
+    private static Expr arrayElemAt(List lst) {
+        return new OpExpr("arrayElemAt", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((List) ((Expr) lst.get(0)).evaluate(context)).get(((Number) ((Expr) lst.get(1)).evaluate(context)).intValue());
+            }
+        };
+    }
+
     public static Expr arrayToObject(Expr array) {
         return new OpExpr("arrayToObject", Arrays.asList(array)) {
             @Override
@@ -357,7 +417,7 @@ public abstract class Expr {
     }
 
     public static Expr filter(Expr inputArray, String as, Expr cond) {
-        return new MapOpExpr("filter", Utils.getMap("input", inputArray).add("as", new StringExpr(as)).add("cond", cond)) {
+        return new MapOpExpr("filter", Utils.getMap("input", inputArray).add("as", string(as)).add("cond", cond)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 List<Object> ret = new ArrayList<>();
@@ -578,7 +638,17 @@ public abstract class Expr {
         return new OpExprNoList("not", expression) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return !((Boolean) expression.evaluate(context));
+
+                Object evaluate = expression.evaluate(context);
+                if (evaluate instanceof Boolean) {
+                    return !((Boolean) evaluate);
+                } else if (evaluate instanceof Number) {
+                    return ((Number) evaluate).intValue() != 0;
+                } else if (evaluate instanceof String) {
+                    return "true".equalsIgnoreCase((String) evaluate);
+                } else {
+                    throw new IllegalArgumentException("Wrong type for not: expr is " + evaluate);
+                }
             }
         };
     }
@@ -815,7 +885,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.DAY_OF_MONTH);
             }
         };
@@ -826,7 +904,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.DAY_OF_WEEK);
             }
         };
@@ -835,6 +921,10 @@ public abstract class Expr {
     public static Expr dateFromParts(Expr year) {
         return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
         );
+    }
+
+    private static Expr dateFromParts(Map m) {
+        return new MapOpExpr("dateFromParts", m);
     }
 
 
@@ -985,7 +1075,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.DAY_OF_YEAR);
             }
         };
@@ -997,7 +1095,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.HOUR_OF_DAY);
             }
         };
@@ -1008,7 +1114,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.DAY_OF_WEEK);
             }
         };
@@ -1019,7 +1133,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.WEEK_OF_MONTH);
             }
         };
@@ -1030,7 +1152,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.WEEK_OF_YEAR);
             }
         };
@@ -1041,7 +1171,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.MILLISECOND);
             }
         };
@@ -1052,7 +1190,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.MINUTE);
             }
         };
@@ -1063,7 +1209,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.MONTH);
             }
         };
@@ -1074,7 +1228,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.SECOND);
             }
         };
@@ -1095,7 +1257,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.WEEK_OF_YEAR);
             }
         };
@@ -1106,7 +1276,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                cal.setTime((Date) date.evaluate(context));
+                Object val = date.evaluate(context);
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
                 return cal.get(Calendar.YEAR);
             }
         };
@@ -1122,10 +1300,10 @@ public abstract class Expr {
     }
 
     public static Expr mergeObjects(Expr doc) {
-        return new ValueExpr() {
+        return new OpExprNoList("mergeObjects", doc) {
             @Override
-            public Object toQueryObject() {
-                return Utils.getMap("$mergeObjects", doc.toQueryObject());
+            public Object evaluate(Map<String, Object> context) {
+                return doc.evaluate(context);
             }
         };
     }
@@ -1134,8 +1312,15 @@ public abstract class Expr {
         return new OpExpr("mergeObjects", Arrays.asList(docs)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("mergeObjects not implemented yet,sorry");
-                return null;
+                Map<String, Object> res = new HashMap<>();
+                for (Expr e : docs) {
+                    Object val = e.evaluate(context);
+                    if (!(val instanceof Map)) {
+                        throw new IllegalArgumentException("cannot merge non documents!");
+                    }
+                    res.putAll((Map<? extends String, ?>) val);
+                }
+                return res;
             }
         };
     }
@@ -1146,6 +1331,22 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 boolean ret = true;
                 for (Expr el : e) {
+                    if (!Boolean.TRUE.equals(el.evaluate(context))) {
+                        ret = false;
+                        break;
+                    }
+                }
+                return ret;
+            }
+        };
+    }
+
+    private static Expr allElementsTrue(List lst) {
+        return new OpExpr("alleElementsTrue", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean ret = true;
+                for (Expr el : (List<Expr>) lst) {
                     if (!Boolean.TRUE.equals(el.evaluate(context))) {
                         ret = false;
                         break;
@@ -1512,6 +1713,15 @@ public abstract class Expr {
         };
     }
 
+    private static Expr atan2(List lst) {
+        return new OpExpr("atan2", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.atan2(((Number) ((Expr) lst.get(0)).evaluate(context)).doubleValue(), ((Number) ((Expr) lst.get(1)).evaluate(context)).doubleValue());
+            }
+        };
+    }
+
     public static Expr asinh(Expr e) {
         return new OpExprNoList("asinh", e) {
             @Override
@@ -1534,10 +1744,22 @@ public abstract class Expr {
         return new OpExpr("atanh", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
+                return 0;
             }
         };
     }
+
+    private static Expr atanh(List lst) {
+        return new OpExpr("atanh", lst) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
+                return 0;
+            }
+        };
+    }
+
 
     public static Expr degreesToRadian(Expr e) {
         return new OpExprNoList("degreesToRadian", e) {
@@ -1567,6 +1789,20 @@ public abstract class Expr {
                 Object in = input.evaluate(context);
                 if (in == null) {
                     return onNull.evaluate(context);
+                }
+                //type check???
+                return in; //TODO: migrate data?
+            }
+        };
+    }
+
+    private static Expr convert(Map map) {
+        return new MapOpExpr("convert", map) {
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object in = ((Expr) map.get("input")).evaluate(context);
+                if (in == null) {
+                    return ((Expr) map.get("onNull")).evaluate(context);
                 }
                 //type check???
                 return in; //TODO: migrate data?
@@ -1652,7 +1888,7 @@ public abstract class Expr {
                 } else if (o instanceof ObjectId) {
                     o = new MorphiumId(((ObjectId) o).toHexString());
                 }
-                return e.evaluate(context);
+                return o;
             }
         };
     }
@@ -1662,6 +1898,15 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return Expr.nullExpr();
+            }
+        };
+    }
+
+    public static Expr nullExpr() {
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
                 return null;
             }
         };
@@ -1680,7 +1925,11 @@ public abstract class Expr {
         return new OpExpr("avg", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                double sum = 0;
+                for (Expr expr : e) {
+                    sum += ((Number) expr.evaluate(context)).doubleValue();
+                }
+                return sum / e.length;
             }
         };
     }
@@ -1689,7 +1938,7 @@ public abstract class Expr {
         return new OpExprNoList("avg", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                return e.evaluate(context);
             }
         };
     }
@@ -1701,7 +1950,17 @@ public abstract class Expr {
         return new OpExpr("max", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                Object max = null;
+                for (Expr expr : e) {
+                    Object v = expr.evaluate(context);
+                    if (max == null) {
+                        max = v;
+                    } else if (((Comparable) max).compareTo(v) < 0) {
+                        max = v;
+                    }
+
+                }
+                return max;
             }
         };
     }
@@ -1710,7 +1969,7 @@ public abstract class Expr {
         return new OpExprNoList("max", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                return e.evaluate(context);
             }
         };
     }
@@ -1719,7 +1978,17 @@ public abstract class Expr {
         return new OpExpr("min", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                Object min = null;
+                for (Expr expr : e) {
+                    Object v = expr.evaluate(context);
+                    if (min == null) {
+                        min = v;
+                    } else if (((Comparable) min).compareTo(v) > 0) {
+                        min = v;
+                    }
+
+                }
+                return min;
             }
         };
     }
@@ -1728,7 +1997,7 @@ public abstract class Expr {
         return new OpExprNoList("min", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                return e.evaluate(context);
             }
         };
     }
@@ -1806,6 +2075,33 @@ public abstract class Expr {
                     map.put(e.getKey(), e.getValue().toQueryObject());
                 }
                 return Utils.getMap("$let", Utils.getMap("vars", (Object) map).add("in", in.toQueryObject()));
+            }
+
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> effectiveContext = new HashMap<>(context);
+                for (String k : vars.keySet()) {
+                    effectiveContext.put(k, vars.get(k).evaluate(context));
+                }
+                return in.evaluate(effectiveContext);
+            }
+        };
+    }
+
+    private static Expr let(Map m) {
+        return new ValueExpr() {
+            @Override
+            public Object toQueryObject() {
+                return m;
+            }
+
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> effectiveContext = new HashMap<>(context);
+                for (String k : ((Map<String, Expr>) m.get("vars")).keySet()) {
+                    effectiveContext.put(k, ((Map<String, Expr>) m.get("vars")).get(k).evaluate(context));
+                }
+                return ((Expr) m.get("in")).evaluate(effectiveContext);
             }
         };
     }
@@ -1916,47 +2212,6 @@ public abstract class Expr {
         }
     }
 
-    private static class StringExpr extends ValueExpr {
-
-        private final String str;
-
-        public StringExpr(String str) {
-            this.str = str;
-        }
-
-        @Override
-        public Object toQueryObject() {
-            return str;
-        }
-    }
-
-    private static class IntExpr extends ValueExpr {
-
-        private final Integer number;
-
-        public IntExpr(int str) {
-            this.number = str;
-        }
-
-        @Override
-        public Object toQueryObject() {
-            return number;
-        }
-    }
-
-    private static class DoubleExpr extends ValueExpr {
-
-        private final Double number;
-
-        public DoubleExpr(double str) {
-            this.number = str;
-        }
-
-        @Override
-        public Object toQueryObject() {
-            return number;
-        }
-    }
 
     private static class ArrayExpr extends ValueExpr {
 
@@ -1977,20 +2232,7 @@ public abstract class Expr {
         public Object evaluate(Map<String, Object> context) {
             return toQueryObject();
         }
-    }
-
-    private static class BoolExpr extends ValueExpr {
-
-        private final Boolean bool;
-
-        public BoolExpr(boolean b) {
-            this.bool = b;
-        }
-
-        @Override
-        public Object toQueryObject() {
-            return bool;
-        }
 
     }
+
 }
