@@ -71,7 +71,7 @@ public class QueryHelper {
                             return false;
                         }
                     }
-                return true;
+                    return true;
 
                 }
                 default:
@@ -80,6 +80,10 @@ public class QueryHelper {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
                         assert (q.size() == 1);
+                        if (key.equals("$expr")) {
+                            //expr parsing?!?!?!?
+                            //not supported yet
+                        }
                         String k = q.keySet().iterator().next();
                         switch (k) {
                             case "$eq":

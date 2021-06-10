@@ -107,7 +107,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             //broadcast
             for (int i = 0; i < 10; i++) {
                 m1.sendMessage(new Msg("test", "msg", "value"));
-                Thread.sleep(200);
+                Thread.sleep(500);
                 assert (cnt.get() == 10) : "Count wrong: " + cnt.get();
                 cnt.set(0);
             }
