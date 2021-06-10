@@ -17,7 +17,7 @@ public class AggregationExpressionTests {
         Object o = e.toQueryObject();
         String val = Utils.toJsonString(o);
         log.info(val);
-        assert (val.equals("{ \"$add\" :  [ \"$the_field\", { \"$abs\" :  [ \"$test\"] } , 128.0] } "));
+        assert (val.equals("{ \"$add\" :  [ \"$the_field\", { \"$abs\" : \"$test\" } , 128.0] } "));
 
         e = Expr.in(Expr.doubleExpr(1.2), Expr.arrayExpr(Expr.intExpr(12), Expr.doubleExpr(1.2), Expr.field("testfield")));
         val = Utils.toJsonString(e.toQueryObject());

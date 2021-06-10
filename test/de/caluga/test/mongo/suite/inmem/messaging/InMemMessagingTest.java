@@ -656,7 +656,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                     public void run() {
                         Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 36000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 360000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     }

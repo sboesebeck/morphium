@@ -202,7 +202,7 @@ public abstract class Expr {
     }
 
     public static Expr log10(Expr e) {
-        return new OpExprNoList("floor", e) {
+        return new OpExprNoList("log10", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 return Math.log10(((Number) e.evaluate(context)).doubleValue());
@@ -1097,7 +1097,7 @@ public abstract class Expr {
     }
 
     public static Expr allElementsTrue(Expr... e) {
-        return new OpExpr("allElementsTru", Arrays.asList(e)) {
+        return new OpExpr("allElementsTrue", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 boolean ret = true;

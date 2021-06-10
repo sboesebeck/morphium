@@ -80,12 +80,12 @@ public class QueryHelper {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
                         assert (q.size() == 1);
-                        if (key.equals("$expr")) {
-                            //expr parsing?!?!?!?
-                        }
                         String k = q.keySet().iterator().next();
                         switch (k) {
                             case "$eq":
+                                if (toCheck.get(key) == null && q.get(k) == null) return true;
+                                if (toCheck.get(key) != null && q.get(k) == null) return false;
+                                if (toCheck.get(key) == null && q.get(k) != null) return false;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) == 0;
                             case "$lt":
                                 //noinspection unchecked
