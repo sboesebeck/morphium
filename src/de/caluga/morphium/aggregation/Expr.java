@@ -16,6 +16,19 @@ public abstract class Expr {
 
     public abstract Object evaluate(Map<String, Object> context);
 
+    public static Expr parse(Object o) {
+        throw new RuntimeException("not implemented yet, sorry");
+    }
+
+    //returns true, if this Expr can be parsed from qo
+    public boolean doesMatch(Object qo) {
+        throw new RuntimeException("not implemented yet");
+    }
+
+    //parse the query object and return the corresponding Expr
+    public Expr parseQueryObject(Object qo) {
+        throw new RuntimeException("not implemented yet");
+    }
 
     public static Expr abs(Expr e) {
         return new OpExprNoList("abs", e) {
@@ -54,14 +67,6 @@ public abstract class Expr {
         };
     }
 
-    public static Expr parse(Object o) {
-        throw new RuntimeException("not implemented yet, sorry");
-    }
-
-    //returns true, if this Expr can be parsed from qo
-    public boolean doesMatch(Object qo) {
-        throw new RuntimeException("not implemented yet");
-    }
 
     /**
      * returning a hard coded field reference, better use field(Enum,Class, Morphium) instead!
@@ -716,7 +721,6 @@ public abstract class Expr {
         };
     }
 
-
     //Custom Aggregation
     public static Expr function(String code, Expr args) {
         return function(code, args, null);
@@ -726,7 +730,6 @@ public abstract class Expr {
         if (lang == null) lang = "js";
         return new MapOpExpr("function", Utils.getMap("body", string(code)).add("args", args).add("lang", string(lang)));
     }
-
 
     // $accumulator: {
     //    init: <code>,
@@ -785,13 +788,13 @@ public abstract class Expr {
         };
     }
 
-
-    //Date Expression Operators
-
     public static Expr dateFromParts(Expr year) {
         return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
         );
     }
+
+
+    //Date Expression Operators
 
     public static Expr dateFromParts(Expr year, Expr month) {
         return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
@@ -840,7 +843,6 @@ public abstract class Expr {
                 .add("timezone", timeZone)
         );
     }
-
 
     public static Expr isoDateFromParts(Expr isoWeekYear) {
         return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
@@ -1126,9 +1128,6 @@ public abstract class Expr {
         };
     }
 
-
-    //Set Expression Operators
-
     public static Expr setDifference(Expr e1, Expr e2) {
         return new OpExpr("setDifference", Arrays.asList(e1, e2)) {
             @Override
@@ -1138,6 +1137,9 @@ public abstract class Expr {
             }
         };
     }
+
+
+    //Set Expression Operators
 
     public static Expr setEquals(Expr... e) {
         return new OpExpr("setEquals", Arrays.asList(e)) {
@@ -1208,9 +1210,6 @@ public abstract class Expr {
         };
     }
 
-
-    //concat
-
     public static Expr indexOfCP(Expr str, Expr substr, Expr start, Expr end) {
         return new OpExpr("indexOfCP", Arrays.asList(str, substr, start, end)) {
             @Override
@@ -1220,6 +1219,9 @@ public abstract class Expr {
             }
         };
     }
+
+
+    //concat
 
     public static Expr match(Expr expr) {
         return new OpExprNoList("$match", expr) {
@@ -1418,9 +1420,6 @@ public abstract class Expr {
         };
     }
 
-
-    //Trigonometry Expression Operators
-
     public static Expr tan(Expr e) {
         return new OpExprNoList("tan", e) {
             @Override
@@ -1429,6 +1428,9 @@ public abstract class Expr {
             }
         };
     }
+
+
+    //Trigonometry Expression Operators
 
     public static Expr asin(Expr e) {
         return new OpExprNoList("asin", e) {
@@ -1537,12 +1539,12 @@ public abstract class Expr {
         };
     }
 
-
-    //Type Expression
-
     public static Expr convert(Expr input, Expr to) {
         return convert(input, to, null, null);
     }
+
+
+    //Type Expression
 
     public static Expr convert(Expr input, Expr to, Expr onError) {
         return convert(input, to, onError, null);
@@ -1639,9 +1641,6 @@ public abstract class Expr {
         };
     }
 
-
-    //Group stage
-
     public static Expr avg(Expr e) {
         return new OpExprNoList("avg", e) {
             @Override
@@ -1650,6 +1649,9 @@ public abstract class Expr {
             }
         };
     }
+
+
+    //Group stage
 
     public static Expr max(Expr... e) {
         return new OpExpr("max", Arrays.asList(e)) {
@@ -1773,7 +1775,6 @@ public abstract class Expr {
         };
     }
 
-
     private static class MapOpExpr extends ValueExpr {
         private final String operation;
         private final Map<String, Expr> params;
@@ -1821,11 +1822,6 @@ public abstract class Expr {
             }
             return Utils.getMap(operation, p);
         }
-    }
-
-    //parse the query object and return the corresponding Expr
-    public Expr parseQueryObject(Object qo) {
-        throw new RuntimeException("not implemented yet");
     }
 
     private static abstract class OpExprNoList extends Expr {
