@@ -80,11 +80,12 @@ public class QueryHelper {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
                         assert (q.size() == 1);
-                        if (key.equals("$expr")) {
-                            //expr parsing?!?!?!?
-                            //not supported yet
-                        }
                         String k = q.keySet().iterator().next();
+                        if (key.equals("$expr")) {
+                            Expr e = Expr.parse(q);
+                            return Boolean.TRUE.equals(e.evaluate(toCheck));
+                        }
+
                         switch (k) {
                             case "$eq":
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;

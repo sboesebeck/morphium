@@ -1201,8 +1201,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                             }
                                                         } else {
                                                             //parse expr!!!!!
-                                                            //EXPR PARSING NEEDED!!!!!
-                                                            throw new IllegalArgumentException("not implemented yet, sorry");
+
+                                                            Expr expr = Expr.parse(newRoot);
+                                                            ret.add((Map<String, Object>) expr.evaluate(doc));
                                                         }
                                                         break;
                                                     default:
@@ -1259,8 +1260,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                 } else {
                     //parse expr!!!!!
-                    //EXPR PARSING NEEDED!!!!!
-                    throw new IllegalArgumentException("not implemented yet, sorry");
+                    Expr expr = Expr.parse(newRoot);
+                    for (Map<String, Object> doc : data) {
+                        ret.add((Map<String, Object>) expr.evaluate(doc));
+                    }
                 }
                 break;
             case "$planCacheStats":
