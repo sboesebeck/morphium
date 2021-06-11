@@ -66,7 +66,7 @@ public abstract class Expr {
                                 p = parse(p);
                             }
                             if (p.getClass().isArray()) {
-                                if (m.getParameterCount() != ((Object[]) p).length) {
+                                if (!m.getParameterTypes()[0].isArray() && m.getParameterCount() != ((Object[]) p).length) {
                                     log.debug("WRong method, maybe... parameter count mismatch");
                                     continue;
                                 }

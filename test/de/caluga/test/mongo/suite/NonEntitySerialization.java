@@ -17,7 +17,8 @@ import java.util.Map;
 public class NonEntitySerialization extends MorphiumTestBase {
 
     @Test
-    public void testNonEntity() {
+    public void testNonEntity() throws Exception {
+        Thread.sleep(100);
         NonEntity ne = new NonEntity();
         ne.setInteger(42);
         ne.setValue("Thank you for the fish");
@@ -27,11 +28,13 @@ public class NonEntitySerialization extends MorphiumTestBase {
 
         NonEntity ne2 = morphium.getMapper().deserialize(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
-        log.info("Successful read:" + ne2.toString());
+        log.info("Successful read:" + ne2);
     }
 
     @Test
     public void testNonEntityList() throws Exception {
+        morphium.dropCollection(NonEntityContainer.class);
+        Thread.sleep(500);
         NonEntityContainer nc = new NonEntityContainer();
         nc.setList(new ArrayList<>());
         NonEntity ne = new NonEntity();
@@ -63,6 +66,8 @@ public class NonEntitySerialization extends MorphiumTestBase {
 
     @Test
     public void testNonEntityMap() throws Exception {
+        morphium.dropCollection(NonEntityContainer.class);
+        Thread.sleep(500);
         NonEntityContainer nc = new NonEntityContainer();
 
         nc.setMap(new HashMap<>());

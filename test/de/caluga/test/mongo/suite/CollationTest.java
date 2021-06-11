@@ -77,7 +77,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("a", 1));
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
-        Thread.sleep(100);
+        Thread.sleep(1000);
         long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("value").eq("a").countAll();
         assert (count == 2);
 

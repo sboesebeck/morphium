@@ -120,7 +120,7 @@ public class MorphiumTest extends MorphiumTestBase {
 
         UncachedObject uc = new UncachedObject("value", 12);
         morphium.store(uc);
-        Thread.sleep(50);
+        Thread.sleep(500);
         assert (preStore.get() == 1);
         assert (postStore.get() == 1);
 
@@ -128,6 +128,7 @@ public class MorphiumTest extends MorphiumTestBase {
         assert (postLoad.get() == 1);
 
         postLoad.set(0);
+        Thread.sleep(500);
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).asList();
         assert (postLoad.get() == 2); //one for each element, one for the whole list - two listeners!
 

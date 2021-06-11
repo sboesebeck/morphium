@@ -21,10 +21,8 @@ public class ExprParsingTests {
         Expr add = Expr.parse(qo);
         Map<String, Object> context = Utils.getMap("field", 12);
         Object result = add.evaluate(context);
+        assert (result.equals(47.0));
         log.info("done");
-
-        qo = new HashMap<>();
-        qo.put("$add", Arrays.asList(1, 2, 3));
 
     }
 

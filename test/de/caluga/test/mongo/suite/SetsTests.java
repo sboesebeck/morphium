@@ -102,7 +102,7 @@ public class SetsTests extends MorphiumTestBase {
     }
 
     @Test
-    public void nullValueListTest() {
+    public void nullValueListTest() throws Exception {
 
         morphium.dropCollection(SetContainer.class);
         SetContainer lst = new SetContainer();
@@ -137,6 +137,7 @@ public class SetsTests extends MorphiumTestBase {
         lst.addString(null);
 
         morphium.store(lst);
+        Thread.sleep(250);
         Query q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         SetContainer lst2 = (SetContainer) q.get();

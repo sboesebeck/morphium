@@ -41,12 +41,12 @@ public class TailableQueryTests extends MorphiumTestBase {
             assert (found);
         }).start();
 
-        Thread.sleep(1500);
+        Thread.sleep(2500);
         assert (found);
         found = false;
         log.info("Storing 3...");
         m.store(new CappedCol("Test 3 - quit", 3));
-        Thread.sleep(1500);
+        Thread.sleep(2500);
         assert (found);
 
     }

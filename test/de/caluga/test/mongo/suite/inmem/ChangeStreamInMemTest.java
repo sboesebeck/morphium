@@ -39,7 +39,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         run[0] = false;
         assert (count == 2) : "Count = " + count;
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
-        Thread.sleep(550);
+        Thread.sleep(1550);
         assert (count == 3) : "Count wrong " + count + "!=3"; //the listener needs to be called to return false ;-)
         morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
         assert (3 == count) : "Count wrong " + count + "!=3";
