@@ -17,8 +17,8 @@ import java.util.Date;
 @SuppressWarnings("AssertWithSideEffects")
 public class NonObjectIdTest extends MorphiumTestBase {
     @Test
-    public void nonObjectIdTest() {
-
+    public void nonObjectIdTest() throws Exception {
+        morphium.dropCollection(Person.class);
         Person p = new Person();
         p.setId("ABC123");
         p.setBirthday(new Date());
@@ -30,7 +30,7 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setBirthday(new Date());
         p.setName("2nd Test");
         morphium.store(p);
-        waitForAsyncOperationToStart(100);
+        waitForAsyncOperationToStart(1000);
         waitForWrites();
 
         p.setName("CHANGED");
@@ -41,9 +41,9 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setBirthday(new Date());
         p.setName("no ID");
         morphium.store(p);
-        waitForAsyncOperationToStart(100);
+        waitForAsyncOperationToStart(1000);
         waitForWrites();
-
+        Thread.sleep(1500);
         long cnt = morphium.createQueryFor(Person.class).countAll();
         assert (cnt == 3) : "Count wrong: " + cnt;
         assert (morphium.findById(Person.class, "BBC123").getName().equals("CHANGED"));

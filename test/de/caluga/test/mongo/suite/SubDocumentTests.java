@@ -22,7 +22,10 @@ import java.util.Map;
 public class SubDocumentTests extends MorphiumTestBase {
 
     @Test
-    public void testSubDocQuery() {
+    public void testSubDocQuery() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        morphium.dropCollection(ComplexObject.class);
+        Thread.sleep(250);
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
         o.setValue("Embedded object");
@@ -39,7 +42,7 @@ public class SubDocumentTests extends MorphiumTestBase {
         co.setEntityEmbeded(o);
 
         UncachedObject ref = new UncachedObject();
-        ref.setCounter(100);
+        ref.setCounter(200);
         ref.setValue("The reference");
         morphium.store(ref);
 
@@ -48,12 +51,12 @@ public class SubDocumentTests extends MorphiumTestBase {
         morphium.store(co);
 
         waitForWrites();
-
+        Thread.sleep(1500);
         Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
         q = q.f("embed.value").eq("A value");
         List<ComplexObject> lst = q.asList();
         assert (lst != null);
-        assert (lst.size() == 1);
+        assert (lst.size() == 1) : "List size wrong: " + lst.size();
         assert (lst.get(0).getId().equals(co.getId()));
     }
 

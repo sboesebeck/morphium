@@ -13,8 +13,9 @@ import java.util.List;
  */
 public class SkipLimitTest extends MorphiumTestBase {
     @Test
-    public void skipTest() {
+    public void skipTest() throws Exception {
         createUncachedObjects(100);
+        Thread.sleep(500);
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
         assert (o.getCounter() == 11) : "Counter is " + o.getCounter();
 
@@ -22,8 +23,9 @@ public class SkipLimitTest extends MorphiumTestBase {
 
 
     @Test
-    public void limitTest() {
+    public void limitTest() throws Exception {
         createUncachedObjects(100);
+        Thread.sleep(500);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).limit(10).sort("counter").asList();
         assert (l.size() == 10);
@@ -32,7 +34,7 @@ public class SkipLimitTest extends MorphiumTestBase {
     @Test
     public void skipLimitTest() throws Exception {
         createUncachedObjects(100);
-        Thread.sleep(150);
+        Thread.sleep(500);
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(50).limit(10).sort("counter").asList();
         assert (l.size() == 10);
         assert (l.get(0).getCounter() == 51);

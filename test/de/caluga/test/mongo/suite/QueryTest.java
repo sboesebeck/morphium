@@ -191,7 +191,7 @@ public class QueryTest extends MorphiumTestBase {
 
             }
         });
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (c.get() == 10);
     }
 
@@ -301,7 +301,7 @@ public class QueryTest extends MorphiumTestBase {
         while (cnt.get() == 0) {
             Thread.yield();
         }
-
+        Thread.sleep(500);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
         assert (lst.size() == 1);
     }
@@ -493,11 +493,11 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testDec2() throws Exception {
         createUncachedObjects(10);
-        Thread.sleep(50);
+        Thread.sleep(150);
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
                 .dec(UncachedObject.Fields.counter, 100, false, true);
-        Thread.sleep(50);
+        Thread.sleep(150);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(0).countAll();
         assert (cnt != 0);

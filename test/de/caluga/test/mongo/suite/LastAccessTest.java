@@ -56,7 +56,7 @@ public class LastAccessTest extends MorphiumTestBase {
     public void createOnUpsert() throws Exception {
         morphium.dropCollection(TstObjLA.class);
 
-        morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, (AsyncOperationCallback<TstObjLA>) null);
+        morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, null);
         TstObjLA tst = morphium.createQueryFor(TstObjLA.class).get();
         assert (tst.getIntValue() == 12);
         assert (tst.getValue().equals("a test"));
@@ -105,11 +105,13 @@ public class LastAccessTest extends MorphiumTestBase {
 
     @Test
     public void testLastAccessInc() throws Exception {
+        morphium.dropCollection(TstObjLA.class);
+        Thread.sleep(100);
         TstObjLA la = new TstObjLA();
         la.setValue("value");
 
         morphium.store(la);
-
+        Thread.sleep(100);
         morphium.reread(la);
 
         assert (la.creationTime != 0);
@@ -117,6 +119,7 @@ public class LastAccessTest extends MorphiumTestBase {
 
         la.setValue("new Value");
         morphium.store(la);
+        Thread.sleep(100);
         morphium.reread(la);
         long lc = la.getLastChange();
         assert (la.getCreationTime() != la.getLastChange());
@@ -127,11 +130,13 @@ public class LastAccessTest extends MorphiumTestBase {
         lc = la.getLastChange();
         la.setIntValue(41);
         morphium.store(la);
+        Thread.sleep(250);
         morphium.reread(la);
 
         assert (lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(la, "int_value", 1);
+        Thread.sleep(250);
         morphium.reread(la);
         assert (la.getIntValue() == 42);
         assert (lc != la.getLastChange());
@@ -140,12 +145,14 @@ public class LastAccessTest extends MorphiumTestBase {
         lc = la.getLastChange();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
         morphium.set(q, "int_value", 1);
+        Thread.sleep(500);
         morphium.reread(la);
         assert (la.getIntValue() == 1);
         assert (lc != la.getLastChange());
 
         lc = la.getLastChange();
         morphium.inc(q, "int_value", 41);
+        Thread.sleep(500);
         morphium.reread(la);
         assert (la.getIntValue() == 42);
         assert (lc != la.getLastChange());

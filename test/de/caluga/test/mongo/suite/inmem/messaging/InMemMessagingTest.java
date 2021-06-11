@@ -1117,7 +1117,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             m.setName("A message");
             m.setTtl(3000000);
             sender2.sendMessage(m);
-            Thread.sleep(500);
+            Thread.sleep(1500);
             assert (!gotMessage1);
             assert (!gotMessage2);
 

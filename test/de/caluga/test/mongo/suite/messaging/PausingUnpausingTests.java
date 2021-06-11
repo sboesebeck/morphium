@@ -129,7 +129,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             }
         }
         Thread.sleep(500);
-        assert (count.get() == 10) : "Count wrong " + count.get();
+        assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
         Thread.sleep(6500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
         assert (list.size() == 20) : "Size wrong " + list.size();
@@ -386,7 +386,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             assert (!gotMessage2);
             assert (!fail[0]);
 
-            Thread.sleep(6500);
+            Thread.sleep(8500);
             assert (gotMessage1);
             assert (gotMessage2);
             assert (!fail[0]);

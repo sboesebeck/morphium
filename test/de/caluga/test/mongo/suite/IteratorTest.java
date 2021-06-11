@@ -22,7 +22,7 @@ import java.util.*;
  */
 public class IteratorTest extends MorphiumTestBase {
 
-    private List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
+    private final List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
 
     private int runningThreads = 0;
 
@@ -407,6 +407,7 @@ public class IteratorTest extends MorphiumTestBase {
     @Test
     public void basicIteratorTest() throws Exception {
         createUncachedObjects(1000);
+        Thread.sleep(500);
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2);
@@ -687,9 +688,9 @@ public class IteratorTest extends MorphiumTestBase {
 
 
     @Test
-    public void multithreaddedIteratorTest() {
+    public void multithreaddedIteratorTest() throws Exception {
         createUncachedObjects(1000);
-
+        Thread.sleep(500);
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class).sort("counter");
         //        MorphiumIterator<UncachedObject> it = query.asIterable(10, 10);
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{query.asIterable(10, 10), query.asIterable(10)};

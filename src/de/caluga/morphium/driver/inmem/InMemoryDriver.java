@@ -673,7 +673,18 @@ public class InMemoryDriver implements MorphiumDriver {
             if (QueryHelper.matchesQuery(query, o)) {
                 if (o == null) o = new HashMap<>();
                 synchronized (this) {
-                    ret.add(internal ? o : new HashMap<>(o));
+                    while (true) {
+                        try {
+                            ret.add(internal ? o : new HashMap<>(o));
+                            break;
+                        } catch (ConcurrentModificationException e) {
+                            try {
+                                Thread.sleep(5);
+                            } catch (InterruptedException interruptedException) {
+                                //ignore
+                            }
+                        }
+                    }
                 }
             }
             if (limit > 0 && ret.size() >= limit) {

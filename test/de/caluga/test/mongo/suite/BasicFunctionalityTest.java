@@ -307,7 +307,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
 
         assert (last.getMorphiumId() != null) : "ID null?!?!?";
-        Thread.sleep(100);
+        Thread.sleep(200);
         UncachedObject uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
@@ -343,7 +343,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         log.info("Query string: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
         for (UncachedObject o : lst) {
-            assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o.toString();
+            assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o;
             log.info(o.toString());
         }
         log.info("1st test passed");
@@ -502,7 +502,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         q = q.f("value").eq("Test").f("counter").gt(5);
         String t = q.toString();
-        log.info("Tostring: " + q.toString());
+        log.info("Tostring: " + q);
         q = morphium.createQueryFor(CachedObject.class);
         q = q.f("counter").gt(5).f("value").eq("Test");
         String s = q.toString();
@@ -703,6 +703,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     public void insertListTest() throws Exception {
 
         morphium.dropCollection(UncachedObject.class);
+        Thread.sleep(100);
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
@@ -723,6 +724,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             lst2.add(uc);
         }
         lst2.add(lst.get(0));
+        Thread.sleep(1000);
         boolean ex = false;
         try {
             morphium.insert(lst);
