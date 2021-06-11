@@ -39,6 +39,7 @@ public abstract class Expr {
             k = k.replaceAll("\\$", "");
             for (Method m : Expr.class.getDeclaredMethods()) {
                 if (Modifier.isStatic(m.getModifiers())) {
+                    if (k.equals("toString")) k = "toStr";
                     if (m.getName().equals(k) || m.getName().equals(k + "Expr")) {
                         log.info("Got method for op: " + k + "  method: " + m.getName());
                         try {
