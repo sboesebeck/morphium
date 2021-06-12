@@ -127,13 +127,14 @@ public class SortingTest extends MorphiumTestBase {
 
 
     @Test
-    public void sortTestLimit() {
+    public void sortTestLimit() throws Exception {
         prepare();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("value").eq("Random value");
         q = q.sort("counter");
         q.limit(1);
+        Thread.sleep(1000);
         List<UncachedObject> lst = q.asList();
         assert (lst.size() == 1) : "List size wrong: " + lst.size();
         assert (lst.get(0).getCounter() == -1) : "Smalest value wrong, should be -1, is " + lst.get(0).getCounter();
