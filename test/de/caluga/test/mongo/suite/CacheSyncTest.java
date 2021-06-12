@@ -279,7 +279,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             morphium.store(new CachedObject());
             waitForWrites();
             try {
-                Thread.sleep(2500);
+                Thread.sleep(4500);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -295,7 +295,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             log.info("still attached - waiting");
             Thread.sleep(500);
         }
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (preClear);
         assert (postclear);
         assert (preSendClear);

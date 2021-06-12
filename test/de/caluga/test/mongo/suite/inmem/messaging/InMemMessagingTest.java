@@ -1098,7 +1098,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
             assert (!gotMessage3);
             assert (!gotMessage4);
-            Thread.sleep(500);
+            Thread.sleep(1500);
 
             int rec = 0;
             if (gotMessage1) {
