@@ -236,7 +236,7 @@ public class QueryTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Thread.sleep(100);
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(3).set(UncachedObject.Fields.value, "changed", true, true, null);
-        Thread.sleep(50);
+        Thread.sleep(550);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("changed").asList();
         assert (lst.size() == 2);
     }
