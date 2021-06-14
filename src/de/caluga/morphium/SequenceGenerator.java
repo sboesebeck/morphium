@@ -58,7 +58,7 @@ public class SequenceGenerator {
                     Object oldId = seq.get("_id");
                     seq.put("_id", seq.get("name"));
                     seq.remove("name");
-                    morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Arrays.asList(seq), null);
+                    morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Collections.singletonList(seq), null);
                     morphium.getDriver().delete(morphium.getConfig().getDatabase(), "sequence", Utils.getMap("_id", oldId), false, null, null);
                 } else {
                     //sequence does not exist yet

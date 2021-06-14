@@ -702,9 +702,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         } else {
             log.warn("no entity know for collection " + intoCollection);
             log.warn("cannot check field names / properties");
-            for (String f : onFields) {
-                flds.add(f);
-            }
+            flds.addAll(Arrays.asList(onFields));
         }
         Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("coll", intoCollection));
         if (let != null) {

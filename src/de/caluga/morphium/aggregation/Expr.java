@@ -57,7 +57,7 @@ public abstract class Expr {
                                 } else if (l.size() == 1) {
                                     p = l.get(0);
                                 } else {
-                                    p = l.toArray(new Expr[l.size()]);
+                                    p = l.toArray(new Expr[0]);
                                 }
 
                             } else if (p instanceof Map) {
@@ -396,7 +396,7 @@ public abstract class Expr {
     }
 
     public static Expr arrayToObject(Expr array) {
-        return new OpExpr("arrayToObject", Arrays.asList(array)) {
+        return new OpExpr("arrayToObject", Collections.singletonList(array)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 return null;
@@ -485,7 +485,7 @@ public abstract class Expr {
     }
 
     public static Expr isArray(Expr array) {
-        return new OpExpr("isArray", Arrays.asList(array)) {
+        return new OpExpr("isArray", Collections.singletonList(array)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 return array.evaluate(context) instanceof List;
@@ -1521,7 +1521,7 @@ public abstract class Expr {
     }
 
     public static Expr strLenBytes(Expr str) {
-        return new OpExpr("strLenBytes", Arrays.asList(str)) {
+        return new OpExpr("strLenBytes", Collections.singletonList(str)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
@@ -1555,7 +1555,7 @@ public abstract class Expr {
     }
 
     public static Expr strLenCP(Expr str) {
-        return new OpExpr("strLenCP", Arrays.asList(str)) {
+        return new OpExpr("strLenCP", Collections.singletonList(str)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
