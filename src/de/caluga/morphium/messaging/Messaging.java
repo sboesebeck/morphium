@@ -358,7 +358,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             // locking
                             lockAndProcess(obj);
                         } else if (!obj.isExclusive() && !obj.getProcessedBy().contains(id)) {
-                            processMessages(Arrays.asList(obj));
+                            processMessages(Collections.singletonList(obj));
                         }
                     }
 
@@ -668,7 +668,7 @@ public class Messaging extends Thread implements ShutdownListener {
 //            if (log.isDebugEnabled())
 //                log.debug("locked messages: " + lst.size());
             try {
-                processMessages(Arrays.asList(obj));
+                processMessages(Collections.singletonList(obj));
             } catch (Exception e) {
                 log.error("Error during message processing ", e);
             }

@@ -115,7 +115,7 @@ import java.util.stream.Collectors;
 
 import static de.caluga.morphium.aggregation.Aggregator.GeoNearFields.query;
 
-@SuppressWarnings({"WeakerAccess", "deprecation"})
+@SuppressWarnings({"WeakerAccess", "deprecation", "MagicConstant"})
 public class MongoDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
     private String[] hostSeed;

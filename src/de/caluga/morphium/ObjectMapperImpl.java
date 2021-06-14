@@ -988,7 +988,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                     List<?> collection = null;
                     if ((valueFromDb instanceof Binary)) {
-                        valueFromDb = Arrays.asList(((Binary) valueFromDb).getData());
+                        valueFromDb = Collections.singletonList(((Binary) valueFromDb).getData());
                     }
                     if (valueFromDb.getClass().isArray()) {
 

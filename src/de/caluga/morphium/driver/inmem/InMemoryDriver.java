@@ -1129,7 +1129,7 @@ public class InMemoryDriver implements MorphiumDriver {
             replacement.put("_id", ret.get(0).get("_id"));
         else
             replacement.remove("_id");
-        store(db, col, Arrays.asList(replacement), null);
+        store(db, col, Collections.singletonList(replacement), null);
         return replacement;
     }
 

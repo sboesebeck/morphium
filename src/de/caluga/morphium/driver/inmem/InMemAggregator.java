@@ -356,7 +356,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             out.put(e.getKey(), e.getValue());
         }
         List<Object> bn = new ArrayList<>();
-        boundaries.stream().forEach(x -> bn.add(x));
+        bn.addAll(boundaries);
         Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", (Object) groupBy)
                 .add("boundaries", bn)
                 .add("default", preset)
@@ -587,9 +587,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             m.add("as", outputArray);
         if (pipeline != null && pipeline.size() > 0) {
             List lst = new ArrayList();
-            for (Expr e : pipeline) {
-                lst.add(e);
-            }
+            lst.addAll(pipeline);
             m.put("pipeline", lst);
         }
         if (let != null) {
@@ -650,9 +648,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         } else {
             log.warn("no entity know for collection " + intoCollection);
             log.warn("cannot check field names / properties");
-            for (String f : onFields) {
-                flds.add(f);
-            }
+            flds.addAll(Arrays.asList(onFields));
         }
         //morphium.getARHelper().getClassForTypeId(intoCollection);
 
@@ -981,9 +977,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
 
                 }
-                for (Map<String, Object> v : res.values()) {
-                    ret.add(v);
-                }
+                ret.addAll(res.values());
                 break;
             case "$skip":
             case "$limit":
@@ -1148,7 +1142,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     case discard:
                                         continue;
                                     case insert:
-                                        morphium.getDriver().store(db, coll, Arrays.asList(doc), null);
+                                        morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
                                         break;
                                     default:
                                         throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
@@ -1217,7 +1211,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             //just merge
                                             Map<String, Object> newDoc = new HashMap<>(doc);
                                             newDoc.putAll(mergeObject);
-                                            morphium.getDriver().store(db, coll, Arrays.asList(mergeObject), null);
+                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
                                         }
                                         break;
                                     case fail:
