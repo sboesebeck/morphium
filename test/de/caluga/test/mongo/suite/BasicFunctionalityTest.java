@@ -407,7 +407,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.storeList(lst);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing a list  took " + dur + " ms");
-        Thread.sleep(100);
+        Thread.sleep(1000);
         checkUncached();
         assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
 
@@ -712,7 +712,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             lst.add(uc);
         }
         morphium.insert(lst);
-        Thread.sleep(200);
+        Thread.sleep(1000);
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
         System.err.println("Found " + c);
         assert (c == 100);

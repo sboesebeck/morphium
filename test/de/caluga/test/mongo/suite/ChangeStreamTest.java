@@ -304,13 +304,13 @@ public class ChangeStreamTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
 
         morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated");
-        Thread.sleep(100);
+        Thread.sleep(1000);
         assert (inserts.get() == 0);
         assert (updates.get() == 1);
         assert (deletes.get() == 0);
 
         morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated", false, true);
-        Thread.sleep(100);
+        Thread.sleep(1000);
 
         assert (updates.get() == 10);
         mon.terminate();

@@ -54,7 +54,7 @@ public class ComplexAnswerTests extends MorphiumTestBase {
             Thread.sleep(250);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
-            Thread.sleep(250);
+            Thread.sleep(1250);
             long cnt = morphium.createQueryFor(Msg.class).countAll();
             log.info("Messagecount PingPongLoop: " + cnt);
             assert (cnt > 10) : "Pingpong delivered not enough messages: " + cnt;

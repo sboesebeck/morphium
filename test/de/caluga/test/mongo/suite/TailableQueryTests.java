@@ -24,7 +24,7 @@ public class TailableQueryTests extends MorphiumTestBase {
         CappedCol o = new CappedCol("Test1", 1);
         m.store(o);
         m.store(new CappedCol("Test 2", 2));
-        Thread.sleep(100);
+        Thread.sleep(1000);
         found = false;
         new Thread(() -> {
             Query<CappedCol> q = m.createQueryFor(CappedCol.class);
