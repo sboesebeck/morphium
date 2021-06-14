@@ -55,7 +55,7 @@ public class NonEntitySerialization extends MorphiumTestBase {
         morphium.dropCollection(NonEntityContainer.class);
         morphium.store(nc);
 
-        Thread.sleep(1000);
+        Thread.sleep(1500);
 
         nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getList().get(0) != null);
@@ -91,7 +91,7 @@ public class NonEntitySerialization extends MorphiumTestBase {
         morphium.dropCollection(NonEntityContainer.class);
         morphium.store(nc);
 
-        Thread.sleep(1000);
+        Thread.sleep(1500);
 
         nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
         assert (nc2.getMap().get("Serialized") != null);

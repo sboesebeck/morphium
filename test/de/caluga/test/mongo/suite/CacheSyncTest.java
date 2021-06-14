@@ -295,7 +295,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             log.info("still attached - waiting");
             Thread.sleep(500);
         }
-        Thread.sleep(2000);
+        Thread.sleep(5000);
         assert (preClear);
         assert (postclear);
         assert (preSendClear);
