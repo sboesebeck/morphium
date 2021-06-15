@@ -30,6 +30,10 @@ public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<Watchin
         monitor.terminate();
     }
 
+    public boolean isActive() {
+        return monitor.isRunning();
+    }
+
     @Override
     public boolean incomingData(ChangeStreamEvent evt) {
         if (evt.getOperationType().equals("invalidate")) {

@@ -574,7 +574,7 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testHideFieldInProjection() throws Exception {
         createUncachedObjects(10);
-        Thread.sleep(50);
+        Thread.sleep(550);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.value).asList();
         assert (lst.size() == 1);
         assert (lst.get(0).getValue() == null);

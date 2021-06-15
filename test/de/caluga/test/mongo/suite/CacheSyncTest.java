@@ -55,6 +55,10 @@ public class CacheSyncTest extends MorphiumTestBase {
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
         msg.terminate();
         cs.detach();
+        while (cs.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
     }
 
     @Test
@@ -119,6 +123,14 @@ public class CacheSyncTest extends MorphiumTestBase {
         msg2.terminate();
         cs1.detach();
         cs2.detach();
+        while (cs1.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
+        while (cs2.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
     }
 
     @Test
@@ -204,7 +216,10 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         msg1.terminate();
         cs1.detach();
-
+        while (cs1.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
     }
 
     private void waitForWriteToStart(int max) {
@@ -374,6 +389,11 @@ public class CacheSyncTest extends MorphiumTestBase {
         msg1.terminate();
         msg2.terminate();
         m2.close();
+
+        while (cs1.isAttached() || cs2.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
     }
 
     @Test
@@ -442,6 +462,11 @@ public class CacheSyncTest extends MorphiumTestBase {
         msg1.terminate();
         msg2.terminate();
         m2.close();
+
+        while (cs1.isAttached() || cs2.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
     }
 
     private void checkForClearedCache(Morphium m1, Morphium m2) throws InterruptedException {
@@ -575,6 +600,11 @@ public class CacheSyncTest extends MorphiumTestBase {
         msg2.terminate();
         m2.close();
 
+        while (cs1.isAttached() || cs2.isAttached()) {
+            log.info("still attached - waiting");
+            Thread.sleep(500);
+        }
+
     }
 
     @Test
@@ -609,7 +639,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         Thread.sleep(200);
         assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
         sync.terminate();
-        Thread.sleep(1000);
+
     }
 
 
