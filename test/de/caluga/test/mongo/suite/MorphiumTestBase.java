@@ -72,7 +72,7 @@ public class MorphiumTestBase {
 
     @org.junit.BeforeClass
     public static synchronized void setUpClass() {
-
+        System.gc();
     }
 
     @org.junit.AfterClass

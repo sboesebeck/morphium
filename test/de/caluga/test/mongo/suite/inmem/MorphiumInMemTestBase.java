@@ -31,6 +31,7 @@ public class MorphiumInMemTestBase {
 
     @org.junit.Before
     public void setup() {
+        System.gc();
         log.info("creating in Memory instance");
         Properties p = MorphiumTestBase.getProps();
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
