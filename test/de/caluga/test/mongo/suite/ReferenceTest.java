@@ -25,8 +25,8 @@ import java.util.Map;
 @SuppressWarnings("AssertWithSideEffects")
 public class ReferenceTest extends MorphiumTestBase {
 
-    private boolean didDeref = false;
-    private boolean wouldDeref = false;
+    private final boolean didDeref = false;
+    private final boolean wouldDeref = false;
 
     @Test
     public void storeReferenceTest() {
@@ -34,12 +34,12 @@ public class ReferenceTest extends MorphiumTestBase {
 
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
-        uc1.setValue("Uncached 1");
+        uc1.setStrValue("Uncached 1");
         morphium.store(uc1);
 
         UncachedObject uc2 = new UncachedObject();
         uc2.setCounter(1);
-        uc2.setValue("Uncached 2");
+        uc2.setStrValue("Uncached 2");
         morphium.store(uc2);
 
 
@@ -59,7 +59,7 @@ public class ReferenceTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
-            uc.setValue("list value " + i);
+            uc.setStrValue("list value " + i);
             uc.setCounter(i);
             if (i == 4) {
                 toSearchFor = uc;
@@ -74,7 +74,7 @@ public class ReferenceTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
-            uc.setValue("list value " + i);
+            uc.setStrValue("list value " + i);
             uc.setCounter(i);
             lst.add(uc);
             if (i == 4) {
@@ -191,7 +191,7 @@ public class ReferenceTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("" + i);
+            uc.setStrValue("" + i);
             m.put("" + i, uc);
         }
         c.map = m;
@@ -203,7 +203,7 @@ public class ReferenceTest extends MorphiumTestBase {
         assert (cont.id.equals(c.id));
         for (int i = 0; i < 10; i++) {
             assert (cont.map.get("" + i).getCounter() == i);
-            assert (cont.map.get("" + i).getValue().equals("" + i));
+            assert (cont.map.get("" + i).getStrValue().equals("" + i));
             assert (cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId()));
 
 

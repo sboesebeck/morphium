@@ -27,7 +27,7 @@ public class QueryImplTest extends MorphiumTestBase {
 
         q.or(q.q().f(UncachedObject.Fields.counter).lte(15),
                 q.q().f("counter").gte(10),
-                q.q().f("counter").lt(15).f("counter").gt(10).f("value").eq("hallo").f("value").ne("test")
+                q.q().f("counter").lt(15).f("counter").gt(10).f("str_value").eq("hallo").f("strValue").ne("test")
         );
         Map<String, Object> dbObject = q.toQueryObject();
         assert (dbObject != null) : "Map<String,Object> created is null?";
@@ -36,7 +36,7 @@ public class QueryImplTest extends MorphiumTestBase {
         assert (str != null) : "ToString is NULL?!?!?";
 
         System.out.println("Query: " + str);
-        assert (str.trim().equals("{ \"$or\" :  [ { \"counter\" : { \"$lte\" : 15 }  } , { \"counter\" : { \"$gte\" : 10 }  } , { \"$and\" :  [ { \"counter\" : { \"$lt\" : 15 }  } , { \"counter\" : { \"$gt\" : 10 }  } , { \"value\" : \"hallo\" } , { \"value\" : { \"$ne\" : \"test\" }  } ] } ] }")) : "Query-Object wrong";
+        assert (str.trim().equals("{ \"$or\" :  [ { \"counter\" : { \"$lte\" : 15 }  } , { \"counter\" : { \"$gte\" : 10 }  } , { \"$and\" :  [ { \"counter\" : { \"$lt\" : 15 }  } , { \"counter\" : { \"$gt\" : 10 }  } , { \"str_value\" : \"hallo\" } , { \"str_value\" : { \"$ne\" : \"test\" }  } ] } ] }")) : "Query-Object wrong";
 
         q = q.q();
         q.f("counter").gt(0).f("counter").lt(10);
@@ -76,22 +76,22 @@ public class QueryImplTest extends MorphiumTestBase {
     @Test
     public void testOrder() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").lt(1000).f("value").eq("test");
+        q = q.f("counter").lt(1000).f("str_value").eq("test");
         String str = Utils.toJsonString(q.toQueryObject());
         log.info("Query1: " + str);
         q = q.q();
-        q = q.f("value").eq("test").f("counter").lt(1000);
+        q = q.f("strValue").eq("test").f("counter").lt(1000);
         String str2 = Utils.toJsonString(q.toQueryObject());
         log.info("Query2: " + str2);
         assert (!str.equals(str2));
 
         q = q.q();
-        q = q.f("value").eq("test").f("counter").lt(1000).f("counter").gt(10);
+        q = q.f("str_value").eq("test").f("counter").lt(1000).f("counter").gt(10);
         str = Utils.toJsonString(q.toQueryObject());
         log.info("2nd Query1: " + str);
 
         q = q.q();
-        q = q.f("counter").gt(10).f("value").eq("test").f("counter").lt(1000);
+        q = q.f("counter").gt(10).f("strValue").eq("test").f("counter").lt(1000);
         str = Utils.toJsonString(q.toQueryObject());
         log.info("2nd Query2: " + str);
 

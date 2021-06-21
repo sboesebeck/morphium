@@ -3,22 +3,16 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
-import de.caluga.test.mongo.suite.BasicFunctionalityTest;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.types.ObjectId;
-import org.json.simple.parser.ContentHandler;
-import org.json.simple.parser.JSONParser;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +41,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 10; i++) {
             UncachedObject e = new UncachedObject();
             e.setCounter(i);
-            e.setValue("value" + i);
+            e.setStrValue("value" + i);
             morphium.store(e);
         }
         ExportContainer cnt = new ExportContainer();
@@ -74,7 +68,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject e = new UncachedObject();
             e.setCounter(i);
-            e.setValue("value" + i);
+            e.setStrValue("value" + i);
             e.setIntData(new int[]{i, i + 1, i + 2});
             e.setDval(42.00001);
             e.setBinaryData(new byte[]{1, 2, 3, 4, 5});

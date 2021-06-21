@@ -155,7 +155,7 @@ public class MorphiumInMemTestBase {
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("v");
+            uc.setStrValue("v");
             lst.add(uc);
             if (i % 1000 == 999) {
                 morphium.storeList(lst);

@@ -21,17 +21,17 @@ public class SortingTest extends MorphiumTestBase {
         List<UncachedObject> lst = new ArrayList<>(5000);
         for (int i = 0; i < 5000; i++) {
             UncachedObject uc = new UncachedObject();
-            uc.setValue("Random value");
+            uc.setStrValue("Random value");
             uc.setCounter((int) (Math.random() * 6000));
             lst.add(uc);
         }
 
         UncachedObject uc = new UncachedObject();
-        uc.setValue("Random value");
+        uc.setStrValue("Random value");
         uc.setCounter(-1);
         lst.add(uc);
         uc = new UncachedObject();
-        uc.setValue("Random value");
+        uc.setStrValue("Random value");
         uc.setCounter(7599);
         lst.add(uc);
         log.info("Sending bulk write...");
@@ -53,7 +53,7 @@ public class SortingTest extends MorphiumTestBase {
         Thread.sleep(100);
         log.info("Sorting objects...");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("str_value").eq("Random value");
         q = q.sort("-counter");
         long start = System.currentTimeMillis();
         List<UncachedObject> lst = q.asList();
@@ -69,7 +69,7 @@ public class SortingTest extends MorphiumTestBase {
 
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("str_value").eq("Random value");
         Map<String, Integer> order = new HashMap<>();
         order.put("counter", -1);
         q = q.sort(order);
@@ -95,7 +95,7 @@ public class SortingTest extends MorphiumTestBase {
         prepare();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("str_value").eq("Random value");
         q = q.sort("counter");
 
         List<UncachedObject> lst = q.asList();
@@ -109,7 +109,7 @@ public class SortingTest extends MorphiumTestBase {
 
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("str_value").eq("Random value");
         Map<String, Integer> order = new HashMap<>();
         order.put("counter", 1);
         q = q.sort(order);
@@ -131,7 +131,7 @@ public class SortingTest extends MorphiumTestBase {
         prepare();
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("str_value").eq("Random value");
         q = q.sort("counter");
         q.limit(1);
         Thread.sleep(1000);
@@ -140,7 +140,7 @@ public class SortingTest extends MorphiumTestBase {
         assert (lst.get(0).getCounter() == -1) : "Smalest value wrong, should be -1, is " + lst.get(0).getCounter();
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("value").eq("Random value");
+        q = q.f("strValue").eq("Random value");
         q = q.sort("-counter");
         UncachedObject uc = q.get();
         assert (uc != null) : "not found?!?";

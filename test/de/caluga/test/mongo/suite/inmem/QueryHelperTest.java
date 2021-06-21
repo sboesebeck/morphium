@@ -13,15 +13,15 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void simpleMatchTest() throws Exception {
-        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("value", "hello");
+        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("str_value", "hello");
 
         Map<String, Object> query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
-                .f("value").eq("not hello").toQueryObject();
+                .f("str_value").eq("not hello").toQueryObject();
         assert (!QueryHelper.matchesQuery(query, doc));
 
 
         query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
-                .f("value").eq("hello").toQueryObject();
+                .f("strValue").eq("hello").toQueryObject();
 
         assert (QueryHelper.matchesQuery(query, doc));
 
@@ -30,18 +30,18 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void orMatchTest() throws Exception {
-        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("value", "hello");
+        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("str_value", "hello");
 
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class);
-        query.or(query.q().f("counter").eq(12), query.q().f("value").eq("not hello"));
+        query.or(query.q().f("counter").eq(12), query.q().f("strValue").eq("not hello"));
         assert (QueryHelper.matchesQuery(query.toQueryObject(), doc));
 
         query = morphium.createQueryFor(UncachedObject.class);
-        query.or(query.q().f("value").eq("not hello"), query.q().f("counter").eq(12));
+        query.or(query.q().f("strValue").eq("not hello"), query.q().f("counter").eq(12));
         assert (QueryHelper.matchesQuery(query.toQueryObject(), doc));
 
         query = morphium.createQueryFor(UncachedObject.class);
-        query.or(query.q().f("value").eq("not hello"), query.q().f("counter").eq(22));
+        query.or(query.q().f("str_value").eq("not hello"), query.q().f("counter").eq(22));
         assert (!QueryHelper.matchesQuery(query.toQueryObject(), doc));
 //        query=morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
 //                .f("value").eq("hello").toQueryObject();

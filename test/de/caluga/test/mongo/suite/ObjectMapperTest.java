@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
-import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
@@ -95,7 +94,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
     public void objectToStringParseTest() {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
-        o.setValue("A test");
+        o.setStrValue("A test");
         o.setLongData(new long[]{1, 23, 4L, 5L});
         o.setCounter(1234);
         Map<String, Object> dbo = om.serialize(o);
@@ -139,12 +138,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
     @Test
     public void testDisableConvertCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
-        String fn = om.getFieldName(UncachedObject.class, "intData");
+        String fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
         assert (fn.equals("intData")) : "Conversion failed! " + fn;
 
         om = new AnnotationAndReflectionHelper(true);
-        fn = om.getFieldName(UncachedObject.class, "intData");
+        fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
         assert (fn.equals("int_data")) : "Conversion failed! " + fn;
     }
@@ -178,14 +177,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
-        o.setValue("This \" is $ test");
+        o.setStrValue("This \" is $ test");
         Map<String, Object> dbo = om.serialize(o);
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
+        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"str_value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
         o = om.deserialize(UncachedObject.class, dbo);
-        log.info("Text is: " + o.getValue());
+        log.info("Text is: " + o.getStrValue());
     }
 
     @Test
@@ -203,7 +202,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
-        o.setValue("This \" is $ test");
+        o.setStrValue("This \" is $ test");
         o.setMorphiumId(new MorphiumId());
         Object id = an.getId(o);
         assert (id.equals(o.getMorphiumId())) : "IDs not equal!";
@@ -223,7 +222,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
-        o.setValue("This \" is $ test");
+        o.setStrValue("This \" is $ test");
         assert (an.getValue(o, "counter").equals(12345)) : "Value not ok!";
 
     }
@@ -233,8 +232,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
-        om.setValue(o, "A test", "value");
-        assert ("A test".equals(o.getValue())) : "Value not set";
+        om.setValue(o, "A test", "strValue");
+        assert ("A test".equals(o.getStrValue())) : "Value not set";
 
     }
 
@@ -244,7 +243,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
-        o.setValue("Embedded value");
+        o.setStrValue("Embedded value");
         morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
@@ -261,7 +260,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         o = new UncachedObject();
         o.setCounter(12345);
-        o.setValue("Referenced value");
+        o.setStrValue("Referenced value");
         //        o.setMongoId(new MongoId(new Date()));
         morphium.store(o);
         Thread.sleep(500);
@@ -305,7 +304,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         Map<String, Object> map = morphium.getMapper().serialize(uc);
         assert (map.get("_id") != null);
-        assert (map.get("value").equals("value"));
+        assert (map.get("str_value").equals("value"));
         assert (map.get("counter").equals(1234));
 
         morphium.store(uc);
@@ -401,7 +400,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
     public void objectMapperSpeedTest() {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);
-        o.setValue("The meaning of life");
+        o.setStrValue("The meaning of life");
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> marshall = null;
         MorphiumObjectMapper ob = morphium.getMapper();
@@ -477,7 +476,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o = morphium.getMapper().deserialize(NoDefaultConstructorUncachedObject.class, serialized);
         assert (o != null);
         assert (o.getCounter() == 15);
-        assert (o.getValue().equals("test"));
+        assert (o.getStrValue().equals("test"));
     }
 
     @Test
@@ -496,11 +495,39 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assert (o.aMap.get("test") != null);
     }
 
-    public static class NoDefaultConstructorUncachedObject extends UncachedObject {
-        public NoDefaultConstructorUncachedObject(String v, int c) {
-            setCounter(c);
-            setValue(v);
-        }
+    @Test
+    public void objectMapperNGTest() {
+        MorphiumObjectMapper map = morphium.getMapper();
+        UncachedObject uc = new UncachedObject("value", 123);
+        uc.setMorphiumId(new MorphiumId());
+        uc.setLongData(new long[]{1L, 2L});
+        Map<String, Object> obj = map.serialize(uc);
+
+        assert (obj.get("str_value") != null);
+        assert (obj.get("str_value") instanceof String);
+        assert (obj.get("counter") instanceof Integer);
+        assert (obj.get("long_data") instanceof ArrayList);
+
+        MappedObject mo = new MappedObject();
+        mo.id = "test";
+        mo.uc = uc;
+        mo.aMap = new HashMap<>();
+        mo.aMap.put("Test", "value1");
+        mo.aMap.put("test2", "value2");
+        obj = map.serialize(mo);
+        assert (obj.get("uc") != null);
+        assert (((Map) obj.get("uc")).get("_id") == null);
+
+        BIObject bo = new BIObject();
+        bo.id = new MorphiumId();
+        bo.value = "biVal";
+        bo.biValue = new BigInteger("123afd33", 16);
+
+        obj = map.serialize(bo);
+        assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
+        assert (obj.get("bi_value") instanceof Map);
+
+
     }
 
     @Test
@@ -597,41 +624,6 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
     @Test
-    public void objectMapperNGTest() {
-        MorphiumObjectMapper map = morphium.getMapper();
-        UncachedObject uc = new UncachedObject("value", 123);
-        uc.setMorphiumId(new MorphiumId());
-        uc.setLongData(new long[]{1L, 2L});
-        Map<String, Object> obj = map.serialize(uc);
-
-        assert (obj.get("value") != null);
-        assert (obj.get("value") instanceof String);
-        assert (obj.get("counter") instanceof Integer);
-        assert (obj.get("long_data") instanceof ArrayList);
-
-        MappedObject mo = new MappedObject();
-        mo.id = "test";
-        mo.uc = uc;
-        mo.aMap = new HashMap<>();
-        mo.aMap.put("Test", "value1");
-        mo.aMap.put("test2", "value2");
-        obj = map.serialize(mo);
-        assert (obj.get("uc") != null);
-        assert (((Map) obj.get("uc")).get("_id") == null);
-
-        BIObject bo = new BIObject();
-        bo.id = new MorphiumId();
-        bo.value = "biVal";
-        bo.biValue = new BigInteger("123afd33", 16);
-
-        obj = map.serialize(bo);
-        assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
-        assert (obj.get("bi_value") instanceof Map);
-
-
-    }
-
-    @Test
     public void objectMapperListOfListOfUncachedTest() {
         MorphiumObjectMapper map = morphium.getMapper();
         ListOfListOfListOfUncached lst3 = new ListOfListOfListOfUncached();
@@ -651,7 +643,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assert (lst4.list.size() == 2);
         assert (lst4.list.get(0).size() == 1);
         assert (lst4.list.get(0).get(0).size() == 1);
-        assert (lst4.list.get(0).get(0).get(0).getValue().equals("test"));
+        assert (lst4.list.get(0).get(0).get(0).getStrValue().equals("test"));
+    }
+
+    public static class NoDefaultConstructorUncachedObject extends UncachedObject {
+        public NoDefaultConstructorUncachedObject(String v, int c) {
+            setCounter(c);
+            setStrValue(v);
+        }
     }
 
 

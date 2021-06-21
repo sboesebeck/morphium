@@ -38,7 +38,7 @@ public class OplogMonitorTest extends MorphiumTestBase {
         assert (gotIt);
         gotIt = false;
 
-        morphium.set(u, UncachedObject.Fields.value, "new value");
+        morphium.set(u, UncachedObject.Fields.strValue, "new value");
         Thread.sleep(550);
         assert (gotIt);
         gotIt = false;

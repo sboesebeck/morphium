@@ -3,22 +3,15 @@ package de.caluga.test.mongo.suite;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
-import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import io.github.classgraph.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -266,7 +259,7 @@ public class MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("v");
+            uc.setStrValue("v");
             lst.add(uc);
             if (i % 1000 == 999) {
                 morphium.storeList(lst);

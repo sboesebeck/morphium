@@ -25,8 +25,8 @@ import java.util.List;
 @SuppressWarnings("AssertWithSideEffects")
 public class LazyLoadingTest extends MorphiumTestBase {
 
-    private boolean wouldDeref = false;
-    private boolean didDeref = false;
+    private final boolean wouldDeref = false;
+    private final boolean didDeref = false;
 
     @Test
     public void deRefTest() throws Exception {
@@ -34,7 +34,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
-        o.setValue("A uncached value");
+        o.setStrValue("A uncached value");
         morphium.store(o);
 
         CachedObject co = new CachedObject();
@@ -56,7 +56,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         Object id = morphium.getId(lzRead);
         assert (id != null);
         assert (lzRead.getLazyUncached().getCounter() == 15);
-        assert (lzRead.getLazyUncached().getValue().equals("A uncached value"));
+        assert (lzRead.getLazyUncached().getStrValue().equals("A uncached value"));
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
         id = morphium.getId(co);
@@ -75,7 +75,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         LazyLoadingObject lz = new LazyLoadingObject();
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
-        o.setValue("A uncached value");
+        o.setStrValue("A uncached value");
         morphium.store(o);
 
         CachedObject co = new CachedObject();
@@ -92,7 +92,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             UncachedObject uc = new UncachedObject();
-            uc.setValue("Part of list");
+            uc.setStrValue("Part of list");
             uc.setCounter(i * 5 + 7);
             lst.add(uc);
         }
@@ -156,7 +156,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
             LazyLoadingObject lz = new LazyLoadingObject();
             UncachedObject o = new UncachedObject();
             o.setCounter(i * 2 + 50);
-            o.setValue("A uncached value " + i);
+            o.setStrValue("A uncached value " + i);
             morphium.store(o);
 
             CachedObject co = new CachedObject();
@@ -181,7 +181,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
             co.setEinText("Txt " + i);
             UncachedObject o = new UncachedObject();
             o.setCounter(i * 2 + 50);
-            o.setValue("A uncached value " + i);
+            o.setStrValue("A uncached value " + i);
             morphium.store(o);
             co.setRef(o);
 

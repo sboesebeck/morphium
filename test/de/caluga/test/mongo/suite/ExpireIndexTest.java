@@ -21,7 +21,7 @@ public class ExpireIndexTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UCobj u = new UCobj();
             u.setCounter(i);
-            u.setValue("V" + i);
+            u.setStrValue("V" + i);
             morphium.store(u);
         }
         Thread.sleep(500);

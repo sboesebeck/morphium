@@ -210,7 +210,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             if (i.startsWith("$")) {
                 fld = fld.substring(1);
                 if (!fld.contains(".")) {
-                    fld = morphium.getARHelper().getFieldName(type, fld);
+                    fld = morphium.getARHelper().getMongoFieldName(type, fld);
                 }
             }
             m.put(fld, val);
@@ -697,7 +697,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         List<String> flds = new ArrayList<>();
         if (entity != null) {
             for (String f : onFields) {
-                flds.add(morphium.getARHelper().getFieldName(entity, f));
+                flds.add(morphium.getARHelper().getMongoFieldName(entity, f));
             }
         } else {
             log.warn("no entity know for collection " + intoCollection);

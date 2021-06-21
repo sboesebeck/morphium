@@ -42,7 +42,7 @@ public class ProfilingTester extends MorphiumTestBase {
         morphium.addProfilingListener(pl);
 
         UncachedObject uc = new UncachedObject();
-        uc.setValue("Test");
+        uc.setStrValue("Test");
         uc.setCounter(111);
         morphium.store(uc);
         Thread.sleep(100);

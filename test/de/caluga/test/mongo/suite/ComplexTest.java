@@ -24,7 +24,7 @@ public class ComplexTest extends MorphiumTestBase {
     public void testStoreAndRead() {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
-        o.setValue("Embedded object");
+        o.setStrValue("Embedded object");
         //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
@@ -39,7 +39,7 @@ public class ComplexTest extends MorphiumTestBase {
 
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
-        ref.setValue("The reference");
+        ref.setStrValue("The reference");
         morphium.store(ref);
 
         co.setRef(ref);
@@ -54,7 +54,7 @@ public class ComplexTest extends MorphiumTestBase {
         ComplexObject co2 = q.getById(co.getId());
 
         log.info("Just loaded: " + co2.toString());
-        log.info("Stored     : " + co.toString());
+        log.info("Stored     : " + co);
         assert (co2.getId().equals(co.getId())) : "Ids not equal?";
 
 
@@ -92,12 +92,12 @@ public class ComplexTest extends MorphiumTestBase {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"));
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("str_value").eq("Uncached 15"));
         List<UncachedObject> lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
         for (UncachedObject o : lst) {
@@ -105,7 +105,7 @@ public class ComplexTest extends MorphiumTestBase {
         }
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("value").eq("Uncached 15"), q.q().f("counter").eq(52));
+        q.f("counter").lt(50).or(q.q().f("counter").eq(10), q.q().f("strValue").eq("Uncached 15"), q.q().f("counter").eq(52));
         lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
         for (UncachedObject o : lst) {
@@ -113,7 +113,7 @@ public class ComplexTest extends MorphiumTestBase {
         }
 
         q = morphium.createQueryFor(UncachedObject.class);
-        q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22), q.q().f("value").eq("Uncached 15"), q.q().f("counter").gte(70));
+        q.f("counter").lt(50).f("counter").gt(10).or(q.q().f("counter").eq(22), q.q().f("str_value").eq("Uncached 15"), q.q().f("counter").gte(70));
         lst = q.asList();
         assert (lst.size() == 2) : "List size wrong: " + lst.size();
         for (UncachedObject o : lst) {
@@ -127,7 +127,7 @@ public class ComplexTest extends MorphiumTestBase {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         Thread.sleep(500);
@@ -147,7 +147,7 @@ public class ComplexTest extends MorphiumTestBase {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
 
@@ -171,11 +171,11 @@ public class ComplexTest extends MorphiumTestBase {
 
 
     @Test
-    public void referenceQuery() {
+    public void referenceQuery() throws Exception {
 
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
-        o.setValue("Uncached " + 15);
+        o.setStrValue("Uncached " + 15);
         morphium.store(o);
 
 
@@ -185,6 +185,7 @@ public class ComplexTest extends MorphiumTestBase {
         co.setTrans("trans");
 
         morphium.store(co);
+        Thread.sleep(500);
 
         Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
         qc.f("ref").eq(o);
@@ -196,10 +197,10 @@ public class ComplexTest extends MorphiumTestBase {
     }
 
     @Test
-    public void searchForSubObj() {
+    public void searchForSubObj() throws Exception {
         UncachedObject o = new UncachedObject();
         o.setCounter(15);
-        o.setValue("Uncached " + 15);
+        o.setStrValue("Uncached " + 15);
         morphium.store(o);
 
 
@@ -215,8 +216,8 @@ public class ComplexTest extends MorphiumTestBase {
         co.setEmbed(eo);
 
         morphium.store(co);
-
         waitForWrites();
+        Thread.sleep(1000);
         Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
         co = qc.f("embed.name").eq("embedded1").get();
         assert (co != null);

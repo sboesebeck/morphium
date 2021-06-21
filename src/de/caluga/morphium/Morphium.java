@@ -2274,7 +2274,7 @@ public class Morphium implements AutoCloseable {
 
     public List<Object> distinct(String key, Class cls, Collation collation) {
         try {
-            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), key, new HashMap<>(), collation, getReadPreferenceForClass(cls));
+            return morphiumDriver.distinct(config.getDatabase(), objectMapper.getCollectionName(cls), getARHelper().getMongoFieldName(cls, key), new HashMap<>(), collation, getReadPreferenceForClass(cls));
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

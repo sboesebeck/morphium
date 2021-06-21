@@ -29,14 +29,14 @@ public class FieldListTest extends MorphiumTestBase {
 
         q = q.f(UncachedObject.Fields.counter).eq(30);
         UncachedObject uc = q.get();
-        assert (uc.getValue() == null) : "Value is " + uc.getValue();
+        assert (uc.getStrValue() == null) : "Value is " + uc.getStrValue();
     }
 
     @Test
     public void testReadOnly() throws Exception {
         morphium.dropCollection(ReadOnlyObject.class);
         ReadOnlyObject ro = new ReadOnlyObject();
-        ro.setValue("ReadOnlyTest");
+        ro.setStrValue("ReadOnlyTest");
         ro.setCounter(100);
         ro.readOnlyValue = "Must not be stored!";
 
@@ -45,7 +45,7 @@ public class FieldListTest extends MorphiumTestBase {
 
         assert (ro.readOnlyValue == null);
 
-        ro.setValue("OtherValue");
+        ro.setStrValue("OtherValue");
         ro.readOnlyValue = "must still not be stored, even after update!";
         morphium.store(ro);
         morphium.reread(ro);

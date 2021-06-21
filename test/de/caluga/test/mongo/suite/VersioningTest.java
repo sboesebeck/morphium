@@ -35,7 +35,7 @@ public class VersioningTest extends MorphiumTestBase {
     public void bulkUpdateVersionTest() throws Exception {
 
         List<VersionedEntity> lst = new ArrayList<>();
-        for (int i = 0; i < 100; i++) lst.add(new VersionedEntity("value" + i, i));
+        for (int i = 0; i < 100; i++) lst.add(new VersionedEntity("str_value" + i, i));
 
         morphium.storeList(lst);
 
@@ -51,23 +51,23 @@ public class VersioningTest extends MorphiumTestBase {
 
         Thread.sleep(100);
 
-        morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value10"), UncachedObject.Fields.counter, 1234);
+        morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10"), UncachedObject.Fields.counter, 1234);
         Thread.sleep(100);
 
-        VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value10").get();
+        VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
         assert (ve.getTheVersionNumber() == 2);
-        ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.value).eq("value11").get();
+        ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value11").get();
         assert (ve.getTheVersionNumber() == 1);
     }
 
 
     @Test
     public void testing() throws Exception {
-        VersionedEntity ve = new VersionedEntity("value", 1);
+        VersionedEntity ve = new VersionedEntity("str_value", 1);
         morphium.store(ve);
         Thread.sleep(500);
         VersionedEntity v2 = morphium.findById(VersionedEntity.class, ve.getMorphiumId());
-        v2.setValue("test");
+        v2.setStrValue("test");
         morphium.store(v2);
 
     }

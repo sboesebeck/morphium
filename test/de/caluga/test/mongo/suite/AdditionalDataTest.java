@@ -56,12 +56,12 @@ public class AdditionalDataTest extends MorphiumTestBase {
         additional.put("test", dat);
         additional.put("object", new UncachedObject());
         AdditionalDataEntity d2 = new AdditionalDataEntity();
-        d2.setValue("inner value");
+        d2.setStrValue("inner value");
         Map<String, Object> additional2 = new HashMap<>();
         additional2.put("a lot", "of things");
         additional2.put("object2", new UncachedObject());
         AdditionalDataEntity ad3 = new AdditionalDataEntity();
-        ad3.setValue("sagich nicht");
+        ad3.setStrValue("sagich nicht");
         additional2.put("addit2", ad3);
 
         d2.setAdditionals(additional2);

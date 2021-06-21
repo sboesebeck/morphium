@@ -143,7 +143,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
                     run[0] = false;
                 }
                 log.info("Setting to value " + i);
-                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "value", "new value " + i, false, true);
+                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
             }
             log.info("Writing thread finished...");
         }).start();
@@ -271,7 +271,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
 
-        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated");
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
         morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
         Thread.sleep(1000);
         assert (inserts.get() == 10);
@@ -303,13 +303,13 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
 
-        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated");
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
         Thread.sleep(1000);
         assert (inserts.get() == 0);
         assert (updates.get() == 1);
         assert (deletes.get() == 0);
 
-        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "value", "updated", false, true);
+        morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "str_value", "updated", false, true);
         Thread.sleep(1000);
 
         assert (updates.get() == 10);

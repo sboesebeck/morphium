@@ -8,7 +8,6 @@ import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.PrefetchingQueryIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -361,7 +360,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         start = System.currentTimeMillis();
         List<UncachedObject> lst = qu.sort("-counter").asList(); //force new query
         for (UncachedObject u : lst) {
-            assert (u.getValue() != null);
+            assert (u.getStrValue() != null);
         }
         log.info("iterating directly took " + (System.currentTimeMillis() - start) + " ms");
 
@@ -378,7 +377,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
             for (int i = 0; i < 25000; i++) {
                 UncachedObject o = new UncachedObject();
                 o.setCounter(i + 1);
-                o.setValue("V" + i);
+                o.setStrValue("V" + i);
                 lst.add(o);
             }
             morphium.storeList(lst, "test_uc");
@@ -397,7 +396,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         assert (it.hasNext());
         UncachedObject u = it.next();
         assert (u.getCounter() == 1);
-        log.info("Got one: " + u.getCounter() + "  / " + u.getValue());
+        log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
         log.info("Current Buffersize: " + it.getCurrentBufferSize());
         assert (it.getCurrentBufferSize() == 2);
 
@@ -428,7 +427,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         }
         morphium.dropCollection(UncachedObject.class);
         u = new UncachedObject();
-        u.setValue("Hello");
+        u.setStrValue("Hello");
         u.setCounter(1900);
         morphium.store(u);
         Thread.sleep(1500);
@@ -448,7 +447,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         assert (it.hasNext());
         UncachedObject u = it.next();
         assert (u.getCounter() == 1) : "Counter wrong: " + u.getCounter();
-        log.info("Got one: " + u.getCounter() + "  / " + u.getValue());
+        log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
         log.info("Current Buffersize: " + it.getCurrentBufferSize());
         assert (it.getCurrentBufferSize() <= 20) : "buffer is " + it.getCurrentBufferSize();
         u = it.next();
@@ -546,17 +545,17 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
             assert (it.hasNext());
             UncachedObject u = it.next();
             assert (u.getCounter() == 1);
-            log.info("Got first one: " + u.getCounter() + "  / " + u.getValue());
+            log.info("Got first one: " + u.getCounter() + "  / " + u.getStrValue());
 
             u = new UncachedObject();
             u.setCounter(1800);
-            u.setValue("Should not be read");
+            u.setStrValue("Should not be read");
             morphium.store(u);
             waitForWrites();
 
             while (it.hasNext()) {
                 u = it.next();
-                log.info("Object: " + u.getCounter() + "/" + u.getValue());
+                log.info("Object: " + u.getCounter() + "/" + u.getStrValue());
             }
 
             assert (u.getCounter() == 17);
@@ -649,11 +648,11 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         for (UncachedObject u : qu.asIterable()) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(u.getCounter() + 1);
-            uc.setValue("expected WRONG!");
+            uc.setStrValue("expected WRONG!");
             morphium.store(uc);
             waitForWrites();
             //Will write out some Wrong!-Values... this is expected and GOOD!
-            log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getValue());
+            log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getStrValue());
         }
 
         log.info("Took " + (System.currentTimeMillis() - start) + " ms");

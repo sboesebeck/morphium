@@ -36,11 +36,11 @@ public class CollationTest extends MorphiumTestBase {
         assert (col.getAlternate().equals(Collation.Alternate.SHIFTED));
         assert (col.getMaxVariable().equals(Collation.MaxVariable.SPACE));
 
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(col).sort("value").asList();
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).setCollation(col).sort("strValue").asList();
         String result = "";
         for (UncachedObject u : lst) {
-            log.info("value: " + u.getValue());
-            result += u.getValue();
+            log.info("value: " + u.getStrValue());
+            result += u.getStrValue();
         }
         assert (result.equals("aAbBcC")) : "Wrong ordering: " + result;
         col.normalization(true)
@@ -78,7 +78,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
         Thread.sleep(1000);
-        long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("value").eq("a").countAll();
+        long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll();
         assert (count == 2);
 
     }
@@ -94,7 +94,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
         Thread.sleep(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("value").eq("a");
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a");
         morphium.inc(q, UncachedObject.Fields.counter, 1, false, true);
 
         Thread.sleep(100);
@@ -115,7 +115,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("b", 1));
         morphium.store(new UncachedObject("c", 1));
         Thread.sleep(100);
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("value").eq("a");
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("strValue").eq("a");
         morphium.delete(q);
 
         Thread.sleep(100);
@@ -137,7 +137,7 @@ public class CollationTest extends MorphiumTestBase {
         Thread.sleep(1000);
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.collation(new Collation().locale("de").strength(Collation.Strength.PRIMARY));
-        agg.match(Expr.eq(Expr.field("value"), Expr.string("a")));
+        agg.match(Expr.eq(Expr.field("str_value"), Expr.string("a")));
         List<Map> lst = agg.aggregate();
         assert (lst.size() == 2) : "Count wrong " + lst.size();
     }

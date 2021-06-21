@@ -18,7 +18,7 @@ public class DAOTest extends MorphiumTestBase {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         Thread.sleep(1000);
@@ -32,7 +32,7 @@ public class DAOTest extends MorphiumTestBase {
         assert (lst.get(0).getCounter() == 55) : "Got wrong element: " + lst.get(0).getCounter();
         assert (dao.getValue(UncachedObjectDAO.Field.counter, lst.get(0)) != null);
         assert (dao.getValue("counter", lst.get(0)) != null);
-        assert (dao.existsField("value"));
+        assert (dao.existsField("str_value"));
         dao.setValue(UncachedObjectDAO.Field.counter, 12, lst.get(0));
         assert (lst.get(0).getCounter() == 12) : "Got wrong element: " + lst.get(0).getCounter();
         dao.setValue("counter", 13, lst.get(0));

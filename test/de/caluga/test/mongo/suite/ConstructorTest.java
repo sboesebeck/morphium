@@ -40,7 +40,7 @@ public class ConstructorTest {
     public void severalMorphiumTest() throws Exception {
         Morphium m = new Morphium("localhost", "morphium-test");
         UncachedObject o = new UncachedObject();
-        o.setValue("Tst: " + System.nanoTime());
+        o.setStrValue("Tst: " + System.nanoTime());
         o.setCounter((int) System.currentTimeMillis());
         m.store(o);
         Thread.sleep(100);

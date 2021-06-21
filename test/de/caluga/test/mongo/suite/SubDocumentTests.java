@@ -28,7 +28,7 @@ public class SubDocumentTests extends MorphiumTestBase {
         Thread.sleep(250);
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
-        o.setValue("Embedded object");
+        o.setStrValue("Embedded object");
         //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
@@ -43,7 +43,7 @@ public class SubDocumentTests extends MorphiumTestBase {
 
         UncachedObject ref = new UncachedObject();
         ref.setCounter(200);
-        ref.setValue("The reference");
+        ref.setStrValue("The reference");
         morphium.store(ref);
 
         co.setRef(ref);
@@ -64,7 +64,7 @@ public class SubDocumentTests extends MorphiumTestBase {
     public void testSubDocNoExistQuery() {
         UncachedObject o = new UncachedObject();
         o.setCounter(111);
-        o.setValue("Embedded object");
+        o.setStrValue("Embedded object");
         //morphium.store(o);
 
         EmbeddedObject eo = new EmbeddedObject();
@@ -79,7 +79,7 @@ public class SubDocumentTests extends MorphiumTestBase {
 
         UncachedObject ref = new UncachedObject();
         ref.setCounter(100);
-        ref.setValue("The reference");
+        ref.setStrValue("The reference");
         morphium.store(ref);
 
         co.setRef(ref);
@@ -98,7 +98,7 @@ public class SubDocumentTests extends MorphiumTestBase {
     @Test
     public void testSubDocAdditionals() throws Exception {
         SubDocumentAdditional s = new SubDocumentAdditional();
-        s.setValue("SubDoc");
+        s.setStrValue("SubDoc");
         s.setCounter(102);
         s.additionals = new HashMap<>();
         s.additionals.put("test", 100);

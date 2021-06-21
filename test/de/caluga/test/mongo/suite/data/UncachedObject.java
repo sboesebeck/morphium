@@ -20,7 +20,7 @@ import java.util.Objects;
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
     @Index
-    private String value;
+    private String strValue;
 
     @Index
     private int counter;
@@ -41,8 +41,8 @@ public class UncachedObject {
 
     }
 
-    public UncachedObject(String value, int counter) {
-        this.value = value;
+    public UncachedObject(String strValue, int counter) {
+        this.strValue = strValue;
         this.counter = counter;
     }
 
@@ -110,12 +110,12 @@ public class UncachedObject {
         this.counter = counter;
     }
 
-    public String getValue() {
-        return value;
+    public String getStrValue() {
+        return strValue;
     }
 
-    public void setValue(String value) {
-        this.value = value;
+    public void setStrValue(String strValue) {
+        this.strValue = strValue;
     }
 
 
@@ -130,7 +130,7 @@ public class UncachedObject {
     @Override
     public String toString() {
         return "UncachedObject{" +
-                "value='" + value + '\'' +
+                "value='" + strValue + '\'' +
                 ", counter=" + counter +
                 ", dval=" + dval +
                 ", binaryData=" + Arrays.toString(binaryData) +
@@ -154,18 +154,18 @@ public class UncachedObject {
 
         UncachedObject that = (UncachedObject) o;
 
-        return counter == that.counter && Objects.equals(morphiumId, that.morphiumId) && Objects.equals(value, that.value);
+        return counter == that.counter && Objects.equals(morphiumId, that.morphiumId) && Objects.equals(strValue, that.strValue);
 
     }
 
     @Override
     public int hashCode() {
-        int result = value != null ? value.hashCode() : 0;
+        int result = strValue != null ? strValue.hashCode() : 0;
         result = 31 * result + counter;
         result = 31 * result + (morphiumId != null ? morphiumId.hashCode() : 0);
         return result;
     }
 
 
-    public enum Fields {boolData, counter, doubleData, dval, floatData, intData, longData, morphiumId, value, binaryData}
+    public enum Fields {boolData, counter, doubleData, dval, floatData, intData, longData, morphiumId, strValue, binaryData}
 }

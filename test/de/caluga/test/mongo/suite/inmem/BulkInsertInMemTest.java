@@ -2,10 +2,8 @@ package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
-import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -36,7 +34,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 4212; i++) {
             UncachedObject u = new UncachedObject();
-            u.setValue("V" + i);
+            u.setStrValue("V" + i);
             u.setCounter(i);
             lst.add(u);
         }
@@ -50,7 +48,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         }
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
-            u.setValue("O" + i);
+            u.setStrValue("O" + i);
             u.setCounter(i + 1200);
             lst.add(u);
         }
@@ -68,7 +66,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             morphium.store(uc);
         }
         long dur = System.currentTimeMillis() - start;
@@ -80,7 +78,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             lst.add(uc);
         }
         log.info("List prepared...");
@@ -106,7 +104,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             morphium.store(uc, new AsyncCallbackAdapter<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -135,7 +133,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             lst.add(uc);
         }
         morphium.storeList(lst);

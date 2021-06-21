@@ -7,7 +7,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.reflect.Array;
@@ -212,7 +211,7 @@ public class Utils {
             boolean addProjection = false;
             if (projection.size() == fields.size()) {
                 for (Field f : fields) {
-                    if (!projection.containsKey(anHelper.getFieldName(type, f.getName()))) {
+                    if (!projection.containsKey(anHelper.getMongoFieldName(type, f.getName()))) {
                         addProjection = true;
                         break;
                     }
