@@ -19,7 +19,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
         morphium.dropCollection(CappedCol.class);
         Thread.sleep(1000);
         CappedCol cc = new CappedCol();
-        cc.setValue("A value");
+        cc.setStrValue("A value");
         cc.setCounter(-1);
         morphium.store(cc);
 
@@ -28,14 +28,14 @@ public class CappedCollectionTest extends MorphiumTestBase {
         //storing more than max entries
         for (int i = 0; i < 1000; i++) {
             cc = new CappedCol();
-            cc.setValue("Value " + i);
+            cc.setStrValue("Value " + i);
             cc.setCounter(i);
             morphium.store(cc);
         }
         Thread.sleep(1000);
         assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
         for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
-            log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
+            log.info("Capped: " + cp.getCounter() + " - " + cp.getStrValue());
         }
 
     }
@@ -50,7 +50,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
         //storing more than max entries
         for (int i = 0; i < 100; i++) {
             CappedCol cc = new CappedCol();
-            cc.setValue("Value " + i);
+            cc.setStrValue("Value " + i);
             cc.setCounter(i);
             lst.add(cc);
         }
@@ -59,7 +59,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
         assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col_" + TestEntityNameProvider.number.get()));
         assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
         for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
-            log.info("Capped: " + cp.getCounter() + " - " + cp.getValue());
+            log.info("Capped: " + cp.getCounter() + " - " + cp.getStrValue());
         }
 
     }

@@ -28,7 +28,7 @@ public class IDConversionTest extends MorphiumTestBase {
         qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
-        qu.f("value").eq(new MorphiumId());
+        qu.f("str_value").eq(new MorphiumId());
         System.out.println(qu.toQueryObject().toString());
         assert (!qu.toQueryObject().toString().contains("_id="));
     }

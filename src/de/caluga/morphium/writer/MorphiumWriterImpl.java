@@ -558,7 +558,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             stringBuilder.append(".");
                             stringBuilder.append(name);
                         }
-                        logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder.toString() + "\n Tried to store: " + s);
+                        logger.error("Validation of " + type + " failed: " + msg + " - Invalid Value: " + invalidValue + " for path: " + stringBuilder + "\n Tried to store: " + s);
                     }
                 } catch (Exception e1) {
                     logger.error("Could not get more information about validation error ", e1);
@@ -940,10 +940,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.inc(StatisticKeys.WRITES);
 
                 Entity entityDefinition = morphium.getARHelper().getAnnotationFromHierarchy(ent.getClass(), Entity.class);
-                boolean convertCamelCase = false;
-                if (entityDefinition != null && entityDefinition.translateCamelCase() || entityDefinition == null && morphium.getConfig().isCamelCaseConversionEnabled()) {
-                    convertCamelCase = true;
-                }
+                boolean convertCamelCase = entityDefinition != null && entityDefinition.translateCamelCase() || entityDefinition == null && morphium.getConfig().isCamelCaseConversionEnabled();
 
                 Map<String, Object> find = new HashMap<>();
 
@@ -1212,7 +1209,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (f == null) {
                     throw new RuntimeException("Unknown field: " + field);
                 }
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
+                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
                 Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
                 WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
@@ -1357,13 +1354,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     Class<?> type = fld.getType();
                     update.putIfAbsent("$set", new HashMap<>());
                     if (type.equals(Long.class) || type.equals(long.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getFieldName(cls, fld.getName()), System.currentTimeMillis());
+                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
                     } else if (type.equals(Date.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getFieldName(cls, fld.getName()), new Date());
+                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date());
                     } else if (type.equals(String.class)) {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getFieldName(cls, fld.getName()), new Date().toString());
+                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), new Date().toString());
                     } else {
-                        ((Map) update.get("$set")).put(morphium.getARHelper().getFieldName(cls, fld.getName()), System.currentTimeMillis());
+                        ((Map) update.get("$set")).put(morphium.getARHelper().getMongoFieldName(cls, fld.getName()), System.currentTimeMillis());
                     }
                 }
             }
@@ -1385,7 +1382,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Class cls = query.getType();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
+                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
                 Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
                 Map<String, Object> qobj = query.toQueryObject();
                 if (upsert) {
@@ -1495,7 +1492,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
                 Map<String, Object> toSet = new HashMap<>();
                 for (Map.Entry<String, Object> ef : values.entrySet()) {
-                    String fieldName = morphium.getARHelper().getFieldName(cls, ef.getKey());
+                    String fieldName = morphium.getARHelper().getMongoFieldName(cls, ef.getKey());
                     toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
                 }
                 Map<String, Object> update = Utils.getMap("$set", toSet);
@@ -1539,7 +1536,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public <T> void unset(final Query<T> query, AsyncOperationCallback<T> callback, final boolean multiple, final Enum... fields) {
         ArrayList<String> flds = new ArrayList<>();
         for (Enum e : fields) {
-            flds.add(e.name());
+            flds.add(morphium.getARHelper().getMongoFieldName(query.getType(), e.name()));
         }
         unset(query, callback, multiple, flds.toArray(new String[fields.length]));
     }
@@ -1563,7 +1560,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 Map<String, String> toSet = new HashMap<>();
                 for (String f : fields) {
-                    toSet.put(f, ""); //value is ignored
+                    toSet.put(morphium.getARHelper().getMongoFieldName(cls, f), ""); //value is ignored
                 }
                 Map<String, Object> update = Utils.getMap("$unset", toSet);
                 handleLastChange(cls, update);
@@ -1624,7 +1621,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (f == null) {
                     throw new RuntimeException("Unknown field: " + field);
                 }
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
+                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
                 Map<String, Object> update = Utils.getMap("$unset", Utils.getMap(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
@@ -1665,7 +1662,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (f == null) {
                     throw new RuntimeException("Unknown field: " + field);
                 }
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
+                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
                 Map<String, Object> update = Utils.getMap("$pop", Utils.getMap(fieldName, first ? -1 : 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(obj.getClass());
@@ -1707,7 +1704,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 Object v = marshallIfNecessary(value);
 
-                String fieldName = morphium.getARHelper().getFieldName(cls, field);
+                String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
                 Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
                 Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
 
@@ -1835,7 +1832,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         qobj = morphium.simplifyQueryObject(qobj);
                     }
 
-                    field = morphium.getARHelper().getFieldName(cls, field);
+                    field = morphium.getARHelper().getMongoFieldName(cls, field);
                     Map<String, Object> update;
                     if (push) {
                         Map<String, Object> set = Utils.getMap(field, Utils.getMap("$each", value));
@@ -1930,7 +1927,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (!k.contains(".") && !fields.contains(k) && !fields.contains(morphium.getARHelper().convertCamelCase(k))) {
                         throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
                     }
-                    String fn = morphium.getARHelper().getFieldName(cls, k);
+                    String fn = morphium.getARHelper().getMongoFieldName(cls, k);
                     idx.put(fn, es.getValue());
                 }
                 long start = System.currentTimeMillis();

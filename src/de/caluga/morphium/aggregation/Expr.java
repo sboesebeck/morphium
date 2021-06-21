@@ -1,6 +1,5 @@
 package de.caluga.morphium.aggregation;
 
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ObjectMapperImpl;
@@ -10,7 +9,6 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
@@ -164,7 +162,7 @@ public abstract class Expr {
      * @return
      */
     public static Expr field(Enum name, Class type, Morphium m) {
-        return field(m.getARHelper().getFieldName(type, name.name()));
+        return field(m.getARHelper().getMongoFieldName(type, name.name()));
     }
 
     /**

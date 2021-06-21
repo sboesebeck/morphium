@@ -21,15 +21,15 @@ public class MapReduceTest extends MorphiumTestBase {
     }
 
     private void doSimpleMRTest(Morphium m) throws Exception {
-        List<UncachedObject> result = m.mapReduce(UncachedObject.class, "function(){emit(this.counter%2==0,this);}", "function (key,values){var ret={_id:ObjectId(), value:\"\", counter:0}; if (key==true) {ret.value=\"even\";} else { ret.value=\"odd\";} for (var i=0; i<values.length;i++){ret.counter=ret.counter+values[i].counter;}return ret;}");
+        List<UncachedObject> result = m.mapReduce(UncachedObject.class, "function(){emit(this.counter%2==0,this);}", "function (key,values){var ret={_id:ObjectId(), str_value:\"\", counter:0}; if (key==true) {ret.str_value=\"even\";} else { ret.str_value=\"odd\";} for (var i=0; i<values.length;i++){ret.counter=ret.counter+values[i].counter;}return ret;}");
         assert (result.size() == 2);
         boolean odd = false;
         boolean even = false;
         for (UncachedObject r : result) {
-            if (r.getValue().equals("odd")) {
+            if (r.getStrValue().equals("odd")) {
                 odd = true;
             }
-            if (r.getValue().equals("even")) {
+            if (r.getStrValue().equals("even")) {
                 even = true;
             }
             assert (r.getCounter() > 0);

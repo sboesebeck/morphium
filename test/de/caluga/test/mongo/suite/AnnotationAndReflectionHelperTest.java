@@ -89,10 +89,10 @@ public class AnnotationAndReflectionHelperTest {
 
     @Test
     public void testGetFieldName() {
-        String fieldName = helper.getFieldName(UncachedObject.class, "counter");
+        String fieldName = helper.getMongoFieldName(UncachedObject.class, "counter");
         assertThat((fieldName)).isNotNull();
         assertThat(fieldName).isEqualTo("counter");
-        fieldName = helper.getFieldName(UncachedObject.class, "intData");
+        fieldName = helper.getMongoFieldName(UncachedObject.class, "intData");
         assertThat((fieldName)).isNotNull();
         assertThat(fieldName).isEqualTo("int_data");
 
@@ -186,7 +186,7 @@ public class AnnotationAndReflectionHelperTest {
 
     @Test
     public void testGetTypeOfField() {
-        assertThat(Objects.equals(helper.getTypeOfField(UncachedObject.class, "value"), String.class)).isTrue();
+        assertThat(Objects.equals(helper.getTypeOfField(UncachedObject.class, "strValue"), String.class)).isTrue();
     }
 
     @Test

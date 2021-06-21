@@ -264,8 +264,18 @@ public class AnnotationAndReflectionHelper {
         return hasAdditionalData.get(aClass);
     }
 
+    /**
+     * get the fieldname used in Mongo for the corresponding field
+     * depending on whether camelcase-conversion is enabled globally
+     * and whether it is enabled for this specific property
+     * also takes "." as path separator into account
+     *
+     * @param clz
+     * @param field
+     * @return
+     */
     @SuppressWarnings("StatementWithEmptyBody")
-    public String getFieldName(Class clz, String field) {
+    public String getMongoFieldName(Class clz, String field) {
         Class cls = getRealClass(clz);
         if (field.contains(".") || field.contains("(") || field.contains("$")) {
             //searching for a sub-element?
@@ -282,9 +292,8 @@ public class AnnotationAndReflectionHelper {
         List<Class> inf = Arrays.asList(clz.getInterfaces());
         if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
             //not diving into maps
-
+            //TODO: check for generics type and dive into collecion/Maps
         } else {
-
             Field f = getField(cls, field);
             if (f == null && hasAdditionalData(clz)) {
                 return field;
@@ -857,7 +866,7 @@ public class AnnotationAndReflectionHelper {
         if (limitToFields != null && !limitToFields.type().equals(Object.class)) {
             List<Field> flds = getAllFields(limitToFields.type());
             for (Field f : flds) {
-                fieldsToLimitTo.add(getFieldName(limitToFields.type(), f.getName()));
+                fieldsToLimitTo.add(getMongoFieldName(limitToFields.type(), f.getName()));
             }
         }
 

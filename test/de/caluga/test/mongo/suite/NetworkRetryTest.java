@@ -18,7 +18,7 @@ import java.util.Map;
  * TODO: Add documentation here
  */
 public class NetworkRetryTest extends MorphiumTestBase {
-    private boolean doTest = false;
+    private final boolean doTest = false;
 
     @Test
     public void networRetryTestAsList() throws Exception {
@@ -112,7 +112,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
         for (int i = 0; i < 1000; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i + 1);
-            o.setValue("A test");
+            o.setStrValue("A test");
             morphium.store(o);
             log.info("Stored...");
             Thread.sleep(1000);
@@ -134,7 +134,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
                 UncachedObject o;
                 o = new UncachedObject();
                 o.setCounter(i + cnt + 1);
-                o.setValue("A test");
+                o.setStrValue("A test");
                 lst.add(o);
             }
             morphium.storeList(lst);

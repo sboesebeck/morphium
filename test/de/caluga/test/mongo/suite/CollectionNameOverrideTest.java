@@ -19,7 +19,7 @@ public class CollectionNameOverrideTest extends MorphiumTestBase {
     public void writeCollectionNameOverride() throws Exception {
         morphium.dropCollection(UncachedObject.class, "uncached_collection_test_2", null);
         UncachedObject uc = new UncachedObject();
-        uc.setValue("somewhere different");
+        uc.setStrValue("somewhere different");
         uc.setCounter(1000);
         morphium.store(uc, "uncached_collection_test_2", null);
         Thread.sleep(1000);
@@ -35,7 +35,7 @@ public class CollectionNameOverrideTest extends MorphiumTestBase {
     public void writeAndReadCollectionNameOverride() throws Exception {
         morphium.dropCollection(UncachedObject.class, "uncached_collection_test_2", null);
         UncachedObject uc = new UncachedObject();
-        uc.setValue("somewhere different");
+        uc.setStrValue("somewhere different");
         uc.setCounter(1000);
         morphium.store(uc, "uncached_collection_test_2", null);
         Thread.sleep(1000);

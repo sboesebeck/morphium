@@ -4,9 +4,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -21,7 +19,7 @@ public class DistinctGroupTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i % 3);
-            uc.setValue("Value " + (i % 2));
+            uc.setStrValue("Value " + (i % 2));
             lst.add(uc);
         }
         morphium.storeList(lst);
@@ -31,7 +29,7 @@ public class DistinctGroupTest extends MorphiumTestBase {
         for (Object o : values) {
             log.info("counter: " + o.toString());
         }
-        values = morphium.distinct("value", UncachedObject.class);
+        values = morphium.distinct("str_value", UncachedObject.class);
         assert (values.size() == 2) : "Size wrong: " + values.size();
         for (Object o : values) {
             log.info("Value: " + o.toString());
@@ -46,7 +44,7 @@ public class DistinctGroupTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i % 3);
-            uc.setValue("dv " + (i % 2));
+            uc.setStrValue("dv " + (i % 2));
             lst.add(uc);
         }
         morphium.storeList(lst);
@@ -58,7 +56,7 @@ public class DistinctGroupTest extends MorphiumTestBase {
         for (Object o : values) {
             log.info("counter: " + o.toString());
         }
-        values = morphium.distinct("value", UncachedObject.class);
+        values = morphium.distinct("strValue", UncachedObject.class);
         assert (values.size() == 2) : "Size wrong: " + values.size();
         for (Object o : values) {
             log.info("Value: " + o.toString());

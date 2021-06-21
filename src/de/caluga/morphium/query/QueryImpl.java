@@ -485,7 +485,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                     lst = new HashMap<>();
                     break;
                 }
-                String n = getARHelper().getFieldName(type, f.getName());
+                String n = getARHelper().getMongoFieldName(type, f.getName());
                 // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
                 if (!n.startsWith("$jacoco")) {
                     lst.put(n, 1);
@@ -613,7 +613,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (f.contains(".") && !additionalDataPresent) {
             String[] fieldNames = f.split("\\.");
             for (String fieldName : fieldNames) {
-                String fieldNameInstance = getARHelper().getFieldName(clz, fieldName);
+                String fieldNameInstance = getARHelper().getMongoFieldName(clz, fieldName);
                 Field field = getARHelper().getField(clz, fieldNameInstance);
                 if (field == null) {
                     log.warn("Field " + fieldNameInstance + " not found!");
@@ -643,7 +643,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 cf = fieldPath.substring(0, fieldPath.length() - 1);
             }
         } else {
-            cf = getARHelper().getFieldName(clz, f);
+            cf = getARHelper().getMongoFieldName(clz, f);
 
         }
         MongoField<T> fld = morphium.createMongoField();
@@ -715,7 +715,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> sortEnum(Map<Enum, Integer> n) {
         sort = new HashMap<>();
         for (Map.Entry<Enum, Integer> e : n.entrySet()) {
-            sort.put(e.getKey().name(), e.getValue());
+            sort.put(morphium.getARHelper().getMongoFieldName(getType(), e.getKey().name()), e.getValue());
         }
 
         return this;
@@ -735,7 +735,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 val = 1;
             }
             if (!fld.contains(".") && !fld.startsWith("$")) {
-                fld = getARHelper().getFieldName(type, fld);
+                fld = getARHelper().getMongoFieldName(type, fld);
             }
             m.put(fld, val);
         }
@@ -746,7 +746,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     public Query<T> sort(Enum... naturalOrder) {
         Map<String, Integer> m = new LinkedHashMap<>();
         for (Enum i : naturalOrder) {
-            String fld = getARHelper().getFieldName(type, i.name());
+            String fld = getARHelper().getMongoFieldName(type, i.name());
             m.put(fld, 1);
         }
         return sort(m);
@@ -2001,7 +2001,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             f = f.substring(1);
             v = 0;
         }
-        String n = getARHelper().getFieldName(type, f);
+        String n = getARHelper().getMongoFieldName(type, f);
         fieldList.put(n, v);
         return this;
     }
@@ -2011,7 +2011,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (fieldList == null) {
             fieldList = new LinkedHashMap<>();
         }
-        String n = getARHelper().getFieldName(type, f);
+        String n = getARHelper().getMongoFieldName(type, f);
         fieldList.put(n, projectOperator);
         return this;
     }
@@ -2028,7 +2028,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         //            }
         //        }
         //        fieldList.remove(f);
-        fieldList.put(getARHelper().getFieldName(type, f), 0);
+        fieldList.put(getARHelper().getMongoFieldName(type, f), 0);
         return this;
     }
 

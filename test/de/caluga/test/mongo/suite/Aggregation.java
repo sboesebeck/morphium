@@ -108,11 +108,11 @@ public class Aggregation extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
             u.setCounter(i % 3);
-            u.setValue("" + i % 5);
+            u.setStrValue("" + i % 5);
             morphium.store(u);
         }
         Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
-        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end().sort("sum_counts");
+        agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end().sort("sum_counts");
         List<AggregatePush> lst = agr.aggregate();
         assert (lst != null);
         assert (lst.size() == 5);
@@ -128,12 +128,12 @@ public class Aggregation extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
             u.setCounter(i % 3);
-            u.setValue("" + i % 5);
+            u.setStrValue("" + i % 5);
             morphium.store(u);
         }
         Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
         //Ending a group is not longer necessary... but the aggregator will warn!
-        agr.group("$value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "$counter");
+        agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "$counter");
         List<AggregatePush> lst = agr.aggregate();
         assert (lst != null);
         assert (lst.size() == 5);

@@ -94,7 +94,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             SpecCacedOjbect sp = new SpecCacedOjbect();
             sp.setCounter(i);
-            sp.setValue("Value " + i);
+            sp.setStrValue("Value " + i);
             morphium.store(sp);
         }
         for (int i = 0; i < amount; i++) {

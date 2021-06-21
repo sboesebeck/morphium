@@ -17,7 +17,7 @@ import javax.swing.*;
  * <p/>
  */
 public class FailoverTests extends MorphiumTestBase {
-    private static Logger log = LoggerFactory.getLogger(FailoverTests.class);
+    private static final Logger log = LoggerFactory.getLogger(FailoverTests.class);
     private static int writeError = 0;
     private static int readError = 0;
     private static int writes = 0;
@@ -104,7 +104,7 @@ public class FailoverTests extends MorphiumTestBase {
     @Embedded
     public class WriterThread extends Thread {
         private int i = (int) (Math.random() * 10000);
-        private Morphium morphium;
+        private final Morphium morphium;
 
         public WriterThread(Morphium m) {
             morphium = m;
@@ -116,7 +116,7 @@ public class FailoverTests extends MorphiumTestBase {
             while (read) {
                 try {
                     UncachedObject o = new UncachedObject();
-                    o.setValue("Value " + System.currentTimeMillis());
+                    o.setStrValue("Value " + System.currentTimeMillis());
                     o.setCounter(i++);
                     writes++;
                     morphium.store(o);

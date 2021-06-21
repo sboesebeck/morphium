@@ -31,9 +31,9 @@ public class TailableQueryTests extends MorphiumTestBase {
             q.tail(10, 0, new AsyncCallbackAdapter<CappedCol>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<CappedCol> q, long duration, List<CappedCol> result, CappedCol entity, Object... param) {
-                    log.info("Got incoming!!! " + entity.getValue() + " " + entity.getCounter());
+                    log.info("Got incoming!!! " + entity.getStrValue() + " " + entity.getCounter());
                     found = true;
-                    if (entity.getValue().equals("Test 3 - quit")) {
+                    if (entity.getStrValue().equals("Test 3 - quit")) {
                         throw new MorphiumAccessVetoException("Quitting");
                     }
                 }

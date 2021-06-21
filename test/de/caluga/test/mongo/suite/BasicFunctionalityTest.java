@@ -5,14 +5,12 @@
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.mongodb.MongoDriver;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -108,18 +106,18 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i % 2);
+            o.setStrValue("Uncached " + i % 2);
             morphium.store(o);
         }
         Thread.sleep(500);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "value");
+        q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "strValue");
         List<UncachedObject> lst = q.asList();
-        assert (!lst.get(0).getValue().equals(lst.get(1).getValue()));
+        assert (!lst.get(0).getStrValue().equals(lst.get(1).getStrValue()));
 
-        q = q.q().f("counter").gt(0).sort("value", "-counter");
+        q = q.q().f("counter").gt(0).sort("str_value", "-counter");
         List<UncachedObject> lst2 = q.asList();
-        assert (lst2.get(0).getValue().equals(lst2.get(1).getValue()));
+        assert (lst2.get(0).getStrValue().equals(lst2.get(1).getStrValue()));
         log.info("Sorted");
 
         q = morphium.createQueryFor(UncachedObject.class);
@@ -241,7 +239,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -263,12 +261,12 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= 10; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").exists().f("value").eq("Uncached 1");
+        q = q.f("counter").exists().f("str_value").eq("Uncached 1");
         long c = q.countAll();
         assert (c == 1) : "Count wrong: " + c;
 
@@ -281,11 +279,11 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= 10; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q = q.f("counter").notExists().f("value").eq("Uncached 1");
+        q = q.f("counter").notExists().f("str_value").eq("Uncached 1");
         long c = q.countAll();
         assert (c == 0);
     }
@@ -301,7 +299,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
             last = o;
         }
@@ -334,16 +332,16 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.or(q.q().f("counter").lt(10), q.q().f("value").eq("Uncached 50"));
+        q.or(q.q().f("counter").lt(10), q.q().f("strValue").eq("Uncached 50"));
         log.info("Query string: " + q.toQueryObject().toString());
         List<UncachedObject> lst = q.asList();
         for (UncachedObject o : lst) {
-            assert (o.getCounter() < 10 || o.getValue().equals("Uncached 50")) : "Value did not match: " + o;
+            assert (o.getCounter() < 10 || o.getStrValue().equals("Uncached 50")) : "Value did not match: " + o;
             log.info(o.toString());
         }
         log.info("1st test passed");
@@ -351,7 +349,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             //Storing some additional test content:
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("Complex Query Test " + i);
+            uc.setStrValue("Complex Query Test " + i);
             morphium.store(uc);
         }
 
@@ -369,7 +367,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
         long dur = System.currentTimeMillis() - start;
@@ -401,7 +399,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 1; i <= NO_OBJECTS; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
-            o.setValue("Uncached " + i);
+            o.setStrValue("Uncached " + i);
             lst.add(o);
         }
         morphium.storeList(lst);
@@ -425,7 +423,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             UncachedObject fnd = l.get(0);
             assert (fnd != null) : "Error finding element with id " + i;
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
-            assert (fnd.getValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getValue() + ") vs. " + i;
+            assert (fnd.getStrValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i;
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching  took " + dur + " ms");
@@ -534,7 +532,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             } else {
                 uncached++;
                 UncachedObject uc = new UncachedObject();
-                uc.setValue("List Test uc");
+                uc.setStrValue("List Test uc");
                 uc.setCounter(22222);
                 tst.add(uc);
             }
@@ -672,7 +670,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
         UncachedObject uc = new UncachedObject();
         uc.setCounter(1);
-        uc.setValue("A value");
+        uc.setStrValue("A value");
         log.info("Storing new value - no problem");
         morphium.insert(uc);
         assert (uc.getMorphiumId() != null);
@@ -689,7 +687,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
         assert (ex);
         uc = new UncachedObject();
-        uc.setValue("2");
+        uc.setStrValue("2");
         uc.setMorphiumId(new MorphiumId());
         uc.setCounter(3);
         morphium.insert(uc);
@@ -708,7 +706,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("" + i);
+            uc.setStrValue("" + i);
             lst.add(uc);
         }
         morphium.insert(lst);
@@ -720,7 +718,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         for (int i = 0; i < 10; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("" + i);
+            uc.setStrValue("" + i);
             lst2.add(uc);
         }
         lst2.add(lst.get(0));
@@ -836,7 +834,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("value", 123);
         morphium.store(uc);
         UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
-        assert (ret.getValue().equals("value"));
+        assert (ret.getStrValue().equals("value"));
         Thread.sleep(100);
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 0);
 
@@ -848,7 +846,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.store(uc);
         Thread.sleep(150);
         UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(Utils.getMap("$set", Utils.getMap("counter", 42)));
-        assert (ret.getValue().equals("value"));
+        assert (ret.getStrValue().equals("value"));
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 1);
         morphium.reread(uc);
         assert (uc.getCounter() == 42);
@@ -879,18 +877,18 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("toReplace", 1234);
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
         Thread.sleep(100);
-        uc.setValue("again");
+        uc.setStrValue("again");
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
 
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert (uc.getValue().equals("again"));
+        assert (uc.getStrValue().equals("again"));
 
         uc = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).get();
-        uc.setValue("another value");
+        uc.setStrValue("another value");
         morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
         Thread.sleep(100);
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert (uc.getValue().equals("another value"));
+        assert (uc.getStrValue().equals("another value"));
 
     }
 

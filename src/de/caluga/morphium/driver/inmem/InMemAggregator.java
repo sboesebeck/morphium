@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public class InMemAggregator<T, R> implements Aggregator<T, R> {
@@ -195,9 +194,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             }
             if (i.startsWith("$")) {
                 fld = fld.substring(1);
-                if (!fld.contains(".")) {
-                    fld = morphium.getARHelper().getFieldName(type, fld);
-                }
+            }
+            if (!fld.contains(".")) {
+                fld = morphium.getARHelper().getMongoFieldName(type, fld);
             }
             m.put(fld, val);
         }
@@ -571,7 +570,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
         return lookup(getMorphium().getMapper().getCollectionName(fromType),
-                getMorphium().getARHelper().getFieldName(getSearchType(), localField.name()), getMorphium().getARHelper().getFieldName(fromType, foreignField.name()), outputArray, pipeline, let
+                getMorphium().getARHelper().getMongoFieldName(getSearchType(), localField.name()), getMorphium().getARHelper().getMongoFieldName(fromType, foreignField.name()), outputArray, pipeline, let
         );
 
     }
@@ -643,7 +642,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         List<String> flds = new ArrayList<>();
         if (entity != null) {
             for (String f : onFields) {
-                flds.add(morphium.getARHelper().getFieldName(entity, f));
+                flds.add(morphium.getARHelper().getMongoFieldName(entity, f));
             }
         } else {
             log.warn("no entity know for collection " + intoCollection);
@@ -828,7 +827,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     if (step.get(stage) instanceof List) {
                         List<String> flds = (List<String>) step.get(stage);
                         for (String f : flds) {
-                            newO.remove(f);
+                            newO.remove(morphium.getARHelper().getMongoFieldName(type, f));
                         }
                     } else {
                         newO.remove(step.get(stage));

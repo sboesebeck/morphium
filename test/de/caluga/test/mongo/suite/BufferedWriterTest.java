@@ -34,7 +34,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < 200; i++) {
             BufferedBySizeObject buf = new BufferedBySizeObject();
             buf.setCounter(i);
-            buf.setValue("V: " + i);
+            buf.setStrValue("V: " + i);
             lst.add(buf);
         }
 
@@ -45,7 +45,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         waitForAsyncOperationToStart(10000);
         waitForWrites();
         for (BufferedBySizeObject b : lst) {
-            b.setValue(b.getValue() + 100);
+            b.setStrValue(b.getStrValue() + 100);
             morphium.store(b);
         }
         Thread.sleep(3000);
@@ -177,7 +177,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWriteNewObject bo = new BufferedBySizeWriteNewObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         long start = System.currentTimeMillis();
@@ -202,7 +202,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedBySizeObject bo = new BufferedBySizeObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         long start = System.currentTimeMillis();
@@ -227,7 +227,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         long start = System.currentTimeMillis();
@@ -254,7 +254,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedBySizeDelOldObject bo = new BufferedBySizeDelOldObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         log.info("Writes prepared - waiting");
@@ -272,7 +272,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedBySizeIgnoreNewObject bo = new BufferedBySizeIgnoreNewObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         log.info("Writes prepared - waiting");
@@ -290,7 +290,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWaitObject bo = new BufferedBySizeWaitObject();
             bo.setCounter(i);
-            bo.setValue("a value");
+            bo.setStrValue("a value");
             morphium.store(bo);
         }
         log.info("Writes prepared - waiting");
@@ -311,7 +311,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             buf.setEmbed(e);
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("value");
+            uc.setStrValue("value");
             buf.setEntityEmbeded(uc);
             m.store(buf);
         }

@@ -161,7 +161,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
             }
             AsyncObject ao = new AsyncObject();
             ao.setCounter(i);
-            ao.setValue("Async write");
+            ao.setStrValue("Async write");
             morphium.store(ao);
         }
 

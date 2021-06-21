@@ -31,12 +31,12 @@ public class FieldShadowingTest extends MorphiumTestBase {
     public static class Shadowed extends UncachedObject {
         private String value;
 
-        public void setValue(String value) {
-            this.value = value;
+        public String getStrValue() {
+            return value;
         }
 
-        public String getValue() {
-            return value;
+        public void setStrValue(String strValue) {
+            this.value = strValue;
         }
     }
 
@@ -44,12 +44,12 @@ public class FieldShadowingTest extends MorphiumTestBase {
         private String value;
 
         public ReShadowed() {
-            super.setValue("shadowed");
+            super.setStrValue("shadowed");
 
         }
 
         public String getSuperValue() {
-            return super.getValue();
+            return super.getStrValue();
         }
 
     }

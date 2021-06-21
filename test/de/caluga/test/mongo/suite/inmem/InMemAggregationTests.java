@@ -23,8 +23,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.value).eq("mod0"));
-        agg.group("$value").sum("summe", "$counter").sum("cnt", 1).end();
+        agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("mod0"));
+        agg.group("$str_value").sum("summe", "$counter").sum("cnt", 1).end();
         agg.addFields(Utils.getMap("tst", Expr.field("summe")));
         agg.project("avg", Expr.divide(Expr.field("tst"), Expr.field("cnt")));
         List<Map<String, Object>> lst = agg.aggregateMap();
@@ -49,7 +49,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.group("$value").first("cnt", "$counter").last("lst", "$counter").end();
+        agg.group("$str_value").first("cnt", "$counter").last("lst", "$counter").end();
         agg.sort("_id");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info("Count: " + lst.size());
@@ -72,19 +72,23 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.sort("value", "-counter");
+        agg.sort("str_value", "-counter");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info("Count: " + lst.size());
         String lastValue = "mod0";
         int lastCounter = 100;
         for (Map<String, Object> o : lst) {
             log.info(Utils.toJsonString(o));
-            if (lastValue.equals(o.get("valuie"))) {
+            if (lastValue.equals(o.get("str_value"))) {
                 assert (((Number) o.get("counter")).intValue() < lastCounter) : "LastCounter: " + lastCounter + " got: " + o.get("counter");
                 lastCounter = ((Number) o.get("counter")).intValue();
+            } else {
+                lastCounter = 100;
+                lastValue = (String) o.get("str_value");
             }
-            assert (lastValue.compareTo((String) o.get("value")) <= 0) : "LastValue: " + lastValue + " current: " + o.get("value");
-            lastValue = (String) o.get("value");
+
+            assert (lastValue.compareTo((String) o.get("str_value")) <= 0) : "LastValue: " + lastValue + " current: " + o.get("str_value");
+
         }
     }
 
@@ -164,7 +168,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.group("all").addToSet("mods", "$value");
+        agg.group("all").addToSet("mods", "$str_value");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
         assert (lst.size() == 1);
@@ -193,7 +197,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.unset(UncachedObject.Fields.value);
+        agg.unset(UncachedObject.Fields.strValue);
         List<Map<String, Object>> lst = agg.aggregateMap();
         assert (lst.size() == 100);
         for (Map<String, Object> o : lst) {
@@ -209,7 +213,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             morphium.store(u);
         }
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.unset(UncachedObject.Fields.value);
+        agg.unset(UncachedObject.Fields.strValue);
         agg.merge("test", Aggregator.MergeActionWhenMatched.merge, Aggregator.MergeActionWhenNotMatched.insert);
         List<Map> lst = agg.aggregate();
         assert (lst.size() == 0);
@@ -219,7 +223,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         //checking stored after $unset
         long lastCounter = -1;
         for (UncachedObject o : l) {
-            assert (o.getValue() == null);
+            assert (o.getStrValue() == null);
             assert (o.getCounter() != lastCounter);
             lastCounter = o.getCounter();
         }

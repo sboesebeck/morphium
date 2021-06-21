@@ -32,7 +32,7 @@ public class SetsTests extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             Uc u = new Uc();
             u.setCounter(i);
-            u.setValue("V: " + i);
+            u.setStrValue("V: " + i);
             lst.add(u);
         }
         morphium.storeList(lst);
@@ -57,7 +57,7 @@ public class SetsTests extends MorphiumTestBase {
         for (int i = 0; i < count; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("A value - uncached!");
+            uc.setStrValue("A value - uncached!");
             //references should be stored automatically...
             lst.addRef(uc);
         }
@@ -120,7 +120,7 @@ public class SetsTests extends MorphiumTestBase {
         for (int i = 0; i < count; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
-            uc.setValue("A value - uncached!");
+            uc.setStrValue("A value - uncached!");
             //references should be stored automatically...
             lst.addRef(uc);
         }
@@ -154,7 +154,7 @@ public class SetsTests extends MorphiumTestBase {
         Set<UncachedObject> lst = new LinkedHashSet<>();
         lst.add(new UncachedObject());
 
-        lst.toArray(new UncachedObject[]{})[0].setValue("hello");
+        lst.toArray(new UncachedObject[]{})[0].setStrValue("hello");
         lst.toArray(new UncachedObject[]{})[0].setCounter(1);
 
         morphium.storeList(lst);
@@ -187,7 +187,7 @@ public class SetsTests extends MorphiumTestBase {
 
         UncachedObject uc = new UncachedObject();
         uc.setCounter(42);
-        uc.setValue("val");
+        uc.setStrValue("val");
 
         EmbeddedObject eo = new EmbeddedObject();
         eo.setValue("Embedded");
@@ -208,7 +208,7 @@ public class SetsTests extends MorphiumTestBase {
         assert (mc2.objectList.toArray()[1] instanceof EmbeddedObject);
         assert (mc2.objectList.toArray()[2] instanceof ExtendedEmbeddedObject);
 
-        assert (((UncachedObject) mc2.objectList.toArray()[0]).getValue().equals("val"));
+        assert (((UncachedObject) mc2.objectList.toArray()[0]).getStrValue().equals("val"));
         assert (((UncachedObject) mc2.objectList.toArray()[0]).getCounter() == 42);
 
         assert (((EmbeddedObject) mc2.objectList.toArray()[1]).getValue().equals("Embedded"));

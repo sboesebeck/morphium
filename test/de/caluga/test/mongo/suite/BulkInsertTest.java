@@ -34,7 +34,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 4212; i++) {
             UncachedObject u = new UncachedObject();
-            u.setValue("V" + i);
+            u.setStrValue("V" + i);
             u.setCounter(i);
             lst.add(u);
         }
@@ -48,7 +48,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         }
         for (int i = 0; i < 100; i++) {
             UncachedObject u = new UncachedObject();
-            u.setValue("O" + i);
+            u.setStrValue("O" + i);
             u.setCounter(i + 1200);
             lst.add(u);
         }
@@ -66,7 +66,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             morphium.store(uc);
         }
         long dur = System.currentTimeMillis() - start;
@@ -78,7 +78,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             lst.add(uc);
         }
         log.info("List prepared...");
@@ -104,7 +104,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             morphium.store(uc, new AsyncOperationCallback<UncachedObject>() {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
@@ -133,7 +133,7 @@ public class BulkInsertTest extends MorphiumTestBase {
         for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
-            uc.setValue("nix " + i);
+            uc.setStrValue("nix " + i);
             lst.add(uc);
         }
         morphium.storeList(lst);

@@ -154,7 +154,7 @@ public class MorphiumTest extends MorphiumTestBase {
     public void testFindByTemplate() throws Exception {
         createUncachedObjects(20);
         Thread.sleep(50);
-        List<UncachedObject> uc = morphium.findByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter, UncachedObject.Fields.value);
+        List<UncachedObject> uc = morphium.findByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter, UncachedObject.Fields.strValue);
         assert (uc.size() == 1);
     }
 
@@ -163,9 +163,9 @@ public class MorphiumTest extends MorphiumTestBase {
         createUncachedObjects(20);
         Thread.sleep(50);
         Query<UncachedObject> q = morphium.createQueryByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter);
-        morphium.unsetQ(q, UncachedObject.Fields.value);
+        morphium.unsetQ(q, UncachedObject.Fields.strValue);
         Thread.sleep(20);
-        assert (q.get().getValue() == null);
+        assert (q.get().getStrValue() == null);
     }
 
     @Test
@@ -173,10 +173,10 @@ public class MorphiumTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
-        morphium.unset(uc, UncachedObject.Fields.value);
-        assert (uc.getValue() == null);
+        morphium.unset(uc, UncachedObject.Fields.strValue);
+        assert (uc.getStrValue() == null);
         morphium.reread(uc);
-        assert (uc.getValue() == null);
+        assert (uc.getStrValue() == null);
     }
 
     @Test
@@ -184,10 +184,10 @@ public class MorphiumTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
-        morphium.set(uc, UncachedObject.Fields.value, "other");
-        assert (uc.getValue().equals("other"));
+        morphium.set(uc, UncachedObject.Fields.strValue, "other");
+        assert (uc.getStrValue().equals("other"));
         morphium.reread(uc);
-        assert (uc.getValue().equals("other"));
+        assert (uc.getStrValue().equals("other"));
     }
 
     @Test
@@ -195,9 +195,9 @@ public class MorphiumTest extends MorphiumTestBase {
         createUncachedObjects(20);
         Thread.sleep(50);
         Query<UncachedObject> q = morphium.createQueryByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter);
-        morphium.set(q, UncachedObject.Fields.value, "other");
+        morphium.set(q, UncachedObject.Fields.strValue, "other");
         Thread.sleep(20);
-        assert (q.get().getValue().equals("other"));
+        assert (q.get().getStrValue().equals("other"));
     }
 
 }

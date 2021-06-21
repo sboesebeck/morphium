@@ -138,13 +138,13 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         } else {
             fe.setValue(val);
         }
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
         query.addChild(fe);
     }
 
 
     private void add(String op, Object value) {
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
         FilterExpression child = new FilterExpression();
         child.setField(op);
         if (not) {
@@ -158,7 +158,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     private void add(List<FilterExpression> expressionList) {
-        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
+        fe.setField(mapper.getMorphium().getARHelper().getMongoFieldName(query.getType(), fldStr));
         fe.setChildren(expressionList);
         query.addChild(fe);
     }
@@ -505,7 +505,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$nearSphere");
-        Map<String, Object> val = Utils.getMap("$geometry", (Object) mapper.serialize(point));
+        Map<String, Object> val = Utils.getMap("$geometry", mapper.serialize(point));
         val.put("$maxDistance", maxDistance);
         val.put("$minDistance", minDistance);
         nearExpression.setValue(val);
@@ -545,7 +545,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$near");
-        Map<String, Object> val = Utils.getMap("$geometry", (Object) mapper.serialize(point));
+        Map<String, Object> val = Utils.getMap("$geometry", mapper.serialize(point));
         val.put("$maxDistance", maxDistance);
         val.put("$minDistance", minDistance);
         nearExpression.setValue(val);
