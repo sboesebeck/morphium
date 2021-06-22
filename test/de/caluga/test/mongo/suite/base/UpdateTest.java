@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
@@ -125,6 +126,44 @@ public class UpdateTest extends MorphiumTestBase {
         }
 
     }
+
+
+    @Test
+    public void setEntityTest() throws Exception {
+        for (int i = 1; i <= 50; i++) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(i);
+            o.setStrValue("Uncached " + i);
+            morphium.store(o);
+        }
+        Thread.sleep(100);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        q = q.f("counter").eq(42);
+        UncachedObject uc = q.get();
+        morphium.set(uc, UncachedObject.Fields.strValue, "meaning of life", false, null);
+        checkValue(uc, "meaning of life");
+
+        morphium.set(uc, "str_value", "the answer", false, null);
+        checkValue(uc, "the answer");
+
+        String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
+        morphium.set(uc, collectionName, UncachedObject.Fields.strValue, "none");
+        checkValue(uc, "none");
+
+        morphium.set(uc, collectionName, "str_value", "dunno", false, null);
+        checkValue(uc, "dunno");
+
+        morphium.set(uc, collectionName, UncachedObject.Fields.strValue, "dunno", false, null);
+        checkValue(uc, "dunno");
+    }
+
+    private void checkValue(UncachedObject uc, String value) throws InterruptedException {
+        Thread.sleep(100);
+        assert (uc.getStrValue().equals(value)) : "Value wrong: " + uc.getStrValue() + " but should be " + value;
+        uc = morphium.reread(uc);
+        assert (uc.getStrValue().equals(value)) : "Value after reread wrong: " + uc.getStrValue() + ", expected " + value;
+    }
+
 
     @Test
     public void setTest() throws Exception {
