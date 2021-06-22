@@ -1165,6 +1165,10 @@ public class Morphium implements AutoCloseable {
         return getDriver().getCollStats(getConfig().getDatabase(), coll);
     }
 
+    public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+        set(toSet, collection, Utils.getMap(field.name(), value), upserts, callback);
+    }
+
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, Utils.getMap(field, value), upserts, callback);
     }

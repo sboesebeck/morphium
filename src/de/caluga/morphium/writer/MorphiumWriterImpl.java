@@ -866,7 +866,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> void set(final T toSet, final String col, final Map<String, Object> values, final boolean upsert, AsyncOperationCallback<T> callback) {
-
         Query<T> q = (Query<T>) morphium.createQueryFor(toSet.getClass()).f("_id").eq(morphium.getId(toSet));
         set(q, values, upsert, false, callback);
         for (Map.Entry<String, Object> entry : values.entrySet()) {
