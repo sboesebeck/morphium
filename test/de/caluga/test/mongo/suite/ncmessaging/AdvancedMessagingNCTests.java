@@ -2,18 +2,14 @@ package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.Utils;
-import de.caluga.morphium.changestream.ChangeStreamEvent;
-import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

@@ -14,10 +14,7 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
@@ -58,13 +55,16 @@ public class MorphiumBulkContext<T> {
         postEvents.forEach(Runnable::run);
     }
 
-    private void createUpdateRequest(Query<T> query, String command, Map values, boolean upsert, boolean multiple) {
+    private void createUpdateRequest(Query<T> query, String command, Map<String,Object> valuesToSet, boolean upsert, boolean multiple) {
+        Map<String,Object> values=new LinkedHashMap();
+        for (Map.Entry<String,Object> e:valuesToSet.entrySet()){
+            values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true),e.getValue());
+        }
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(query.toQueryObject());
         up.setUpsert(upsert);
         up.setCmd(Utils.getMap(command, values));
         up.setMultiple(multiple);
-
         preEvents.add(() -> {
             switch (command) {
                 case "$set":
@@ -332,7 +332,11 @@ public class MorphiumBulkContext<T> {
 
     @SuppressWarnings("unused")
     public void addIncRequest(Query<T> query, Map<String, Number> toInc, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$inc", toInc, upsert, multiple);
+        Map<String,Object> m=new LinkedHashMap<>();
+        for (Map.Entry<String,Number> e: toInc.entrySet()){
+            m.put(e.getKey(),e.getValue());
+        }
+        createUpdateRequest(query, "$inc",m, upsert, multiple);
     }
 
     @SuppressWarnings("unused")

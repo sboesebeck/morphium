@@ -4,8 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
-import org.assertj.core.internal.bytebuddy.implementation.bind.annotation.Morph;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.ArrayList;

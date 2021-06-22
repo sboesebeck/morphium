@@ -955,7 +955,7 @@ To store the binary data, _Morphium_ uses a helper class called `BinarySerialize
     "_id" : ObjectId("5f5bc1d8f8fd8247688e41f5"),
     "list" : [ 
         {
-            "original_class_name" : "de.caluga.test.mongo.suite.NonEntitySerialization$NonEntity",
+            "original_class_name" : "de.caluga.test.mongo.suite.base.NonEntitySerialization$NonEntity",
             "_b64data" : "rO0ABXNyADtkZS5jYWx1Z2EudGVzdC5tb25nby5zdWl0ZS5Ob25FbnRpdHlTZXJpYWxpemF0aW9u\r\nJE5vbkVudGl0eV18gEK68jkAAgACTAAHaW50ZWdlcnQAE0xqYXZhL2xhbmcvSW50ZWdlcjtMAAV2\r\nYWx1ZXQAEkxqYXZhL2xhbmcvU3RyaW5nO3hwc3IAEWphdmEubGFuZy5JbnRlZ2VyEuKgpPeBhzgC\r\nAAFJAAV2YWx1ZXhyABBqYXZhLmxhbmcuTnVtYmVyhqyVHQuU4IsCAAB4cAAAACp0ABZUaGFuayB5\r\nb3UgZm9yIHRoZSBmaXNo"
         }, 
         "Some string"

@@ -1,10 +1,9 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;

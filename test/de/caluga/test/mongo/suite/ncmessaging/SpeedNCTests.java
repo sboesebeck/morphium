@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.ncmessaging;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
