@@ -11,7 +11,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;

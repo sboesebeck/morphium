@@ -7,7 +7,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.ArrayList;

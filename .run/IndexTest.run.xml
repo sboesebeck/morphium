@@ -8,7 +8,7 @@
             </pattern>
         </extension>
         <option name="PACKAGE_NAME" value="de.caluga.test.mongo.suite"/>
-        <option name="MAIN_CLASS_NAME" value="de.caluga.test.mongo.suite.IndexTest"/>
+        <option name="MAIN_CLASS_NAME" value="de.caluga.test.mongo.suite.base.IndexTest"/>
         <option name="METHOD_NAME" value=""/>
         <option name="TEST_OBJECT" value="class"/>
         <method v="2">

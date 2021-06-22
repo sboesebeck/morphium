@@ -8,7 +8,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.test.mongo.suite.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 
 import java.util.Arrays;

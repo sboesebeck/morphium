@@ -137,7 +137,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             last = uc.getCounter();
         }
 
-        q = q.q().f(UncachedObject.Fields.counter).gt(0).sort("counter", "-value");
+        q = q.q().f(UncachedObject.Fields.counter).gt(0).sort("counter", "-str_value");
         List<UncachedObject> lst2 = q.asList();
         last = 0;
 

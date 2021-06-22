@@ -1,70 +1,29 @@
 package de.caluga.morphium;
 
-import de.caluga.morphium.annotations.AdditionalData;
-import de.caluga.morphium.annotations.Aliases;
-import de.caluga.morphium.annotations.CreationTime;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.IgnoreFields;
-import de.caluga.morphium.annotations.LastAccess;
-import de.caluga.morphium.annotations.LastChange;
-import de.caluga.morphium.annotations.LimitToFields;
-import de.caluga.morphium.annotations.Property;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.Transient;
-import de.caluga.morphium.annotations.Version;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.mongodb.MongoDriver;
-
-import io.github.classgraph.AnnotationInfo;
-import io.github.classgraph.AnnotationInfoList;
-import io.github.classgraph.AnnotationParameterValue;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassInfo;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.ScanResult;
-
+import io.github.classgraph.*;
 import org.slf4j.Logger;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneOffset;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
-import static org.slf4j.LoggerFactory.getLogger;
-
 import static java.lang.String.format;
+import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * User: Stephan Bösebeck
@@ -176,6 +135,13 @@ public class AnnotationAndReflectionHelper {
         return getAnnotationFromHierarchy(aClass, annotationClass) != null;
     }
 
+    public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class<? extends Annotation>annotationClass) {
+        for (Field f:getAllFields(aClass)){
+            if (f.getAnnotation(annotationClass)!=null) return true;
+        }
+        return false;
+    }
+
     /**
      * returns annotations, even if in class hierarchy or
      * lazyloading proxy
@@ -276,6 +242,9 @@ public class AnnotationAndReflectionHelper {
      */
     @SuppressWarnings("StatementWithEmptyBody")
     public String getMongoFieldName(Class clz, String field) {
+        return getMongoFieldName(clz,field,isAnnotationOnAnyField(clz,AdditionalData.class));
+    }
+    public String getMongoFieldName(Class clz, String field,boolean ignoreUnknownField) {
         Class cls = getRealClass(clz);
         if (field.contains(".") || field.contains("(") || field.contains("$")) {
             //searching for a sub-element?
@@ -299,6 +268,13 @@ public class AnnotationAndReflectionHelper {
                 return field;
             }
             if (f == null) {
+                if (ignoreUnknownField) {
+                    if (ccc) {
+                        return createCamelCase(field, false);
+                    } else {
+                        return field;
+                    }
+                }
                 throw new AnnotationAndReflectionException("Field not found " + field + " in cls: " + clz.getName());
             }
             if (f.isAnnotationPresent(Property.class)) {
