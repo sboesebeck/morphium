@@ -958,10 +958,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     value = morphium.getMapper().serialize(value);
                                 }
                             }
-
-                            if (convertCamelCase) {
-                                f = morphium.getARHelper().convertCamelCase(f);
-                            }
+//
+//                            if (convertCamelCase) {
+//                                f = morphium.getARHelper().convertCamelCase(f);
+//                            }
                         }
                         update.put(f, value);
 

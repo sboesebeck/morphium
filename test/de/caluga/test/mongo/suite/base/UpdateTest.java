@@ -1,6 +1,11 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
@@ -338,6 +343,34 @@ public class UpdateTest extends MorphiumTestBase {
 
     }
 
+
+    @Test
+    public void updateProperty() throws Exception {
+        UncachedSubClass uc = new UncachedSubClass();
+        uc.theString = "not set";
+        morphium.store(uc);
+
+        morphium.reread(uc);
+        assert (uc.theString.equals("not set"));
+        //uc.theString="it is set";
+        morphium.set(uc, morphium.getMapper().getCollectionName(UncachedSubClass.class), "THE_STRING", "it is set", false, null);
+        Thread.sleep(100);
+        assert (uc.theString.equals("it is set"));
+        morphium.reread(uc);
+        assert (uc.theString.equals("it is set"));
+
+        uc.setTheString("another value");
+        morphium.updateUsingFields(uc, "theString");
+        Thread.sleep(100);
+        morphium.reread(uc);
+        assert (uc.theString.equals("another value"));
+
+
+        for (UncachedSubClass u : morphium.createQueryFor(UncachedSubClass.class).asList()) {
+            log.info(Utils.toJsonString(u));
+        }
+    }
+
     public enum Value {
         v1, v2, v3
     }
@@ -358,4 +391,27 @@ public class UpdateTest extends MorphiumTestBase {
         }
     }
 
+    @Entity
+    public static class UncachedSubClass {
+        @Id
+        private MorphiumId id;
+        @Property(fieldName = "THE_STRING")
+        private String theString;
+
+        public String getTheString() {
+            return theString;
+        }
+
+        public void setTheString(String theString) {
+            this.theString = theString;
+        }
+
+        @Override
+        public String toString() {
+            return "UncachedSubClass{" +
+                    "id=" + id +
+                    ", theString='" + theString + '\'' +
+                    '}';
+        }
+    }
 }
