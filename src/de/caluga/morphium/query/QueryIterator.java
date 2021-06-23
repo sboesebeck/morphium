@@ -142,7 +142,11 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     private boolean doHasNext() {
-        if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > cursor) {
+        if (currentBatch != null && currentBatch.getBatch() != null) {
+            if (currentBatch.getBatch().size() <= cursor) {
+                close();
+                return false;
+            }
             return true;
         }
         if (currentBatch == null && cursorExternal == 0) {
@@ -154,16 +158,22 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             }
             return doHasNext();
         }
-        try {
-            query.getMorphium().getDriver().closeIteration(currentBatch);
-        } catch (MorphiumDriverException e) {
-            //swallow
-        }
+        close();
         return false;
     }
 
     @Override
     public Map<String, Object> nextMap() {
+        if (multithreadded) {
+            synchronized (this) {
+                return doNextMap();
+            }
+        } else {
+            return doNextMap();
+        }
+    }
+
+    public Map<String, Object> doNextMap() {
         if (currentBatch == null && !hasNext()) {
             return null;
         }
@@ -198,7 +208,20 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
 
     @Override
     public T next() {
-        if (currentBatch == null && !hasNext()) {
+        if (multithreadded) {
+            synchronized (this) {
+                return doNext();
+            }
+        }
+        return doNext();
+    }
+
+    public T doNext() {
+
+        if (currentBatch == null || !hasNext()) {
+            return null;
+        }
+        if (currentBatch.getBatch().size() <= cursor) {
             return null;
         }
         T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), currentBatch.getBatch().get(cursor));
@@ -206,13 +229,26 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+                if (multithreadded) {
+                    synchronized (this) {
+                        currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+                    }
+                } else {
+                    currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+                }
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+                if (multithreadded) {
+                    synchronized (this) {
+                        currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+                    }
+                } else {
+                    currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+                }
+
                 cursor = 0;
             } else {
                 cursor++;
@@ -227,5 +263,14 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         cursorExternal++;
 
         return unmarshall;
+    }
+
+    @Override
+    public void close() {
+        try {
+            query.getMorphium().getDriver().closeIteration(currentBatch);
+        } catch (MorphiumDriverException e) {
+            //swallow
+        }
     }
 }

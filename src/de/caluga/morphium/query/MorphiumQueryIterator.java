@@ -10,4 +10,6 @@ public interface MorphiumQueryIterator<T> extends MorphiumIterator<T> {
 
 
     Map<String, Object> nextMap();
+
+    void close();
 }

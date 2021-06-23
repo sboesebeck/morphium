@@ -158,17 +158,30 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
 
     @Override
     public boolean hasNext() {
+        synchronized (this) {
+            return doHasNext();
+        }
+    }
+
+    private boolean doHasNext() {
         checkAndUpdateLastAccess();
 
         if (cursor == null && !startedAlready) {
             startedAlready = true;
             //startup
             try {
-                cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+                synchronized (this) {
+                    cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+                }
                 if (cursor == null) {
                     return false;
                 }
                 if (cursor.getBatch() == null) {
+                    try {
+                        query.getMorphium().getDriver().closeIteration(cursor);
+                    } catch (MorphiumDriverException e) {
+                        //swallow
+                    }
                     return false;
                 }
                 //Starting background process for filling buffer
@@ -196,8 +209,15 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
             return false;
         }
         //end of results
-        return !(cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) && (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
-
+        boolean ret = !(cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) && (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
+        if (!ret) {
+            try {
+                query.getMorphium().getDriver().closeIteration(cursor);
+            } catch (MorphiumDriverException e) {
+                //swallow
+            }
+        }
+        return ret;
     }
 
 
@@ -260,6 +280,12 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
 
     @Override
     public Map<String, Object> nextMap() {
+        synchronized (this) {
+            return doNextMap();
+        }
+    }
+
+    private Map<String, Object> doNextMap() {
         checkAndUpdateLastAccess();
 
         if (cursor == null && !startedAlready) {
@@ -271,6 +297,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
             log.error("Prefetchbuffer is empty!");
             return null;
         }
+
         if (cursorPos != 0 && cursorPos % getWindowSize() == 0) {
             prefetchBuffer.remove(0);
         }
@@ -297,5 +324,14 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
 //            throw new RuntimeException("Cursor timeout - max wait time of " + query.getMorphium().getConfig().getMaxWaitTime() + "ms reached (duration is " + l + ")");
 //        }
         lastAccess = System.currentTimeMillis();
+    }
+
+    @Override
+    public void close() {
+        try {
+            query.getMorphium().getDriver().closeIteration(cursor);
+        } catch (MorphiumDriverException e) {
+            //swallow
+        }
     }
 }

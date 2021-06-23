@@ -33,6 +33,11 @@ public class EmptyIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     @Override
+    public void close() {
+
+    }
+
+    @Override
     public int getCurrentBufferSize() {
         return 0;
     }
