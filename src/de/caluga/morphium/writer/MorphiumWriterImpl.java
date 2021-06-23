@@ -400,13 +400,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     private <T> void checkIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
+        if (coll == null) coll = morphium.getMapper().getCollectionName(type);
         if (!morphium.getDriver().exists(getDbName(), coll)) {
             switch (morphium.getConfig().getIndexCappedCheck()) {
                 case CREATE_ON_WRITE_NEW_COL:
                     if (logger.isDebugEnabled()) {
                         logger.debug("Collection " + coll + " does not exist - ensuring indices");
                     }
-                    createCappedCollationColl(type);
+                    createCappedCollection(type);
                     morphium.ensureIndicesFor(type, coll, callback);
                     break;
                 case CREATE_ON_STARTUP:
@@ -708,11 +709,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         store(lst, null, callback);
     }
 
-    private void createCappedCollationColl(Class c) {
-        createCappedCollationColl(c, null);
+    private void createCappedCollection(Class c) {
+        createCappedCollection(c, null);
     }
 
-    private void createCappedCollationColl(Class c, String n) {
+    private void createCappedCollection(Class c, String collectionName) {
         if (logger.isDebugEnabled()) {
             logger.debug("Collection does not exist - ensuring indices / capped status / Schema validation");
         }
@@ -722,7 +723,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
 
         Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("create", n != null ? n : morphium.getMapper().getCollectionName(c));
+        cmd.put("create", collectionName != null ? collectionName : morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
         if (capped != null) {
             cmd.put("capped", true);
@@ -801,9 +802,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
+        convertToCapped(c, null, callback);
+    }
+
+    public <T> void convertToCapped(final Class<T> c, String collectionName, final AsyncOperationCallback<T> callback) {
         Runnable r = () -> {
             WriteConcern wc = morphium.getWriteConcernForClass(c);
-            String coll = morphium.getMapper().getCollectionName(c);
+            String coll = collectionName == null ? morphium.getMapper().getCollectionName(c) : collectionName;
             try {
                 if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), coll)) {
                     if (logger.isDebugEnabled()) {
@@ -867,6 +872,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     @Override
     public <T> void set(final T toSet, final String col, final Map<String, Object> values, final boolean upsert, AsyncOperationCallback<T> callback) {
         Query<T> q = (Query<T>) morphium.createQueryFor(toSet.getClass()).f("_id").eq(morphium.getId(toSet));
+        q.setCollectionName(col);
         set(q, values, upsert, false, callback);
         for (Map.Entry<String, Object> entry : values.entrySet()) {
             Field fld = morphium.getARHelper().getField(toSet.getClass(), entry.getKey());
@@ -1430,6 +1436,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private void handleCreationTimeOnUpsert(Class cls, String coll, Map<String, Object> query, Map<String, Object> update, boolean upsert) {
         if (upsert && morphium.getARHelper().isAnnotationPresentInHierarchy(cls, CreationTime.class) && morphium.isAutoValuesEnabledForThread()) {
             Map<String, Object> qobj = morphium.simplifyQueryObject(query);
+            if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
             long cnt = 1;
             try {
                 cnt = morphium.getDriver().count(getDbName(), coll, qobj, null, null);
@@ -1780,6 +1787,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (en.autoVersioning()) {
             update.put("$inc", Utils.getMap(MorphiumDriver.VERSION_NAME, 1));
         }
+        if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
         handleLastChange(cls, update);
         handleCreationTimeOnUpsert(cls, coll, qobj, update, upsert);
 
@@ -1976,7 +1984,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         public void doUpdate(Class cls, T toSet, String coll, String field, Map<String, Object> query, Field f, Map<String, Object> update, WriteConcern wc) {
             long start = System.currentTimeMillis();
-
+            if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
             try {
                 checkIndexAndCaps(cls, coll, callback);
 //                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(getDbName(), coll)) {
