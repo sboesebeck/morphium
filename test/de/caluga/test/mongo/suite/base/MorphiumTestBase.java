@@ -10,7 +10,6 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +20,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 //import de.caluga.morphium.driver.inmem.InMemoryDriver;
 //import de.caluga.morphium.driver.meta.MetaDriver;
@@ -39,6 +39,7 @@ public class MorphiumTestBase {
     public static Morphium morphium;
     private static Properties props;
     protected Logger log;
+    public static AtomicInteger number = new AtomicInteger(0);
 
     public MorphiumTestBase() {
         log = LoggerFactory.getLogger(getClass().getName());
@@ -164,7 +165,7 @@ public class MorphiumTestBase {
             morphium = new Morphium(cfg);
 
         }
-        int num = TestEntityNameProvider.number.incrementAndGet();
+        int num = number.incrementAndGet();
         log.info("------------------------------------------------");
         log.info("----------------------------------------");
         log.info("-----------------------------");

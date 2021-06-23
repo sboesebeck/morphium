@@ -9,7 +9,10 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChangeStreamTest extends MorphiumTestBase {
@@ -87,7 +90,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
     @Test
     public void changeStreamInsertTest() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
+        //morphium.dropCollection(UncachedObject.class);
         final boolean[] run = {true};
         int[] count = {0};
         int[] written = {0};
@@ -112,13 +115,13 @@ public class ChangeStreamTest extends MorphiumTestBase {
         assert (count[0] >= written[0] - 1 && count[0] <= written[0]);
         log.info("Stopped!");
         run[0] = false;
-        Thread.sleep(1000);
+        Thread.sleep(2500);
 
     }
 
     @Test
     public void changeStreamUpdateTest() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
+        //morphium.dropCollection(UncachedObject.class);
         Thread.sleep(1500);
         createUncachedObjects(100);
         log.info("Init finished...");
@@ -256,6 +259,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
         final AtomicInteger deletes = new AtomicInteger();
         mon.addListener(evt -> {
             if (evt.getOperationType().equals("insert")) {
+                log.info("The strValue inserted: " + evt.getFullDocument().get("str_value"));
                 inserts.incrementAndGet();
             }
             if (evt.getOperationType().equals("update")) {
@@ -269,17 +273,18 @@ public class ChangeStreamTest extends MorphiumTestBase {
         });
         mon.start();
 
-        for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
+        for (int i = 0; i < 10; i++)
+            morphium.store(new UncachedObject("changeStreamPipelineTestValue " + i, i), "uncached_object", null);
 
         morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
         morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
-        Thread.sleep(1000);
-        assert (inserts.get() == 10);
+        Thread.sleep(1500);
+        assert (inserts.get() == 10) : "Wrong number of inserts: " + inserts.get();
         assert (updates.get() == 0);
         assert (deletes.get() == 0);
         mon.terminate();
 
-
+        log.info("Resetting counters");
         inserts.set(0);
         updates.set(0);
         deletes.set(0);
@@ -289,6 +294,9 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         mon.addListener(evt -> {
             if (evt.getOperationType().equals("insert")) {
+                if (evt.getFullDocument().get("str_value").equals("value")) {
+                    log.info("got an old store");
+                }
                 inserts.incrementAndGet();
             }
             if (evt.getOperationType().equals("update")) {
@@ -301,7 +309,8 @@ public class ChangeStreamTest extends MorphiumTestBase {
         });
         mon.start();
 
-        for (int i = 0; i < 10; i++) morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
+        for (int i = 0; i < 10; i++)
+            morphium.store(new UncachedObject("changeStreamPipelineTestOtherValue " + i, i), "uncached_object", null);
 
         morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
         Thread.sleep(1000);
@@ -312,7 +321,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
         morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "str_value", "updated", false, true);
         Thread.sleep(1000);
 
-        assert (updates.get() == 10);
+        assert (updates.get() == 10) : "Updates wrong: " + updates.get();
         mon.terminate();
     }
 

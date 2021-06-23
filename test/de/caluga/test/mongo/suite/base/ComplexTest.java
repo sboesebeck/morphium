@@ -143,14 +143,14 @@ public class ComplexTest extends MorphiumTestBase {
 
 
     @Test
-    public void complexQuery() {
+    public void complexQuery() throws Exception {
         for (int i = 1; i <= 100; i++) {
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
-
+        Thread.sleep(250);
         Map<String, Object> query = new HashMap<>();
         query.put("counter", Utils.getMap("$lt", 10));
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

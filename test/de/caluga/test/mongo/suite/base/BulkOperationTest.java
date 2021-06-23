@@ -32,6 +32,7 @@ public class BulkOperationTest extends MorphiumTestBase {
         createUncachedObjects(10);
         UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
         waitForWrites();
+        Thread.sleep(1500);
 
         MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
         //        UpdateBulkRequest up = c

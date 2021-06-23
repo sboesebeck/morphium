@@ -16,7 +16,7 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.MapListObject;
-import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
+
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import org.bson.types.ObjectId;
@@ -125,8 +125,8 @@ public class ObjectMapperImplTest {
 
     @Test
     public void testGetCollectionName() {
-        assert (OM.getCollectionName(CachedObject.class).equals("cached_object_" + TestEntityNameProvider.number.get())) : "Cached object test failed";
-        assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
+        assert (OM.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+        assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
     }
 
     @Test
@@ -134,9 +134,9 @@ public class ObjectMapperImplTest {
 
         for (int i = 0; i < 2; i++) {
             new Thread(() -> {
-                assert (OM.getCollectionName(CachedObject.class).equals("cached_object_" + TestEntityNameProvider.number.get())) : "Cached object test failed";
+                assert (OM.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
                 Thread.yield();
-                assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object_" + TestEntityNameProvider.number.get())) : "Uncached object test failed";
+                assert (OM.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
                 Thread.yield();
                 assert (OM.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
             }).start();

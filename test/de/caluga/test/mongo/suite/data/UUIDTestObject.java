@@ -9,7 +9,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.SafetyLevel;
 import de.caluga.morphium.annotations.WriteSafety;
 
-@Entity(typeId = "uuidtest", nameProvider = TestEntityNameProvider.class)
+@Entity(typeId = "uuidtest")
 @WriteSafety(timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.SECONDARY_PREFERRED)
 public class UUIDTestObject {

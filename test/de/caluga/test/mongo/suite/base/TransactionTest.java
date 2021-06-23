@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.test.mongo.suite.data.TestEntityNameProvider;
+
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -19,8 +19,6 @@ public class TransactionTest extends MorphiumTestBase {
             try {
                 morphium.createQueryFor(UncachedObject.class).delete();
                 Thread.sleep(100);
-                TestEntityNameProvider.number.incrementAndGet();
-                log.info("Entityname number: " + TestEntityNameProvider.number.get());
                 createUncachedObjects(10);
                 Thread.sleep(100);
 
