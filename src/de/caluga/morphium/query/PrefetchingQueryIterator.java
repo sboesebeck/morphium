@@ -188,6 +188,11 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
             Thread.yield(); //for end of data detection
         }
         if (prefetchBuffer.isEmpty()) {
+            try {
+                query.getMorphium().getDriver().closeIteration(cursor);
+            } catch (MorphiumDriverException e) {
+                //swallow
+            }
             return false;
         }
         //end of results

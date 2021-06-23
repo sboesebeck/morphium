@@ -154,6 +154,11 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             }
             return doHasNext();
         }
+        try {
+            query.getMorphium().getDriver().closeIteration(currentBatch);
+        } catch (MorphiumDriverException e) {
+            //swallow
+        }
         return false;
     }
 
