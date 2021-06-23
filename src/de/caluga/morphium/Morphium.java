@@ -1724,6 +1724,9 @@ public class Morphium implements AutoCloseable {
         if (fields.length == 0) {
             return; //not doing an update - no change
         }
+        for (int idx = 0; idx < fields.length; idx++) {
+            fields[idx] = getARHelper().getMongoFieldName(ent.getClass(), fields[idx]);
+        }
 
         //        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
         //            config.getWriter().updateUsingFields(ent, collection, null, fields);
