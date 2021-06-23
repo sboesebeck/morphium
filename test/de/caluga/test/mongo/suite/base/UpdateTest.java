@@ -141,7 +141,7 @@ public class UpdateTest extends MorphiumTestBase {
             o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
-        Thread.sleep(100);
+        Thread.sleep(250);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").eq(42);
         UncachedObject uc = q.get();
@@ -182,7 +182,7 @@ public class UpdateTest extends MorphiumTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("strValue").eq("unexistent");
         morphium.set(q, "counter", 999, true, false);
-        Thread.sleep(100);
+        Thread.sleep(220);
         UncachedObject uc = q.get(); //should now work
 
         assert (uc != null) : "Not found?!?!?";

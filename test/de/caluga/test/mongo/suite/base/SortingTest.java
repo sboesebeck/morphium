@@ -93,7 +93,7 @@ public class SortingTest extends MorphiumTestBase {
     @Test
     public void sortTestAscending() throws Exception{
         prepare();
-
+        Thread.sleep(1000);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("str_value").eq("Random value");
         q = q.sort("counter");

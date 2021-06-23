@@ -15,7 +15,7 @@ import java.util.Objects;
  * @author stephan
  */
 @NoCache
-@Entity(typeId = "uc", nameProvider = TestEntityNameProvider.class)
+@Entity(typeId = "uc")
 @WriteSafety(timeout = -1, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 public class UncachedObject {
