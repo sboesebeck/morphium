@@ -13,6 +13,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -89,15 +90,16 @@ public class IteratorTest extends MorphiumTestBase {
         createTestUc();
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         qu.setCollectionName("test_uc");
+        Thread.sleep(250);
+        long totals = qu.countAll();
 
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000), qu.asIterable(1000, 15)};
         for (final MorphiumIterator<UncachedObject> it : toTest) {
-
+            final AtomicInteger count = new AtomicInteger(0);
             log.info("Running test with " + it.getClass().getName());
             //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
             it.setMultithreaddedAccess(true);
             //            data = Collections.synchronizedList(new ArrayList<>());
-
             final Vector<Thread> threads = new Vector<>();
             for (int i = 0; i < 3; i++) {
                 log.info("Starting thread..." + i);
@@ -105,14 +107,17 @@ public class IteratorTest extends MorphiumTestBase {
                     @Override
                     public void run() {
                         try {
-                            int cnt = 0;
                             while (it.hasNext()) {
                                 UncachedObject uc = it.next();
-                                //                                assert (!data.contains(uc.getMorphiumId())); //cannot guarantee that as hasNext() and nex() are not executed atomically!
-                                //                                data.add(uc.getMorphiumId());
-                                cnt++;
-                                if (cnt % 1000 == 0) {
-                                    log.info("Got " + cnt);
+                                if (uc == null) {
+                                    log.info("reached end concurrently - some other thread won!");
+                                } else {
+                                    //                                assert (!data.contains(uc.getMorphiumId())); //cannot guarantee that as hasNext() and nex() are not executed atomically!
+                                    //                                data.add(uc.getMorphiumId());
+                                    int cnt = count.incrementAndGet();
+                                    if (cnt % 1000 == 0) {
+                                        log.info("Got " + cnt);
+                                    }
                                 }
                             }
                         } finally {
@@ -130,6 +135,7 @@ public class IteratorTest extends MorphiumTestBase {
             while (!threads.isEmpty()) {
                 Thread.sleep(200);
             }
+            assert (count.get() == totals) : "Count wrong, " + count.get() + " should be " + totals;
         }
     }
 

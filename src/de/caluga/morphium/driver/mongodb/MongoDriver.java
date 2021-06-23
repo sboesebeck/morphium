@@ -841,7 +841,6 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-
     @Override
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
@@ -1152,6 +1151,7 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
+            log.debug("Closing iterator / cursor");
             if (crs != null) {
                 @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
                 ret.close();
