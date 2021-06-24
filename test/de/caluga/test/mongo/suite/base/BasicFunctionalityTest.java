@@ -337,8 +337,13 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
 
         assert (last.getMorphiumId() != null) : "ID null?!?!?";
-        Thread.sleep(200);
-        UncachedObject uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
+        UncachedObject uc = null;
+        long s = System.currentTimeMillis();
+        while (uc == null) {
+            Thread.sleep(100);
+            uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
 
@@ -423,7 +428,6 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void uncachedListTest() throws Exception {
-        morphium.clearCollection(UncachedObject.class);
         log.info("Preparing a list...");
 
         long start = System.currentTimeMillis();

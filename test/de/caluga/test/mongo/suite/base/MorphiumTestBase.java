@@ -238,6 +238,11 @@ public class MorphiumTestBase {
             log.info("Dropping collection " + coll);
             morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
         }
+
+        while (morphium.listCollections().size() > 0) {
+            Thread.sleep(100);
+            log.info("Collections still there...");
+        }
         Thread.sleep(150);
     }
 

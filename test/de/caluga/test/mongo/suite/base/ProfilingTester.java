@@ -40,20 +40,26 @@ public class ProfilingTester extends MorphiumTestBase {
         };
 
         morphium.addProfilingListener(pl);
-
-        UncachedObject uc = new UncachedObject();
-        uc.setStrValue("Test");
-        uc.setCounter(111);
-        morphium.store(uc);
-        Thread.sleep(100);
-        assert (writeAccess);
-        assert (writeTime > -1);
-        for (int i = 0; i < 100; i++) {
-            morphium.createQueryFor(UncachedObject.class).get();
-            Thread.sleep(250);
-            assert (readAccess);
-            assert (readTime > -1);
+        try {
+            UncachedObject uc = new UncachedObject();
+            uc.setStrValue("Test");
+            uc.setCounter(111);
+            morphium.store(uc);
+            Thread.sleep(100);
+            assert (writeAccess);
+            assert (writeTime > -1);
+            for (int i = 0; i < 100; i++) {
+                morphium.createQueryFor(UncachedObject.class).get();
+                long s = System.currentTimeMillis();
+                while (!readAccess) {
+                    Thread.sleep(10);
+                    assert (System.currentTimeMillis() - s < 15000);
+                }
+                assert (readAccess);
+                assert (readTime > -1);
+            }
+        } finally {
+            morphium.removeProfilingListener(pl);
         }
-        morphium.removeProfilingListener(pl);
     }
 }

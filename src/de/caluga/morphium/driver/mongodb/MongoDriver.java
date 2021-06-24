@@ -1151,7 +1151,7 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
-            log.debug("Closing iterator / cursor");
+            //log.debug("Closing iterator / cursor");
             if (crs != null) {
                 @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
                 ret.close();
