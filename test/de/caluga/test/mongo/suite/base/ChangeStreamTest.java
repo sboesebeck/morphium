@@ -62,7 +62,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
                     morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
                     log.info("Written");
                     written[0]++;
-                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "value", "newVal");
+                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
                     log.info("updated");
                     written[0]++;
                 }
@@ -76,10 +76,13 @@ public class ChangeStreamTest extends MorphiumTestBase {
             });
 
 
-            log.info("waiting for some time!");
-            Thread.sleep(8500);
             run[0] = false;
-            assert (count[0] > 0 && count[0] >= written[0] - 2) : "Wrong count: " + count[0] + " written: " + written[0];
+            start = System.currentTimeMillis();
+            while (!(count[0] > 0 && count[0] >= written[0] - 2)) {
+                Thread.sleep(500);
+                log.info("Wrong count: " + count[0] + " written: " + written[0]);
+                assert (System.currentTimeMillis() - start < 10000);
+            }
         } finally {
             run[0] = false;
             morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));

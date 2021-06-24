@@ -1102,7 +1102,11 @@ public class MessagingTest extends MorphiumTestBase {
 
             assert (!gotMessage3);
             assert (!gotMessage4);
-            Thread.sleep(200);
+            long s = System.currentTimeMillis();
+            while (!gotMessage1 && !gotMessage2) {
+                Thread.sleep(200);
+                assert (System.currentTimeMillis() - s < 5000);
+            }
 
             int rec = 0;
             if (gotMessage1) {
@@ -1126,11 +1130,16 @@ public class MessagingTest extends MorphiumTestBase {
             assert (!gotMessage2);
 
             rec = 0;
-            if (gotMessage3) {
-                rec++;
-            }
-            if (gotMessage4) {
-                rec++;
+            s = System.currentTimeMillis();
+            while (rec == 0) {
+                if (gotMessage3) {
+                    rec++;
+                }
+                if (gotMessage4) {
+                    rec++;
+                }
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - s < 5000);
             }
             assert (rec == 1) : "rec is " + rec;
             Thread.sleep(2500);
@@ -1200,19 +1209,22 @@ public class MessagingTest extends MorphiumTestBase {
             m.setName("A message");
 
             sender.queueMessage(m);
-            Thread.sleep(5000);
-
-            int rec = 0;
-            if (gotMessage1) {
-                rec++;
+            long s = System.currentTimeMillis();
+            while (true) {
+                int rec = 0;
+                if (gotMessage1) {
+                    rec++;
+                }
+                if (gotMessage2) {
+                    rec++;
+                }
+                if (gotMessage3) {
+                    rec++;
+                }
+                if (rec == 1) break;
+                Thread.sleep(50);
+                assert (System.currentTimeMillis() - s < 5000);
             }
-            if (gotMessage2) {
-                rec++;
-            }
-            if (gotMessage3) {
-                rec++;
-            }
-            assert (rec == 1) : "rec is " + rec;
 
             assert (m1.getNumberOfMessages() == 0);
         } finally {
@@ -1235,8 +1247,12 @@ public class MessagingTest extends MorphiumTestBase {
             m1.sendMessage(m);
             Thread.sleep(100);
             m1.removeMessage(m);
-            Thread.sleep(100);
-            assert (morphium.createQueryFor(Msg.class).countAll() == 0);
+            long s = System.currentTimeMillis();
+            while (true) {
+                Thread.sleep(100);
+                if (morphium.createQueryFor(Msg.class).countAll() == 0) break;
+                assert (System.currentTimeMillis() - s < 5000);
+            }
         } finally {
             m1.terminate();
         }
@@ -1297,13 +1313,21 @@ public class MessagingTest extends MorphiumTestBase {
         m1.start();
         try {
             sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
-            Thread.sleep(1500);
+            long s = System.currentTimeMillis();
+            while (!gotMessage || gotMessage1) {
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - s < 5000);
+            }
             assert (gotMessage);
             assert (!gotMessage1);
 
             gotMessage = false;
             sender.queueMessagetoSelf(new Msg("testmsg", "SelfMessage", "val"));
-            Thread.sleep(1400);
+            s = System.currentTimeMillis();
+            while (!gotMessage || gotMessage1) {
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - s < 5000);
+            }
             assert (gotMessage);
             assert (!gotMessage1);
         } finally {
