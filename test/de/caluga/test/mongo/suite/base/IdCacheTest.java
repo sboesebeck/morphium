@@ -19,7 +19,6 @@ public class IdCacheTest extends MorphiumTestBase {
 
     @Test
     public void idTest() throws Exception {
-        morphium.dropCollection(CachedObject.class);
         for (int i = 1; i < 100; i++) {
             CachedObject u = new CachedObject();
             u.setCounter(i);
@@ -28,11 +27,16 @@ public class IdCacheTest extends MorphiumTestBase {
         }
 
         waitForWrites();
-        Thread.sleep(1500);
-
+        long s = System.currentTimeMillis();
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
+        while (q.countAll() != 99) {
+            log.info("Count is still: " + q.countAll());
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         q = q.f("counter").lt(30);
         List<CachedObject> lst = q.asList();
+
         String k = morphium.getCache().getCacheKey(q);
         assert (lst.size() == 29) : "Size matters! " + lst.size();
         Thread.sleep(100);

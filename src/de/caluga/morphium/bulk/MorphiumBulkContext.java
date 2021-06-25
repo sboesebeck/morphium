@@ -2,6 +2,7 @@ package de.caluga.morphium.bulk;/**
  * Created by stephan on 18.11.15.
  */
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -224,7 +225,11 @@ public class MorphiumBulkContext<T> {
     @SuppressWarnings("unused")
     public void addUnSetRequest(T obj, String field, Object value, boolean upsert) {
         //noinspection unchecked
-        addUnsetRequest(ctx.getMorphium().createQueryFor((Class<T>) obj.getClass()).f(ctx.getMorphium().getARHelper().getIdFieldName(obj)).eq(ctx.getMorphium().getARHelper().getId(obj)), field, value, upsert, false);
+        Morphium m = ctx.getMorphium();
+        Query<T> q = m.createQueryFor((Class<T>) obj.getClass());
+        q.f(ctx.getMorphium().getARHelper().getIdFieldName(obj))
+                .eq(ctx.getMorphium().getARHelper().getId(obj));
+        addUnsetRequest(q, field, value, upsert, false);
     }
 
     public void addSetRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {

@@ -105,13 +105,18 @@ public class LastAccessTest extends MorphiumTestBase {
 
     @Test
     public void testLastAccessInc() throws Exception {
-        morphium.dropCollection(TstObjLA.class);
         Thread.sleep(200);
         TstObjLA la = new TstObjLA();
         la.setValue("value");
 
         morphium.store(la);
-        Thread.sleep(100);
+
+        long s = System.currentTimeMillis();
+
+        while (morphium.findById(TstObjLA.class, la.id) == null) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         morphium.reread(la);
 
         assert (la.creationTime != 0);
@@ -119,7 +124,11 @@ public class LastAccessTest extends MorphiumTestBase {
 
         la.setValue("new Value");
         morphium.store(la);
-        Thread.sleep(1000);
+        s = System.currentTimeMillis();
+        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == la.getCreationTime()) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         morphium.reread(la);
         long lc = la.getLastChange();
         assert (la.getCreationTime() != la.getLastChange());
@@ -130,13 +139,21 @@ public class LastAccessTest extends MorphiumTestBase {
         lc = la.getLastChange();
         la.setIntValue(41);
         morphium.store(la);
-        Thread.sleep(1000);
+        s = System.currentTimeMillis();
+        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 15000);
+        }
         morphium.reread(la);
 
         assert (lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(la, "int_value", 1);
-        Thread.sleep(1000);
+        s = System.currentTimeMillis();
+        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 15000);
+        }
         morphium.reread(la);
         assert (la.getIntValue() == 42);
         assert (lc != la.getLastChange());
@@ -145,14 +162,22 @@ public class LastAccessTest extends MorphiumTestBase {
         lc = la.getLastChange();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
         morphium.set(q, "int_value", 1);
-        Thread.sleep(500);
+        s = System.currentTimeMillis();
+        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 15000);
+        }
         morphium.reread(la);
         assert (la.getIntValue() == 1);
         assert (lc != la.getLastChange());
 
         lc = la.getLastChange();
         morphium.inc(q, "int_value", 41);
-        Thread.sleep(500);
+        s = System.currentTimeMillis();
+        while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 15000);
+        }
         morphium.reread(la);
         assert (la.getIntValue() == 42);
         assert (lc != la.getLastChange());
