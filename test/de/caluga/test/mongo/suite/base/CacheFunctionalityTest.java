@@ -97,7 +97,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
             sp.setStrValue("Value " + i);
             morphium.store(sp);
         }
-        Thread.sleep(100);
+        long s = System.currentTimeMillis();
+        while (morphium.createQueryFor(SpecCachedOjbect.class).countAll() < amount) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         for (int i = 0; i < amount; i++) {
             assert (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() != null);
         }

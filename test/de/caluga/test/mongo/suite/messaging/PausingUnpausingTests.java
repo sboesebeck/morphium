@@ -128,10 +128,19 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
-        Thread.sleep(500);
+        long s = System.currentTimeMillis();
+        while (count.get() < 5) {
+            Thread.sleep(500);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
-        Thread.sleep(6500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
+        //Thread.sleep(6500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
+        s = System.currentTimeMillis();
+        while (list.size() != 20) {
+            Thread.sleep(1000);
+            assert (System.currentTimeMillis() - s < 15000);
+        }
         assert (list.size() == 20) : "Size wrong " + list.size();
 
         list.remove(0); //prio of first  is random

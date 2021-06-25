@@ -48,14 +48,21 @@ public class VersioningTest extends MorphiumTestBase {
     @Test
     public void updateVersionTest() throws Exception {
         for (int i = 0; i < 100; i++) morphium.store(new VersionedEntity("value" + i, i));
-
-        Thread.sleep(100);
+        long s = System.currentTimeMillis();
+        while (morphium.createQueryFor(VersionedEntity.class).countAll() != 100) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
 
         morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10"), UncachedObject.Fields.counter, 1234);
-        Thread.sleep(100);
-
+        s = System.currentTimeMillis();
+        while (morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get().getTheVersionNumber() != 2) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
+        assert (morphium.createQueryFor(VersionedEntity.class).f("strValue").eq("value10").countAll() == 1);
         VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
-        assert (ve.getTheVersionNumber() == 2);
+        assert (ve.getTheVersionNumber() == 2) : "Version wrong, should be 2 but is " + ve.getTheVersionNumber();
         ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value11").get();
         assert (ve.getTheVersionNumber() == 1);
     }

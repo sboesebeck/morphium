@@ -30,9 +30,15 @@ public class BulkOperationTest extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
 
         createUncachedObjects(10);
-        UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
         waitForWrites();
-        Thread.sleep(1500);
+
+        UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
+        long s = System.currentTimeMillis();
+        while (uc1 == null) {
+            uc1 = morphium.createQueryFor(UncachedObject.class).get();
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
 
         MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
         //        UpdateBulkRequest up = c
@@ -72,8 +78,6 @@ public class BulkOperationTest extends MorphiumTestBase {
 
     @Test
     public void bulkTest() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
-
         createUncachedObjects(100);
         waitForWrites();
 
@@ -81,8 +85,11 @@ public class BulkOperationTest extends MorphiumTestBase {
         //        UpdateBulkRequest up = c
         c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 999, true, true);
         Map<String, Object> ret = c.runBulk();
-        Thread.sleep(500);
-
+        long s = System.currentTimeMillis();
+        while (morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() != 100) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
             assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
         }
@@ -92,14 +99,17 @@ public class BulkOperationTest extends MorphiumTestBase {
 
     @Test
     public void incTest() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
+        //morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(100);
 
         MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
         c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
         c.runBulk();
-        Thread.sleep(1500);
-
+        long s = System.currentTimeMillis();
+        while (morphium.createQueryFor(UncachedObject.class).f("counter").lt(1000).countAll() != 0) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
             assert (o.getCounter() > 1000) : "Counter is " + o.getCounter();
         }

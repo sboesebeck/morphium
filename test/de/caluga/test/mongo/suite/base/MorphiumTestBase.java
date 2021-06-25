@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -99,6 +100,11 @@ public class MorphiumTestBase {
 
     private void init() {
         log.info("in init!");
+        if (morphium != null) {
+            log.info("Closing morphium");
+            morphium.close();
+            morphium = null;
+        }
         if (morphium == null) {
             MorphiumConfig cfg;
             Properties p = getProps();
@@ -161,7 +167,7 @@ public class MorphiumTestBase {
                 cfg.setThreadConnectionMultiplier(2);
                 storeProps();
             }
-
+            cfg.setDatabase(cfg.getDatabase() + "_" + number.get());
             morphium = new Morphium(cfg);
 
         }
@@ -242,6 +248,11 @@ public class MorphiumTestBase {
         while (morphium.listCollections().size() > 0) {
             Thread.sleep(100);
             log.info("Collections still there...");
+        }
+        try {
+            morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
         }
         Thread.sleep(150);
     }

@@ -635,9 +635,6 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void severalMessagingsTest() throws Exception {
 
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(100);
-
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
@@ -667,9 +664,11 @@ public class MessagingTest extends MorphiumTestBase {
                 }.start();
 
             }
+            long s = System.currentTimeMillis();
             while (procCounter.get() < 180) {
                 Thread.sleep(1000);
                 log.info("Recieved " + procCounter.get());
+                assert (System.currentTimeMillis() - s < 15000);
             }
         } finally {
             m1.terminate();
@@ -1287,7 +1286,10 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging sender = new Messaging(morphium, 100, false);
         assert (sender.isReceiveAnswers());
         assert (sender.getReceiveAnswers().equals(Messaging.ReceiveAnswers.ONLY_MINE)); //default!!!
-        assert (sender.isUseChangeStream());
+        if (!sender.isUseChangeStream()) {
+            log.error("Sender does not use changestream??!");
+            sender.setUseChangeStream(true);
+        }
         assert (sender.getWindowSize() > 0);
         assert (sender.getQueueName() == null);
 

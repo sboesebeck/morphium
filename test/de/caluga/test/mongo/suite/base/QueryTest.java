@@ -591,19 +591,19 @@ public class QueryTest extends MorphiumTestBase {
 
     @Test
     public void testTestAddProjection2() throws Exception {
-        UncachedObject uc = new UncachedObject("test", 2);
+        UncachedObject uc = new UncachedObject("test", 22);
         uc.setDval(3.14152);
         morphium.store(uc);
         long s = System.currentTimeMillis();
-        while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
+        while (morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(22).countAll() == 0) {
             Thread.sleep(100);
             assert (System.currentTimeMillis() - s < 5000);
 
         }
 
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).addProjection(UncachedObject.Fields.counter)
+        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(22).addProjection(UncachedObject.Fields.counter)
                 .addProjection(UncachedObject.Fields.dval).asList();
-        assert (lst.size() == 1);
+        assert (lst.size() == 1) : "Count wrong: " + lst.size();
         assert (lst.get(0).getStrValue() == null);
         assert (lst.get(0).getDval() != 0);
         assert (lst.get(0).getCounter() != 0);
