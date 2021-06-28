@@ -107,6 +107,12 @@ public class SubDocumentTests extends MorphiumTestBase {
         morphium.store(s);
         Thread.sleep(100);
         List<SubDocumentAdditional> lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
+        long st = System.currentTimeMillis();
+        while (lst.size() != 1) {
+            Thread.sleep(100);
+            lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
+            assert (System.currentTimeMillis() - st < 5000);
+        }
         assert (lst.size() == 1);
         assert (lst.get(0).additionals.get("sub") != null);
         assert (lst.get(0).additionals.get("sub") instanceof Map);

@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
  * Time: 16:24
  * <p/>
  */
+@SuppressWarnings({"rawtypes", "CommentedOutCode"})
 public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private final List<Map<String, Object>> params = new ArrayList<>();
     private final List<Group<T, R>> groups = new ArrayList<>();
@@ -284,7 +285,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
         }
-        return ((Long) res.get(0).get("num")).longValue();
+        return (Long) res.get(0).get("num");
     }
 
     @Override
@@ -321,6 +322,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
         List<R> result = new ArrayList<>();
         if (getResultType().equals(Map.class)) {
+            //noinspection unchecked
             result = (List<R>) r;
         } else {
             for (Map<String, Object> dbObj : r) {
@@ -408,7 +410,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             out.put(e.getKey(), e.getValue().toQueryObject());
         }
         List<Object> bn = new ArrayList<>();
-        boundaries.stream().forEach(x -> bn.add(x.toQueryObject()));
+        boundaries.forEach(x -> bn.add(x.toQueryObject()));
         Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
                 .add("boundaries", bn)
                 .add("default", preset.toQueryObject())
@@ -450,7 +452,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     //    }
     @Override
     public Aggregator<T, R> collStats(Boolean latencyHistograms, Double scale, boolean count, boolean queryExecStats) {
-        Map<String, Object> m = new LinkedHashMap();
+        @SuppressWarnings({"unchecked", "rawtypes"}) Map<String, Object> m = new LinkedHashMap();
         if (latencyHistograms != null) {
             m.put("latencyStats", Utils.getMap("histograms", latencyHistograms));
         }
@@ -640,6 +642,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (pipeline != null && pipeline.size() > 0) {
             List lst = new ArrayList();
             for (Expr e : pipeline) {
+                //noinspection unchecked
                 lst.add(e.toQueryObject());
             }
             m.put("pipeline", lst);
@@ -692,6 +695,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     }
 
+    @SuppressWarnings("ConstantConditions")
     private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
         List<String> flds = new ArrayList<>();
@@ -706,18 +710,23 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
         Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("coll", intoCollection));
         if (let != null) {
+            //noinspection unchecked
             doc.put("let", Utils.getNoExprMap((Map) let));
         }
         if (matchAction != null) {
+            //noinspection unchecked
             doc.put("whenMatched", matchAction.name());
         }
         if (notMatchedAction != null) {
+            //noinspection unchecked
             doc.put("whenNotMatched", notMatchedAction.name());
         }
         if (onFields != null && onFields.length != 0) {
+            //noinspection unchecked
             doc.put("on", flds);
         }
         if (pipeline != null) {
+            //noinspection unchecked
             doc.put("whenMatched", pipeline);
         }
 
@@ -837,9 +846,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> unset(Enum... field) {
+    public Aggregator<T, R> unset(@SuppressWarnings("rawtypes") Enum... field) {
         List<String> lst = Arrays.stream(field).map(Enum::name).collect(Collectors.toList());
-        params.add(Utils.getMap("$unset",lst));
+        params.add(Utils.getMap("$unset", lst));
         return this;
     }
 

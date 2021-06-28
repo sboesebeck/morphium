@@ -9,7 +9,6 @@ import java.util.Stack;
 
 public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
 
-    private final Destination destination;
     private final String selector;
     private final Messaging messaging;
     private MessageListener listener;
@@ -19,7 +18,6 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     public Consumer(Messaging messaging, Destination dst) {
         this.messaging = messaging;
-        this.destination = dst;
         try {
             if (dst instanceof JMSTopic) {
                 selector = ((JMSTopic) dst).getTopicName();
@@ -98,6 +96,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         throw new IllegalArgumentException("not implemented yet, sorry");
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public JMSMessage onMessage(Messaging msg, JMSMessage m) throws InterruptedException {
         log.info("Incoming message...");

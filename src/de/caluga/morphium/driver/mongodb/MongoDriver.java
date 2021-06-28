@@ -59,12 +59,10 @@ import com.mongodb.event.ConnectionRemovedEvent;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumDriverOperation;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
@@ -113,9 +111,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static de.caluga.morphium.aggregation.Aggregator.GeoNearFields.query;
-
-@SuppressWarnings({"WeakerAccess", "deprecation", "MagicConstant"})
+@SuppressWarnings({"WeakerAccess", "deprecation", "MagicConstant", "BusyWait", "CommentedOutCode"})
 public class MongoDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
     private String[] hostSeed;
@@ -485,6 +481,7 @@ public class MongoDriver implements MorphiumDriver {
         connect(null);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public void connect(String replicasetName) throws MorphiumDriverException {
         try {
@@ -737,6 +734,7 @@ public class MongoDriver implements MorphiumDriver {
         }
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public Maximums getMaximums() {
         if (maximums == null) {
@@ -773,6 +771,7 @@ public class MongoDriver implements MorphiumDriver {
         writeTimeout = wt;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public void close() throws MorphiumDriverException {
         try {
@@ -841,6 +840,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
@@ -852,7 +852,7 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCollection coll = getColl(database, collection, readPreference, null);
             MongoCollection<Document> c = getCollection(database, collection, readPreference, null);
             List<BasicDBObject> pipe = new ArrayList<>();
-            aggregationPipeline.stream().forEach((x) -> pipe.add(new BasicDBObject(x)));
+            aggregationPipeline.forEach((x) -> pipe.add(new BasicDBObject(x)));
             AggregateIterable<Document> it = currentTransaction.get() == null ? c.aggregate(pipe) : c.aggregate(currentTransaction.get().getSession(), pipe);
 
             if (batchSize != 0) {
@@ -895,6 +895,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -965,6 +966,7 @@ public class MongoDriver implements MorphiumDriver {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, pipeline, cb);
     }
 
+    @SuppressWarnings("ConstantConditions")
     private void processChangeStreamEvent(DriverTailableIterationCallback cb, ChangeStreamDocument<Document> doc, long start) {
         try {
             Map<String, Object> obj = new HashMap<>();
@@ -1102,6 +1104,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @SuppressWarnings("ConstantConditions")
     private void handleMetaData(Map<String, Object> findMetaData, MongoCursor<Document> ret) {
         if (findMetaData != null) {
             if (ret.getServerAddress() != null) {
@@ -1264,11 +1267,13 @@ public class MongoDriver implements MorphiumDriver {
             } else if (value instanceof ObjectId) {
                 value = new MorphiumId(((ObjectId) value).toByteArray());
             } else if (value instanceof BasicDBList) {
+                //noinspection unchecked
                 value = convertBSON(Collections.singletonMap("list", new ArrayList(((BasicDBList) value)))).get("list");
             } else //noinspection ConditionCoveredByFurtherCondition,DuplicateCondition,DuplicateCondition
                 if (value instanceof BasicBSONObject
                         || value instanceof Document
                         || value instanceof BSONObject) {
+                    //noinspection unchecked
                     value = convertBSON((Map<String, Object>) value);
                 } else if (value instanceof Binary) {
                     Binary b = (Binary) value;
@@ -1297,12 +1302,14 @@ public class MongoDriver implements MorphiumDriver {
                     value = v;
                 } else //noinspection ConstantConditions
                     if (value instanceof BsonArray) {
+                        //noinspection unchecked
                         value = convertBSON(Collections.singletonMap("list", new ArrayList(((BsonArray) value).getValues()))).get("list");
                     } else //noinspection ConstantConditions,DuplicateCondition
                         if (value instanceof Document) {
                             value = convertBSON((Document) value);
                         } else //noinspection ConstantConditions,DuplicateCondition
                             if (value instanceof BSONObject) {
+                                //noinspection unchecked
                                 value = convertBSON((Map<String, Object>) value);
                             }
             obj.put(entry.getKey(), value);
@@ -1412,6 +1419,7 @@ public class MongoDriver implements MorphiumDriver {
         return coll.estimatedDocumentCount();
      }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
 
@@ -1434,7 +1442,7 @@ public class MongoDriver implements MorphiumDriver {
                 //Hack to detect versioning
                 if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
                     filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
-                    toUpdate.put(MorphiumDriver.VERSION_NAME, (Long) toUpdate.get(MorphiumDriver.VERSION_NAME) + 1l);
+                    toUpdate.put(MorphiumDriver.VERSION_NAME, (Long) toUpdate.get(MorphiumDriver.VERSION_NAME) + 1L);
                 }
 
                 //                    toUpdate.remove("_id");
@@ -1489,6 +1497,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
@@ -1697,6 +1706,7 @@ public class MongoDriver implements MorphiumDriver {
         return ret;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public boolean exists(String db, String collection) throws MorphiumDriverException {
         Map<String, Object> found = DriverHelper.doCall(() -> {
@@ -1757,6 +1767,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -1778,6 +1789,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -1798,6 +1810,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -1818,6 +1831,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
                                                boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
@@ -1946,6 +1960,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {

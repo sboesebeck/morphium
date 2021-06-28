@@ -7,6 +7,7 @@ import java.util.Map;
 /**
  * bulk request for updating
  **/
+@SuppressWarnings("CommentedOutCode")
 public class UpdateBulkRequest extends BulkRequest {
     private Map<String, Object> query;
     private Map<String, Object> cmd;

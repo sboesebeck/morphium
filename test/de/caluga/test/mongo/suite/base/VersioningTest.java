@@ -56,10 +56,13 @@ public class VersioningTest extends MorphiumTestBase {
 
         morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10"), UncachedObject.Fields.counter, 1234);
         s = System.currentTimeMillis();
-        while (morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get().getTheVersionNumber() != 2) {
+        VersionedEntity entity = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
+        while (entity != null && entity.getTheVersionNumber() != 2) {
             Thread.sleep(100);
             assert (System.currentTimeMillis() - s < 5000);
+            entity = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
         }
+        Thread.sleep(100);
         assert (morphium.createQueryFor(VersionedEntity.class).f("strValue").eq("value10").countAll() == 1);
         VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
         assert (ve.getTheVersionNumber() == 2) : "Version wrong, should be 2 but is " + ve.getTheVersionNumber();

@@ -224,6 +224,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     public Object marshallIfNecessary(Object o) {
         if (o == null) {
             return null;
@@ -709,7 +710,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "CastCanBeRemovedNarrowingVariableType", "CommentedOutCode"})
     @Override
     public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
         if (o == null) {
@@ -1075,15 +1076,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                         // The following cases are more commen with Aggregation
                     } else if (fieldType.equals(int.class) && idValueClass.equals(Integer.class)) {
-                        field.set(ret, ((Integer) idValue).intValue());
+                        field.set(ret, (Integer) idValue);
                     } else if (fieldType.equals(long.class) && idValueClass.equals(Long.class)) {
-                        field.set(ret, ((Long) idValue).longValue());
+                        field.set(ret, (Long) idValue);
                     } else if (fieldType.equals(double.class) && idValueClass.equals(Double.class)) {
-                        field.set(ret, ((Double) idValue).doubleValue());
+                        field.set(ret, (Double) idValue);
                     } else if (fieldType.equals(float.class) && idValueClass.equals(Float.class)) {
-                        field.set(ret, ((Float) idValue).floatValue());
+                        field.set(ret, (Float) idValue);
                     } else if (fieldType.equals(boolean.class) && idValueClass.equals(Boolean.class)) {
-                        field.set(ret, ((Boolean) idValue).booleanValue());
+                        field.set(ret, (Boolean) idValue);
                     } else {
                         log.error("ID type missmatch");
                         throw new IllegalArgumentException("ID type missmatch. Field in '" + ret.getClass().toString() + "' is '" + fieldType + "' but we got '" + idValueClass + "' from Mongo!");
@@ -1168,7 +1169,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 if (o instanceof Boolean) {
                     Array.set(arr, i++, o);
                 } else if (o instanceof Number) {
-                    Array.set(arr, i++, Boolean.valueOf(((Number) o).intValue() != 0));
+                    Array.set(arr, i++, ((Number) o).intValue() != 0);
                 } else {
                     Array.set(arr, i++, Boolean.valueOf(o.toString()));
                 }
@@ -1436,6 +1437,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
+    @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
     protected Map fillMap(Type mapType, Map<String, Object> fromDB) {
         boolean useEnumMap = false;
         Class<?> keyClass = null;

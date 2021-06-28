@@ -8,6 +8,7 @@ public enum GeoType {
     MULITLINESTRING("MultiLineString"),
     MULTIPOLYGON("MultiPoligon");
 
+    @SuppressWarnings("CanBeFinal")
     String mongoName;
 
     public String getMongoName() {

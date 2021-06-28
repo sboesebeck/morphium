@@ -46,6 +46,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     private final ScheduledThreadPoolExecutor housekeeping = new ScheduledThreadPoolExecutor(1);
     private final HouseKeepingHelper hkHelper = new HouseKeepingHelper();
     private final Runnable hkTask;
+    @SuppressWarnings("FieldMayBeFinal")
     private boolean cacheListenerRegistered = false;
 
     public MorphiumCacheJCacheImpl() {
@@ -151,6 +152,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return idCaches.keySet();
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private <T> Cache<Object, CacheEntry<T>> getIdCache(Class<? extends T> type) {
         if (idCaches.containsKey(type)) {
             //noinspection unchecked
@@ -185,6 +187,7 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
         return cache;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private <T> Cache<Object, CacheEntry<List<T>>> getResultCache(Class<? extends T> type) {
         if (resultCaches.containsKey(type)) {
             //noinspection unchecked

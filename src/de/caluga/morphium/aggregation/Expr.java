@@ -13,6 +13,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
+@SuppressWarnings("unchecked")
 public abstract class Expr {
 
     public abstract Object toQueryObject();
@@ -27,6 +28,7 @@ public abstract class Expr {
         return ret;
     }
 
+    @SuppressWarnings("ConstantConditions")
     public static Expr parse(Object o) {
         Logger log = LoggerFactory.getLogger(Expr.class);
         if (o instanceof Map) {
@@ -43,7 +45,7 @@ public abstract class Expr {
                         try {
                             Object p = ((Map) o).get("$" + k);
                             if (p instanceof List) {
-                                List<Expr> l = new ArrayList();
+                                @SuppressWarnings("unchecked") List<Expr> l = new ArrayList();
                                 for (Object param : (List) p) {
                                     l.add(parse(param));
                                 }
@@ -385,6 +387,7 @@ public abstract class Expr {
     }
 
     private static Expr arrayElemAt(List lst) {
+        //noinspection unchecked
         return new OpExpr("arrayElemAt", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
@@ -408,6 +411,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 List<?> ret = new ArrayList<>();
                 for (Expr e : arrays) {
+                    //noinspection unchecked
                     ret.addAll(((List) e.evaluate(context)));
                 }
                 return ret;
@@ -455,6 +459,7 @@ public abstract class Expr {
                 Object v = elem.evaluate(context);
 
                 boolean found = false;
+                //noinspection unchecked
                 for (Object o : (List<Object>) array.evaluate(context)) {
                     if (o instanceof Expr) {
                         o = ((Expr) o).evaluate(context);
@@ -515,8 +520,11 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 List ret = new ArrayList();
+                //noinspection unchecked
                 for (Map.Entry e : ((Map<String, Object>) obj.evaluate(context)).entrySet()) {
+                    //noinspection unchecked
                     ret.add(e.getKey());
+                    //noinspection unchecked
                     ret.add(e.getValue());
                 }
                 return ret;
@@ -599,6 +607,7 @@ public abstract class Expr {
     //Boolean Expression Operators
     public static Expr and(Expr... expressions) {
         return new OpExpr("and", Arrays.asList(expressions)) {
+            @SuppressWarnings("ConstantConditions")
             @Override
             public Object evaluate(Map<String, Object> context) {
                 boolean result = true;
@@ -615,6 +624,7 @@ public abstract class Expr {
 
     public static Expr or(Expr... expressions) {
         return new OpExpr("or", Arrays.asList(expressions)) {
+            @SuppressWarnings("ConstantConditions")
             @Override
             public Object evaluate(Map<String, Object> context) {
                 boolean result = false;
@@ -657,6 +667,7 @@ public abstract class Expr {
         return new OpExpr("cmp", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
                 return ((Comparable) e1.evaluate(context)).compareTo(e1.evaluate(context));
             }
         };
@@ -711,6 +722,7 @@ public abstract class Expr {
         return new OpExpr("gt", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
                 return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) > 0;
             }
         };
@@ -729,6 +741,7 @@ public abstract class Expr {
         return new OpExpr("lt", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
                 return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) < 0;
             }
         };
@@ -747,6 +760,7 @@ public abstract class Expr {
         return new OpExpr("gte", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
                 return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) >= 0;
             }
         };
@@ -765,6 +779,7 @@ public abstract class Expr {
         return new OpExpr("lte", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
                 return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) <= 0;
             }
         };
@@ -923,6 +938,7 @@ public abstract class Expr {
     }
 
     private static Expr dateFromParts(Map m) {
+        //noinspection unchecked
         return new MapOpExpr("dateFromParts", m);
     }
 
@@ -1317,6 +1333,7 @@ public abstract class Expr {
                     if (!(val instanceof Map)) {
                         throw new IllegalArgumentException("cannot merge non documents!");
                     }
+                    //noinspection unchecked
                     res.putAll((Map<? extends String, ?>) val);
                 }
                 return res;
@@ -1341,10 +1358,12 @@ public abstract class Expr {
     }
 
     private static Expr allElementsTrue(List lst) {
+        //noinspection unchecked
         return new OpExpr("alleElementsTrue", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 boolean ret = true;
+                //noinspection unchecked
                 for (Expr el : (List<Expr>) lst) {
                     if (!Boolean.TRUE.equals(el.evaluate(context))) {
                         ret = false;
@@ -1421,6 +1440,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Set set = new HashSet();
                 for (Expr el : e) {
+                    //noinspection unchecked
                     set.add(el.evaluate(context));
                 }
                 return set;
@@ -1713,6 +1733,7 @@ public abstract class Expr {
     }
 
     private static Expr atan2(List lst) {
+        //noinspection unchecked
         return new OpExpr("atan2", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
@@ -1750,6 +1771,7 @@ public abstract class Expr {
     }
 
     private static Expr atanh(List lst) {
+        //noinspection unchecked
         return new OpExpr("atanh", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
@@ -1796,6 +1818,7 @@ public abstract class Expr {
     }
 
     private static Expr convert(Map map) {
+        //noinspection unchecked
         return new MapOpExpr("convert", map) {
             @Override
             public Object evaluate(Map<String, Object> context) {
@@ -1954,9 +1977,10 @@ public abstract class Expr {
                     Object v = expr.evaluate(context);
                     if (max == null) {
                         max = v;
-                    } else if (((Comparable) max).compareTo(v) < 0) {
-                        max = v;
-                    }
+                    } else //noinspection unchecked
+                        if (((Comparable) max).compareTo(v) < 0) {
+                            max = v;
+                        }
 
                 }
                 return max;
@@ -1982,9 +2006,10 @@ public abstract class Expr {
                     Object v = expr.evaluate(context);
                     if (min == null) {
                         min = v;
-                    } else if (((Comparable) min).compareTo(v) > 0) {
-                        min = v;
-                    }
+                    } else //noinspection unchecked
+                        if (((Comparable) min).compareTo(v) > 0) {
+                            min = v;
+                        }
 
                 }
                 return min;
@@ -2097,7 +2122,9 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Map<String, Object> effectiveContext = new HashMap<>(context);
+                //noinspection unchecked
                 for (String k : ((Map<String, Expr>) m.get("vars")).keySet()) {
+                    //noinspection unchecked
                     effectiveContext.put(k, ((Map<String, Expr>) m.get("vars")).get(k).evaluate(context));
                 }
                 return ((Expr) m.get("in")).evaluate(effectiveContext);
@@ -2133,6 +2160,7 @@ public abstract class Expr {
             Map m = new LinkedHashMap();
             Map ret = Utils.getMap(operation, m);
             for (Map.Entry<String, Expr> e : params.entrySet()) {
+                //noinspection unchecked
                 m.put(e.getKey(), e.getValue().toQueryObject());
             }
             return ret;

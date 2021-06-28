@@ -15,6 +15,7 @@ public class JMSQueue extends JMSDestination implements Queue {
         setQueueName(name);
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public String getQueueName() throws JMSException {
         return queueName;

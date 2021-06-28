@@ -138,6 +138,7 @@ public class LastAccessTest extends MorphiumTestBase {
         assert (lc != la.getLastChange());
         lc = la.getLastChange();
         la.setIntValue(41);
+        Thread.sleep(100); //forcing last change to be later!
         morphium.store(la);
         s = System.currentTimeMillis();
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {

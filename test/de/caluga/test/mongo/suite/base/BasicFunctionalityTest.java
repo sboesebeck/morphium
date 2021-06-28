@@ -296,13 +296,23 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
             o.setStrValue("Uncached " + i);
             morphium.store(o);
         }
-        Thread.sleep(100);
+        long s = System.currentTimeMillis();
+        while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+        }
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("str_value").eq("Uncached 1");
         long c = q.countAll();
         assert (c == 1) : "Count wrong: " + c;
 
         UncachedObject o = q.get();
+        s = System.currentTimeMillis();
+        while (o == null) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < 5000);
+            o = q.get();
+        }
         assert (o.getCounter() == 1);
     }
 

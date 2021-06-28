@@ -34,7 +34,7 @@ import javax.net.ssl.SSLContext;
  *
  * @author stephan
  */
-@SuppressWarnings("UnusedDeclaration")
+@SuppressWarnings({"UnusedDeclaration", "UnusedReturnValue"})
 @Embedded
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
@@ -180,7 +180,7 @@ public class MorphiumConfig {
                 if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                     f.set(this, Integer.parseInt((String) setting));
                 } else if (f.getType().isEnum()) {
-                    Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                    @SuppressWarnings("unchecked") Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
                     f.set(this, value);
                 } else if (f.getType().equals(String.class)) {
                     f.set(this, setting);
@@ -236,11 +236,12 @@ public class MorphiumConfig {
     }
 
 
+    @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
     public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
-            String k = (String) ko;
+            @SuppressWarnings("CastCanBeRemovedNarrowingVariableType") String k = (String) ko;
             parseClassSettings(k,cfg.restoreData.get(k), cfg);
             String value = cfg.restoreData.get(k).toString();
             if (k.equals("hosts") || k.equals("hostSeed")) {
@@ -403,6 +404,7 @@ public class MorphiumConfig {
         return this;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public MorphiumCache getCache() {
         //        if (cache == null) {
         //            cache = new MorphiumCacheImpl();

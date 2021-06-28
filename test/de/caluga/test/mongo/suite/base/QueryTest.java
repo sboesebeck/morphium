@@ -594,16 +594,18 @@ public class QueryTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("test", 22);
         uc.setDval(3.14152);
         morphium.store(uc);
+
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(22).addProjection(UncachedObject.Fields.counter)
+                .addProjection(UncachedObject.Fields.dval);
         long s = System.currentTimeMillis();
-        while (morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(22).countAll() == 0) {
+        List<UncachedObject> lst = q.asList();
+        while (lst.size() == 0) {
             Thread.sleep(100);
             assert (System.currentTimeMillis() - s < 5000);
-
+            lst = q.asList();
         }
 
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(22).addProjection(UncachedObject.Fields.counter)
-                .addProjection(UncachedObject.Fields.dval).asList();
-        assert (lst.size() == 1) : "Count wrong: " + lst.size();
+        assert (lst.size() == 1) : "Count wrong: " + lst.size() + " count is:" + q.countAll();
         assert (lst.get(0).getStrValue() == null);
         assert (lst.get(0).getDval() != 0);
         assert (lst.get(0).getCounter() != 0);

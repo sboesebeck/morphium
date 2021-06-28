@@ -29,7 +29,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * </code>
  * AND is the default!
  */
-@SuppressWarnings({"UnusedDeclaration", "unchecked"})
+@SuppressWarnings({"UnusedDeclaration", "unchecked", "EmptyMethod"})
 public interface Query<T> extends Cloneable {
     /**
      * set the where string for this query - where-String needs to be valid java script! Errors will only be shown in MongoD-Log!

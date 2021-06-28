@@ -2,7 +2,6 @@ package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 
@@ -25,6 +24,7 @@ import java.util.Map;
  * $sort
  * $geoNear - implementation still missing
  */
+@SuppressWarnings("rawtypes")
 public interface Aggregator<T, R> {
 
     @SuppressWarnings("unused")
@@ -248,6 +248,7 @@ public interface Aggregator<T, R> {
     }
 
 
+    @SuppressWarnings("SameParameterValue")
     enum BucketGranularity {
         R5,
         R10,

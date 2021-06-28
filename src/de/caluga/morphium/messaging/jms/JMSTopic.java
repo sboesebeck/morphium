@@ -10,6 +10,7 @@ public class JMSTopic extends JMSDestination implements Topic {
         this.topicName = topicName;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public String getTopicName() throws JMSException {
         return topicName;

@@ -224,6 +224,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return complexQuery(query, srt, skip, limit);
     }
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public T findOneAndDelete() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
@@ -288,6 +289,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return null;
     }
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public T findOneAndUpdate(Map<String, Object> update) {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
@@ -407,6 +409,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
      * @param limit - maximium number of results
      * @return
      */
+    @SuppressWarnings("DeprecatedIsStillUsed")
     @Override
     @Deprecated
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
@@ -595,6 +598,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return f(b.toString());
     }
 
+    @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
     public MongoField<T> f(String f) {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
@@ -925,11 +929,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Query<T> matchesJsonSchema(String schemaDef) throws ParseException {
         JSONParser jsonParser = new JSONParser();
 
-        Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef, new ContainerFactory() {
+        @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef, new ContainerFactory() {
                     @Override
                     public Map createObjectContainer() {
                         return new HashMap<>();
@@ -979,6 +984,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         getExecutor().submit(r);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public List<Map<String, Object>> asMapList() {
         morphium.inc(StatisticKeys.READS);
@@ -989,6 +995,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         if (useCache) {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
+                //noinspection unchecked
                 return morphium.getCache().getFromCache(type, ck);
             }
             morphium.inc(StatisticKeys.CMISS);
@@ -1015,6 +1022,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
 
         if (useCache) {
+            //noinspection unchecked
             morphium.getCache().addToCache(ck, type, ret);
         }
         morphium.firePostLoad(ret);
@@ -1136,6 +1144,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return it;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private void updateLastAccess(T unmarshall) {
         if (!autoValuesEnabled) {
             return;
@@ -1320,6 +1329,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         getExecutor().submit(r);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
@@ -1915,6 +1925,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return textSearch(TextSearchLanguages.mongo_default, texts);
     }
 
+    @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
     @Override
     @Deprecated
     public List<T> textSearch(TextSearchLanguages lang, String... texts) {
@@ -2016,6 +2027,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         return this;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public Query<T> hideFieldInProjection(String f) {
         if (fieldList == null) {

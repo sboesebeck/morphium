@@ -17,11 +17,15 @@ import java.util.Map;
  */
 @SuppressWarnings("UnusedDeclaration")
 public class Group<T, R> {
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Logger log = LoggerFactory.getLogger(Group.class);
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Aggregator<T, R> aggregator;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Map<String, Object> id;
     private boolean ended = false;
 
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private List<Map<String, Object>> operators = new ArrayList<>();
 
     public Group(Aggregator<T, R> ag, String id) {

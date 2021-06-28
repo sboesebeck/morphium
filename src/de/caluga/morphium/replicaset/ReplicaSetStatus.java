@@ -112,6 +112,7 @@ public class ReplicaSetStatus {
         return electionCandidateMetrics;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public int getActiveNodes() {
         if (members == null) {
             return 0;

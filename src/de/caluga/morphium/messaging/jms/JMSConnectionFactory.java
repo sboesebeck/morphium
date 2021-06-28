@@ -11,17 +11,20 @@ import javax.jms.JMSException;
 
 public class JMSConnectionFactory  implements ConnectionFactory {
 
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Morphium morphium;
 
     public JMSConnectionFactory(Morphium morphium) {
         this.morphium = morphium;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public Connection createConnection() throws JMSException {
         return new JMSConnection(morphium);
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public Connection createConnection(String userName, String password) throws JMSException {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());

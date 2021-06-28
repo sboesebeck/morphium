@@ -2,7 +2,6 @@ package de.caluga.morphium;
 
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
-import de.caluga.morphium.driver.MorphiumId;
 
 
 /**
@@ -18,7 +17,7 @@ import de.caluga.morphium.driver.MorphiumId;
 @Entity
 @NoCache
 @Index({"name,locked_by"})
-@WriteSafety(waitForJournalCommit = false, timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
+@WriteSafety(timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id

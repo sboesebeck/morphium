@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("CommentedOutCode")
 public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private final Logger log = LoggerFactory.getLogger(InMemAggregator.class);
     private final List<Map<String, Object>> params = new ArrayList<>();
@@ -265,7 +266,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
         }
-        return ((Long) res.get(0).get("num")).longValue();
+        return (Long) res.get(0).get("num");
     }
 
     @Override
@@ -278,7 +279,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
-            new Thread(() -> doAggregation());
+            new Thread(this::doAggregation);
         } else {
             morphium.queueTask(() -> {
                 try {
@@ -293,10 +294,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
     }
 
+    @SuppressWarnings("RedundantThrows")
     private List<R> deserializeList() throws MorphiumDriverException {
         List<Map<String, Object>> r = doAggregation();
         List<R> result = new ArrayList<>();
         if (getResultType().equals(Map.class)) {
+            //noinspection unchecked
             result = (List<R>) r;
         } else {
             for (Map<String, Object> dbObj : r) {
@@ -354,8 +357,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         for (Map.Entry<String, Expr> e : output.entrySet()) {
             out.put(e.getKey(), e.getValue());
         }
-        List<Object> bn = new ArrayList<>();
-        bn.addAll(boundaries);
+        List<Object> bn = new ArrayList<>(boundaries);
         Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", (Object) groupBy)
                 .add("boundaries", bn)
                 .add("default", preset)
@@ -397,7 +399,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     //    }
     @Override
     public Aggregator<T, R> collStats(Boolean latencyHistograms, Double scale, boolean count, boolean queryExecStats) {
-        Map<String, Object> m = new LinkedHashMap();
+        @SuppressWarnings("unchecked") Map<String, Object> m = new LinkedHashMap();
         if (latencyHistograms != null) {
             m.put("latencyStats", Utils.getMap("histograms", latencyHistograms));
         }
@@ -585,8 +587,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         if (outputArray != null)
             m.add("as", outputArray);
         if (pipeline != null && pipeline.size() > 0) {
-            List lst = new ArrayList();
-            lst.addAll(pipeline);
+            //noinspection unchecked
+            List lst = new ArrayList(pipeline);
             m.put("pipeline", lst);
         }
         if (let != null) {
@@ -637,6 +639,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     }
 
+    @SuppressWarnings("ConstantConditions")
     private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
         List<String> flds = new ArrayList<>();
@@ -653,18 +656,23 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
         Map doc = Utils.getMap("into", Utils.getMap("db", intoDb).add("coll", intoCollection));
         if (let != null) {
+            //noinspection unchecked
             doc.put("let", Utils.getNoExprMap((Map) let));
         }
         if (matchAction != null) {
+            //noinspection unchecked
             doc.put("whenMatched", matchAction.name());
         }
         if (notMatchedAction != null) {
+            //noinspection unchecked
             doc.put("whenNotMatched", notMatchedAction.name());
         }
         if (onFields != null && onFields.length != 0) {
+            //noinspection unchecked
             doc.put("on", flds);
         }
         if (pipeline != null) {
+            //noinspection unchecked
             doc.put("whenMatched", pipeline);
         }
         params.add(Utils.getMap("$merge", doc));
@@ -825,7 +833,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 for (Map<String, Object> objm : data) {
                     Map<String, Object> newO = new HashMap<>(objm);
                     if (step.get(stage) instanceof List) {
-                        List<String> flds = (List<String>) step.get(stage);
+                        @SuppressWarnings("unchecked") List<String> flds = (List<String>) step.get(stage);
                         for (String f : flds) {
                             newO.remove(morphium.getARHelper().getMongoFieldName(type, f));
                         }
@@ -841,7 +849,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 for (Map<String, Object> o : data) {
                     Map<String, Object> obj = new HashMap<>(o);
                     ret.add(obj);
-                    Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+                    @SuppressWarnings("unchecked") Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
                     for (String k : op.keySet()) {
                         Object value = op.get(k);
                         if (value instanceof String && ((String) value).startsWith("$")) {
@@ -850,6 +858,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             obj.put(k, ((Expr) value).evaluate(obj));
                         } else if (value instanceof Map) {
 
+                            //noinspection unchecked
                             for (String fld : ((Map<String, Object>) value).keySet()) {
                                 if (obj.get(fld) instanceof Expr) {
                                     obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
@@ -865,7 +874,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 ret.add(Utils.getMap((String) step.get(stage), data.size()));
                 break;
             case "$group":
-                Map<String, Object> group = (Map<String, Object>) step.get(stage);
+                @SuppressWarnings("unchecked") Map<String, Object> group = (Map<String, Object>) step.get(stage);
                 Map<Object, Map<String, Object>> res = new HashMap<>();
                 for (Map<String, Object> obj : data) {
                     Map<String, Object> o = new HashMap<>(obj);
@@ -884,18 +893,20 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             Object opValue = group.get(fld);
                             if (opValue instanceof Map) {
                                 //expression?
-                                String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
+                                @SuppressWarnings("unchecked") String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
                                 switch (op) {
                                     case "$addToSet":
                                     case "$push":
                                         Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
                                         res.get(id).putIfAbsent(fld, new ArrayList<>());
                                         if (op.equals("$push")) {
+                                            //noinspection unchecked
                                             ((List) res.get(id).get(fld)).add(setValue);
                                         } else {
                                             //not using HashSet, it would break the contract
                                             List l = ((List) res.get(id).get(fld));
                                             if (!l.contains(setValue)) {
+                                                //noinspection unchecked
                                                 l.add(setValue);
                                             }
                                         }
@@ -908,11 +919,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             //field reference
                                             Number count = (Number) ((Map) res.get(id).get(fld)).get("count");
                                             count = count.intValue() + 1;
+                                            //noinspection unchecked
                                             ((Map) res.get(id).get(fld)).put("count", count);
                                             Number current = (Number) ((Map) res.get(id).get(fld)).get("sum");
                                             Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
                                             Number sum = current.doubleValue() + v.doubleValue();
+                                            //noinspection unchecked
                                             ((Map) res.get(id).get(fld)).put("sum", sum);
+                                            //noinspection unchecked
                                             ((Map) res.get(id).get(fld)).put("avg", (sum.doubleValue() / count.doubleValue()));
                                         } else {
                                             log.error("Average with no $-reference?");
@@ -928,6 +942,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
                                             Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
                                             res.get(id).putIfAbsent(fld, oVal);
+                                            //noinspection unchecked
                                             if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
                                                 res.get(id).put(fld, oVal);
                                             }
@@ -937,6 +952,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                         if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
                                             Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
                                             res.get(id).putIfAbsent(fld, oVal);
+                                            //noinspection unchecked
                                             if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
                                                 res.get(id).put(fld, oVal);
                                             }
@@ -992,6 +1008,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
             case "$match":
+                //noinspection unchecked
                 ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc)).collect(Collectors.toList());
                 break;
             case "$unwind":
@@ -1036,23 +1053,20 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 log.warn("The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
                 break;
             case "$sort":
-                Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
+                @SuppressWarnings("unchecked") Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
                 ret = new ArrayList<>(data);
-                ret.sort(new Comparator<Map<String, Object>>() {
-                    @Override
-                    public int compare(Map<String, Object> o1, Map<String, Object> o2) {
-                        for (String k : keysToSortBy.keySet()) {
-                            int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
-                            if (i != 0) {
-                                if (keysToSortBy.get(k).equals(-1)) {
-                                    i = -i;
-                                }
-                                //TextIndex ignored, will be handeled like normal sort
-                                return i;
+                ret.sort((o1, o2) -> {
+                    for (String k : keysToSortBy.keySet()) {
+                        @SuppressWarnings("unchecked") int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
+                        if (i != 0) {
+                            if (keysToSortBy.get(k).equals(-1)) {
+                                i = -i;
                             }
+                            //TextIndex ignored, will be handeled like normal sort
+                            return i;
                         }
-                        return 0;
                     }
+                    return 0;
                 });
                 break;
             case "$lookup":
@@ -1062,13 +1076,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 //       as: <output array field>
 
                 ret = new ArrayList<>();
-                Map<String, Object> lookup = (Map<String, Object>) step.get(stage);
+                @SuppressWarnings("unchecked") Map<String, Object> lookup = (Map<String, Object>) step.get(stage);
 
                 String collection = (String) lookup.get("from");
                 String localField = (String) lookup.get("localField");
                 String foreignField = (String) lookup.get("foreignField");
-                List<Map<String, Object>> pipeline = (List<Map<String, Object>>) lookup.get("pipeline");
-                Map<String, Object> let = (Map<String, Object>) lookup.get("let");
+                @SuppressWarnings("unchecked") List<Map<String, Object>> pipeline = (List<Map<String, Object>>) lookup.get("pipeline");
+                @SuppressWarnings("unchecked") Map<String, Object> let = (Map<String, Object>) lookup.get("let");
                 String as = (String) lookup.get("as");
                 if (pipeline != null || let != null) {
                     throw new IllegalArgumentException("pipeline/let is not supported yet.");
@@ -1087,8 +1101,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 break;
             case "$sample":
                 int size = ((Number) ((Map) step.get(stage)).get("size")).intValue();
-                List o = new ArrayList(data);
+                @SuppressWarnings("unchecked") List o = new ArrayList(data);
                 Collections.shuffle(o);
+                //noinspection unchecked
                 ret = o.subList(0, size);
                 break;
             case "$merge":
@@ -1100,11 +1115,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 //     whenNotMatched: <insert|discard|fail>                     // Optional
                 //} }
 
-                Map setting = ((Map<String, Object>) step.get(stage));
+                @SuppressWarnings("unchecked") Map setting = ((Map<String, Object>) step.get(stage));
                 String db = morphium.getConfig().getDatabase();
                 String coll = "";
                 if (setting.get("into") instanceof Map) {
+                    //noinspection unchecked
                     db = (String) ((Map<String, Object>) setting.get("into")).get("db");
+                    //noinspection unchecked
                     coll = (String) ((Map<String, Object>) setting.get("into")).get("coll");
                 } else {
                     coll = (String) (setting.get("into"));
@@ -1112,12 +1129,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 if (setting.containsKey("on")) {
                     //merge
                     //need to lookup each entry, match it to on field
-                    List<String> on = (List<String>) (setting.get("on"));
+                    @SuppressWarnings("unchecked") List<String> on = (List<String>) (setting.get("on"));
                     MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
                     MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
                     List<Map<String, Object>> mergePipeline = null;
                     if (setting.containsKey("whenMatched")) {
                         if (setting.get("whenMatched") instanceof Map) {
+                            //noinspection unchecked
                             mergePipeline = (List<Map<String, Object>>) setting.get("whenMatched");
                         } else {
                             matched = MergeActionWhenMatched.valueOf((String) setting.get("whenMatched"));
@@ -1164,14 +1182,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                         break;
                                                     case "$unset":
                                                         Map<String, Object> newO = new HashMap<>(doc);
-                                                            if (mergePipelineStep.get(s) instanceof List) {
-                                                                List<String> flds = (List<String>) mergePipelineStep.get(s);
-                                                                for (String f : flds) {
-                                                                    newO.remove(f);
-                                                                }
-                                                            } else {
-                                                                newO.remove(mergePipelineStep.get(s));
+                                                        if (mergePipelineStep.get(s) instanceof List) {
+                                                            @SuppressWarnings("unchecked") List<String> flds = (List<String>) mergePipelineStep.get(s);
+                                                            for (String f : flds) {
+                                                                newO.remove(f);
                                                             }
+                                                        } else {
+                                                            newO.remove(mergePipelineStep.get(s));
+                                                        }
                                                         ret.add(newO);
                                                         break;
                                                     case "$project":
@@ -1187,6 +1205,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                         if (newRoot instanceof String) {
                                                             if (newRoot.toString().startsWith("$")) {
                                                                 //fieldRef
+                                                                //noinspection unchecked
                                                                 ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
 
                                                             } else {
@@ -1196,6 +1215,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                                             //parse expr!!!!!
 
                                                             Expr expr = Expr.parse(newRoot);
+                                                            //noinspection unchecked
                                                             ret.add((Map<String, Object>) expr.evaluate(doc));
                                                         }
                                                         break;
@@ -1245,6 +1265,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     if (newRoot.toString().startsWith("$")) {
                         //fieldRef
                         for (Map<String, Object> doc : data) {
+                            //noinspection unchecked
                             ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
                         }
 
@@ -1255,6 +1276,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     //parse expr!!!!!
                     Expr expr = Expr.parse(newRoot);
                     for (Map<String, Object> doc : data) {
+                        //noinspection unchecked
                         ret.add((Map<String, Object>) expr.evaluate(doc));
                     }
                 }

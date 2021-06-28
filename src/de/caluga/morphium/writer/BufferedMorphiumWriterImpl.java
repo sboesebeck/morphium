@@ -33,7 +33,7 @@ import static de.caluga.morphium.annotations.caching.WriteBuffer.STRATEGY.JUST_W
  * Buffered Writer buffers all write requests (store, update, remove...) to mongo for a certain time. After that time the requests are
  * issued en block to mongo. Attention: this is not using BULK-Requests yet!
  */
-@SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField", "WeakerAccess"})
+@SuppressWarnings({"EmptyCatchBlock", "SynchronizeOnNonFinalField", "WeakerAccess", "BusyWait"})
 public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private static final Logger logger = LoggerFactory.getLogger(BufferedMorphiumWriterImpl.class);
@@ -60,6 +60,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     housekeeping.stop();
                     break;
                 }
+                //noinspection BusyWait
                 Thread.sleep(50);
             }
         } catch (Exception e) {
@@ -106,6 +107,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     private void flushQueueToMongo(List<WriteBufferEntry> q) {
         if (q == null) {
             return;
@@ -575,6 +577,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public <T> void inc(final Query<T> query, final String field, final Number amount, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
@@ -710,9 +713,11 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                     running = false;
                                     break;
                                 }
+                                //noinspection BusyWait
                                 Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
                             } else {
                                 logger.warn("Morphium not set - assuming timeout of 1sec");
+                                //noinspection BusyWait
                                 Thread.sleep(1000);
                             }
                         } catch (InterruptedException e) {
@@ -909,6 +914,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }, c, AsyncOperationType.UNSET);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public <T> void unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final String... fields) {
         if (c == null) {
@@ -1113,7 +1119,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> void set(T toSet, String collection, Map<String, Object> values, boolean upsert, AsyncOperationCallback<T> callback) {
-        Query<T> id = morphium.createQueryFor((Class<T>) toSet.getClass()).f("_id").eq(morphium.getId(toSet));
+        @SuppressWarnings("unchecked") Query<T> id = morphium.createQueryFor((Class<T>) toSet.getClass()).f("_id").eq(morphium.getId(toSet));
         set(id, values, upsert, false, callback);
     }
 

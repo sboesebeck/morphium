@@ -17,8 +17,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @SuppressWarnings("UnusedDeclaration")
 public class HouseKeepingHelper {
 
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Map<Class<?>, Integer> validTimeForClass = new ConcurrentHashMap<>();
     private int gcTimeout = 5000;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Logger log = LoggerFactory.getLogger(HouseKeepingHelper.class);
     private AnnotationAndReflectionHelper annotationHelper;
 
@@ -47,6 +49,7 @@ public class HouseKeepingHelper {
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     public void housekeep(javax.cache.Cache cache, List<CacheListener> cacheListeners) {
         try {
             Class clz = Class.forName(cache.getName().substring(cache.getName().indexOf("|") + 1));
@@ -162,7 +165,6 @@ public class HouseKeepingHelper {
                 //noinspection unchecked
                 cache.remove(k);
             }
-
 
 
         } catch (Throwable e) {

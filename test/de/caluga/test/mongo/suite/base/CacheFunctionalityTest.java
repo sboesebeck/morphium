@@ -103,6 +103,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
             assert (System.currentTimeMillis() - s < 5000);
         }
         for (int i = 0; i < amount; i++) {
+            s = System.currentTimeMillis();
+            while (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() == null) {
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - s < 5000);
+            }
             assert (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() != null);
         }
         assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);

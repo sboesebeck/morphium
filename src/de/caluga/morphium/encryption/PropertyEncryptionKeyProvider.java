@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Properties;
 
 public class PropertyEncryptionKeyProvider implements EncryptionKeyProvider {
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Map<String, byte[]> keys = new HashMap<>();
 
     public PropertyEncryptionKeyProvider() {

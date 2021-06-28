@@ -3,7 +3,9 @@ package de.caluga.morphium.encryption;
 import java.util.HashMap;
 
 public class DefaultEncryptionKeyProvider implements EncryptionKeyProvider {
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private HashMap<String, byte[]> encKeys = new HashMap<>();
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private HashMap<String, byte[]> decKeys = new HashMap<>();
 
     @Override

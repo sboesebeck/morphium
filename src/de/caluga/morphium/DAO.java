@@ -10,7 +10,9 @@ import de.caluga.morphium.query.Query;
  */
 @SuppressWarnings("UnusedDeclaration")
 public abstract class DAO<T> {
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Morphium morphium;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Class<? extends T> type;
 
     public DAO(Morphium m, Class<? extends T> type) {

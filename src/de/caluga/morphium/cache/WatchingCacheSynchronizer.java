@@ -8,6 +8,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 
 import java.util.Set;
 
+@SuppressWarnings("EmptyMethod")
 public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<WatchingCacheSyncListener> implements ChangeStreamListener {
 
     private boolean running = true;

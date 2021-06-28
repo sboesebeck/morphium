@@ -5,6 +5,7 @@ import de.caluga.rsa.AES;
 import java.util.Base64;
 
 public class AESEncryptionProvider implements ValueEncryptionProvider {
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private AES aes;
 
     public AESEncryptionProvider() {

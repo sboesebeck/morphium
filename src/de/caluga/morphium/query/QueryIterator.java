@@ -173,6 +173,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         }
     }
 
+    @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
     public Map<String, Object> doNextMap() {
         if (currentBatch == null && !hasNext()) {
             return null;
