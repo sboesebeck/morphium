@@ -62,6 +62,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     public void sendClearMessage(String reason, Map<Object, Boolean> isNew) {
         //        long start = System.currentTimeMillis();
 

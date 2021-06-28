@@ -24,6 +24,7 @@ public abstract class BulkRequestContext {
     }
 
 
+    @SuppressWarnings("RedundantThrows")
     public abstract Map<String, Object> execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();

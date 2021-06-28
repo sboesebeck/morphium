@@ -33,11 +33,13 @@ public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
         listeners.remove(cl);
     }
 
+    @SuppressWarnings("rawtypes")
     public void addSyncListener(Class type, T cl) {
         listenerForType.putIfAbsent(type, new Vector<>());
         listenerForType.get(type).add(cl);
     }
 
+    @SuppressWarnings("rawtypes")
     public void removeSyncListener(Class type, T cl) {
         if (listenerForType.get(type) == null) {
             return;
@@ -45,6 +47,7 @@ public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
         listenerForType.get(type).remove(cl);
     }
 
+    @SuppressWarnings("rawtypes")
     protected void firePreClearEvent(Class type) throws CacheSyncVetoException {
         for (T cl : listeners) {
             cl.preClear(type);
@@ -59,6 +62,7 @@ public abstract class AbstractCacheSynchronizer<T extends CacheSyncListener> {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     public void firePostClearEvent(Class type) {
         for (T cl : listeners) {
             cl.postClear(type);

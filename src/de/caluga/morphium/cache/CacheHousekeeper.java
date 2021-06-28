@@ -17,18 +17,21 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-@SuppressWarnings("UnusedDeclaration")
+@SuppressWarnings({"UnusedDeclaration", "BusyWait"})
 public class CacheHousekeeper extends Thread implements ShutdownListener {
 
     private int housekeepingIntervalPause = 500;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Map<Class<?>, Integer> validTimeForClass;
     private int gcTimeout = 5000;
     private boolean running = true;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private Logger log = LoggerFactory.getLogger(CacheHousekeeper.class);
     private AnnotationAndReflectionHelper annotationHelper;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private MorphiumCache morphiumCache;
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "CommentedOutCode"})
     public CacheHousekeeper(MorphiumCache m) {
         validTimeForClass = new ConcurrentHashMap<>();
         setDaemon(true);
@@ -91,7 +94,7 @@ public class CacheHousekeeper extends Thread implements ShutdownListener {
 
     }
 
-    @SuppressWarnings({"unchecked", "ConstantConditions"})
+    @SuppressWarnings({"unchecked", "ConstantConditions", "CommentedOutCode"})
     @Override
     public void run() {
         while (running) {

@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Checks for the replicaset status periodically.
  * Used in order to get number of currently active nodes and their state
  */
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "BusyWait"})
 public class RSMonitor {
     private static final Logger logger = LoggerFactory.getLogger(RSMonitor.class);
     private final ScheduledThreadPoolExecutor executorService;
@@ -131,7 +131,7 @@ public class RSMonitor {
      * @param full - if true- return full status
      * @return status
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "CommentedOutCode"})
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (morphium.isReplicaSet()) {
             try {

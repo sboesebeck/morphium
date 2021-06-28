@@ -464,9 +464,14 @@ public class IteratorTest extends MorphiumTestBase {
     @Test
     public void basicPefetchIteratorTest() throws Exception {
         createUncachedObjects(1000);
-        Thread.sleep(100);
+        //Thread.sleep(100);
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
+        while (qu.countAll() != 1000) {
+            Thread.sleep(50);
+            assert (System.currentTimeMillis() - start < 5000);
+        }
+        start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2, 10);
         assert (it.hasNext());
         UncachedObject u = it.next();

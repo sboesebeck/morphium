@@ -108,12 +108,15 @@ public class DriverHelper {
                 } else if (value instanceof MorphiumReference) {
                     e.setValue(new ObjectId(((MorphiumReference) value).getId().toString()));
                 } else if (value instanceof List) {
+                    //noinspection unchecked
                     replaceMorphiumIdByObjectIdInList((List<Object>) value);
                 } else if (value != null && value.getClass().isArray()) {
                     replaceMorphiumIdByObjectIdInArray(value);
                 } else if (value instanceof Map) {
+                    //noinspection unchecked
                     replaceMorphiumIdByObjectId((Map<String, Object>) value);
                 } else if (value instanceof Collection) {
+                    //noinspection unchecked
                     e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
                 }
             }
@@ -134,12 +137,15 @@ public class DriverHelper {
             } else if (element instanceof MorphiumReference) {
                 in.set(i, new ObjectId(((MorphiumReference) element).getId().toString()));
             } else if (element instanceof List) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectIdInList((List<Object>) element);
             } else if (element != null && element.getClass().isArray()) {
                 replaceMorphiumIdByObjectIdInArray(element);
             } else if (element instanceof Map) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectId((Map<String, Object>) element);
             } else if (element instanceof Collection) {
+                //noinspection unchecked
                 in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
             }
         }
@@ -156,12 +162,15 @@ public class DriverHelper {
             } else if (arrayElement instanceof MorphiumReference) {
                 Array.set(o, i, new ObjectId(((MorphiumReference) arrayElement).getId().toString()));
             } else if (arrayElement instanceof List) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectIdInList((List<Object>) arrayElement);
             } else if (arrayElement != null && arrayElement.getClass().isArray()) {
                 replaceMorphiumIdByObjectIdInArray(arrayElement);
             } else if (arrayElement instanceof Map) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
             } else if (arrayElement instanceof Collection) {
+                //noinspection unchecked
                 Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));
             }
         }
@@ -206,12 +215,15 @@ public class DriverHelper {
                 } else if (value instanceof MorphiumReference) {
                     e.setValue(new ObjectId(((MorphiumReference) value).getId().toString()));
                 } else if (value instanceof List) {
+                    //noinspection unchecked
                     replaceMorphiumIdByObjectIdInList((List<Object>) value);
                 } else if (value != null && value.getClass().isArray()) {
                     replaceMorphiumIdByObjectIdInArray(value);
                 } else if (value instanceof Map) {
+                    //noinspection unchecked
                     replaceMorphiumIdByObjectId((Map<String, Object>) value);
                 } else if (value instanceof Collection) {
+                    //noinspection unchecked
                     e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
                 }
             }
@@ -232,12 +244,15 @@ public class DriverHelper {
             } else if (element instanceof MorphiumReference) {
                 in.set(i, new ObjectId(((MorphiumReference) element).getId().toString()));
             } else if (element instanceof List) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectIdInList((List<Object>) element);
             } else if (element != null && element.getClass().isArray()) {
                 replaceMorphiumIdByObjectIdInArray(element);
             } else if (element instanceof Map) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectId((Map<String, Object>) element);
             } else if (element instanceof Collection) {
+                //noinspection unchecked
                 in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
             }
         }
@@ -254,12 +269,15 @@ public class DriverHelper {
             } else if (arrayElement instanceof MorphiumReference) {
                 Array.set(o, i, new ObjectId(((MorphiumReference) arrayElement).getId().toString()));
             } else if (arrayElement instanceof List) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectIdInList((List<Object>) arrayElement);
             } else if (arrayElement != null && arrayElement.getClass().isArray()) {
                 replaceMorphiumIdByObjectIdInArray(arrayElement);
             } else if (arrayElement instanceof Map) {
+                //noinspection unchecked
                 replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
             } else if (arrayElement instanceof Collection) {
+                //noinspection unchecked
                 Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));
             }
         }

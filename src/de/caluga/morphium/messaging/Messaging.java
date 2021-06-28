@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - LockedBy null (non exclusive messages): only one listener at a time
  * - Message listeners may return a Message as answer. Or throw a MessageRejectedException.c
  */
-@SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration"})
+@SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
 public class Messaging extends Thread implements ShutdownListener {
     private static final Logger log = LoggerFactory.getLogger(Messaging.class);
 
@@ -95,6 +95,7 @@ public class Messaging extends Thread implements ShutdownListener {
         this(m, queueName, pause, processMultiple, multithreadded, windowSize, useChangeStream, ReceiveAnswers.ONLY_MINE);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, ReceiveAnswers recieveAnswers) {
         setMultithreadded(multithreadded);
         setWindowSize(windowSize);
@@ -108,6 +109,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
         if (multithreadded) {
             BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+                @SuppressWarnings("CommentedOutCode")
                 @Override
                 public boolean offer(Runnable e) {
                     /*
@@ -215,6 +217,7 @@ public class Messaging extends Thread implements ShutdownListener {
         morphium.delete(m, getCollectionName());
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public void run() {
         setName("Msg " + id);
@@ -407,6 +410,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private void handleAnswer(Msg obj) {
         if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
             updateProcessedBy(obj);
@@ -453,9 +457,10 @@ public class Messaging extends Thread implements ShutdownListener {
      * @param name
      * @return duration or null
      */
+    @SuppressWarnings("CommentedOutCode")
     public Long unpauseProcessingOfMessagesNamed(String name) {
         if (!pauseMessages.containsKey(name)) {
-            return 0l;
+            return 0L;
         }
 
         Long ret = pauseMessages.remove(name);
@@ -498,6 +503,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     }
 
+    @SuppressWarnings({"CatchMayIgnoreException", "CommentedOutCode"})
     private MorphiumIterator<Msg> lockAndGetMessages(String name, boolean multiple) {
         if (!running) return new EmptyIterator<>();
         Map<String, Object> values = new HashMap<>();
@@ -634,6 +640,7 @@ public class Messaging extends Thread implements ShutdownListener {
         processMessages(messages);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
 
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
@@ -675,6 +682,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private synchronized void processMessages(Iterable<Msg> messages) {
 //        final List<Msg> toStore = new ArrayList<>();
 //        final List<Runnable> toExec = new ArrayList<>();
@@ -895,6 +903,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     private void updateProcessedBy(Msg msg) {
 //        Query<Msg> idq = morphium.createQueryFor(Msg.class);
 //        idq.setCollectionName(getCollectionName());
@@ -1044,6 +1053,7 @@ public class Messaging extends Thread implements ShutdownListener {
             retry++;
             if (retry > morphium.getConfig().getMaxWaitTime() / 150) {
                 log.warn("Force stopping messaging!");
+                //noinspection deprecation
                 stop();
             }
             if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150)

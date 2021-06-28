@@ -154,6 +154,7 @@ public class Collation {
         SHIFTED("shifted"),
         NON_IGNORABLE("non-ignorable");
 
+        @SuppressWarnings("CanBeFinal")
         String mongoText;
 
         Alternate(String mongoText) {
@@ -169,6 +170,7 @@ public class Collation {
         LOWER("lower"),
         OFF("off"),
         UPPER("upper");
+        @SuppressWarnings("CanBeFinal")
         String mongoText;
 
         CaseFirst(String mongoText) {
@@ -185,6 +187,7 @@ public class Collation {
         PUNCT("punct"),
         SPACE("space");
 
+        @SuppressWarnings("CanBeFinal")
         String mongoText;
 
         MaxVariable(String mongoText) {
@@ -204,6 +207,7 @@ public class Collation {
         IDENTICAL(5);
 
 
+        @SuppressWarnings("CanBeFinal")
         int mongoValue;
 
         Strength(int mongoValue) {

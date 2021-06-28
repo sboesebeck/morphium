@@ -36,7 +36,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  * <p>
  * this class is ThreadSafe!
  */
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "CatchMayIgnoreException", "DuplicateExpressions"})
 public class AnnotationAndReflectionHelper {
 
     private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
@@ -533,6 +533,7 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    @SuppressWarnings("CatchMayIgnoreException")
     public static Object convertType(Object value, String fieldName, Class<?> fieldType) {
         //Doing some type conversions... lots of :-(
         if (value instanceof Number) {
@@ -566,17 +567,17 @@ public class AnnotationAndReflectionHelper {
         } else if (value instanceof Boolean) {
             Boolean b = (Boolean) value;
             if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
-                return Integer.valueOf(b ? 1 : 0);
+                return b ? 1 : 0;
             } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
-                return Long.valueOf(b ? 1l : 0l);
+                return b ? 1L : 0L;
             } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
-                return Double.valueOf(b ? 1.0 : 0.0);
+                return b ? 1.0 : 0.0;
             } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
-                return Float.valueOf(b ? 1.0f : 0.0f);
+                return b ? 1.0f : 0.0f;
             } else if (fieldType.equals(Byte.class) || fieldType.equals(byte.class)) {
-                return Byte.valueOf(b ? (byte)1 : 0);
+                return b ? (byte) 1 : 0;
             } else if (fieldType.equals(Short.class) || fieldType.equals(short.class)) {
-                return Short.valueOf(b ? (short)1 : 0);
+                return b ? (short) 1 : 0;
             } else if (fieldType.equals(String.class)) {
                 return b ? "true" : "false";
             } else if (fieldType.equals(AtomicBoolean.class)) {
@@ -606,37 +607,37 @@ public class AnnotationAndReflectionHelper {
                 return d.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime();
             }
         } else if (value instanceof String) {
-                String s = (String) value;
-                try {
-                    if (fieldType.equals(Date.class)) {
-                        //Fucking date / timestamp mixup
-                        if (s.length() == 8) {
-                            //probably time-string 20120812
-                            SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
-                            return df.parse(s);
-                        } else if (s.indexOf('-') > 0) {
-                            //maybe a date-String?
-                            SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-                            return df.parse(s);
-                        } else if (s.indexOf('.') > 0) {
-                            //maybe a date-String?
-                            SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
-                            return df.parse(s);
-                        } else {
-                            return new Date(Long.parseLong(s));
-                        }
-                    } else if (fieldType.equals(MorphiumId.class)) {
-                        return new MorphiumId(s);
+            String s = (String) value;
+            try {
+                if (fieldType.equals(Date.class)) {
+                    //Fucking date / timestamp mixup
+                    if (s.length() == 8) {
+                        //probably time-string 20120812
+                        SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+                        return df.parse(s);
+                    } else if (s.indexOf('-') > 0) {
+                        //maybe a date-String?
+                        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+                        return df.parse(s);
+                    } else if (s.indexOf('.') > 0) {
+                        //maybe a date-String?
+                        SimpleDateFormat df = new SimpleDateFormat("dd.MM.yyyy");
+                        return df.parse(s);
+                    } else {
+                        return new Date(Long.parseLong(s));
                     }
+                } else if (fieldType.equals(MorphiumId.class)) {
+                    return new MorphiumId(s);
+                }
+            } catch (Exception e) {
+            }
+            Method convertMethod = getConvertMethod(fieldType);
+            if (convertMethod != null) {
+                try {
+                    return convertMethod.invoke(null, s);
                 } catch (Exception e) {
                 }
-                Method convertMethod = getConvertMethod(fieldType);
-                if (convertMethod != null) {
-                    try {
-                        return convertMethod.invoke(null, s);
-                    } catch (Exception e) {
-                    }
-                }
+            }
         } else if (fieldType.isArray() && value instanceof List) {
             Object arr = Array.newInstance(fieldType, ((List) value).size());
             int idx = 0;
@@ -658,6 +659,7 @@ public class AnnotationAndReflectionHelper {
         throw AnnotationAndReflectionException.wrongFieldType(fieldName, fieldType.toString(), value.getClass().toString());
     }
 
+    @SuppressWarnings("CatchMayIgnoreException")
     public static Method getConvertMethod(Class<?> fieldType) {
         try {
             return fieldType.getMethod("valueOf", String.class);
@@ -786,6 +788,7 @@ public class AnnotationAndReflectionHelper {
         return getFields(cls, false, annotations);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
         for (Class<? extends Annotation> a : annotations) {

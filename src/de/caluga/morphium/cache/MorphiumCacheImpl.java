@@ -124,6 +124,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public boolean isCached(Class<?> type, String k) {
         //        Cache c = annotationHelper.getAnnotationFromHierarchy(type, Cache.class); ///type.getAnnotation(Cache.class);
@@ -253,7 +254,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
         }
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"unchecked", "CommentedOutCode"})
     @Override
     public void removeEntryFromCache(Class cls, Object id) {
         //        Map<Class<?>, Map<String, CacheEntry>> c = getCache();

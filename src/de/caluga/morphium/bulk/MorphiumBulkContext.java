@@ -5,8 +5,6 @@ package de.caluga.morphium.bulk;/**
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
@@ -20,6 +18,7 @@ import java.util.*;
 /**
  * context for doing bulk operations. What it does is, it stores all operations here and will send them to mongodb en block
  **/
+@SuppressWarnings("unchecked")
 public class MorphiumBulkContext<T> {
     private final Logger log = LoggerFactory.getLogger(MorphiumBulkContext.class);
     private final BulkRequestContext ctx;
@@ -57,7 +56,7 @@ public class MorphiumBulkContext<T> {
     }
 
     private void createUpdateRequest(Query<T> query, String command, Map<String,Object> valuesToSet, boolean upsert, boolean multiple) {
-        Map<String,Object> values=new LinkedHashMap();
+        @SuppressWarnings("unchecked") Map<String, Object> values = new LinkedHashMap();
         for (Map.Entry<String,Object> e:valuesToSet.entrySet()){
             values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true),e.getValue());
         }
@@ -226,7 +225,7 @@ public class MorphiumBulkContext<T> {
     public void addUnSetRequest(T obj, String field, Object value, boolean upsert) {
         //noinspection unchecked
         Morphium m = ctx.getMorphium();
-        Query<T> q = m.createQueryFor((Class<T>) obj.getClass());
+        @SuppressWarnings("unchecked") Query<T> q = m.createQueryFor((Class<T>) obj.getClass());
         q.f(ctx.getMorphium().getARHelper().getIdFieldName(obj))
                 .eq(ctx.getMorphium().getARHelper().getId(obj));
         addUnsetRequest(q, field, value, upsert, false);

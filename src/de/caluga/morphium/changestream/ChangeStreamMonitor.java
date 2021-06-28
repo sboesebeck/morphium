@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 /**
  * Created by stephan on 15.11.16.
  */
+@SuppressWarnings("BusyWait")
 public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final Collection<ChangeStreamListener> listeners;
     private final Morphium morphium;
@@ -90,6 +91,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         return running;
     }
 
+    @SuppressWarnings("deprecation")
     public void terminate() {
         running = false;
         try {

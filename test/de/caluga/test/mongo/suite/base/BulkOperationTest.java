@@ -99,19 +99,24 @@ public class BulkOperationTest extends MorphiumTestBase {
 
     @Test
     public void incTest() throws Exception {
-        //morphium.dropCollection(UncachedObject.class);
+        morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(100);
 
         MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
         c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1000, true, true);
         c.runBulk();
         long s = System.currentTimeMillis();
-        while (morphium.createQueryFor(UncachedObject.class).f("counter").lt(1000).countAll() != 0) {
+        while (morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() != 100) {
             Thread.sleep(100);
             assert (System.currentTimeMillis() - s < 5000);
         }
+        Thread.sleep(1000);
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
-            assert (o.getCounter() > 1000) : "Counter is " + o.getCounter();
+            if (o.getCounter() <= 1000) {
+                log.error("Counter is < 1000!?");
+                morphium.reread(o);
+            }
+            assert (o.getCounter() > 1000) : "Counter is " + o.getCounter() + " - Total number: " + morphium.createQueryFor(UncachedObject.class).countAll() + " greater than 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
         }
     }
 

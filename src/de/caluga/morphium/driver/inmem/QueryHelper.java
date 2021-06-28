@@ -60,6 +60,7 @@ public class QueryHelper {
 
                 }
                 case "$not": {
+                    //noinspection unchecked
                     return (!matchesQuery((Map<String, Object>) query.get(key), toCheck));
                 }
                 case "$nor": {
@@ -91,6 +92,7 @@ public class QueryHelper {
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
                                 if (toCheck.get(key) != null && q.get(k) == null) return false;
                                 if (toCheck.get(key) == null && q.get(k) != null) return false;
+                                //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) == 0;
                             case "$lt":
                                 //noinspection unchecked
@@ -114,7 +116,7 @@ public class QueryHelper {
                                 //noinspection unchecked
                                 boolean contains = false;
                                 if (toCheck.get(key) instanceof List) {
-                                    List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) toCheck.get(key)));
+                                    @SuppressWarnings("unchecked") List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) toCheck.get(key)));
                                     for (Object o : chk) {
                                         if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                             contains = true;

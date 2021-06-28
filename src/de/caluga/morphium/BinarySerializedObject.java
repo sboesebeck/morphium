@@ -6,12 +6,11 @@ import de.caluga.morphium.annotations.Property;
 /**
  * Created by stephan on 17.11.14.
  */
-@SuppressWarnings({"WeakerAccess", "DefaultFileTemplate"})
+@SuppressWarnings({"WeakerAccess", "DefaultFileTemplate", "CommentedOutCode"})
 @Embedded
 public class BinarySerializedObject {
     @Property(fieldName = "_b64data")
     private String b64Data;
-    private String originalClassName;
 
 
     public String getB64Data() {
@@ -29,6 +28,5 @@ public class BinarySerializedObject {
 //    }
 
     public void setOriginalClassName(String originalClassName) {
-        this.originalClassName = originalClassName;
     }
 }

@@ -15,10 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,7 +33,7 @@ import java.util.zip.GZIPOutputStream;
  * InMemory implementation of the MorphiumDriver interface. can be used for testing or caching. Does not cover all
  * functionality yet.
  */
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "EmptyMethod", "BusyWait"})
 public class InMemoryDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     // DBName => Collection => List of documents
@@ -479,6 +475,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         Map<String, Object> ret = new ConcurrentHashMap<>();
@@ -498,6 +495,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return new ConcurrentHashMap<>();
     }
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException {
         log.warn("aggregation not possible in mem");
@@ -549,7 +547,7 @@ public class InMemoryDriver implements MorphiumDriver {
         watch(db, null, timeout, fullDocumentOnUpdate, pipeline, cb);
     }
 
-    @SuppressWarnings("RedundantThrows")
+    @SuppressWarnings({"RedundantThrows", "CatchMayIgnoreException"})
     @Override
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
 
@@ -796,6 +794,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @SuppressWarnings("ConstantConditions")
     @Override
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
@@ -1134,6 +1133,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
+    @SuppressWarnings("RedundantThrows")
     @Override
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
         log.warn("Aggregate not possible yet in memory!");

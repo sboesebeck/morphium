@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 /**
  * Created by stephan on 15.11.16.
  */
+@SuppressWarnings("BusyWait")
 public class OplogMonitor implements Runnable, ShutdownListener {
     private final Collection<OplogListener> listeners;
     private final Morphium morphium;

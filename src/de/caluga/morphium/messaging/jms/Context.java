@@ -8,14 +8,12 @@ import java.io.Serializable;
 
 public class Context implements javax.jms.JMSContext {
 
-    private final int sessionMode;
     private final Morphium morphium;
     private final Messaging messaging;
     private boolean startOnCosumerCreate = true;
 
     public Context(Morphium morphium, String name, int sessionMode) {
         this.morphium = morphium;
-        this.sessionMode = sessionMode;
         this.messaging = new Messaging(morphium, 100, true, true, 10);
         if (name != null) this.messaging.setQueueName(name);
     }

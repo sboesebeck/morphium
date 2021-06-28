@@ -20,12 +20,13 @@ public class InMemAggregatorFactory implements AggregatorFactory {
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         try {
             Aggregator agg = inMemAggregator.newInstance();
+            //noinspection unchecked
             agg.setSearchType(type);
+            //noinspection unchecked
             agg.setResultType(resultType);
+            //noinspection unchecked
             return agg;
-        } catch (InstantiationException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
+        } catch (InstantiationException | IllegalAccessException e) {
             e.printStackTrace();
         }
         return null;

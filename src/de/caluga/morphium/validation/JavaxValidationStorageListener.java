@@ -20,6 +20,7 @@ import java.util.*;
 public class JavaxValidationStorageListener extends MorphiumStorageAdapter<Object> {
 
     private final Validator validator;
+    @SuppressWarnings({"CanBeFinal", "FieldMayBeFinal"})
     private String uuid;
 
     public JavaxValidationStorageListener() {

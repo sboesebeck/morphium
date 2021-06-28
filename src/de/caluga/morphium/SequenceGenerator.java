@@ -24,7 +24,7 @@ import java.util.*;
  * </ul>
  */
 
-@SuppressWarnings("UnusedDeclaration")
+@SuppressWarnings({"UnusedDeclaration", "BusyWait"})
 public class SequenceGenerator {
     private static final Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
     private int inc;
@@ -98,6 +98,7 @@ public class SequenceGenerator {
         }
     }
 
+    @SuppressWarnings("CatchMayIgnoreException")
     private synchronized long getNextValue(int recLevel) {
         while (true) {
             Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);

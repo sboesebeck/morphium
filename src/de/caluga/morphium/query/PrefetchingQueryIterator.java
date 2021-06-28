@@ -17,6 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * iterating over huge collections using the db interal cursor. This iterator does create a thread reading the data
  **/
+@SuppressWarnings("BusyWait")
 public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     private final Logger log = LoggerFactory.getLogger(PrefetchingQueryIterator.class);
     private long lastAccess = System.currentTimeMillis();
@@ -304,6 +305,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
         while (prefetchBuffer.isEmpty() && cursor != null) {
             Thread.yield();
         }
+        //noinspection NonAtomicOperationOnVolatileField
         return prefetchBuffer.get(0).get(cursorPos++ % getWindowSize());
     }
 
@@ -315,6 +317,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
         return query.getMorphium().getMapper().deserialize(query.getType(), o);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private void checkAndUpdateLastAccess() {
 //        if (query == null) {
 //            return;

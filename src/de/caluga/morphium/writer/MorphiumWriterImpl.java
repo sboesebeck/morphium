@@ -54,6 +54,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         pause = p;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
@@ -248,6 +249,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
                     try {
@@ -439,6 +441,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 long start = System.currentTimeMillis();
@@ -581,6 +584,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     callback = cb;
                 }
 
+                @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
                     long allStart = System.currentTimeMillis();
@@ -713,6 +717,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         createCappedCollection(c, null);
     }
 
+    @SuppressWarnings("SameParameterValue")
     private void createCappedCollection(Class c, String collectionName) {
         if (logger.isDebugEnabled()) {
             logger.debug("Collection does not exist - ensuring indices / capped status / Schema validation");
@@ -931,6 +936,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 Object id = morphium.getARHelper().getId(ent);
@@ -1200,6 +1206,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 Class cls = toInc.getClass();
@@ -1295,6 +1302,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 Class<? extends T> cls = query.getType();
@@ -1382,6 +1390,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 Class cls = query.getType();
@@ -1491,6 +1500,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -1780,6 +1790,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         return value;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private void pushIt(boolean push, boolean upsert, boolean multiple, Class<?> cls, String coll, Map<String, Object> qobj, Map<String, Object> update, Collation collation) {
         morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
@@ -1824,6 +1835,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 callback = cb;
             }
 
+            @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
                 List<?> value = v;
@@ -1982,6 +1994,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             callback = cb;
         }
 
+        @SuppressWarnings("CommentedOutCode")
         public void doUpdate(Class cls, T toSet, String coll, String field, Map<String, Object> query, Field f, Map<String, Object> update, WriteConcern wc) {
             long start = System.currentTimeMillis();
             if (coll == null) coll = morphium.getMapper().getCollectionName(cls);

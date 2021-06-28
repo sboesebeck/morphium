@@ -21,6 +21,7 @@ public interface MorphiumObjectMapper {
 
     <T> T deserialize(Class<? extends T> cls, Map<String, Object> o);
 
+    @SuppressWarnings("RedundantThrows")
     <T> T deserialize(Class<? extends T> cls, String json) throws ParseException, IOException;
 
     /**

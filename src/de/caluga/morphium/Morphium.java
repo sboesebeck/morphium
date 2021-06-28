@@ -13,7 +13,6 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
@@ -55,7 +54,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author stephan
  */
 
-@SuppressWarnings({"WeakerAccess", "unused"})
+@SuppressWarnings({"WeakerAccess", "unused", "unchecked", "CommentedOutCode"})
 public class Morphium implements AutoCloseable {
 
     /**
@@ -189,6 +188,7 @@ public class Morphium implements AutoCloseable {
     }
 
 
+    @SuppressWarnings("CommentedOutCode")
     private void initializeAndConnect() {
         if (config == null) {
             throw new RuntimeException("Please specify configuration!");
@@ -320,9 +320,11 @@ public class Morphium implements AutoCloseable {
                                 }
                             } else if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
                                 logger.warn("Creating missing indices for entity " + cls.getName());
+                                //noinspection unchecked
                                 ensureIndicesFor(cls);
                                 if (cappedMissing(missing.get(cls))) {
                                     logger.warn("applying capped settings for entity " + cls.getName());
+                                    //noinspection unchecked
                                     ensureCapped(cls);
                                 }
                             }
@@ -465,9 +467,10 @@ public class Morphium implements AutoCloseable {
         if (fields.length > 0) {
             flds = new ArrayList<>(Arrays.asList(fields));
         } else {
+            //noinspection unchecked
             flds = annotationHelper.getFields(cls);
         }
-        Query<T> q = createQueryFor((Class<T>) cls);
+        @SuppressWarnings("unchecked") Query<T> q = createQueryFor((Class<T>) cls);
         for (String f : flds) {
             try {
                 q.f(f).eq(annotationHelper.getValue(template, f));
@@ -603,6 +606,7 @@ public class Morphium implements AutoCloseable {
         }
     }
 
+    @SuppressWarnings("ConstantConditions")
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
@@ -883,9 +887,11 @@ public class Morphium implements AutoCloseable {
 
                 if (v == null) {
                     v = new ArrayList();
+                    //noinspection unchecked
                     v.add(value);
                     fld.set(entity, v);
                 } else {
+                    //noinspection unchecked
                     v.add(value);
                 }
 
@@ -962,6 +968,7 @@ public class Morphium implements AutoCloseable {
 
     public <T> void pull(final T entity, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (entity == null) throw new IllegalArgumentException("Null Entity cannot be pulled...");
+        //noinspection unchecked
         pull((Query<T>) createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
     }
 
@@ -1716,7 +1723,7 @@ public class Morphium implements AutoCloseable {
         updateUsingFields(ent, collection, callback, g.toArray(new String[]{}));
     }
 
-    @SuppressWarnings("UnusedParameters")
+    @SuppressWarnings({"UnusedParameters", "CommentedOutCode"})
     public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) {
             return;
@@ -1757,6 +1764,7 @@ public class Morphium implements AutoCloseable {
         return reread(o, objectMapper.getCollectionName(o.getClass()));
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public <T> T reread(T o, String collection) {
         if (o == null) {
             return null;
@@ -2068,7 +2076,7 @@ public class Morphium implements AutoCloseable {
     }
 
 
-    @SuppressWarnings("ConstantConditions")
+    @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
 //        if (logger.isDebugEnabled()) {
 //            logger.debug("returning write concern for " + cls.getSimpleName());
@@ -2306,6 +2314,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
+        //noinspection unchecked
         createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get(callback);
     }
 
@@ -2651,6 +2660,9 @@ public class Morphium implements AutoCloseable {
         return lst;
     }
 
+    public String getDatabase() {
+        return getConfig().getDatabase();
+    }
 
     @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String... fldStr) {
@@ -2961,6 +2973,7 @@ public class Morphium implements AutoCloseable {
         shutDownListeners.remove(l);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public void close() {
         if (asyncOperationsThreadPool != null) {
             asyncOperationsThreadPool.shutdownNow();
@@ -3323,13 +3336,14 @@ public class Morphium implements AutoCloseable {
         return getMissingIndicesFor(entity, objectMapper.getCollectionName(entity));
     }
 
+    @SuppressWarnings("ConstantConditions")
     public List<Map<String, Object>> getMissingIndicesFor(Class<?> entity, String collection) throws MorphiumDriverException {
         List<Map<String, Object>> missingIndexDef = new ArrayList<>();
         Index i = annotationHelper.getAnnotationFromClass(entity, Index.class);
         List<Map<String, Object>> ind = morphiumDriver.getIndexes(getConfig().getDatabase(), collection);
         List<Map<String, Object>> indices = new ArrayList<>();
         for (Map<String, Object> m : ind) {
-            Map<String, Object> indexKey = (Map<String, Object>) m.get("key");
+            @SuppressWarnings("unchecked") Map<String, Object> indexKey = (Map<String, Object>) m.get("key");
             indices.add(indexKey);
         }
         if (indices.size() > 0 && indices.get(0) == null) {
@@ -3436,6 +3450,7 @@ public class Morphium implements AutoCloseable {
         return checkIndices(null);
     }
 
+    @SuppressWarnings("CommentedOutCode")
     public Map<Class<?>, List<Map<String, Object>>> checkIndices(ClassInfoList.ClassInfoFilter filter) {
 
         Map<Class<?>, List<Map<String, Object>>> missingIndicesByClass = new ConcurrentHashMap<>();

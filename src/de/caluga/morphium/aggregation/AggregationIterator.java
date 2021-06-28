@@ -145,6 +145,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         }
         R unmarshall = null;
         if (aggregator.getResultType().equals(Map.class)) {
+            //noinspection unchecked
             unmarshall = (R) currentBatch.getBatch().get(cursor);
         } else {
             unmarshall = aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), currentBatch.getBatch().get(cursor));

@@ -225,6 +225,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @SuppressWarnings("CommentedOutCode")
     @Override
     public Query<T> matches(Pattern p) {
         addSimple(p);
@@ -301,6 +302,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> polygon(Polygon p) {
+        //noinspection unchecked
         createGeoWithinFilterExpression((List) p.getCoordinates(), "$polygon");
         return query;
     }

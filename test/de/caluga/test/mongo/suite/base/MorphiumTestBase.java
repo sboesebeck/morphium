@@ -176,9 +176,12 @@ public class MorphiumTestBase {
         log.info("----------------------------------------");
         log.info("-----------------------------");
         log.info("------ > TestNumber: " + num);
-        for (String coll : morphium.listCollections()) {
-            log.info("Dropping collection " + coll);
-            morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
+
+        try {
+            log.info("Dropping database: " + morphium.getConfig().getDatabase());
+            morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
         }
 
         log.info("Init complete");
@@ -242,6 +245,11 @@ public class MorphiumTestBase {
         }
         for (String coll : morphium.listCollections()) {
             log.info("Dropping collection " + coll);
+            try {
+                morphium.clearCollection(UncachedObject.class, coll); //faking it
+            } catch (Exception e) {
+                //e.printStackTrace();
+            }
             morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
         }
 
@@ -249,11 +257,7 @@ public class MorphiumTestBase {
             Thread.sleep(100);
             log.info("Collections still there...");
         }
-        try {
-            morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
-        }
+
         Thread.sleep(150);
     }
 

@@ -8,6 +8,7 @@ import java.lang.reflect.InvocationTargetException;
  * Time: 11:13
  * <p/>
  */
+@SuppressWarnings("rawtypes")
 public class AggregatorFactoryImpl implements AggregatorFactory {
     private Class<? extends Aggregator> aggregatorClass;
 

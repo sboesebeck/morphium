@@ -93,6 +93,7 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
         }
     }
 
+    @SuppressWarnings("CommentedOutCode")
     private static short createPID() {
         //        if (threadPid == null || threadPid.get() == null) {
 

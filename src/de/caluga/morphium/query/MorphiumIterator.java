@@ -1,7 +1,5 @@
 package de.caluga.morphium.query;
 
-import de.caluga.morphium.aggregation.Aggregator;
-
 import java.util.Iterator;
 import java.util.List;
 
