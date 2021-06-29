@@ -41,6 +41,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
     @Override
     public int getCurrentBufferSize() {
+        if (currentBatch == null || currentBatch.getBatch() == null) return 0;
         return currentBatch.getBatch().size();
     }
 

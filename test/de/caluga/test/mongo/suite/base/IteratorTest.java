@@ -474,6 +474,12 @@ public class IteratorTest extends MorphiumTestBase {
         start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2, 10);
         assert (it.hasNext());
+        start = System.currentTimeMillis();
+        while (it.getCount() != 1000) {
+            Thread.sleep(100);
+            Thread.sleep(50);
+            assert (System.currentTimeMillis() - start < 5000);
+        }
         UncachedObject u = it.next();
         assert (u.getCounter() == 1) : "Counter wrong: " + u.getCounter();
         log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());

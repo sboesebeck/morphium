@@ -668,7 +668,7 @@ public class MessagingTest extends MorphiumTestBase {
             while (procCounter.get() < 180) {
                 Thread.sleep(1000);
                 log.info("Recieved " + procCounter.get());
-                assert (System.currentTimeMillis() - s < 15000);
+                assert (System.currentTimeMillis() - s < 35000);
             }
         } finally {
             m1.terminate();

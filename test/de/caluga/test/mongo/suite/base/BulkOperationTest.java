@@ -90,6 +90,7 @@ public class BulkOperationTest extends MorphiumTestBase {
             Thread.sleep(100);
             assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
+        Thread.sleep(1000);
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
             assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
         }

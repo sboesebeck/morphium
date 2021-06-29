@@ -478,11 +478,11 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
     @Test
     public void iteratorByIdTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
-        createUncachedObjects(10000);
+        createUncachedObjects(5000);
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
         qu.sort("_id");
-        while (qu.countAll() != 10000) {
-            Thread.sleep(1000);
+        while (qu.countAll() != 5000) {
+            Thread.sleep(100);
             log.info("not stored yet...");
         }
         long start = System.currentTimeMillis();
@@ -498,7 +498,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                 assert (u.getCounter() == read);
             }
 
-            assert (read == 10000) : "Last counter wrong: " + u.getCounter();
+            assert (read == 5000) : "Last counter wrong: " + u.getCounter();
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
         }
     }
