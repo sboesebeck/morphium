@@ -37,7 +37,7 @@ public class BulkOperationTest extends MorphiumTestBase {
         while (uc1 == null) {
             uc1 = morphium.createQueryFor(UncachedObject.class).get();
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
 
         MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
@@ -88,7 +88,7 @@ public class BulkOperationTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("counter").eq(999).countAll() != 100) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {
             assert (o.getCounter() == 999) : "Counter is " + o.getCounter();
@@ -108,7 +108,7 @@ public class BulkOperationTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll() != 100) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         Thread.sleep(1000);
         for (UncachedObject o : morphium.createQueryFor(UncachedObject.class).asList()) {

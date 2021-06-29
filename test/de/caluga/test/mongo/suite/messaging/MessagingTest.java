@@ -1104,7 +1104,7 @@ public class MessagingTest extends MorphiumTestBase {
             long s = System.currentTimeMillis();
             while (!gotMessage1 && !gotMessage2) {
                 Thread.sleep(200);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
             int rec = 0;
@@ -1138,7 +1138,7 @@ public class MessagingTest extends MorphiumTestBase {
                     rec++;
                 }
                 Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
             assert (rec == 1) : "rec is " + rec;
             Thread.sleep(2500);
@@ -1222,7 +1222,7 @@ public class MessagingTest extends MorphiumTestBase {
                 }
                 if (rec == 1) break;
                 Thread.sleep(50);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
             assert (m1.getNumberOfMessages() == 0);
@@ -1250,7 +1250,7 @@ public class MessagingTest extends MorphiumTestBase {
             while (true) {
                 Thread.sleep(100);
                 if (morphium.createQueryFor(Msg.class).countAll() == 0) break;
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
         } finally {
             m1.terminate();
@@ -1318,7 +1318,7 @@ public class MessagingTest extends MorphiumTestBase {
             long s = System.currentTimeMillis();
             while (!gotMessage || gotMessage1) {
                 Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
             assert (gotMessage);
             assert (!gotMessage1);
@@ -1328,7 +1328,7 @@ public class MessagingTest extends MorphiumTestBase {
             s = System.currentTimeMillis();
             while (!gotMessage || gotMessage1) {
                 Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
             assert (gotMessage);
             assert (!gotMessage1);

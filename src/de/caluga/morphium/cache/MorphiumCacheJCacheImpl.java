@@ -140,10 +140,12 @@ public class MorphiumCacheJCacheImpl implements MorphiumCache, CacheEntryExpired
     @Override
     public <T> List<T> getFromCache(Class<? extends T> type, String k) {
         Cache<Object, CacheEntry<List<T>>> resultCache = getResultCache(type);
-        if (resultCache.get(k) != null) {
-            return resultCache.get(k).getResult();
-        } else {
-            return null;
+        synchronized (this) {
+            if (resultCache.get(k) != null) {
+                return resultCache.get(k).getResult();
+            } else {
+                return null;
+            }
         }
     }
 

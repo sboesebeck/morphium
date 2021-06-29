@@ -32,7 +32,7 @@ public class IdCacheTest extends MorphiumTestBase {
         while (q.countAll() != 99) {
             log.info("Count is still: " + q.countAll());
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         q = q.f("counter").lt(30);
         List<CachedObject> lst = q.asList();

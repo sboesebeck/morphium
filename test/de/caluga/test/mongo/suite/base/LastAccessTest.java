@@ -115,7 +115,7 @@ public class LastAccessTest extends MorphiumTestBase {
 
         while (morphium.findById(TstObjLA.class, la.id) == null) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         morphium.reread(la);
 
@@ -127,7 +127,7 @@ public class LastAccessTest extends MorphiumTestBase {
         s = System.currentTimeMillis();
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == la.getCreationTime()) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         morphium.reread(la);
         long lc = la.getLastChange();

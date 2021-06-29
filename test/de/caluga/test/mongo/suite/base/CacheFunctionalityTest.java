@@ -100,13 +100,13 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(SpecCachedOjbect.class).countAll() < amount) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         for (int i = 0; i < amount; i++) {
             s = System.currentTimeMillis();
             while (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() == null) {
                 Thread.sleep(100);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
             assert (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() != null);
         }

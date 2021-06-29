@@ -187,7 +187,11 @@ public class QueryTest extends MorphiumTestBase {
 
             }
         });
-        Thread.sleep(1500);
+        long s = System.currentTimeMillis();
+        while (c.get() != 10) {
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+        }
         assert (c.get() == 10);
     }
 
@@ -347,7 +351,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
 
         }
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
@@ -364,7 +368,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         morphium.push(uc, UncachedObject.Fields.intData, 42, false);
         assert (uc.getIntData() != null);
@@ -382,7 +386,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
 
         }
         List<Integer> lst = Arrays.asList(42, 123);
@@ -403,7 +407,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
 
         }
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, 12, false, false, null);
@@ -420,7 +424,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
 
         }
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, Expr.lte(Expr.intExpr(20)), false, false, null);
@@ -538,7 +542,7 @@ public class QueryTest extends MorphiumTestBase {
             cnt = morphium.createQueryFor(UncachedObject.class)
                     .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         assert (cnt == 4);
     }
@@ -549,7 +553,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
             Thread.sleep(50);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         AtomicInteger ai = new AtomicInteger(0);
         morphium.createQueryFor(UncachedObject.class)
@@ -577,7 +581,7 @@ public class QueryTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).countAll() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
 
         Thread.sleep(150);
@@ -601,7 +605,7 @@ public class QueryTest extends MorphiumTestBase {
         List<UncachedObject> lst = q.asList();
         while (lst.size() == 0) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             lst = q.asList();
         }
 
@@ -620,7 +624,7 @@ public class QueryTest extends MorphiumTestBase {
         while (lst.size() < 1) {
             lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).hideFieldInProjection(UncachedObject.Fields.strValue).asList();
             Thread.sleep(50);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         assert (lst.size() == 1);
         assert (lst.get(0).getStrValue() == null);
