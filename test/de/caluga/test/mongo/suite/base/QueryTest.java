@@ -458,6 +458,12 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(50);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).gte(100).countAll();
+        long s = System.currentTimeMillis();
+        while (cnt == 0) {
+            cnt = morphium.createQueryFor(UncachedObject.class)
+                    .f(UncachedObject.Fields.counter).gte(100).countAll();
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+        }
         assert (cnt != 0);
         assert (cnt == 4);
     }
