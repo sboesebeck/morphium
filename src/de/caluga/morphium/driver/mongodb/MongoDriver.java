@@ -907,6 +907,8 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCollection coll = getColl(database, collection, readPreference, null);
             MongoCollection<Document> c = getCollection(database, collection, readPreference, null);
             FindIterable<Document> it = currentTransaction.get() == null ? c.find(new BasicDBObject(query)) : c.find(currentTransaction.get().getSession(), new BasicDBObject(query));
+            it.maxAwaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
+
             if (projection != null && !projection.isEmpty()) {
                 it.projection(new BasicDBObject(projection));
             }

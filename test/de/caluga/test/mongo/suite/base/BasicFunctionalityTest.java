@@ -299,18 +299,24 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").exists().f("str_value").eq("Uncached 1");
         long c = q.countAll();
+        s = System.currentTimeMillis();
+        while (c != 1) {
+            c = q.countAll();
+            Thread.sleep(100);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+        }
         assert (c == 1) : "Count wrong: " + c;
 
         UncachedObject o = q.get();
         s = System.currentTimeMillis();
         while (o == null) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             o = q.get();
         }
         assert (o.getCounter() == 1);
@@ -352,7 +358,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         while (uc == null) {
             Thread.sleep(100);
             uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         assert (uc != null) : "Not found?!?";
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();

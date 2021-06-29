@@ -131,7 +131,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (count.get() < 5) {
             Thread.sleep(500);
-            assert (System.currentTimeMillis() - s < 5000);
+            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);

@@ -44,7 +44,7 @@ public class ComplexAnswerTests extends MorphiumTestBase {
             long s = System.currentTimeMillis();
             while (morphium.createQueryFor(Msg.class).countAll() != 3) {
                 Thread.sleep(500);
-                assert (System.currentTimeMillis() - s < 5000);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
             log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
             assert (morphium.createQueryFor(Msg.class).countAll() == 3) : "Message count is wrong: " + morphium.createQueryFor(Msg.class).countAll();

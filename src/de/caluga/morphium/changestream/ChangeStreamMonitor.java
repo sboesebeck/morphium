@@ -52,6 +52,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     }
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, List<Map<String, Object>> pipeline) {
+        this(m, collectionName, fullDocument, m.getConfig().getMaxWaitTime(), pipeline);
+    }
+
+    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object>> pipeline) {
         morphium = m;
         listeners = new ConcurrentLinkedDeque<>();
         morphium.addShutdownListener(this);
