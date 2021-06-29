@@ -22,6 +22,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final Logger log = LoggerFactory.getLogger(ChangeStreamMonitor.class);
     private final String collectionName;
     private final boolean fullDocument;
+    private final int maxWait;
     private volatile boolean running = true;
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
@@ -62,6 +63,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         this.pipeline = pipeline;
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;
+        if (maxWait != 0) {
+            this.maxWait = maxWait;
+        } else {
+            this.maxWait = m.getConfig().getMaxWaitTime();
+        }
 
         mapper = new ObjectMapperImpl();
         AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
@@ -172,9 +178,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 };
 
                 if (dbOnly) {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), morphium.getConfig().getMaxWaitTime(), fullDocument, pipeline, callback);
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 } else {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, morphium.getConfig().getMaxWaitTime(), fullDocument, pipeline, callback);
+                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, maxWait, fullDocument, pipeline, callback);
                 }
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("Network error error: state should be: open")){
