@@ -657,7 +657,7 @@ public class MessagingTest extends MorphiumTestBase {
                     public void run() {
                         Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
-                        Msg a = m1.sendAndAwaitFirstAnswer(m, 16000);
+                        Msg a = m1.sendAndAwaitFirstAnswer(m, 600000);
                         assert (a != null);
                         procCounter.incrementAndGet();
                     }
@@ -668,7 +668,7 @@ public class MessagingTest extends MorphiumTestBase {
             while (procCounter.get() < 180) {
                 Thread.sleep(1000);
                 log.info("Recieved " + procCounter.get());
-                assert (System.currentTimeMillis() - s < 35000);
+                assert (System.currentTimeMillis() - s < 600000);
             }
         } finally {
             m1.terminate();

@@ -52,18 +52,20 @@ public class ComplexAnswerTests extends MorphiumTestBase {
             //creating a loop!
 
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
+            m1.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             morphium.createQueryFor(Msg.class).delete();
             Thread.sleep(200);
             m1.sendMessage(new Msg("test", "ms", "val"));
-            Thread.sleep(250);
-            m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
-            m1.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
-            Thread.sleep(1250);
-            long cnt = morphium.createQueryFor(Msg.class).countAll();
-            log.info("Messagecount PingPongLoop: " + cnt);
-            assert (cnt > 10) : "Pingpong delivered not enough messages: " + cnt;
 
-            assert (cnt == morphium.createQueryFor(Msg.class).countAll());
+            long cnt = morphium.createQueryFor(Msg.class).countAll();
+            s = System.currentTimeMillis();
+            while (cnt <= 10) {
+                cnt = morphium.createQueryFor(Msg.class).countAll();
+                Thread.sleep(100);
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            }
+            log.info("Messagecount PingPongLoop: " + cnt);
+            assert (cnt >= 10) : "Pingpong delivered not enough messages: " + cnt;
         } finally {
             m1.terminate();
             m2.terminate();
