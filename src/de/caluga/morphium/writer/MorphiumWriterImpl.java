@@ -409,7 +409,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Collection " + coll + " does not exist - ensuring indices");
                     }
-                    createCappedCollection(type);
+                    createCappedCollection(type, coll);
                     morphium.ensureIndicesFor(type, coll, callback);
                     break;
                 case CREATE_ON_STARTUP:
