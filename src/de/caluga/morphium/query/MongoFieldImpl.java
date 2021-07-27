@@ -228,17 +228,40 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     @SuppressWarnings("CommentedOutCode")
     @Override
     public Query<T> matches(Pattern p) {
-        addSimple(p);
+        //addSimple(p);
 //            fe.setValue(p);
 //
 //        fe.setField(mapper.getMorphium().getARHelper().getFieldName(query.getType(), fldStr));
 //        query.addChild(fe);
+        add("$regex", p.toString());
+        if (p.flags() != 0) {
+            String options = "";
+            if ((p.flags() | Pattern.CASE_INSENSITIVE) != 0) {
+                options = options + "i";
+            } else if ((p.flags() | Pattern.MULTILINE) != 0) {
+                options = options + "m";
+            }
+            if (!options.isEmpty()) {
+                add("$options", options);
+            }
+        }
+        return query;
+    }
+
+    @Override
+    public Query<T> matches(String ptrn, String options) {
+        add("$regex", ptrn);
+
+        if (options != null && !options.isEmpty()) {
+            add("$options", options);
+        }
+
         return query;
     }
 
     @Override
     public Query<T> matches(String ptrn) {
-        return matches(Pattern.compile(ptrn));
+        return matches(ptrn, null);
     }
 
     @Override
