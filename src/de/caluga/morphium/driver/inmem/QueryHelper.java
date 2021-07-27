@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.regex.Pattern;
 
 public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
@@ -80,7 +81,6 @@ public class QueryHelper {
                     if (query.get(key) instanceof Map) {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
-                        assert (q.size() == 1);
                         String k = q.keySet().iterator().next();
                         if (key.equals("$expr")) {
                             Expr e = Expr.parse(q);
@@ -187,9 +187,60 @@ public class QueryHelper {
                                 Expr e = (Expr) q.get(k);
                                 Object ev = e.evaluate(toCheck);
                                 return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
+                            case "$regex":
+                                Object valtoCheck = null;
+                                if (key.contains(".")) {
+                                    //path
+                                    String[] b = key.split("\\.");
+                                    Map<String, Object> val = toCheck;
+                                    for (int i = 0; i < b.length; i++) {
+                                        String el = b[i];
+                                        Object candidate = val.get(el);
+                                        if (candidate == null) {
+                                            //did not find path in object
+                                            return false;
+                                        }
+                                        if (!(candidate instanceof Map) && i < b.length - 1) {
+                                            //found path element, but it is not a map
+                                            return false;
+                                        } else if (i < b.length - 1) {
+                                            val = (Map) candidate;
+                                        }
+                                        if (i == b.length - 1) {
+                                            valtoCheck = candidate;
+                                        }
+                                    }
+                                } else {
+                                    valtoCheck = toCheck.get(key);
+                                }
+                                int opts = 0;
+                                if (q.containsKey("$options")) {
+                                    String opt = q.get("$options").toString().toLowerCase();
+                                    if (opt.contains("i")) {
+                                        opts = opts | Pattern.CASE_INSENSITIVE;
+                                    }
+                                    if (opt.contains("m")) {
+                                        opts = opts | Pattern.MULTILINE;
+                                    }
+                                    if (opt.contains("s")) {
+                                        opts = opts | Pattern.DOTALL;
+                                    }
+                                    if (opt.contains("x")) {
+                                        log.warn("There is no proper equivalent for the 'x' option in mongodb!");
+//                                        opts=opts|Pattern.COMMENTS;
+                                    }
+
+                                }
+                                if (valtoCheck == null) return false;
+
+                                String regex = q.get("$regex").toString();
+                                if (!regex.startsWith("^")) {
+                                    regex = ".*" + regex;
+                                }
+                                Pattern p = Pattern.compile(regex, opts);
+                                return p.matcher(valtoCheck.toString()).matches();
                             case "$jsonSchema":
                             case "$type":
-                            case "$regex":
                             case "$text":
                             case "$geoIntersects":
                             case "$geoWithin":

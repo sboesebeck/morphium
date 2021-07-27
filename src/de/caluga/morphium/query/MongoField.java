@@ -43,6 +43,8 @@ public interface MongoField<T> {
 
     Query<T> matches(Pattern p);
 
+    Query<T> matches(String ptrn, String options);
+
     Query<T> matches(String ptrn);
 
     Query<T> type(MongoType t);
@@ -51,7 +53,7 @@ public interface MongoField<T> {
 
     Query<T> nin(Collection<?> vals);
 
-     Query<T> nearSphere(double x, double y);
+    Query<T> nearSphere(double x, double y);
 
     Query<T> near(double x, double y);
 

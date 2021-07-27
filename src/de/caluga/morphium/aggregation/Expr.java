@@ -1510,6 +1510,21 @@ public abstract class Expr {
         return new MapOpExpr("ltrim", Utils.getMap("input", str).add("chars", charsToTrim));
     }
 
+    public static Expr regex(Expr field, Expr regex, Expr options) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                return Utils.getMap(field.toQueryObject().toString().substring(1), Utils.getMap("$regex", regex.toQueryObject()).add("$options", options.toQueryObject()));
+            }
+
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+
+                return null;
+            }
+        };
+    }
+
     public static Expr regexFind(Expr input, Expr regex, Expr options) {
         return new MapOpExpr("regexFind", Utils.getMap("input", input)
                 .add("regex", regex)
