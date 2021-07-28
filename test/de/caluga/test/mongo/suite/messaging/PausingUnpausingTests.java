@@ -66,11 +66,11 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
             log.info("Processing was paused for ms " + l);
             //m1.findAndProcessPendingMessages("tst1");
-            Thread.sleep(200);
+            Thread.sleep(500);
 
             assert (gotMessage1);
             gotMessage1 = false;
-            Thread.sleep(200);
+            Thread.sleep(500);
             assert (!gotMessage1);
 
             gotMessage1 = false;
@@ -105,7 +105,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             }
             lastTS.set(System.currentTimeMillis());
             log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp() + " " + lst);
-            Thread.sleep(250);
+            Thread.sleep(550);
             list.add(m);
             msg.unpauseProcessingOfMessagesNamed(m.getName());
             return null;
@@ -135,11 +135,10 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         }
         assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
-        //Thread.sleep(6500); //time=duration of processing ~250ms + messaging pause 10ms = 260ms*20 = 5200ms + processing time
         s = System.currentTimeMillis();
         while (list.size() != 20) {
             Thread.sleep(1000);
-            assert (System.currentTimeMillis() - s < 15000);
+            assert (System.currentTimeMillis() - s < 25000);
         }
         assert (list.size() == 20) : "Size wrong " + list.size();
 
@@ -205,7 +204,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         //Message after unpausing:
         assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(100);
+        Thread.sleep(500);
         assert (list.size() == 3);
         Thread.sleep(2000);
         //Message after unpausing:
