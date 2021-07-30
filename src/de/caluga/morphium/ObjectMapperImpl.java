@@ -9,7 +9,9 @@ import de.caluga.morphium.mapping.BigIntegerTypeMapper;
 import de.caluga.morphium.mapping.BsonGeoMapper;
 import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.geospatial.*;
-import io.github.classgraph.*;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfoList;
+import io.github.classgraph.ScanResult;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.bson.types.Binary;
@@ -270,7 +272,11 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (customMappers.containsKey(cls)) {
             Object ret = customMappers.get(cls).marshall(o);
             if (ret instanceof Map) {
-                ((Map) ret).put("class_name", getMorphium().getARHelper().getTypeIdForClass(cls));
+                String typeIdForClass = null;
+                if (getMorphium() != null) typeIdForClass = getMorphium().getARHelper().getTypeIdForClass(cls);
+                else
+                    typeIdForClass = cls.getName();
+                ((Map) ret).put("class_name", typeIdForClass);
                 return (Map<String, Object>) ret;
             } else {
                 return Utils.getMap("value", ret);
