@@ -1753,7 +1753,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     || morphium.getARHelper().isAnnotationPresentInHierarchy(value.getClass(), Embedded.class)) {
                 //need to serialize...
                 Map<String, Object> marshall = morphium.getMapper().serialize(value);
-                marshall.put("class_name", morphium.getARHelper().getRealClass(value.getClass()).getName());
+                marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(value.getClass()));
                 value = marshall;
             } else if (List.class.isAssignableFrom(value.getClass())) {
                 List lst = new ArrayList();
@@ -1762,7 +1762,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Entity.class)
                     ) {
                         Map<String, Object> marshall = morphium.getMapper().serialize(o);
-                        marshall.put("class_name", morphium.getARHelper().getRealClass(o.getClass()).getName());
+                        marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(o.getClass()));
 
                         lst.add(marshall);
                     } else {
@@ -1771,6 +1771,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 value = lst;
             } else if (Map.class.isAssignableFrom(value.getClass())) {
+                value = new LinkedHashMap((Map) value);
                 for (Object e : ((Map) value).entrySet()) {
                     Map.Entry en = (Map.Entry) e;
                     if (!String.class.isAssignableFrom(((Map.Entry) e).getKey().getClass())) {
@@ -1780,7 +1781,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)
                     ) {
                         Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
-                        marshall.put("class_name", morphium.getARHelper().getRealClass(en.getValue().getClass()).getName());
+                        marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(en.getValue().getClass()));
                         ((Map) value).put(en.getKey(), marshall);
                     }
                 }

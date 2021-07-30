@@ -112,6 +112,7 @@ public class AnnotationAndReflectionHelper {
     }
 
     public String getTypeIdForClass(Class cls) {
+        cls = getRealClass(cls);
         Entity e = (Entity) cls.getAnnotation(Entity.class);
         Embedded em = (Embedded) cls.getAnnotation(Embedded.class);
         if (e != null && !e.typeId().equals(".")) {

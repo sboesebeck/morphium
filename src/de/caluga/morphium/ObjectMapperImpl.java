@@ -270,7 +270,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         if (customMappers.containsKey(cls)) {
             Object ret = customMappers.get(cls).marshall(o);
             if (ret instanceof Map) {
-                ((Map) ret).put("class_name", cls.getName());
+                ((Map) ret).put("class_name", getMorphium().getARHelper().getTypeIdForClass(cls));
                 return (Map<String, Object>) ret;
             } else {
                 return Utils.getMap("value", ret);
@@ -402,7 +402,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     if (morphium == null) {
                                         throw new RuntimeException("cannot set dbRef - morphium is not set");
                                     }
-                                    MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
+                                    MorphiumReference ref = new MorphiumReference(annotationHelper.getTypeIdForClass(rec.getClass()), id);
 
                                     lst.add(serialize(ref));
                                 } else {
@@ -423,7 +423,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                 if (morphium == null) {
                                     throw new RuntimeException("cannot set dbRef - morphium is not set");
                                 }
-                                MorphiumReference ref = new MorphiumReference(annotationHelper.getRealClass(rec.getClass()).getName(), id);
+                                MorphiumReference ref = new MorphiumReference(annotationHelper.getTypeIdForClass(rec.getClass()), id);
                                 map.put(key, serialize(ref));
                             });
                             v = map;
