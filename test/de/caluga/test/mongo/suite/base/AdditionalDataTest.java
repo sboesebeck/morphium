@@ -1,7 +1,10 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.data.AdditionalDataEntity;
+import de.caluga.test.mongo.suite.data.ComplexObject;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -15,6 +18,7 @@ import java.util.Map;
  * <p/>
  */
 public class AdditionalDataTest extends MorphiumTestBase {
+
 
     @Test
     public void additionalData() throws Exception {
