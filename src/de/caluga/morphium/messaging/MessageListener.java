@@ -15,4 +15,8 @@ public interface MessageListener<T extends Msg> {
      */
     @SuppressWarnings("UnusedParameters")
     T onMessage(Messaging msg, T m) throws InterruptedException;
+
+    default boolean markAsProcessedBeforeExec() {
+        return false;
+    }
 }

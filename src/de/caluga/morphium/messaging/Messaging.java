@@ -796,6 +796,10 @@ public class Messaging extends Thread implements ShutdownListener {
                                 skipped.incrementAndGet();
                                 return;
                             }
+                            if (l.markAsProcessedBeforeExec()) {
+                                updateProcessedBy(msg1);
+                            }
+
                             Msg answer = l.onMessage(Messaging.this, msg1);
                             wasProcessed = true;
                             if (autoAnswer && answer == null) {
@@ -918,6 +922,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg == null) {
             return;
         }
+        if (msg.getProcessedBy().contains(id)) return;
         msg = morphium.reread(msg, getCollectionName());
         if (msg == null) return;
         if (msg.getProcessedBy() == null) msg.setProcessedBy(new ArrayList<>());
