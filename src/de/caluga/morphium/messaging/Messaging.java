@@ -32,6 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
 public class Messaging extends Thread implements ShutdownListener {
     private static final Logger log = LoggerFactory.getLogger(Messaging.class);
+    private final StatusInfoListener statusInfoListener;
+    private String statusInfoListenerName = "morphium.status_info";
+    private boolean statusInfoListenerEnabled = true;
 
     private final Morphium morphium;
     private boolean running;
@@ -41,6 +44,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private String hostname;
     private boolean processMultiple;
     private ReceiveAnswers receiveAnswers = ReceiveAnswers.ONLY_MINE;
+
 
     private final List<MessageListener> listeners;
 
@@ -105,59 +109,10 @@ public class Messaging extends Thread implements ShutdownListener {
         setPause(pause);
         setProcessMultiple(processMultiple);
         morphium = m;
-
+        statusInfoListener = new StatusInfoListener();
 
         if (multithreadded) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-                @SuppressWarnings("CommentedOutCode")
-                @Override
-                public boolean offer(Runnable e) {
-                    /*
-                     * Offer it to the queue if there is 0 items already queued, else
-                     * return false so the TPE will add another thread. If we return false
-                     * and max threads have been reached then the RejectedExecutionHandler
-                     * will be called which will do the put into the queue.
-                     */
-//                    if (size() == 0) {
-//                        return super.offer(e);
-//                    } else {
-//                        return false;
-//                    }
-                    int poolSize = threadPool.getPoolSize();
-                    int maximumPoolSize = threadPool.getMaximumPoolSize();
-                    if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
-                        return super.offer(e);
-                    } else {
-                        return false;
-                    }
-                }
-            };
-            threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-                    morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
-                    queue);
-            threadPool.setRejectedExecutionHandler((r, executor) -> {
-                try {
-                    /*
-                     * This does the actual put into the queue. Once the max threads
-                     * have been reached, the tasks will then queue up.
-                     */
-                    executor.getQueue().put(r);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            //noinspection unused,unused
-            threadPool.setThreadFactory(new ThreadFactory() {
-                private final AtomicInteger num = new AtomicInteger(1);
-
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread ret = new Thread(r, "messaging " + num);
-                    num.set(num.get() + 1);
-                    ret.setDaemon(true);
-                    return ret;
-                }
-            });
+            initThreadPool();
         }
 
         decouplePool = new ScheduledThreadPoolExecutor(1);
@@ -200,6 +155,125 @@ public class Messaging extends Thread implements ShutdownListener {
         listenerByName = new HashMap<>();
     }
 
+    public void enableStatusInfoListener() {
+        setStatusInfoListenerEnabled(true);
+    }
+
+    public void disableStatusInfoListener() {
+        setStatusInfoListenerEnabled(false);
+
+    }
+
+    public String getStatusInfoListenerName() {
+        return statusInfoListenerName;
+    }
+
+    public void setStatusInfoListenerName(String statusInfoListenerName) {
+        listenerByName.remove(this.statusInfoListenerName);
+        this.statusInfoListenerName = statusInfoListenerName;
+        listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+    }
+
+    public boolean isStatusInfoListenerEnabled() {
+        return statusInfoListenerEnabled;
+    }
+
+    public void setStatusInfoListenerEnabled(boolean statusInfoListenerEnabled) {
+        this.statusInfoListenerEnabled = statusInfoListenerEnabled;
+        if (statusInfoListenerEnabled && !listenerByName.containsKey(statusInfoListenerName)) {
+            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        } else if (!statusInfoListenerEnabled) {
+            listenerByName.remove(statusInfoListenerName);
+        }
+    }
+
+    public Map<String, List<String>> getListenerNames() {
+        Map<String, List<String>> ret = new HashMap<>();
+        Map<String, List<MessageListener>> localCopy = new HashMap<>(listenerByName);
+        for (Map.Entry<String, List<MessageListener>> e : localCopy.entrySet()) {
+            List<String> classes = new ArrayList<>();
+            for (MessageListener lst : e.getValue()) {
+                classes.add(lst.getClass().getName());
+            }
+            ret.put(e.getKey(), classes);
+        }
+        return ret;
+    }
+
+    public List<String> getGlobalListeners() {
+        List<MessageListener> localCopy = new ArrayList<>(listeners);
+        List<String> ret = new ArrayList<>();
+        for (MessageListener lst : localCopy) {
+            ret.add(lst.getClass().getName());
+        }
+        return ret;
+    }
+
+    public Map<String, Long> getThreadPoolStats() {
+        String prefix = "messaging.threadpool.";
+        return Utils.getMap(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
+                .add(prefix + "task_count", threadPool.getTaskCount())
+                .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
+                .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+                .add(prefix + "pool_size", (long) threadPool.getPoolSize())
+                .add(prefix + "active_count", (long) threadPool.getActiveCount())
+                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+
+    }
+
+    private void initThreadPool() {
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            @SuppressWarnings("CommentedOutCode")
+            @Override
+            public boolean offer(Runnable e) {
+                /*
+                 * Offer it to the queue if there is 0 items already queued, else
+                 * return false so the TPE will add another thread. If we return false
+                 * and max threads have been reached then the RejectedExecutionHandler
+                 * will be called which will do the put into the queue.
+                 */
+//                    if (size() == 0) {
+//                        return super.offer(e);
+//                    } else {
+//                        return false;
+//                    }
+                int poolSize = threadPool.getPoolSize();
+                int maximumPoolSize = threadPool.getMaximumPoolSize();
+                if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
+                    return super.offer(e);
+                } else {
+                    return false;
+                }
+            }
+        };
+        threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
+                morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS,
+                queue);
+        threadPool.setRejectedExecutionHandler((r, executor) -> {
+            try {
+                /*
+                 * This does the actual put into the queue. Once the max threads
+                 * have been reached, the tasks will then queue up.
+                 */
+                executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        //noinspection unused,unused
+        threadPool.setThreadFactory(new ThreadFactory() {
+            private final AtomicInteger num = new AtomicInteger(1);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "messaging " + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
+    }
+
     public long getPendingMessagesCount() {
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName());
 
@@ -225,7 +299,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //            log.debug("Messaging " + id + " started");
 //        }
 
-
+        if (statusInfoListenerEnabled) {
+            listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
+        }
         if (useChangeStream) {
 //            log.debug("Before running the changestream monitor - check of already existing messages");
             try {
@@ -769,6 +845,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (listenerByName.get(msg.getName()) != null) {
                     lst.addAll(listenerByName.get(msg.getName()));
                 }
+
                 if (lst.isEmpty()) {
                     if (log.isDebugEnabled())
                         log.debug(getSenderId() + ": Message did not have a listener registered");
@@ -1278,6 +1355,12 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging setMultithreadded(boolean multithreadded) {
+        if (!multithreadded && threadPool != null) {
+            threadPool.shutdownNow();
+            threadPool = null;
+        } else if (multithreadded && threadPool == null) {
+            initThreadPool();
+        }
         this.multithreadded = multithreadded;
         return this;
     }
@@ -1324,6 +1407,10 @@ public class Messaging extends Thread implements ShutdownListener {
             return threadPool.getActiveCount();
         }
         return 0;
+    }
+
+    Morphium getMorphium() {
+        return morphium;
     }
 
     public Messaging setUseChangeStream(boolean useChangeStream) {
