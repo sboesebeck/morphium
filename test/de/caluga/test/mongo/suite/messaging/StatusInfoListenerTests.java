@@ -15,6 +15,44 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
+    public void disablingEnablingStatusListener() throws Exception {
+        Messaging m1 = new Messaging(morphium, 100, true);
+        m1.setSenderId("m1");
+        m1.setMultithreadded(true);
+        m1.start();
+        Messaging m2 = new Messaging(morphium, 100, true);
+        m2.setSenderId("m2");
+        m2.setMultithreadded(false);
+        m2.start();
+
+        addListeners(m1, m2);
+        Messaging sender = new Messaging(morphium, 100, true);
+        sender.start();
+        Thread.sleep(250);
+        List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
+        assertThat(lst.size()).isEqualTo(2);
+
+        m1.disableStatusInfoListener();
+        lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
+        assertThat(lst.size()).isEqualTo(1);
+        m2.disableStatusInfoListener();
+        lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
+
+        assertThat(lst == null || lst.size() == 0).isTrue();
+
+        m1.enableStatusInfoListener();
+        m2.enableStatusInfoListener();
+        lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
+        assertThat(lst.size()).isEqualTo(2);
+
+        m1.terminate();
+        m2.terminate();
+        sender.terminate();
+
+
+    }
+
+    @Test
     public void getStatusInfo() throws Exception {
         Messaging m1 = new Messaging(morphium, 100, true);
         m1.setSenderId("m1");
@@ -25,32 +63,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         m2.setMultithreadded(false);
         m2.start();
 
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                return null;
-            }
-        });
-        m1.addListenerForMessageNamed("test1", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                return null;
-            }
-        });
-
-        m2.addListenerForMessageNamed("test1", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                return null;
-            }
-        });
-
-        m2.addListenerForMessageNamed("test2", new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
-                return null;
-            }
-        });
+        addListeners(m1, m2);
 
         Thread.sleep(1500);
         Messaging sender = new Messaging(morphium, 100, true);
@@ -98,11 +111,41 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             assertThat(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey)).isFalse();
             assertThat(mapValue.containsKey(StatusInfoListener.globalListenersKey)).isFalse();
         }
-        log.info("all find... exiting");
+        log.info("all fine... exiting");
+
 
         m1.terminate();
         m2.terminate();
         sender.terminate();
+    }
+
+    private void addListeners(Messaging m1, Messaging m2) {
+        m1.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                return null;
+            }
+        });
+        m1.addListenerForMessageNamed("test1", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                return null;
+            }
+        });
+
+        m2.addListenerForMessageNamed("test1", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                return null;
+            }
+        });
+
+        m2.addListenerForMessageNamed("test2", new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                return null;
+            }
+        });
     }
 
     private void checkMessagingStats(Msg m, Map<String, Object> mapValue) {

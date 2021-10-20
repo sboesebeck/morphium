@@ -101,7 +101,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @SuppressWarnings("CommentedOutCode")
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, ReceiveAnswers recieveAnswers) {
-        setMultithreadded(multithreadded);
+
         setWindowSize(windowSize);
         setUseChangeStream(useChangeStream);
         setReceiveAnswers(recieveAnswers);
@@ -110,11 +110,7 @@ public class Messaging extends Thread implements ShutdownListener {
         setProcessMultiple(processMultiple);
         morphium = m;
         statusInfoListener = new StatusInfoListener();
-
-        if (multithreadded) {
-            initThreadPool();
-        }
-
+        setMultithreadded(multithreadded);
         decouplePool = new ScheduledThreadPoolExecutor(1);
         //noinspection unused,unused
         decouplePool.setThreadFactory(new ThreadFactory() {
