@@ -139,9 +139,9 @@ public class MorphiumConfig {
     private String defaultTags;
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
-    private int readTimeout;
-    private boolean retryReads;
-    private boolean retryWrites;
+    private int readTimeout = -1;
+    private boolean retryReads = false;
+    private boolean retryWrites = false;
     private String uuidRepresentation;
     private IndexCappedCheck indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;
 
