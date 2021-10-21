@@ -40,7 +40,7 @@ public class MorphiumConfig {
     @AdditionalData(readOnly = false)
     private Map<String, Object> restoreData;
     //    private MongoDbMode mode;
-    private int maxConnections, housekeepingTimeout;
+    private int maxConnections = 10, housekeepingTimeout = 5000;
     private int minConnections = 1;
 
     private int globalCacheValidTime = 5000;
