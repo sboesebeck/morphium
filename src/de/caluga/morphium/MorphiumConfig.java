@@ -139,7 +139,7 @@ public class MorphiumConfig {
     private String defaultTags;
     private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
-    private int readTimeout = -1;
+    private int readTimeout = 0;
     private boolean retryReads = false;
     private boolean retryWrites = false;
     private String uuidRepresentation;
