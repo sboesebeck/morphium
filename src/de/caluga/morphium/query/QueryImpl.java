@@ -449,12 +449,15 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
     @Override
     public Map<String, Object> getFieldListForQuery() {
-        List<Field> fldlst = getARHelper().getAllFields(type);
+        List<Field> fldlst = null;
+        if (type != null) fldlst = getARHelper().getAllFields(type);
         Map<String, Object> lst = new HashMap<>();
-        Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
-        if (e.polymorph()) {
-            //            lst.put("class_name", 1);
-            return new HashMap<>();
+        if (type != null) {
+            Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
+            if (e.polymorph()) {
+                //            lst.put("class_name", 1);
+                return new HashMap<>();
+            }
         }
         lst.put("_id", 1);
         if (fieldList != null) {
@@ -482,17 +485,21 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 lst.remove("_id");
             }
         } else {
-            for (Field f : fldlst) {
-                if (f.isAnnotationPresent(AdditionalData.class)) {
-                    //to enable additional data
-                    lst = new HashMap<>();
-                    break;
+            if (fldlst != null) {
+                for (Field f : fldlst) {
+                    if (f.isAnnotationPresent(AdditionalData.class)) {
+                        //to enable additional data
+                        lst = new HashMap<>();
+                        break;
+                    }
+                    String n = getARHelper().getMongoFieldName(type, f.getName());
+                    // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
+                    if (!n.startsWith("$jacoco")) {
+                        lst.put(n, 1);
+                    }
                 }
-                String n = getARHelper().getMongoFieldName(type, f.getName());
-                // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
-                if (!n.startsWith("$jacoco")) {
-                    lst.put(n, 1);
-                }
+            } else {
+                lst = new HashMap<>();
             }
         }
         if (additionalFields != null) {
@@ -988,54 +995,80 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
     @Override
     public List<Map<String, Object>> asMapList() {
         morphium.inc(StatisticKeys.READS);
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
-        Class type = Map.class;
-        String ck = morphium.getCache().getCacheKey(this);
-        if (useCache) {
-            if (morphium.getCache().isCached(type, ck)) {
-                morphium.inc(StatisticKeys.CHITS);
-                //noinspection unchecked
-                return morphium.getCache().getFromCache(type, ck);
+        if (type != null) {
+            Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+            boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+            Class type = Map.class;
+            String ck = morphium.getCache().getCacheKey(this);
+            if (useCache) {
+                if (morphium.getCache().isCached(type, ck)) {
+                    morphium.inc(StatisticKeys.CHITS);
+                    //noinspection unchecked
+                    return morphium.getCache().getFromCache(type, ck);
+                }
+                morphium.inc(StatisticKeys.CMISS);
+            } else {
+                morphium.inc(StatisticKeys.NO_CACHED_READS);
+
             }
-            morphium.inc(StatisticKeys.CMISS);
+            long start = System.currentTimeMillis();
+
+            Map<String, Object> lst = getFieldListForQuery();
+
+
+            List<Map<String, Object>> ret = new ArrayList<>();
+            try {
+
+                Map<String, Object> findMetaData = new HashMap<>();
+                ret = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
+                srv = (String) findMetaData.get("server");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+
+            }
+            morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+
+            if (useCache) {
+                //noinspection unchecked
+                morphium.getCache().addToCache(ck, type, ret);
+            }
+            morphium.firePostLoad(ret);
+            return ret;
         } else {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
 
+            long start = System.currentTimeMillis();
+
+            Map<String, Object> lst = getFieldListForQuery();
+
+
+            List<Map<String, Object>> ret = new ArrayList<>();
+            try {
+
+                Map<String, Object> findMetaData = new HashMap<>();
+                ret = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
+                srv = (String) findMetaData.get("server");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+
+            }
+            morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+            return ret;
         }
-        long start = System.currentTimeMillis();
-
-        Map<String, Object> lst = getFieldListForQuery();
-
-
-        List<Map<String, Object>> ret = new ArrayList<>();
-        ret.clear();
-        try {
-
-            Map<String, Object> findMetaData = new HashMap<>();
-            ret = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
-            srv = (String) findMetaData.get("server");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-
-        }
-        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
-
-        if (useCache) {
-            //noinspection unchecked
-            morphium.getCache().addToCache(ck, type, ret);
-        }
-        morphium.firePostLoad(ret);
-        return ret;
     }
 
     @Override
     public MorphiumQueryIterator<Map<String, Object>> asMapIterable() {
-        return null;
+        QueryIterator<Map<String, Object>> it = new QueryIterator<>();
+        it.setQuery((Query<Map<String, Object>>) this);
+        return it;
     }
 
     @Override
     public List<T> asList() {
+        if (type == null) {
+            return (List<T>) asMapList();
+        }
         morphium.inc(StatisticKeys.READS);
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
