@@ -225,7 +225,12 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         if (currentBatch.getBatch().size() <= cursor) {
             return null;
         }
-        T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), currentBatch.getBatch().get(cursor));
+        T unmarshall = null;
+        if (query.getType() != null) {
+            unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), currentBatch.getBatch().get(cursor));
+        } else {
+            unmarshall = (T) currentBatch.getBatch().get(cursor);
+        }
         query.getMorphium().firePostLoadEvent(unmarshall);
         try {
             if (currentBatch == null && cursorExternal == 0) {

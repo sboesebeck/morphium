@@ -461,6 +461,21 @@ public class Morphium implements AutoCloseable {
         return createQueryByTemplate(template, flds);
     }
 
+    public Query<Map<String, Object>> createMapQuery(String collection) {
+        Class qImpl = config.getQueryFact().getQueryImpl();
+        try {
+            Query<Map<String, Object>> q = (Query<Map<String, Object>>) qImpl.getDeclaredConstructor().newInstance();
+            q.setMorphium(this);
+            q.setCollectionName(collection);
+
+            //q.setMorphium(this);
+            return q;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public <T> Query<T> createQueryByTemplate(T template, String... fields) {
         Class cls = template.getClass();
         List<String> flds;
@@ -2059,6 +2074,7 @@ public class Morphium implements AutoCloseable {
 
 
     public ReadPreference getReadPreferenceForClass(Class<?> cls) {
+        if (cls == null) return config.getDefaultReadPreference();
         DefaultReadPreference rp = annotationHelper.getAnnotationFromHierarchy(cls, DefaultReadPreference.class);
         if (rp == null) {
             return config.getDefaultReadPreference();
