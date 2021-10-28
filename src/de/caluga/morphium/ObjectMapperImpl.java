@@ -1061,7 +1061,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 Object idValue = o.get("_id");
                 if (idValue != null) { // Embedded entitiy?
                     Class<?> idValueClass = idValue.getClass();
-                    if (idValueClass.equals(fieldType)) {
+                    if (idValueClass.equals(fieldType) || fieldType.isAssignableFrom(idValueClass)) {
                         field.set(ret, idValue);
                     } else if (fieldType.equals(String.class) && idValueClass.equals(MorphiumId.class)) {
                         log.warn("ID type missmatch - field is string but got objectId from mongo - converting");
