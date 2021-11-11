@@ -1351,6 +1351,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     public Object fillCollection(Reference ref, Class<?> collectionClass, Type collectionType, List<?> fromDb) {
+        if (collectionClass == null) collectionClass = Object.class;
+        if (collectionType == null) collectionType = Object.class;
         Class elementClass = null;
         Type elementType = null;
         if (collectionType instanceof ParameterizedType) {

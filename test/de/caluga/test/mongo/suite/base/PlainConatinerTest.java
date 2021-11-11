@@ -6,6 +6,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,5 +48,8 @@ public class PlainConatinerTest extends MorphiumTestBase {
         PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
         assertThat(pc2.getId()).isEqualTo(pc.getId());
         assertThat(pc2.getPlainMap().size()).isEqualTo(2);
+        assertThat(pc2.getPlainMap().get("test2")).isInstanceOf(List.class);
+        assertThat(((List) pc2.getPlainMap().get("test2")).size()).isEqualTo(2);
+        assertThat(((List) pc2.getPlainMap().get("test2")).get(0)).isEqualTo("str1");
     }
 }
