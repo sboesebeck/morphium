@@ -2767,6 +2767,10 @@ public class Morphium implements AutoCloseable {
      * @throws MorphiumDriverException
      */
     public Map<String, Integer> storeMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
+        return saveMaps(type, lst);
+    }
+
+    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
         return getDriver().store(getDatabase(), getMapper().getCollectionName(type), lst, null);
     }
 
@@ -2782,6 +2786,10 @@ public class Morphium implements AutoCloseable {
      * @throws MorphiumDriverException
      */
     public Map<String, Integer> storeMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
+        return saveMaps(collection, lst);
+    }
+
+    public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
         return getDriver().store(getDatabase(), collection, lst, null);
     }
 
@@ -2797,6 +2805,10 @@ public class Morphium implements AutoCloseable {
      * @throws MorphiumDriverException
      */
     public Map<String, Integer> storeMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
+        return saveMap(collection, m);
+    }
+
+    public Map<String, Integer> saveMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
         return getDriver().store(getDatabase(), collection, Arrays.asList(m), null);
     }
 
@@ -2821,6 +2833,10 @@ public class Morphium implements AutoCloseable {
      * @param o - Object to store
      */
     public <T> void store(T o) {
+        save(o);
+    }
+
+    public <T> void save(T o) {
         if (o instanceof List) {
             //noinspection unchecked
             storeList((List) o);
@@ -2833,6 +2849,10 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void store(T o, final AsyncOperationCallback<T> callback) {
+        save(o, callback);
+    }
+
+    public <T> void save(T o, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             //noinspection unchecked
             storeList((List) o, callback);
@@ -2845,6 +2865,10 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {
+        save(o, collection, callback);
+    }
+
+    public <T> void save(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             //noinspection unchecked
             storeList((List) o, collection, callback);
