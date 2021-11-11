@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Index;
@@ -13,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 /**
  * User: Stephan Bösebeck
@@ -336,6 +339,16 @@ public class MapListTest extends MorphiumTestBase {
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
         //Map->List->Map->EmbObj
         assert (ml.getMap6a().get("list1").get(0).get("map1-v2").getTest().equals("test2"));
+    }
+
+    @Test
+    public void complexMapTest() {
+        MapListObject o = new MapListObject();
+        o.setMapValue(Utils.getMap("Testvalue", (Object) Utils.getMap("$lte", "@123")));
+        morphium.save(o);
+
+        o = morphium.reread(o);
+        assertThat(o.getMapValue().containsKey("Testvalue")).isTrue();
     }
 
     @Embedded
