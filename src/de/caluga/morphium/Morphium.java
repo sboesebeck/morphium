@@ -13,6 +13,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
@@ -2753,6 +2754,67 @@ public class Morphium implements AutoCloseable {
         insertList(arrayList, null, null);
     }
 
+
+    /**
+     * directly writes data to Mongo, no Mapper used
+     * use with caution, as caches are not updated
+     * also no checks for validity of fields, no references, no auto-variables
+     * no async writing!
+     *
+     * @param type - type to write to (just for determining collection name)
+     * @param lst  - list of entries to write
+     * @return statistics
+     * @throws MorphiumDriverException
+     */
+    public Map<String, Integer> storeMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
+        return getDriver().store(getDatabase(), getMapper().getCollectionName(type), lst, null);
+    }
+
+    /**
+     * directly writes data to Mongo, no Mapper used
+     * use with caution, as caches are not updated
+     * also no checks for validity of fields, no references, no auto-variables
+     * no async writing!
+     *
+     * @param collection - name of colleciton to write to
+     * @param lst        - list of entries to write
+     * @return statistics
+     * @throws MorphiumDriverException
+     */
+    public Map<String, Integer> storeMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
+        return getDriver().store(getDatabase(), collection, lst, null);
+    }
+
+    /**
+     * directly writes data to Mongo, no Mapper used
+     * use with caution, as caches are not updated
+     * also no checks for validity of fields, no references, no auto-variables
+     * no async writing!
+     *
+     * @param collection collection name
+     * @param m          data to write
+     * @return statistics
+     * @throws MorphiumDriverException
+     */
+    public Map<String, Integer> storeMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
+        return getDriver().store(getDatabase(), collection, Arrays.asList(m), null);
+    }
+
+    /**
+     * directly writes data to Mongo, no Mapper used
+     * use with caution, as caches are not updated
+     * also no checks for validity of fields, no references, no auto-variables
+     * no async writing!
+     *
+     * @param type - type, used to determine collection name
+     * @param m    - data to write
+     * @return statistics
+     * @throws MorphiumDriverException
+     */
+    public Map<String, Integer> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
+        return getDriver().store(getDatabase(), getMapper().getCollectionName(type), Arrays.asList(m), getWriteConcernForClass(type));
+    }
+
     /**
      * Stores a single Object. Clears the corresponding cache
      *
@@ -2826,7 +2888,8 @@ public class Morphium implements AutoCloseable {
                 //noinspection unchecked
                 writers.get(cls).store((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
-                logger.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                logger.error("Async Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
             }
         }
     }

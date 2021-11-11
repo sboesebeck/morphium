@@ -718,13 +718,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
     @SuppressWarnings({"unchecked", "CastCanBeRemovedNarrowingVariableType", "CommentedOutCode"})
     @Override
-    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> o) {
-        if (o == null) {
+    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> objectMap) {
+        if (objectMap == null) {
             return null;
         }
         Class cls = theClass;
         if (customMappers.containsKey(cls)) {
-            return (T) customMappers.get(cls).unmarshall(o);
+            return (T) customMappers.get(cls).unmarshall(objectMap);
         }
         try {
             Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
@@ -735,14 +735,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             if (!warnOnNoEntitySerialization && objectSerializationEnabled && !objectIsEntity) {
                 cls = BinarySerializedObject.class;
             }
-            if (o.get("class_name") != null || o.get("className") != null) {
+            if (objectMap.get("class_name") != null || objectMap.get("className") != null) {
                 //                if (log.isDebugEnabled()) {
                 //                    log.debug("overriding cls - it's defined in dbObject");
                 //                }
                 try {
-                    String cN = (String) o.get("class_name");
+                    String cN = (String) objectMap.get("class_name");
                     if (cN == null) {
-                        cN = (String) o.get("className");
+                        cN = (String) objectMap.get("className");
                     }
                     cls = annotationHelper.getClassForTypeId(cN);
                 } catch (ClassNotFoundException e) {
@@ -750,12 +750,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
             }
             if (cls.isEnum()) {
-                return (T) Enum.valueOf((Class<? extends Enum>) cls, (String) o.get("name"));
+                return (T) Enum.valueOf((Class<? extends Enum>) cls, (String) objectMap.get("name"));
             }
             {
                 Class<?> superclass = cls.getSuperclass();
                 if (superclass != null && superclass.isEnum()) {
-                    return (T) Enum.valueOf((Class<? extends Enum>) superclass, (String) o.get("name"));
+                    return (T) Enum.valueOf((Class<? extends Enum>) superclass, (String) objectMap.get("name"));
                 }
             }
 
@@ -782,7 +782,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
             for (String f : flds) {
 
-                Object valueFromDb = o.get(f);
+                Object valueFromDb = objectMap.get(f);
                 Field fld = annotationHelper.getField(cls, f);
                 Class<?> fldType = fld.getType();
                 if (Modifier.isStatic(fld.getModifiers())) {
@@ -793,6 +793,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     fld.set(ret, customMappers.get(fldType).unmarshall(valueFromDb));
                     continue;
                 }
+                if (fld.isAnnotationPresent(Aliases.class) && valueFromDb == null) {
+                    Aliases al = fld.getAnnotation(Aliases.class);
+                    for (String s : al.value()) {
+                        if (objectMap.containsKey(s)) {
+                            valueFromDb = objectMap.get(s);
+                            break;
+                        }
+                    }
+                }
                 if (fld.isAnnotationPresent(AdditionalData.class)) {
                     //this field should store all data that is not put to fields
                     if (!Map.class.isAssignableFrom(fldType)) {
@@ -800,7 +809,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                         continue;
                     }
                     Map<String, Object> data = new HashMap<>();
-                    for (Entry<String, Object> entry : o.entrySet()) {
+                    for (Entry<String, Object> entry : objectMap.entrySet()) {
                         String k = entry.getKey();
                         Object v = entry.getValue();
                         if (flds.contains(k)) {
@@ -829,8 +838,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     fld.set(ret, data);
                     continue;
                 }
+
                 if (valueFromDb == null) {
-                    if (!fldType.isPrimitive() && o.containsKey(f)) {
+                    if (!fldType.isPrimitive() && objectMap.containsKey(f)) {
                         fld.set(ret, null);
                     }
                     continue;
@@ -957,8 +967,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             }
                         }
                     }
+
                 } else if (fld.isAnnotationPresent(Id.class)) {
-                    value = o.get("_id");
+                    value = objectMap.get("_id");
                     if (value != null && !value.getClass().equals(fldType)) {
                         log.debug("read value and field type differ...");
                         if (fldType.equals(MorphiumId.class)) {
@@ -1058,7 +1069,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
                 Field field = annotationHelper.getField(cls, flds.get(0));
                 Class<?> fieldType = field.getType();
-                Object idValue = o.get("_id");
+                Object idValue = objectMap.get("_id");
                 if (idValue != null) { // Embedded entitiy?
                     Class<?> idValueClass = idValue.getClass();
                     if (idValueClass.equals(fieldType) || fieldType.isAssignableFrom(idValueClass)) {
