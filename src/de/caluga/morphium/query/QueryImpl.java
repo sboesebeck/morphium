@@ -492,6 +492,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         lst = new HashMap<>();
                         break;
                     }
+                    if (f.isAnnotationPresent(Aliases.class)) {
+                        for (String n : f.getAnnotation(Aliases.class).value()) {
+                            lst.put(n, 1);
+                        }
+                    }
+
                     String n = getARHelper().getMongoFieldName(type, f.getName());
                     // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
                     if (!n.startsWith("$jacoco")) {
