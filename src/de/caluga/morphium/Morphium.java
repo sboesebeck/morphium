@@ -2859,8 +2859,13 @@ public class Morphium implements AutoCloseable {
         }
     }
 
+
+    public <T> void save(List<T> lst, AsyncOperationCallback<T> callback) {
+        saveList(lst, callback);
+    }
+
     public <T> void store(List<T> lst, AsyncOperationCallback<T> callback) {
-        storeList(lst, callback);
+        save(lst, callback);
     }
 
 
@@ -2875,7 +2880,15 @@ public class Morphium implements AutoCloseable {
         storeList(lst, collection, null);
     }
 
+    public <T> void saveList(List<T> lst, String collection) {
+        saveList(lst, collection, null);
+    }
+
     public <T> void storeList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
+        saveList(lst, collection, callback);
+    }
+
+    public <T> void saveList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
         Map<Class<?>, List<Object>> values = new HashMap<>();
         for (Object o : lst) {
@@ -2902,14 +2915,26 @@ public class Morphium implements AutoCloseable {
      * @param <T> - type of list elements
      */
     public <T> void storeList(List<T> lst) {
+        saveList(lst);
+    }
+
+    public <T> void saveList(List<T> lst) {
         storeList(lst, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(Set<T> set) {
+        saveList(set);
+    }
+
+    public <T> void saveList(Set<T> set) {
         storeList(new ArrayList<>(set), (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {
+        saveList(lst, callback);
+    }
+
+    public <T> void saveList(List<T> lst, final AsyncOperationCallback<T> callback) {
         //have to sort list - might have different objects
         List<T> storeDirect = new ArrayList<>();
         List<T> insertDirect = new ArrayList<>();
