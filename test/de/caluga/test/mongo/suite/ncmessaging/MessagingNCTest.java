@@ -14,6 +14,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 26.05.12
@@ -597,12 +599,12 @@ public class MessagingNCTest extends MorphiumTestBase {
         try {
             m1.setUseChangeStream(false).start();
             m2.setUseChangeStream(false).start();
-
+            Thread.sleep(250);
             Msg m = new Msg("test", "ignore me please", "value");
             m1.sendMessage(m);
             Thread.sleep(1000);
             m = morphium.reread(m);
-            assert (m.getProcessedBy().size() == 0) : "wrong number of proccessed by entries: " + m.getProcessedBy().size();
+            assertThat(m.getProcessedBy().size()).isEqualTo(0);
         } finally {
             m1.terminate();
             m2.terminate();

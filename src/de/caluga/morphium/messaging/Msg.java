@@ -27,8 +27,12 @@ import java.util.*;
 @WriteSafety(level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
-@Index({"sender,locked_by,processed_by,priority,timestamp", "locked_by,processed_by,priority,timestamp",
-        "sender,locked_by,processed_by,name,priority,timestamp"})
+@Index({"sender,processed_by,in_answer_to",
+        "sender,locked_by,processed_by",
+        "msgId,sender,locked_by,processed_by,recipients,name,priority,timestamp",
+        "msgId,locked_by,processed_by,recipients,name",
+        "locked_by,processed_by,priority,timestamp"
+})
 public class Msg {
     @Index
     private List<String> processedBy;
@@ -45,6 +49,7 @@ public class Msg {
     private List<String> recipients;
     private MorphiumId inAnswerTo;
     //payload goes here
+    @Index
     private String name;
     private String msg;
     private List<Object> additional;
