@@ -14,6 +14,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 26.05.12
@@ -631,6 +633,44 @@ public class MessagingTest extends MorphiumTestBase {
             m2.terminate();
         }
     }
+
+
+    @Test
+    public void ignoringExclusiveMessagesTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(100);
+        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        m1.setSenderId("m1");
+        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        m2.setSenderId("m2");
+        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        m3.setSenderId("m3");
+        m3.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                return null;
+            }
+        });
+        try {
+            m1.start();
+            m2.start();
+            m3.start();
+            Thread.sleep(250);
+            for (int i = 0; i < 10; i++) {
+                Msg m = new Msg("test", "ignore me please", "value", 2000, true);
+                m1.sendMessage(m);
+                Thread.sleep(1000);
+                m = morphium.reread(m);
+                assertThat(m.getProcessedBy().size()).isEqualTo(1);
+                assertThat(m.getProcessedBy().contains("m3")).isTrue();
+            }
+        } finally {
+            m1.terminate();
+            m2.terminate();
+            m3.terminate();
+        }
+    }
+
 
     @Test
     public void severalMessagingsTest() throws Exception {
