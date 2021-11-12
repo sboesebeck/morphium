@@ -587,6 +587,7 @@ public class Messaging extends Thread implements ShutdownListener {
         //locking messages..
         if (!useChangeStream) {
             q.f(Msg.Fields.msgId).nin(processing).f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
+
         } else {
             q.f(Msg.Fields.msgId).nin(processing).f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList(id, null, "ALL")).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
         }
@@ -605,8 +606,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 q.f(Msg.Fields.name).nin(pausedMessagesKeys);
 
             }
-            if (listeners.isEmpty() && !listenerByName.isEmpty()) {
+            if (listeners.isEmpty() && !listenerByName.isEmpty() && !listenerByName.keySet().isEmpty()) {
                 q.f(Msg.Fields.name).in(listenerByName.keySet());
+
             }
         }
         ArrayList<MorphiumId> processingIds = new ArrayList<>(processing);
@@ -636,41 +638,38 @@ public class Messaging extends Thread implements ShutdownListener {
         //just trigger unprocessed messages for Changestream...
         long cnt = q.countAll();
         List<Object> lst = q.idList();
-        if (cnt > q.idList().size()) { //check, if there is more to process in the next iteration
+        if (cnt > q.idList().size()) {
             skipped.incrementAndGet();
         }
-        if (lst.size() > 0) {
-            morphium.set(q.q().f("_id").in(lst), values, false, multiple);
-        }
+        morphium.set(q.q().f("_id").in(lst), values, false, multiple);
 
         if (!useChangeStream) {
             long num = 0;
-            if (lst.size() > 0) {
-                Query<Msg> cntQuery = q.q().f("_id").in(lst).f(Msg.Fields.lockedBy).eq(id);
+            Query<Msg> cntQuery = q.q().f("_id").in(lst).f(Msg.Fields.lockedBy).eq(id);
 
-                //waiting for all concurrent messagesystems to settle down
-                while (true) {
-                    try {
-                        Thread.sleep(150);
-                    } catch (InterruptedException e) {
-                    }
-                    if (cntQuery.countAll() == num) {
-                        break;
-                    }
-                    num = cntQuery.countAll();
+            //waiting for all concurrent messagesystems to settle down
+            while (true) {
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
                 }
+                if (cntQuery.countAll() == num) {
+                    break;
+                }
+                num = cntQuery.countAll();
+            }
 //            try {
 //                //waiting a bit for data to be stored
 //                Thread.sleep(10);
 //            } catch (InterruptedException e) {
 //                //swallow
 //            }
-            }
+
             q = q.q();
 
-            Query q1 = q.q();
+
+            Query q1 = q.q().f(Msg.Fields.sender).ne(id);
             q1.f("_id").nin(processingIds);
-            q1.f(Msg.Fields.sender).ne(id);
             q1.f(Msg.Fields.lockedBy).eq("ALL").f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
             if (name != null) {
                 q1.f(Msg.Fields.name).eq(name);
@@ -679,13 +678,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (!pauseMessages.isEmpty()) {
                     q1.f(Msg.Fields.name).nin(pausedMessagesKeys);
                 }
-                if (!listenerByName.isEmpty() && listeners.isEmpty()) {
-                    q1.f(Msg.Fields.name).in(listenerByName.keySet());
-                }
             }
-            Query q2 = q.q();
+            Query q2 = q.q().f(Msg.Fields.sender).ne(id);
             q2.f("_id").nin(processingIds);
-            q2.f(Msg.Fields.sender).ne(id);
             q2.f(Msg.Fields.lockedBy).eq(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
             if (name != null) {
                 q2.f(Msg.Fields.name).eq(name);
@@ -693,9 +688,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 //not searching for paused messages
                 if (!pauseMessages.isEmpty()) {
                     q2.f(Msg.Fields.name).nin(pausedMessagesKeys);
-                }
-                if (!listenerByName.isEmpty() && listeners.isEmpty()) {
-                    q2.f(Msg.Fields.name).in(listenerByName.keySet());
                 }
             }
             q.or(q1, q2);
@@ -738,8 +730,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
         q = q.q();
         q.f("_id").eq(obj.getMsgId());
-        q.f(Msg.Fields.lockedBy).eq(null);
         q.f(Msg.Fields.processedBy).ne(id);
+        q.f(Msg.Fields.lockedBy).eq(null);
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
