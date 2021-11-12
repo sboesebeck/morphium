@@ -620,7 +620,7 @@ public class MessagingTest extends MorphiumTestBase {
         try {
             m1.start();
             m2.start();
-
+            Thread.sleep(1000);
             Msg m = new Msg("test", "ignore me please", "value");
             m1.sendMessage(m);
             Thread.sleep(1000);
