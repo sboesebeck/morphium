@@ -54,19 +54,19 @@ _Attention:_ if you for some reason have both the old and the new mongodb driver
  <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>bson</artifactId>
-            <version>4.1.1</version>
+            <version>[4.1.0,)</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
-            <version>4.2.13</version>
+            <version>[4.1.0,)</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-core</artifactId>
-            <version>4.2.13</version>
+            <version>[4.1.0,)</version>
             <scope>provided</scope>
         </dependency>
 ```
