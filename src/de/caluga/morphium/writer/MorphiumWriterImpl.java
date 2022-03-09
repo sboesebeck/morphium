@@ -1746,7 +1746,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         submitAndBlockIfNecessary(callback, r);
     }
 
-    private Object marshallIfNecessary(Object value) {
+    public Object marshallIfNecessary(Object value) {
         if (value != null) {
             if (value instanceof Enum) {
                 return ((Enum) value).name();
