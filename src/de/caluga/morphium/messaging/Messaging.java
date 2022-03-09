@@ -4,10 +4,12 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.EmptyIterator;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
+import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.bson.BsonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -407,6 +409,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         Msg obj = null;
                         if (evt.getDocumentKey() != null) {
+                            //morphium.getDriver().find(morphium.getDatabase(),getCollectionName(),Utils.getMap("_id"))
                             obj = morphium.findById(Msg.class, evt.getDocumentKey(), getCollectionName());
                         }
 
@@ -641,7 +644,18 @@ public class Messaging extends Thread implements ShutdownListener {
         if (cnt > q.idList().size()) {
             skipped.incrementAndGet();
         }
-        morphium.set(q.q().f("_id").in(lst), values, false, multiple);
+        try {
+            Map<String, Object> toSet = new HashMap<>();
+            for (Map.Entry<String, Object> ef : values.entrySet()) {
+                String fieldName = morphium.getARHelper().getMongoFieldName(q.getType(), ef.getKey());
+                toSet.put(fieldName, ef.getValue());
+            }
+            Map<String, Object> update = Utils.getMap("$set", toSet);
+            morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), q.q().f("_id").in(lst).toQueryObject(), update, multiple, false, null, null);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        //morphium.set(q.q().f("_id").in(lst), values, false, multiple);
 
         if (!useChangeStream) {
             long num = 0;
@@ -735,23 +749,41 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
-        morphium.set(q, values, false, false); //always locking single message
+        Map<String, Object> toSet = new HashMap<>();
+        for (Map.Entry<String, Object> ef : values.entrySet()) {
+            String fieldName = morphium.getARHelper().getMongoFieldName(q.getType(), ef.getKey());
+            toSet.put(fieldName, ((MorphiumWriterImpl) morphium.getWriterForClass(Msg.class)).marshallIfNecessary(ef.getValue()));
+        }
+        Map<String, Object> update = Utils.getMap("$set", toSet);
+        Map<String, Object> qobj = q.toQueryObject();
         try {
-            //wait for the locking to be saved
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            //swallow
-        }
-        obj = morphium.reread(obj, getCollectionName());
-        if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
-//            if (log.isDebugEnabled())
-//                log.debug("locked messages: " + lst.size());
-            try {
+            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, false, false, null, null); //always locking single message
+            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1))) {
+                //updated
+                obj.setLocked((Long) values.get("locked"));
+                obj.setLockedBy((String) values.get("locked_by"));
                 processMessages(Collections.singletonList(obj));
-            } catch (Exception e) {
-                log.error("Error during message processing ", e);
+            } else {
+                return;
             }
+            //wait for the locking to be saved
+//            Thread.sleep(10);
+//        } catch (InterruptedException e) {
+//            //swallow
+        } catch (Exception e) {
+            //swallow
+            log.error("Exception during update", e);
         }
+//        obj = morphium.reread(obj, getCollectionName());
+//        if (obj != null && obj.getLockedBy() != null && obj.getLockedBy().equals(id)) {
+////            if (log.isDebugEnabled())
+////                log.debug("locked messages: " + lst.size());
+//            try {
+//                processMessages(Collections.singletonList(obj));
+//            } catch (Exception e) {
+//                log.error("Error during message processing ", e);
+//            }
+//        }
     }
 
     @SuppressWarnings("CommentedOutCode")
@@ -1003,7 +1035,21 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
         msg.getProcessedBy().add(id);
-        morphium.push(idq, Msg.Fields.processedBy, id);
+
+        //morphium.push(idq, Msg.Fields.processedBy, id);
+        Map<String, Object> qobj = idq.toQueryObject();
+
+        String fieldName = morphium.getARHelper().getMongoFieldName(msg.getClass(), "processed_by");
+        Map<String, Object> set = Utils.getMap(fieldName, id);
+        Map<String, Object> update = Utils.getMap("$push", set);
+        try {
+            Map<String, Object> ret = morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), qobj, update, false, false, null, null);
+            if (ret.get("modified") == null) {
+                log.warn("Could not update processed_by in msg " + msg.getMsgId());
+            }
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
     }
 
     private void queueOrRun(Runnable r) {
