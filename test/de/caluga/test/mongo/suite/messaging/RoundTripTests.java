@@ -52,7 +52,10 @@ public class RoundTripTests extends MorphiumTestBase {
                 + " "
                 + (multithreadded ? "multithreadded" : "single thread")
         );
+//        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
+//        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
         Messaging m1 = new Messaging(morphium, 1000, processMultiple, multithreadded, 10);
+        m1.setSenderId("m1");
         Messaging m2;
         Morphium morphium2 = null;
         if (sameMorphium) {
@@ -61,6 +64,7 @@ public class RoundTripTests extends MorphiumTestBase {
             morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             m2 = new Messaging(morphium2, 1000, processMultiple, multithreadded, 10);
         }
+        m2.setSenderId("m2");
         try {
             m1.start();
             m2.start();
@@ -95,6 +99,7 @@ public class RoundTripTests extends MorphiumTestBase {
                 pingSent.add(System.currentTimeMillis());
             }
             while (pongReceived.size() < warmUp) {
+                log.info("Waiting for pongs... got: " + pongReceived.size() + "/" + warmUp);
                 Thread.sleep(500);
             }
 
@@ -109,10 +114,11 @@ public class RoundTripTests extends MorphiumTestBase {
             for (int i = 0; i < amount; i++) {
                 m1.sendMessage(new Msg("ping", "msg", "v", 30000, false));
                 pingSent.add(System.currentTimeMillis());
+                Thread.sleep(50);
             }
             while (pongReceived.size() < amount) {
-                log.info("Waiting for answers...");
-                Thread.sleep(1000);
+                log.info("Waiting for answers...got: " + pongReceived.size() + "/" + amount);
+                Thread.sleep(500);
             }
 
 
