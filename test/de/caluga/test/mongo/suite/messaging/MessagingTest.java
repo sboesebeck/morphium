@@ -1611,9 +1611,9 @@ public class MessagingTest extends MorphiumTestBase {
         Messaging sender = new Messaging(morphium, 100, false);
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         sender.start();
-        Messaging receiver = new Messaging(morphium, 10, false, true, 10);
+        Messaging receiver = new Messaging(morphium, 100, false, true, 10);
         receiver.start();
-        Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
+        Messaging receiver2 = new Messaging(morphium, 100, false, true, 10);
         receiver2.start();
 
         final AtomicInteger pausedReciever = new AtomicInteger(0);

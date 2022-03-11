@@ -358,6 +358,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         //do not process messages, that are exclusive, but already processed or not for me / all
                         if (obj.isExclusive() && obj.getLockedBy() == null && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
                             // locking
+                            //log.debug("Locking msg...");
                             lockAndProcess(obj);
 
                         } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
@@ -456,7 +457,8 @@ public class Messaging extends Thread implements ShutdownListener {
         //always run this find in addition to changestream
         while (running) {
             try {
-                if (skipped.get() > 0 || !useChangeStream) {
+                if (skipped.get() > 0 || !useChangeStream || true) {
+                    //log.debug("Skipped: "+skipped.get());
                     morphium.inc(StatisticKeys.PULL);
                     StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                     sk.set(sk.get() + skipped.get());
@@ -525,6 +527,7 @@ public class Messaging extends Thread implements ShutdownListener {
      */
 
     public void pauseProcessingOfMessagesNamed(String name) {
+//        log.debug("PAusing processing for "+name);
         pauseMessages.putIfAbsent(name, System.currentTimeMillis());
     }
 
@@ -536,6 +539,7 @@ public class Messaging extends Thread implements ShutdownListener {
      */
     @SuppressWarnings("CommentedOutCode")
     public Long unpauseProcessingOfMessagesNamed(String name) {
+//        log.debug("unpausing processing for "+name);
         if (!pauseMessages.containsKey(name)) {
             return 0L;
         }
@@ -607,13 +611,14 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+        int locked = (int) morphium.createQueryFor(Msg.class, getCollectionName())
+                .f(Msg.Fields.sender).ne(id)
+                .f(Msg.Fields.lockedBy).eq(id)
+                .f(Msg.Fields.processedBy).ne(id).countAll();
         if (!multiple) {
             q.limit(1);
         } else {
-            int locked = (int) morphium.createQueryFor(Msg.class, getCollectionName())
-                    .f(Msg.Fields.sender).ne(id)
-                    .f(Msg.Fields.lockedBy).eq(id)
-                    .f(Msg.Fields.processedBy).ne(id).countAll();
+
             if (locked >= windowSize) {
                 //q.limit(0);
                 return new ArrayList<>();
@@ -626,9 +631,10 @@ public class Messaging extends Thread implements ShutdownListener {
         }
         values.put("locked", System.currentTimeMillis());
         //just trigger unprocessed messages for Changestream...
-        long cnt = q.countAll();
+
         List<Object> lst = q.idList();
-        if (cnt > lst.size()) {
+        // q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).eq(id)
+        if (locked > lst.size() || q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).countAll() > 0) {
             skipped.incrementAndGet();
         }
         try {
@@ -734,7 +740,7 @@ public class Messaging extends Thread implements ShutdownListener {
         q = q.q();
         q.f("_id").eq(obj.getMsgId());
         q.f(Msg.Fields.processedBy).ne(id);
-        q.f(Msg.Fields.lockedBy).eq(null);
+        q.f(Msg.Fields.lockedBy).in(Arrays.asList(id, null));
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
@@ -748,8 +754,8 @@ public class Messaging extends Thread implements ShutdownListener {
         try {
             Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, false, false, null, null); //always locking single message
             if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1))) {
-                if (log.isDebugEnabled())
-                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
+//                if (log.isDebugEnabled())
+//                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
                 //updated
                 obj.setLocked((Long) values.get("locked"));
                 obj.setLockedBy((String) values.get("locked_by"));
@@ -885,8 +891,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 for (MessageListener l : lst) {
                     try {
                         if (pauseMessages.containsKey(msg1.getName())) {
-                            if (log.isDebugEnabled())
-                                log.debug("Not processing " + msg1.getMsgId() + " - messaging paused");
+//                            if (log.isDebugEnabled())
+//                                log.debug("Not processing " + msg1.getMsgId() + " - messaging paused for "+msg1.getName());
                             //paused - do not process
                             processing.remove(msg1.getMsgId());
                             skipped.incrementAndGet();
