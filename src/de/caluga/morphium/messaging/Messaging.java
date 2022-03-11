@@ -832,7 +832,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (receiveAnswers.equals(ReceiveAnswers.NONE) || (receiveAnswers.equals(ReceiveAnswers.ONLY_MINE) && msg.getRecipients() != null && !msg.getRecipients().contains(id))) {
                 if (msg.isExclusive() && msg.getLockedBy() != null && msg.getLockedBy().equals(id)) {
-                    morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
+                    try {
+                        morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), Utils.getMap("_id", msg.getMsgId()), Utils.getMap("$set", Utils.getMap("locked_by", null)), false, false, null, null);
+                    } catch (MorphiumDriverException e) {
+                        log.error("Error unlocking message", e);
+                    }
+                    //    morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
                 }
                 removeProcessingFor(msg);
                 return;
@@ -847,15 +852,20 @@ public class Messaging extends Thread implements ShutdownListener {
             updateProcessedBy(msg);
 
             if (msg.isExclusive()) {
-                morphium.unset(msg, getCollectionName(), Msg.Fields.lockedBy);
+                try {
+                    morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), Utils.getMap("_id", msg.getMsgId()), Utils.getMap("$set", Utils.getMap("locked_by", null)), false, false, null, null);
+                } catch (MorphiumDriverException e) {
+                    log.error("Error unlocking message", e);
+                }
+                //morphium.unset(msg, getCollectionName(), Msg.Fields.lockedBy);
             }
             removeProcessingFor(msg);
             return;
         }
 
         if (processing.contains(msg.getMsgId())) {
-            if (log.isDebugEnabled())
-                log.debug("Not Processing: Message is already being processed..." + msg.getMsgId());
+//            if (log.isDebugEnabled())
+//                log.debug("Not Processing: Message is already being processed..." + msg.getMsgId());
             return;
         }
         processing.add(msg.getMsgId());
@@ -936,7 +946,12 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (mre.isContinueProcessing()) {
                         updateProcessedBy(msg);
                         if (msg.isExclusive()) {
-                            morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
+                            try {
+                                morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), Utils.getMap("_id", msg.getMsgId()), Utils.getMap("$set", Utils.getMap("locked_by", null)), false, false, null, null);
+                            } catch (MorphiumDriverException e) {
+                                log.error("Error unlocking message", e);
+                            }
+                            //morphium.set(msg, getCollectionName(), "locked_by", null, false, null);
                         }
                         processing.remove(msg.getMsgId());
 
@@ -952,7 +967,12 @@ public class Messaging extends Thread implements ShutdownListener {
                     msg.setLocked(0);
                     msg.setLockedBy(null);
                     //morphium.store(msg, getCollectionName(), null);
-                    morphium.updateUsingFields(msg, getCollectionName(), (AsyncOperationCallback<? super Msg>) null, "locked", "locked_by");
+                    try {
+                        morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), Utils.getMap("_id", msg.getMsgId()), Utils.getMap("$set", Utils.getMap("locked_by", (Object) null).add("locked", 0)), false, false, null, null);
+                    } catch (MorphiumDriverException e) {
+                        log.error("Error unlocking message", e);
+                    }
+//                    morphium.updateUsingFields(msg, getCollectionName(), (AsyncOperationCallback<? super Msg>) null, "locked", "locked_by");
                 }
             } else if (wasRejected) {
                 log.debug("Message rejected");
