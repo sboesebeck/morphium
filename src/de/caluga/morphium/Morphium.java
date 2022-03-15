@@ -249,6 +249,7 @@ public class Morphium implements AutoCloseable {
                 seed[i] = config.getHostSeed().get(i);
             }
             morphiumDriver.setHostSeed(seed);
+            morphiumDriver.setAtlasUrl(config.getAtlasUrl());
 
             morphiumDriver.setDefaultReadPreference(config.getDefaultReadPreference());
             try {
