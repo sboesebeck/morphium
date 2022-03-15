@@ -57,6 +57,7 @@ public class MorphiumConfig {
     private boolean globalJ = false;
     private boolean checkForNew = true;
     private boolean replicaset = true;
+    private String atlasUrl = null;
 
     //maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
@@ -296,6 +297,19 @@ public class MorphiumConfig {
 
     public static MorphiumConfig fromProperties(Properties p) {
         return new MorphiumConfig(p);
+    }
+
+
+    public boolean isAtlas() {
+        return atlasUrl != null;
+    }
+
+    public String getAtlasUrl() {
+        return atlasUrl;
+    }
+
+    public void setAtlasUrl(String atlasUrl) {
+        this.atlasUrl = atlasUrl;
     }
 
     public boolean isReplicaset() {

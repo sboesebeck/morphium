@@ -167,7 +167,9 @@ public class MorphiumTestBase {
                 cfg.setThreadConnectionMultiplier(2);
                 storeProps();
             }
-            cfg.setDatabase(cfg.getDatabase() + "_" + number.get());
+            if (!cfg.isAtlas()) {
+                cfg.setDatabase(cfg.getDatabase() + "_" + number.get());
+            }
             morphium = new Morphium(cfg);
 
         }
@@ -178,8 +180,10 @@ public class MorphiumTestBase {
         log.info("------ > TestNumber: " + num);
 
         try {
-            log.info("Dropping database: " + morphium.getConfig().getDatabase());
-            morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
+            if (!morphium.getConfig().isAtlas()) {
+                log.info("Dropping database: " + morphium.getConfig().getDatabase());
+                morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
+            }
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }

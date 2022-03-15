@@ -125,6 +125,16 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     @Override
+    public String getAtlasUrl() {
+        return null;
+    }
+
+    @Override
+    public void setAtlasUrl(String atlasUrl) {
+        log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
+    }
+
+    @Override
     public List<String> listDatabases() {
         return new CopyOnWriteArrayList<>(database.keySet());
     }

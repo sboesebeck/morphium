@@ -2,20 +2,7 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 05.11.15.
  */
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.ClientSessionOptions;
-import com.mongodb.CursorType;
-import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoCommandException;
-import com.mongodb.MongoCredential;
-import com.mongodb.MongoWriteException;
-import com.mongodb.ReadConcern;
-import com.mongodb.ServerAddress;
-import com.mongodb.Tag;
-import com.mongodb.TagSet;
-import com.mongodb.TransactionOptions;
-import com.mongodb.WriteConcern;
+import com.mongodb.*;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.ClientSession;
@@ -140,6 +127,8 @@ public class MongoDriver implements MorphiumDriver {
     private SSLContext sslContext = null;
     private boolean sslInvalidHostNameAllowed = false;
 
+    private String atlasUrl = null;
+
 
     private int defaultBatchSize = 100;
     private int retriesOnNetworkError = 2;
@@ -171,6 +160,17 @@ public class MongoDriver implements MorphiumDriver {
         cred[0] = login;
         cred[1] = new String(pwd);
         credentials.put(db, cred);
+    }
+
+
+    @Override
+    public String getAtlasUrl() {
+        return atlasUrl;
+    }
+
+    @Override
+    public void setAtlasUrl(String atlasUrl) {
+        this.atlasUrl = atlasUrl;
     }
 
     @Override
@@ -627,20 +627,29 @@ public class MongoDriver implements MorphiumDriver {
 
             o.applyToClusterSettings(clusterSettings -> {
                 clusterSettings.serverSelectionTimeout(getConnectionTimeout(), TimeUnit.MILLISECONDS);
-                if (hostSeed.length > 1) {
-                    clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
-                } else {
-                    clusterSettings.mode(ClusterConnectionMode.SINGLE);
-                }
-                if (replicasetName != null) {
-                    clusterSettings.requiredReplicaSetName(replicasetName);
-                }
+                if (atlasUrl == null) {
+                    if (hostSeed.length > 1) {
+                        clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
+                    } else {
+                        clusterSettings.mode(ClusterConnectionMode.SINGLE);
+                    }
+                    if (replicasetName != null) {
+                        clusterSettings.requiredReplicaSetName(replicasetName);
+                    }
 
-                List<ServerAddress> hosts = new ArrayList<>();
-                for (String host : hostSeed) {
-                    hosts.add(new ServerAddress(host));
+                    List<ServerAddress> hosts = new ArrayList<>();
+                    for (String host : hostSeed) {
+                        hosts.add(new ServerAddress(host));
+                    }
+                    clusterSettings.hosts(hosts);
+                } else {
+                    ConnectionString connectionString = new ConnectionString(atlasUrl);
+                    o.applyConnectionString(connectionString)
+                            .serverApi(ServerApi.builder()
+                                    .version(ServerApiVersion.V1)
+                                    .build());
+
                 }
-                clusterSettings.hosts(hosts);
                 clusterSettings.serverSelectionTimeout(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
                 clusterSettings.localThreshold(getLocalThreshold(), TimeUnit.MILLISECONDS);
                 clusterSettings.addClusterListener(new ClusterListener() {
@@ -1520,7 +1529,10 @@ public class MongoDriver implements MorphiumDriver {
             MongoCollection<Document> c = mongo.getDatabase(db).getCollection(collection);
             if (lst.size() == 1) {
                 //noinspection unchecked
-                InsertOneOptions op = new InsertOneOptions().bypassDocumentValidation(true);
+                InsertOneOptions op = new InsertOneOptions();
+                if (atlasUrl == null) {
+                    op.bypassDocumentValidation(true);
+                }
                 if (currentTransaction.get() == null) {
                     //noinspection unchecked
                     c.insertOne(lst.get(0), op);
@@ -1531,7 +1543,9 @@ public class MongoDriver implements MorphiumDriver {
             } else {
                 InsertManyOptions imo = new InsertManyOptions();
                 imo.ordered(false);
-                imo.bypassDocumentValidation(true);
+                if (atlasUrl == null) {
+                    imo.bypassDocumentValidation(true);
+                }
                 //noinspection unchecked
                 if (currentTransaction.get() == null) {
                     //noinspection unchecked

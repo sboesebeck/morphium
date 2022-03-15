@@ -24,6 +24,10 @@ import java.util.Map;
 public interface MorphiumDriver {
     String VERSION_NAME = "morphium version";
 
+    String getAtlasUrl();
+
+    void setAtlasUrl(String atlasUrl);
+
     List<String> listDatabases() throws MorphiumDriverException;
 
     void setCredentials(String db, String login, char[] pwd);

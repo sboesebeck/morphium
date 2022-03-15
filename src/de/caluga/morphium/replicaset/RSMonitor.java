@@ -185,6 +185,10 @@ public class RSMonitor {
                     logger.warn("Mongo not configured for replicaset! Disabling monitoring for now");
                     morphium.getConfig().setReplicasetMonitoring(false);
                     terminate();
+                } else if (e.getMessage().contains("user is not allowed to do action")) {
+                    logger.warn("permission denied for replicaset status! Disabling monitoring for now");
+                    morphium.getConfig().setReplicasetMonitoring(false);
+                    terminate();
                 } else if (e.getMessage().contains("replSetGetStatus is not supported")) {
                     logger.warn("Replicaset check not possible - not supported!");
                     morphium.getConfig().setReplicasetMonitoring(false);
