@@ -60,7 +60,7 @@
                             <goal>sign</goal>
                         </goals>
                         <configuration>
-                            <keyname>8759656B</keyname>
+                            <keyname>03DCDB29</keyname>
                         </configuration>
                     </execution>
                 </executions>
@@ -223,7 +223,7 @@
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
-                                    <keyname>8759656B</keyname>
+                                    <keyname>03DCDB29</keyname>
                                 </configuration>
                             </execution>
                         </executions>
