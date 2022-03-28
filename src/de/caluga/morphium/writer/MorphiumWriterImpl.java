@@ -1779,13 +1779,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (!String.class.isAssignableFrom(((Map.Entry) e).getKey().getClass())) {
                         throw new IllegalArgumentException("Can't push maps with Key not of type String!");
                     }
-                    if (morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class) ||
-                            morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)
-                    ) {
-                        Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
-                        marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(en.getValue().getClass()));
-                        ((Map) value).put(en.getKey(), marshall);
+                    if (en.getValue() != null) {
+                        if (morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class) ||
+                                morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)
+                        ) {
+                            Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
+                            marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(en.getValue().getClass()));
+                            ((Map) value).put(en.getKey(), marshall);
+                        }
+                    } else {
+                        ((Map) value).put(en.getKey(), null);
                     }
+
                 }
 
             }
