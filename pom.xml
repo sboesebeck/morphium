@@ -361,7 +361,11 @@
             <artifactId>rsa</artifactId>
             <version>1.0</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.rabbitmq</groupId>
+            <artifactId>amqp-client</artifactId>
+            <version>5.14.2</version>
+        </dependency>
     </dependencies>
 
 
