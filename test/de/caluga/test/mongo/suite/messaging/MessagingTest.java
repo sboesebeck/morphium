@@ -160,9 +160,9 @@ public class MessagingTest extends MorphiumTestBase {
         }
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
-        Messaging consumer = new Messaging(morphium, 100, true, true, 100);
+        Messaging consumer = new Messaging(morphium, 100, true, true, 121);
         consumer.addMessageListener((msg, m) -> {
-//            log.info("Got message!");
+            //log.info("Got message!");
             count.incrementAndGet();
             return null;
         });
@@ -174,7 +174,7 @@ public class MessagingTest extends MorphiumTestBase {
             if (System.currentTimeMillis() - start > 20000) throw new RuntimeException("Timeout!");
         }
         long dur = System.currentTimeMillis() - start;
-        log.info("processing 2500 multithreaded and multiprocessing messages took " + dur + "ms == " + (2500 / (dur / 1000)) + " msg/sec");
+        log.info("processing " + amount + " multithreaded and multiprocessing messages took " + dur + "ms == " + (amount / (dur / 1000)) + " msg/sec");
 
 
         consumer.terminate();

@@ -457,7 +457,7 @@ public class Messaging extends Thread implements ShutdownListener {
         //always run this find in addition to changestream
         while (running) {
             try {
-                if (skipped.get() > 0 || !useChangeStream || true) {
+                if (skipped.get() > 0 || !useChangeStream) {
                     //log.debug("Skipped: "+skipped.get());
                     morphium.inc(StatisticKeys.PULL);
                     StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
@@ -617,6 +617,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 .f(Msg.Fields.processedBy).ne(id).countAll();
         if (!multiple) {
             q.limit(1);
+            if (locked > 1) {
+                skipped.incrementAndGet();
+            }
         } else {
 
             if (locked >= windowSize) {
@@ -624,6 +627,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 return new ArrayList<>();
             } else {
                 q.limit(windowSize - locked);
+                skipped.incrementAndGet();
             }
         }
         if (!useChangeStream) {
