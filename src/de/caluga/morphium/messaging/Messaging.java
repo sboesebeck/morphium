@@ -755,16 +755,14 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> update = Utils.getMap("$set", toSet);
         Map<String, Object> qobj = q.toQueryObject();
         try {
-            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, false, false, null, null); //always locking single message
-            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1))) {
+            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, processMultiple, false, null, null); //always locking single message
+            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1)) || q.countAll() > 0) {
 //                if (log.isDebugEnabled())
 //                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
                 //updated
                 obj.setLocked((Long) values.get("locked"));
                 obj.setLockedBy((String) values.get("locked_by"));
                 processMessage(obj);
-            } else {
-                return;
             }
             //wait for the locking to be saved
 //            Thread.sleep(10);
