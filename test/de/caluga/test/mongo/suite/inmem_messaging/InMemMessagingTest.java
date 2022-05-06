@@ -1377,6 +1377,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
     @Test
     public void waitingForMessagesIfNonMultithreadded() throws Exception {
+        morphium.getConfig().setMaxWaitTime(1000);
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
         Messaging sender = new Messaging(morphium, 100, false, false, 10);
