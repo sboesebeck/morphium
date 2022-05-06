@@ -282,6 +282,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
+        if (res.size() == 0) return 0;
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
         }
