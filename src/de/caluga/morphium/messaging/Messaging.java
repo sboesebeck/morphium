@@ -621,13 +621,12 @@ public class Messaging extends Thread implements ShutdownListener {
                 skipped.incrementAndGet();
             }
         } else {
-
             if (locked >= windowSize) {
                 //q.limit(0);
                 return new ArrayList<>();
             } else {
                 q.limit(windowSize - locked);
-                skipped.incrementAndGet();
+                //skipped.incrementAndGet();
             }
         }
         if (!useChangeStream) {
@@ -638,7 +637,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
         List<Object> lst = q.idList();
         // q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).eq(id)
-        if (locked > lst.size() || q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).eq(null).f(Msg.Fields.processedBy).ne(id).countAll() > 0) {
+        if (locked > lst.size() || q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.lockedBy).in(Arrays.asList("ALL", id, null)).f(Msg.Fields.processedBy).ne(id).countAll() > 0) {
             skipped.incrementAndGet();
         }
         try {
