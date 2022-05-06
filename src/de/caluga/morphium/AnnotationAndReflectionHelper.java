@@ -885,7 +885,7 @@ public class AnnotationAndReflectionHelper {
             //ignoring fields...
 
             boolean ignore = false;
-            String conv = f.getName();
+            String conv = f.getName().replaceAll("\\$", "");
             if (tcc && ccc) {
                 conv = convertCamelCase(f.getName());
             }
