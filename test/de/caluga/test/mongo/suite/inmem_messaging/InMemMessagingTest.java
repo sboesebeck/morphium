@@ -1093,17 +1093,27 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             m.setName("A message");
             log.info("Sending: " + m.getMsgId().toString());
             sender.sendMessage(m);
+            Thread.sleep(1500);
 
             assert (!gotMessage3);
             assert (!gotMessage4);
-            Thread.sleep(1500);
 
             int rec = 0;
-            if (gotMessage1) {
-                rec++;
-            }
-            if (gotMessage2) {
-                rec++;
+            long start = System.currentTimeMillis();
+            while (true) {
+                Thread.sleep(200);
+
+                if (gotMessage1) {
+                    rec++;
+                }
+                if (gotMessage2) {
+                    rec++;
+                }
+                if (rec > 0) break;
+                if (System.currentTimeMillis() - start > 500000) {
+                    log.error("Timeout!");
+                    break;
+                }
             }
             assert (rec == 1) : "rec is " + rec;
 

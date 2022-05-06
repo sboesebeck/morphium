@@ -809,6 +809,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
+        int count = 0;
         if (lst == null) lst = new CopyOnWriteArrayList<>();
         if (upsert && lst.isEmpty()) {
             lst.add(new ConcurrentHashMap<>());
@@ -821,6 +822,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             insert = true;
         }
+        Set<Object> modified = new HashSet<>();
         for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked") Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
@@ -883,6 +885,9 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
 
                             }
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
+                            }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
                             else
@@ -901,6 +906,9 @@ public class InMemoryDriver implements MorphiumDriver {
                             } else if (value instanceof Long) {
                                 value = (Long) value * ((Long) entry.getValue());
                             }
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
+                            }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
                             else
@@ -914,6 +922,8 @@ public class InMemoryDriver implements MorphiumDriver {
                             else
                                 obj.remove(entry.getValue());
                             obj.remove(entry.getKey());
+                            modified.add(obj.get("_id"));
+
                         }
                         break;
                     case "$min":
@@ -921,6 +931,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             Comparable value = (Comparable) obj.get(entry.getKey());
                             //noinspection unchecked
                             if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
+                                modified.add(obj.get("_id"));
                                 obj.put(entry.getKey(), entry.getValue());
                             }
                         }
@@ -931,6 +942,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             //noinspection unchecked
                             if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
                                 obj.put(entry.getKey(), entry.getValue());
+                                modified.add(obj.get("_id"));
                             }
                         }
                         break;
@@ -940,6 +952,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             if (v == null) {
                                 v = new CopyOnWriteArrayList();
                                 obj.put(entry.getKey(), v);
+                                modified.add(obj.get("_id"));
                             }
                             if (entry.getValue() instanceof Map) {
                                 if (((Map) entry.getValue()).get("$each") != null) {
@@ -965,7 +978,7 @@ public class InMemoryDriver implements MorphiumDriver {
             store(db, collection, lst, wc);
 
         }
-        return new ConcurrentHashMap<>();
+        return Utils.getMap("matched", (Object) lst.size()).add("inserted", insert ? 1 : 0).add("modified", count);
     }
 
 
