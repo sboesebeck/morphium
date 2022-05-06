@@ -1538,12 +1538,14 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void priorityTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
+        sender.setSenderId("sender");
         sender.start();
 
         list.clear();
         //if running multithreadded, the execution order might differ a bit because of the concurrent
         //execution - hence if set to multithreadded, the test will fail!
-        Messaging receiver = new Messaging(morphium, 10, false, false, 100);
+        Messaging receiver = new Messaging(morphium, 10, false, false, 1);
+        receiver.setSenderId("receiver");
         try {
             receiver.addMessageListener((msg, m) -> {
                 log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
@@ -1552,7 +1554,7 @@ public class MessagingTest extends MorphiumTestBase {
             });
 
             for (int i = 0; i < 10; i++) {
-                Msg m = new Msg("test", "test", "test");
+                Msg m = new Msg("test", "test", "test", 30000);
                 m.setPriority((int) (1000.0 * Math.random()));
                 log.info("Stored prio: " + m.getPriority());
                 sender.sendMessage(m);
