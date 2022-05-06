@@ -418,9 +418,9 @@ public class Messaging extends Thread implements ShutdownListener {
 //                            //obj = morphium.findById(Msg.class, evt.getDocumentKey(), getCollectionName());
 //                        }
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-//                        if (obj == null) {
-//                            return running; //was deleted?
-//                        }
+                        if (obj == null) {
+                            return running; //was deleted?
+                        }
                         if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             //ignoring my own messages
                             return running;
