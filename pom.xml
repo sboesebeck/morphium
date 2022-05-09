@@ -40,7 +40,7 @@
         <java.version>1.8</java.version>
         <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mongodbDriver.version>[4.1.0,)</mongodbDriver.version>
+        <mongodbDriver.version>4.5.1</mongodbDriver.version>
     </properties>
 
     <build>
@@ -282,7 +282,7 @@
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-sync</artifactId>
+            <artifactId>mongodb-driver-reactivestreams</artifactId>
             <version>${mongodbDriver.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -369,31 +369,31 @@
     </dependencies>
 
 
-    <repositories>
-        <repository>
-            <id>sonatype-nexus-snapshots</id>
-            <name>Sonatype Nexus Snapshots</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-        <repository>
-            <id>sonatype-nexus-staging</id>
-            <name>Sonatype Nexus Release Repository</name>
-            <url>https://oss.sonatype.orgservice/local/staging/deploy/maven2/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
+    <!--    <repositories>-->
+    <!--        <repository>-->
+    <!--            <id>sonatype-nexus-snapshots</id>-->
+    <!--            <name>Sonatype Nexus Snapshots</name>-->
+    <!--            <url>https://oss.sonatype.org/content/repositories/snapshots</url>-->
+    <!--            <releases>-->
+    <!--                <enabled>false</enabled>-->
+    <!--            </releases>-->
+    <!--            <snapshots>-->
+    <!--                <enabled>true</enabled>-->
+    <!--            </snapshots>-->
+    <!--        </repository>-->
+    <!--        <repository>-->
+    <!--            <id>sonatype-nexus-staging</id>-->
+    <!--            <name>Sonatype Nexus Release Repository</name>-->
+    <!--            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>-->
+    <!--            <releases>-->
+    <!--                <enabled>true</enabled>-->
+    <!--            </releases>-->
+    <!--            <snapshots>-->
+    <!--                <enabled>false</enabled>-->
+    <!--            </snapshots>-->
+    <!--        </repository>-->
 
-    </repositories>
+    <!--    </repositories>-->
 
     <distributionManagement>
         <snapshotRepository>

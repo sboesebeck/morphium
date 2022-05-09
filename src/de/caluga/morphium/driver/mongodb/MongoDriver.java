@@ -3,18 +3,6 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
-import com.mongodb.client.AggregateIterable;
-import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.ClientSession;
-import com.mongodb.client.DistinctIterable;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.ListIndexesIterable;
-import com.mongodb.client.MapReduceIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.*;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
@@ -44,6 +32,8 @@ import com.mongodb.event.ConnectionPoolOpenedEvent;
 import com.mongodb.event.ConnectionReadyEvent;
 import com.mongodb.event.ConnectionRemovedEvent;
 
+import com.mongodb.reactivestreams.client.MongoClient;
+import com.mongodb.reactivestreams.client.MongoClients;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
@@ -78,6 +68,9 @@ import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
 import org.bson.types.ObjectId;
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -718,17 +711,41 @@ public class MongoDriver implements MorphiumDriver {
             mongo = MongoClients.create(o.build());
 
             try {
-                Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
-                if (res.get("setName") != null) {
-                    replicaset = true;
-                    if (hostSeed.length == 1) {
-                        log.warn("have to reconnect to cluster... only one host specified, but its a replicaset");
-                        o.applyToClusterSettings(builder -> builder.mode(ClusterConnectionMode.MULTIPLE));
-                        mongo.close();
-                        mongo = MongoClients.create(o.build());
+                Publisher<Document> pub = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
+                pub.subscribe(new Subscriber<Document>() {
+                    private Document doc = null;
+
+                    @Override
+                    public void onSubscribe(Subscription s) {
+                        s.request(1);
+                        return;
                     }
 
-                }
+                    @Override
+                    public void onNext(Document document) {
+                        doc = document;
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        if (doc.get("setName") != null) {
+                            replicaset = true;
+                            if (hostSeed.length == 1) {
+                                log.warn("have to reconnect to cluster... only one host specified, but its a replicaset");
+                                o.applyToClusterSettings(builder -> builder.mode(ClusterConnectionMode.MULTIPLE));
+                                mongo.close();
+                                mongo = MongoClients.create(o.build());
+                            }
+
+                        }
+                    }
+                });
+
             } catch (MongoCommandException mce) {
                 if (mce.getCode() == 20) {
                     //most likely a connection to a mongos,
