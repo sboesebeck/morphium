@@ -3622,8 +3622,7 @@ public class Morphium implements AutoCloseable {
                             missingIndicesByClass.putIfAbsent(entity, new ArrayList<>());
                             Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
                             missingIndicesByClass.get(entity).add(
-                                    Utils.getMap("__capped_entries", (Object) capped.maxEntries())
-                                            .add("__capped_size", capped.maxSize())
+                                    Map.of("__capped_entries", (Object) capped.maxEntries(), "__capped_size", capped.maxSize())
                             );
                         }
                     }

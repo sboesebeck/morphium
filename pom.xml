@@ -37,10 +37,10 @@
     </developers>
 
     <properties>
-        <java.version>1.8</java.version>
+        <java.version>11</java.version>
         <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mongodbDriver.version>4.5.1</mongodbDriver.version>
+        <mongodbDriver.version>[4.5.1,]</mongodbDriver.version>
     </properties>
 
     <build>
@@ -105,8 +105,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>11</source>
+                    <target>11</target>
+                    <compilerArgs>--add-modules java.base</compilerArgs>
                 </configuration>
             </plugin>
             <plugin>
@@ -282,7 +283,7 @@
         </dependency>
         <dependency>
             <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-reactivestreams</artifactId>
+            <artifactId>mongodb-driver-sync</artifactId>
             <version>${mongodbDriver.version}</version>
             <scope>provided</scope>
         </dependency>

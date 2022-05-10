@@ -412,10 +412,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         }
         List<Object> bn = new ArrayList<>();
         boundaries.forEach(x -> bn.add(x.toQueryObject()));
-        Map<String, Object> m = Utils.getMap("$bucket", Utils.getMap("groupBy", groupBy.toQueryObject())
-                .add("boundaries", bn)
-                .add("default", preset.toQueryObject())
-                .add("output", Utils.getQueryObjectMap(output))
+        Map<String, Object> m = Map.of("$bucket", (Object) Map.of("groupBy", groupBy.toQueryObject(),
+                "boundaries", bn,
+                "default", preset.toQueryObject(),
+                "output", Utils.getQueryObjectMap(output))
         );
         params.add(m);
         return this;
@@ -431,14 +431,13 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 out.put(e.getKey(), e.getValue().toQueryObject());
             }
         }
-        Utils.UtilsMap<String, Object> bucketAuto = Utils.getMap("groupBy", groupBy.toQueryObject());
-        bucketAuto.add("buckets", numBuckets);
-        Utils.UtilsMap<String, Object> map = Utils.getMap("$bucketAuto", bucketAuto);
+        var bucketAuto = Map.of("groupBy", groupBy.toQueryObject(), "buckets", numBuckets);
+        var map = Map.of("$bucketAuto", (Object) bucketAuto);
 
         if (out != null)
-            bucketAuto.add("output", out);
+            bucketAuto.put("output", out);
         if (granularity != null)
-            bucketAuto.add("granularity", granularity.getValue());
+            bucketAuto.put("granularity", granularity.getValue());
         params.add(map);
 
         return this;
