@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.SimpleEntity;
+import de.caluga.test.mongo.suite.data.SimpleEntity;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;

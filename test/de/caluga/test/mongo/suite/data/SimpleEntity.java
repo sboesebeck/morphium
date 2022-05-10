@@ -1,4 +1,4 @@
-package de.caluga.morphium;
+package de.caluga.test.mongo.suite.data;
 
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Entity;
