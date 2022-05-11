@@ -64,7 +64,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                     morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
                     log.info("Written");
                     written[0]++;
-                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "value", "newVal");
+                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), UncachedObject.Fields.strValue, "newVal");
                     log.info("updated");
                     written[0]++;
                 }

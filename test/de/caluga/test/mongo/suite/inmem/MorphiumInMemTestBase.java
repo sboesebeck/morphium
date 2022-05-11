@@ -44,6 +44,7 @@ public class MorphiumInMemTestBase {
         cfg.setMaxWaitTime(250);
         morphium = new Morphium(cfg);
         log.info("Done!");
+
     }
 
     @org.junit.After

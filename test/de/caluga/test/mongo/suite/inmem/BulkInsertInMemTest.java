@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 01.07.12
@@ -91,7 +93,8 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         log.info("storing objects one by one took " + dur + " ms");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-        assert (q.countAll() == 100) : "Assert not all stored yet????";
+
+        assertThat(q.countAll()).isEqualTo(199);
 
     }
 
@@ -142,7 +145,8 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         log.info("storing objects one by one took " + dur + " ms");
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-        assert (q.countAll() == 1000) : "Assert not all stored yet????";
+        Thread.sleep(100);
+        assertThat(q.countAll()).isEqualTo(1099);
 
     }
 

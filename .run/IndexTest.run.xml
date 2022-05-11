@@ -3,7 +3,7 @@
         <module name="morphium"/>
         <extension name="coverage">
             <pattern>
-                <option name="PATTERN" value="de.caluga.morphium.*"/>
+                <option name="PATTERN" value="de.caluga.test.mongo.suite.data.*"/>
                 <option name="ENABLED" value="true"/>
             </pattern>
         </extension>

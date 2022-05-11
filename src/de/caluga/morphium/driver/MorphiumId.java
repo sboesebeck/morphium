@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 27.10.15.
  */
 
+import org.bson.types.ObjectId;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
@@ -53,6 +54,10 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 
     public MorphiumId(String hexString) {
         this(hexToByte(hexString.toLowerCase()));
+    }
+
+    public MorphiumId(ObjectId id){
+        this(id.toByteArray());
     }
 
     public MorphiumId(byte[] bytes) {
@@ -208,7 +213,6 @@ public class MorphiumId implements Comparable<MorphiumId>, Serializable {
 
     public byte[] getBytes() {
         byte[] bytes = new byte[12];
-
         storeInt(bytes, 0, timestamp);
         storeInt3Byte(bytes, 4, machineId);
         storeShort(bytes, 7, pid);
