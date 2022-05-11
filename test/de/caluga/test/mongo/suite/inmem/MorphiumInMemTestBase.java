@@ -41,7 +41,7 @@ public class MorphiumInMemTestBase {
         cfg.setReplicasetMonitoring(false);
         cfg.setAggregatorFactory(new InMemAggregatorFactory());
         cfg.setAggregatorClass(InMemAggregator.class);
-        cfg.setMaxWaitTime(250);
+        cfg.setMaxWaitTime(1550);
         morphium = new Morphium(cfg);
         log.info("Done!");
 
