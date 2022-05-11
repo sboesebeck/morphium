@@ -14,6 +14,8 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test
@@ -199,9 +201,9 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.unset(UncachedObject.Fields.strValue);
         List<Map<String, Object>> lst = agg.aggregateMap();
-        assert (lst.size() == 100);
+        assertThat(lst.size()).isEqualTo(100);
         for (Map<String, Object> o : lst) {
-            assert (!o.containsKey("value"));
+            assertThat (o.containsKey("value")).isFalse();
         }
     }
 
