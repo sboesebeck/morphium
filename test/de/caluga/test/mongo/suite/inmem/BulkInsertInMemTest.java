@@ -94,7 +94,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
 
-        assertThat(q.countAll()).isEqualTo(199);
+        assertThat(q.countAll()).isEqualTo(200);
 
     }
 
@@ -146,7 +146,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         Thread.sleep(100);
-        assertThat(q.countAll()).isEqualTo(1099);
+        assertThat(q.countAll()).isEqualTo(1100);
 
     }
 

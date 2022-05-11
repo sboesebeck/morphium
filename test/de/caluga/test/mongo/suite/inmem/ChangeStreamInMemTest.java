@@ -153,7 +153,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                     run[0] = false;
                 }
                 log.info("Setting to value " + i);
-                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "value", "new value " + i, false, true);
+                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "strValue", "new value " + i, false, true);
             }
             log.info("Writing thread finished...");
         }).start();
