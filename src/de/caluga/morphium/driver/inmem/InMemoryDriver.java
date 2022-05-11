@@ -131,7 +131,8 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void setAtlasUrl(String atlasUrl) {
-        log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
+        if (atlasUrl != null && !atlasUrl.isEmpty())
+            log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
     }
 
     @Override
@@ -678,12 +679,18 @@ public class InMemoryDriver implements MorphiumDriver {
             if (count < skip) {
                 continue;
             }
-            if (!internal){
-                synchronized (this) {
-                    o = new HashMap<>(o);
-                    if (o.get("_id") instanceof ObjectId) {
-                        o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
+            if (!internal) {
+                while (true) {
+                    try {
+                        o = new HashMap<>(o);
+                        if (o.get("_id") instanceof ObjectId) {
+                            o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
+                        }
+                        break;
+                    } catch (ConcurrentModificationException c) {
+                        //retry until it works
                     }
+
                 }
             }
             if (QueryHelper.matchesQuery(query, o)) {
@@ -734,8 +741,8 @@ public class InMemoryDriver implements MorphiumDriver {
             if ((obj.get(field) == null && value == null)
                     || obj.get(field).equals(value)) {
                 ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
-                if (add.get("_id") instanceof ObjectId){
-                    add.put("_id",new MorphiumId((ObjectId) add.get("_id")));
+                if (add.get("_id") instanceof ObjectId) {
+                    add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
                 }
                 ret.add(add);
             }
@@ -810,6 +817,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
+        int count = 0;
         if (lst == null) lst = new CopyOnWriteArrayList<>();
         if (upsert && lst.isEmpty()) {
             lst.add(new ConcurrentHashMap<>());
@@ -822,6 +830,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             insert = true;
         }
+        Set<Object> modified = new HashSet<>();
         for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked") Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
@@ -884,6 +893,9 @@ public class InMemoryDriver implements MorphiumDriver {
                                 }
 
                             }
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
+                            }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
                             else
@@ -902,6 +914,9 @@ public class InMemoryDriver implements MorphiumDriver {
                             } else if (value instanceof Long) {
                                 value = (Long) value * ((Long) entry.getValue());
                             }
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
+                            }
                             if (value != null)
                                 obj.put(entry.getKey(), value);
                             else
@@ -915,6 +930,8 @@ public class InMemoryDriver implements MorphiumDriver {
                             else
                                 obj.remove(entry.getValue());
                             obj.remove(entry.getKey());
+                            modified.add(obj.get("_id"));
+
                         }
                         break;
                     case "$min":
@@ -922,6 +939,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             Comparable value = (Comparable) obj.get(entry.getKey());
                             //noinspection unchecked
                             if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
+                                modified.add(obj.get("_id"));
                                 obj.put(entry.getKey(), entry.getValue());
                             }
                         }
@@ -932,6 +950,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             //noinspection unchecked
                             if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
                                 obj.put(entry.getKey(), entry.getValue());
+                                modified.add(obj.get("_id"));
                             }
                         }
                         break;
@@ -941,6 +960,7 @@ public class InMemoryDriver implements MorphiumDriver {
                             if (v == null) {
                                 v = new CopyOnWriteArrayList();
                                 obj.put(entry.getKey(), v);
+                                modified.add(obj.get("_id"));
                             }
                             if (entry.getValue() instanceof Map) {
                                 if (((Map) entry.getValue()).get("$each") != null) {
@@ -966,7 +986,7 @@ public class InMemoryDriver implements MorphiumDriver {
             store(db, collection, lst, wc);
 
         }
-        return new ConcurrentHashMap<>();
+        return Utils.getMap("matched", (Object) lst.size()).add("inserted", insert ? 1 : 0).add("modified", count);
     }
 
 
@@ -1054,9 +1074,19 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, collation, null);
+        List<Map<String, Object>> toDel = find(db, collection, query, null, Utils.getMap("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
         for (Map<String, Object> o : toDel) {
-            getCollection(db, collection).remove(o);
+            for (Map<String, Object> dat : getCollection(db, collection)) {
+                if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
+                    if (dat.get("_id").toString().equals(o.get("_id").toString())) {
+                        getCollection(db, collection).remove(dat);
+                    }
+                } else {
+                    if (dat.get("_id").equals(o.get("_id"))) {
+                        getCollection(db, collection).remove(dat);
+                    }
+                }
+            }
             notifyWatchers(db, collection, "delete", o);
         }
         return new ConcurrentHashMap<>();
