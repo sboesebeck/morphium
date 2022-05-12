@@ -63,21 +63,24 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
     public void bulkInsert() {
         //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
         morphium.clearCollection(UncachedObject.class);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         log.info("Start storing single");
         long start = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setStrValue("nix " + i);
             morphium.store(uc);
+            assertThat(uc.getMorphiumId()).isNotNull();
         }
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one took " + dur + " ms");
+        assertThat(q.countAll()).isEqualTo(1000);
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing list");
         List<UncachedObject> lst = new ArrayList<>();
         start = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 1000; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setStrValue("nix " + i);
@@ -90,11 +93,11 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         if ((morphium.getWriteBufferCount() != 0)) {
             throw new AssertionError("WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
         }
-        log.info("storing objects one by one took " + dur + " ms");
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+        log.info("storing objects as list took " + dur + " ms");
+
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
 
-        assertThat(q.countAll()).isEqualTo(200);
+        assertThat(q.countAll()).isEqualTo(1000);
 
     }
 
@@ -146,7 +149,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         Thread.sleep(100);
-        assertThat(q.countAll()).isEqualTo(1100);
+        assertThat(q.countAll()).isEqualTo(1000);
 
     }
 
