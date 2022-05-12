@@ -784,6 +784,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                 Object valueFromDb = objectMap.get(f);
                 Field fld = annotationHelper.getField(cls, f);
+                if (fld == null) continue;
                 Class<?> fldType = fld.getType();
                 if (Modifier.isStatic(fld.getModifiers())) {
                     //skip static fields
