@@ -7,6 +7,8 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class VersioningTest extends MorphiumTestBase {
 
 
@@ -15,19 +17,19 @@ public class VersioningTest extends MorphiumTestBase {
         VersionedEntity ve = new VersionedEntity("ve1", 1);
 
         morphium.store(ve);
-        assert (ve.getTheVersionNumber() > 0);
+        assertThat(ve.getTheVersionNumber()).isGreaterThan(0);
 
         long v=ve.getTheVersionNumber();
 
         ve.setCounter(ve.getCounter()+1);
         morphium.store(ve);
-        assert(ve.getTheVersionNumber()==v+1L);
+        assertThat(ve.getTheVersionNumber()).isEqualTo(v + 1L);
 
         //forcing versioning error
         ve.setCounter(34);
         ve.setTheVersionNumber(323);
         morphium.store(ve);
-        assert(ve!=null);
+        assertThat(ve).isNotNull();
     }
 
 
@@ -51,7 +53,7 @@ public class VersioningTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(VersionedEntity.class).countAll() != 100) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
         }
 
         morphium.set(morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10"), UncachedObject.Fields.counter, 1234);
@@ -59,15 +61,15 @@ public class VersioningTest extends MorphiumTestBase {
         VersionedEntity entity = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
         while (entity != null && entity.getTheVersionNumber() != 2) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
             entity = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
         }
         Thread.sleep(100);
-        assert (morphium.createQueryFor(VersionedEntity.class).f("strValue").eq("value10").countAll() == 1);
+        assertThat(morphium.createQueryFor(VersionedEntity.class).f("strValue").eq("value10").countAll()).isEqualTo(1);
         VersionedEntity ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value10").get();
-        assert (ve.getTheVersionNumber() == 2) : "Version wrong, should be 2 but is " + ve.getTheVersionNumber();
+        assertThat(ve.getTheVersionNumber()).isEqualTo(2);
         ve = morphium.createQueryFor(VersionedEntity.class).f(VersionedEntity.Fields.strValue).eq("value11").get();
-        assert (ve.getTheVersionNumber() == 1);
+        assertThat(ve.getTheVersionNumber()).isEqualTo(1);
     }
 
 
