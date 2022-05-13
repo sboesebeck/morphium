@@ -978,7 +978,7 @@ public class InMemoryDriver implements MorphiumDriver {
             store(db, collection, lst, wc);
 
         }
-        return Utils.getMap("matched", (Object) lst.size()).add("inserted", insert ? 1 : 0).add("modified", count);
+        return Map.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "modified", count);
     }
 
 
@@ -1039,7 +1039,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     data.put("fullDocument", doc);
                 if (op != null)
                     data.put("operationType", op);
-                Map m = Collections.synchronizedMap(Utils.getMap("db", db));
+                Map m = Collections.synchronizedMap(Map.of("db", db));
                 //noinspection unchecked
                 m.put("coll", collection);
                 data.put("ns", m);
@@ -1133,7 +1133,7 @@ public class InMemoryDriver implements MorphiumDriver {
         if (r.size() == 0) {
             return null;
         }
-        delete(db, col, Utils.getMap("_id", r.get(0).get("_id")), false, collation, null);
+        delete(db, col, Map.of("_id", r.get(0).get("_id")), false, collation, null);
         return r.get(0);
     }
 

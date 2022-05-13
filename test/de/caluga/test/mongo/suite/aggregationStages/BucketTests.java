@@ -10,6 +10,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static de.caluga.morphium.aggregation.Expr.*;
 
@@ -32,11 +33,7 @@ public class BucketTests extends MorphiumTestBase {
 
         Aggregator<Artist, ArtistAggregation> agg = morphium.createAggregator(Artist.class, ArtistAggregation.class);
 
-        agg.bucket(field("year_born"), Arrays.asList(intExpr(1840), intExpr(1850), intExpr(1860), intExpr(1870), intExpr(1880)),
-                string("Other"), Utils.getMap("count", sum(intExpr(1)))
-                        .add("artists", push(mapExpr(Utils.getMap("name", concat(field("first_name"), string(" "), field("last_name")))
-                                .add("year_born", field("year_born")))))
-        );
+        agg.bucket(field("year_born"), Arrays.asList(intExpr(1840), intExpr(1850), intExpr(1860), intExpr(1870), intExpr(1880)), string("Other"), Map.of("count", sum(intExpr(1)), "artists", push(mapExpr(Map.of("name", concat(field("first_name"), string(" "), field("last_name")), "year_born", field("year_born"))))));
 
         List<ArtistAggregation> lst = agg.aggregate();
         for (ArtistAggregation a : lst) {
@@ -62,11 +59,7 @@ public class BucketTests extends MorphiumTestBase {
 
         @Override
         public String toString() {
-            return "ArtistAggregation{" +
-                    "id=" + id +
-                    ", count=" + count +
-                    ", artists=" + toString(artists) +
-                    '}';
+            return "ArtistAggregation{" + "id=" + id + ", count=" + count + ", artists=" + toString(artists) + '}';
         }
 
 
@@ -101,10 +94,7 @@ public class BucketTests extends MorphiumTestBase {
 
         @Override
         public String toString() {
-            return "Artist{" +
-                    "Name='" + name + '\'' +
-                    ", yearBorn=" + yearBorn +
-                    '}';
+            return "Artist{" + "Name='" + name + '\'' + ", yearBorn=" + yearBorn + '}';
         }
     }
 }

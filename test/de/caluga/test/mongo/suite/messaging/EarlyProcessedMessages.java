@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import com.sun.corba.se.impl.oa.poa.AOMEntry;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;

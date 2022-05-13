@@ -10,7 +10,7 @@ public class ExpEvaluationTest {
 
     @Test
     public void fieldExprTest() {
-        Map<String, Object> context = Utils.getMap("fld1", "test");
+        Map<String, Object> context = Map.of("fld1", "test");
         Expr f = Expr.field("fld1");
 
         Object v = f.evaluate(context);
@@ -20,7 +20,7 @@ public class ExpEvaluationTest {
 
     @Test
     public void divideTest() {
-        Map<String, Object> context = Utils.getMap("fld1", (Object) 42).add("fld2", 2);
+        Map<String, Object> context = Map.of("fld1", (Object) 42, "fld2", 2);
         Object r = Expr.divide(Expr.field("fld1"), Expr.intExpr(3)).evaluate(context);
         assert (r != null && r.equals(14.0));
     }

@@ -13,7 +13,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void simpleMatchTest() throws Exception {
-        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("str_value", "hello");
+        Map<String, Object> doc = Map.of("counter", (Object) 12, "str_value", "hello");
 
         Map<String, Object> query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
                 .f("str_value").eq("not hello").toQueryObject();
@@ -30,7 +30,7 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test
     public void orMatchTest() throws Exception {
-        Map<String, Object> doc = Utils.getMap("counter", (Object) 12).add("str_value", "hello");
+        Map<String, Object> doc = Map.of("counter", (Object) 12, "str_value", "hello");
 
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class);
         query.or(query.q().f("counter").eq(12), query.q().f("strValue").eq("not hello"));

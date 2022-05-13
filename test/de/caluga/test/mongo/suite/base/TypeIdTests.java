@@ -20,7 +20,7 @@ public class TypeIdTests extends MorphiumTestBase {
         AdditionalDataEntity ad = new AdditionalDataEntity();
         ad.setStrValue("test");
         ad.setCounter(12);
-        ad.setAdditionals(Utils.getMap("test", new EmbeddedObject("name", "value", 123)));
+        ad.setAdditionals(Map.of("test", new EmbeddedObject("name", "value", 123)));
         morphium.store(ad);
 
         Thread.sleep(100);

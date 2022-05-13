@@ -457,7 +457,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 //                bld.append("- ultra long text -");
 //            }
 //
-//            m.setMapValue(Utils.getMap("bigValue", bld.toString()));
+//            m.setMapValue(Map.of("bigValue", bld.toString()));
 //            m.setExclusive(true);
 //            sender.sendMessage(m);
 //        }

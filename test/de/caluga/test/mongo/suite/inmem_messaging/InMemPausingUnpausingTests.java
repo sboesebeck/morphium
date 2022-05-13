@@ -443,7 +443,7 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
 //                bld.append("- ultra long text -");
 //            }
 //
-//            m.setMapValue(Utils.getMap("bigValue", bld.toString()));
+//            m.setMapValue(Map.of("bigValue", bld.toString()));
 //            m.setExclusive(true);
 //            sender.sendMessage(m);
 //        }

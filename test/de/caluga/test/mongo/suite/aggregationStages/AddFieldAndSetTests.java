@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class AddFieldAndSetTests extends MorphiumTestBase {
 
@@ -21,10 +22,9 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
-        agg.addFields(Utils.getMap("total_homework", (Object) Utils.getMap("$sum", "$homework"))
-                .add("total_quiz", Utils.getMap("$sum", "$quiz"))
+        agg.addFields(Map.of("total_homework", (Object) Map.of("$sum", "$homework"), "total_quiz", Map.of("$sum", "$quiz"))
         );
-        agg.addFields(Utils.getMap("total_score", (Object) Expr.add(Expr.field("total_homework"),
+        agg.addFields(Map.of("total_score", (Object) Expr.add(Expr.field("total_homework"),
                 Expr.field("total_quiz"), Expr.field("extra_credit"))));
 
         List<Student> lst = agg.aggregate();
@@ -67,10 +67,9 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
-        agg.set(Utils.getMap("total_homework", Expr.sum(Expr.field("homework")))
-                .add("total_quiz", Expr.sum(Expr.field("quiz")))
+        agg.set(Map.of("total_homework", Expr.sum(Expr.field("homework")), "total_quiz", Expr.sum(Expr.field("quiz")))
         );
-        agg.set(Utils.getMap("total_score", Expr.add(Expr.field("total_homework"),
+        agg.set(Map.of("total_score", Expr.add(Expr.field("total_homework"),
                 Expr.field("total_quiz"), Expr.field("extra_credit"))));
 
         List<Student> lst = agg.aggregate();

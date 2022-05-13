@@ -309,7 +309,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         morphium.store(uc);
 
-        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object", Utils.getMap("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null, null);
+        List<Map<String, Object>> res = morphium.getDriver().find(morphium.getConfig().getDatabase(), "uncached_object", Map.of("_id", uc.getMorphiumId()), null, null, 0, 0, 10000, null, null, null);
         assert (res.size() == 1);
     }
 
@@ -787,7 +787,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         v2.put("String", "String");
         v2.put("Integer", 123);
         v2.put("List", Arrays.asList("l1", "l2"));
-        v2.put("Map", Utils.getMap("key", 123));
+        v2.put("Map", Map.of("key", 123));
         c.structureK.add(v2);
 
         Map<String, Object> seralized = new ObjectMapperImpl().serialize(c);

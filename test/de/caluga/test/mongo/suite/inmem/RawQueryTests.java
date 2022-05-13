@@ -18,7 +18,7 @@ public class RawQueryTests extends MorphiumInMemTestBase {
         o = new UncachedObject("no value", 1233);
         morphium.store(o);
 
-        Map<String, Object> rawQuery = Utils.getMap("str_value", "no value");
+        Map<String, Object> rawQuery = Map.of("str_value", "no value");
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
         assert (lst.size() == 1);
     }
@@ -31,11 +31,11 @@ public class RawQueryTests extends MorphiumInMemTestBase {
         o = new UncachedObject("no value", 1233);
         morphium.store(o);
 
-        Map<String, Object> rawQuery = Utils.getMap("str_value", Utils.getMap("$regex", ".*[0-9]+.*").add("$options", "i"));
+        Map<String, Object> rawQuery = Map.of("str_value", Map.of("$regex", ".*[0-9]+.*", "$options", "i"));
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
         assert (lst.size() == 1);
 
-        rawQuery = Utils.getMap("str_value", Utils.getMap("$regex", ".*value.*").add("$options", "i"));
+        rawQuery = Map.of("str_value", Map.of("$regex", ".*value.*", "$options", "i"));
         lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
         assert (lst.size() == 2);
 

@@ -1005,7 +1005,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
 
-                update = Utils.getMap("$set", update);
+                update = Map.of("$set", update);
                 WriteConcern wc = morphium.getWriteConcernForClass(type);
                 long start = System.currentTimeMillis();
                 try {
@@ -1225,7 +1225,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
-                Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
+                Map<String, Object> update = Map.of("$inc", Map.of(fieldName, amount));
                 WriteConcern wc = morphium.getWriteConcernForClass(toInc.getClass());
 
                 long start = System.currentTimeMillis();
@@ -1399,7 +1399,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
-                Map<String, Object> update = Utils.getMap("$inc", Utils.getMap(fieldName, amount));
+                Map<String, Object> update = Map.of("$inc", Map.of(fieldName, amount));
                 Map<String, Object> qobj = query.toQueryObject();
                 if (upsert) {
                     qobj = morphium.simplifyQueryObject(qobj);
@@ -1513,12 +1513,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     String fieldName = morphium.getARHelper().getMongoFieldName(cls, ef.getKey());
                     toSet.put(fieldName, marshallIfNecessary(ef.getValue()));
                 }
-                Map<String, Object> update = Utils.getMap("$set", toSet);
+                Map<String, Object> update = Map.of("$set", toSet);
                 Map<String, Object> qobj = query.toQueryObject();
 
                 Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
                 if (en.autoVersioning()) {
-                    update.put("$inc", Utils.getMap(MorphiumDriver.VERSION_NAME, 1));
+                    update.put("$inc", Map.of(MorphiumDriver.VERSION_NAME, 1));
                 }
                 handleLastChange(cls, update);
                 handleCreationTimeOnUpsert(cls, coll, query.toQueryObject(), update, upsert);
@@ -1580,7 +1580,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 for (String f : fields) {
                     toSet.put(morphium.getARHelper().getMongoFieldName(cls, f), ""); //value is ignored
                 }
-                Map<String, Object> update = Utils.getMap("$unset", toSet);
+                Map<String, Object> update = Map.of("$unset", toSet);
                 handleLastChange(cls, update);
                 WriteConcern wc = morphium.getWriteConcernForClass(cls);
                 long start = System.currentTimeMillis();
@@ -1641,7 +1641,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
-                Map<String, Object> update = Utils.getMap("$unset", Utils.getMap(fieldName, 1));
+                Map<String, Object> update = Map.of("$unset", Map.of(fieldName, 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(toSet.getClass());
 
                 doUpdate(cls, toSet, coll, field, query, f, update, wc);
@@ -1682,7 +1682,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
-                Map<String, Object> update = Utils.getMap("$pop", Utils.getMap(fieldName, first ? -1 : 1));
+                Map<String, Object> update = Map.of("$pop", Map.of(fieldName, first ? -1 : 1));
                 WriteConcern wc = morphium.getWriteConcernForClass(obj.getClass());
 
 
@@ -1723,8 +1723,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
-                Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
-                Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
+                Map<String, Object> set = Map.of(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
+                Map<String, Object> update = Map.of(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
 
@@ -1804,7 +1804,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
         if (en.autoVersioning()) {
-            update.put("$inc", Utils.getMap(MorphiumDriver.VERSION_NAME, 1));
+            update.put("$inc", Map.of(MorphiumDriver.VERSION_NAME, 1));
         }
         if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
         handleLastChange(cls, update);
@@ -1862,11 +1862,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     field = morphium.getARHelper().getMongoFieldName(cls, field);
                     Map<String, Object> update;
                     if (push) {
-                        Map<String, Object> set = Utils.getMap(field, Utils.getMap("$each", value));
-                        update = Utils.getMap("$push", set);
+                        Map<String, Object> set = Map.of(field, Map.of("$each", value));
+                        update = Map.of("$push", set);
 
                     } else {
-                        update = Utils.getMap("$pullAll", Utils.getMap(field, value));
+                        update = Map.of("$pullAll", Map.of(field, value));
                     }
 
                     handleLastChange(cls, update);

@@ -73,8 +73,8 @@ public class LookupTests extends MorphiumTestBase {
                         Expr.eq(Expr.field("sku"), Expr.field("$$order_item")),
                         Expr.gte(Expr.field("$instock"), Expr.field("$$order_qty"))
                 ))));
-        pipeline.add(Expr.project(Utils.getMap("sku", Expr.intExpr(0)).add("_id", Expr.intExpr(0))));
-        agg.lookup("inventory", null, null, "stock_data", pipeline, Utils.getMap("order_item", Expr.field("item")).add("order_qty", Expr.field("quantity")));
+        pipeline.add(Expr.project(Map.of("sku", Expr.intExpr(0), "_id", Expr.intExpr(0))));
+        agg.lookup("inventory", null, null, "stock_data", pipeline, Map.of("order_item", Expr.field("item"), "order_qty", Expr.field("quantity")));
 
         List<Map<String, Object>> result = agg.aggregateMap();
         for (Map<String, Object> m : result) {

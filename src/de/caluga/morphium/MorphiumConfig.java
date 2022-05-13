@@ -1258,7 +1258,7 @@ public class MorphiumConfig {
 
         for (String t : defaultTags.split(",")) {
             String[] tag = t.split(":");
-            tagList.add(Utils.getMap(tag[0], tag[1]));
+            tagList.add(Map.of(tag[0], tag[1]));
         }
         return tagList;
     }

@@ -63,7 +63,7 @@ public class SequenceTest extends MorphiumTestBase {
     @Test
     public void migrationTest() throws Exception {
 
-        Map<String, Object> seq = Utils.getMap("_id", new MorphiumId());
+        Map<String, Object> seq = Map.of("_id", new MorphiumId());
         seq.put("name", "testSeq");
         seq.put("locked_at", 0);
         seq.put("current_value", 100);

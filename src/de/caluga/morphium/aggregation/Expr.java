@@ -420,7 +420,11 @@ public abstract class Expr {
     }
 
     public static Expr filter(Expr inputArray, String as, Expr cond) {
-        return new MapOpExpr("filter", Utils.getMap("input", inputArray).add("as", string(as)).add("cond", cond)) {
+        Map<String, Expr> input = Map.of("input", inputArray);
+        input.put("as", string(as));
+        input.put("cond", cond);
+
+        return new MapOpExpr("filter", input) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 List<Object> ret = new ArrayList<>();
@@ -574,9 +578,7 @@ public abstract class Expr {
     }
 
     public static Expr reduce(Expr inputArray, Expr initValue, Expr in) {
-        return new MapOpExpr("reduce", Utils.getMap("input", inputArray)
-                .add("initialValue", initValue)
-                .add("in", in)
+        return new MapOpExpr("reduce", Map.of("input", inputArray, "initialValue", initValue, "in", in)
 
         );
     }
@@ -640,7 +642,7 @@ public abstract class Expr {
     }
 
     public static Expr zip(List<Expr> inputs, Expr useLongestLength, Expr defaults) {
-        return new MapOpExpr("zip", Utils.getMap("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[0]))).add("useLongestLength", useLongestLength).add("defaults", defaults));
+        return new MapOpExpr("zip", Map.of("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[0])), "useLongestLength", useLongestLength, "defaults", defaults));
     }
 
     public static Expr not(Expr expression) {
@@ -816,9 +818,9 @@ public abstract class Expr {
     public static Expr switchExpr(Map<Expr, Expr> branches, Expr defaultCase) {
         List<Map<String, Object>> branchList = new ArrayList<>();
         for (Map.Entry<Expr, Expr> ex : branches.entrySet()) {
-            branchList.add(Utils.getMap("case", ex.getKey().toQueryObject()).add("then", ex.getValue().toQueryObject()));
+            branchList.add(Map.of("case", ex.getKey().toQueryObject(), "then", ex.getValue().toQueryObject()));
         }
-        Utils.UtilsMap<String, Expr> branches1 = Utils.getMap("branches", new ValueExpr() {
+        Map<String, Expr> branches1 = Map.of("branches", new ValueExpr() {
             @Override
             public Object toQueryObject() {
                 return branchList;
@@ -856,7 +858,7 @@ public abstract class Expr {
 
     public static Expr function(String code, Expr args, String lang) {
         if (lang == null) lang = "js";
-        return new MapOpExpr("function", Utils.getMap("body", string(code)).add("args", args).add("lang", string(lang)));
+        return new MapOpExpr("function", Map.of("body", string(code), "args", args, "lang", string(lang)));
     }
 
     // $accumulator: {
@@ -882,13 +884,12 @@ public abstract class Expr {
 
     public static Expr accumulator(String initCode, Expr initArgs, String accumulateCode, Expr accArgs, String mergeCode, String finalizeCode, String lang) {
         if (lang == null) lang = "js";
-        Utils.UtilsMap<String, Expr> map = Utils.getMap("init", string(initCode));
-        map.add("initArgs", initArgs)
-                .add("accumulate", string(accumulateCode))
-                .add("accumulateArgs", accArgs)
-                .add("merge", string(mergeCode))
-                .add("finalize", string(finalizeCode))
-                .add("lang", string(lang));
+        Map<String, Expr> map = Map.of("init", string(initCode), "initArgs", initArgs
+                , "accumulate", string(accumulateCode)
+                , "accumulateArgs", accArgs
+                , "merge", string(mergeCode)
+                , "finalize", string(finalizeCode)
+                , "lang", string(lang));
 
 
         return new MapOpExpr("accumulator", map);
@@ -933,7 +934,7 @@ public abstract class Expr {
     }
 
     public static Expr dateFromParts(Expr year) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
+        return new MapOpExpr("dateFromParts", Map.of("year", year)
         );
     }
 
@@ -946,142 +947,138 @@ public abstract class Expr {
     //Date Expression Operators
 
     public static Expr dateFromParts(Expr year, Expr month) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
-                .add("month", month)
+        return new MapOpExpr("dateFromParts", Map.of("year", year, "month", month)
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
-                .add("month", month)
-                .add("day", day)
-                .add("hour", hour)
+        return new MapOpExpr("dateFromParts", Map.of("year", year, "month", month, "day", day, "hour", hour)
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
-                .add("month", month)
-                .add("day", day)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
+        return new MapOpExpr("dateFromParts", Map.of("year", year,
+                "month", month,
+                "day", day,
+                "hour", hour,
+                "minute", min,
+                "second", sec)
 
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
-                .add("month", month)
-                .add("day", day)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
-                .add("millisecond", ms)
+        return new MapOpExpr("dateFromParts", Map.of("year", year,
+                "month", month,
+                "day", day,
+                "hour", hour,
+                "minute", min,
+                "second", sec,
+                "millisecond", ms)
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("year", year)
-                .add("month", month)
-                .add("day", day)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
-                .add("millisecond", ms)
-                .add("timezone", timeZone)
+        return new MapOpExpr("dateFromParts", Map.of("year", year,
+                "month", month,
+                "day", day,
+                "hour", hour,
+                "minute", min,
+                "second", sec,
+                "millisecond", ms,
+                "timezone", timeZone)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
-                .add("hour", hour)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek,
+                "hour", hour)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
-                .add("hour", hour)
-                .add("minute", min)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek,
+                "hour", hour,
+                "minute", min)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek,
+                "hour", hour,
+                "minute", min,
+                "second", sec)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
-                .add("millisecond", ms)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek,
+                "hour", hour,
+                "minute", min,
+                "second", sec,
+                "millisecond", ms)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
-        return new MapOpExpr("dateFromParts", Utils.getMap("isoWeekYear", isoWeekYear)
-                .add("month", isoWeek)
-                .add("day", isoDayOfWeek)
-                .add("hour", hour)
-                .add("minute", min)
-                .add("second", sec)
-                .add("millisecond", ms)
-                .add("timezone", timeZone)
+        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+                "month", isoWeek,
+                "day", isoDayOfWeek,
+                "hour", hour,
+                "minute", min,
+                "second", sec,
+                "millisecond", ms,
+                "timezone", timeZone)
         );
     }
 
     public static Expr dateFromString(Expr dateString, Expr format, Expr timezone, Expr onError, Expr onNull) {
-        return new MapOpExpr("dateFromString", Utils.getMap("dateString", dateString)
-                .add("format", format)
-                .add("timezone", timezone)
-                .add("onError", onError)
-                .add("onNull", onNull)
+        return new MapOpExpr("dateFromString", Map.of("dateString", dateString,
+                "format", format,
+                "timezone", timezone,
+                "onError", onError,
+                "onNull", onNull)
         );
     }
 
     public static Expr dateToParts(Expr date, Expr timezone, boolean iso8601) {
-        return new MapOpExpr("dateToParts", Utils.getMap("date", date)
-                .add("timezone", timezone)
-                .add("iso8601", bool(iso8601))
+        return new MapOpExpr("dateToParts", Map.of("date", date,
+                "timezone", timezone,
+                "iso8601", bool(iso8601))
         );
     }
 
     public static Expr dateToString(Expr date, Expr format, Expr timezone, Expr onNull) {
-        return new MapOpExpr("dateToString", Utils.getMap("dateString", date)
-                .add("format", format)
-                .add("timezone", timezone)
-                .add("onNull", onNull)
+        return new MapOpExpr("dateToString", Map.of("dateString", date,
+                "format", format,
+                "timezone", timezone,
+                "onNull", onNull)
         );
     }
 
@@ -1507,14 +1504,14 @@ public abstract class Expr {
     }
 
     public static Expr ltrim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("ltrim", Utils.getMap("input", str).add("chars", charsToTrim));
+        return new MapOpExpr("ltrim", Map.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr regex(Expr field, Expr regex, Expr options) {
         return new Expr() {
             @Override
             public Object toQueryObject() {
-                return Utils.getMap(field.toQueryObject().toString().substring(1), Utils.getMap("$regex", regex.toQueryObject()).add("$options", options.toQueryObject()));
+                return Map.of(field.toQueryObject().toString().substring(1), Map.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
             }
 
             @Override
@@ -1526,16 +1523,12 @@ public abstract class Expr {
     }
 
     public static Expr regexFind(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexFind", Utils.getMap("input", input)
-                .add("regex", regex)
-                .add("options", options)
+        return new MapOpExpr("regexFind", Map.of("input", input, "regex", regex, "options", options)
         );
     }
 
     public static Expr regexFindAll(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexFindAll", Utils.getMap("input", input)
-                .add("regex", regex)
-                .add("options", options)
+        return new MapOpExpr("regexFindAll", Map.of("input", input, "regex", regex, "options", options)
         );
     }
 
@@ -1564,27 +1557,21 @@ public abstract class Expr {
     }
 
     public static Expr regexMatch(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexMatch", Utils.getMap("input", input)
-                .add("regex", regex)
-                .add("options", options)
+        return new MapOpExpr("regexMatch", Map.of("input", input, "regex", regex, "options", options)
         );
     }
 
     public static Expr replaceOne(Expr input, Expr find, Expr replacement) {
-        return new MapOpExpr("replaceOne", Utils.getMap("input", input)
-                .add("find", find)
-                .add("replacement", replacement)
+        return new MapOpExpr("replaceOne", Map.of("input", input, "find", find, "replacement", replacement)
         );
     }
 
     public static Expr replaceAll(Expr input, Expr find, Expr replacement) {
-        return new MapOpExpr("replaceAll", Utils.getMap("input", input)
-                .add("find", find)
-                .add("replacement", replacement));
+        return new MapOpExpr("replaceAll", Map.of("input", input, "find", find, "replacement", replacement));
     }
 
     public static Expr rtrim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("rtrim", Utils.getMap("input", str).add("chars", charsToTrim));
+        return new MapOpExpr("rtrim", Map.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr strLenCP(Expr str) {
@@ -1672,13 +1659,13 @@ public abstract class Expr {
         return new ValueExpr() {
             @Override
             public Object toQueryObject() {
-                return Utils.getMap("$meta", metaDataKeyword);
+                return Map.of("$meta", metaDataKeyword);
             }
         };
     }
 
     public static Expr trim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("trim", Utils.getMap("input", str).add("chars", charsToTrim));
+        return new MapOpExpr("trim", Map.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr sin(Expr e) {
@@ -1816,10 +1803,10 @@ public abstract class Expr {
     }
 
     public static Expr convert(Expr input, Expr to, Expr onError, Expr onNull) {
-        return new MapOpExpr("convert", Utils.getMap("input", input)
-                .add("to", to)
-                .add("onError", onError)
-                .add("onNull", onNull)) {
+        return new MapOpExpr("convert", Map.of("input", input,
+                "to", to,
+                "onError", onError,
+                "onNull", onNull)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Object in = input.evaluate(context);
@@ -2113,7 +2100,7 @@ public abstract class Expr {
                 for (Map.Entry<String, Expr> e : vars.entrySet()) {
                     map.put(e.getKey(), e.getValue().toQueryObject());
                 }
-                return Utils.getMap("$let", Utils.getMap("vars", (Object) map).add("in", in.toQueryObject()));
+                return Map.of("$let", Map.of("vars", (Object) map, "in", in.toQueryObject()));
             }
 
             @Override
@@ -2173,7 +2160,7 @@ public abstract class Expr {
         @Override
         public Object toQueryObject() {
             Map m = new LinkedHashMap();
-            Map ret = Utils.getMap(operation, m);
+            Map ret = Map.of(operation, m);
             for (Map.Entry<String, Expr> e : params.entrySet()) {
                 //noinspection unchecked
                 m.put(e.getKey(), e.getValue().toQueryObject());
@@ -2202,7 +2189,7 @@ public abstract class Expr {
                 if (e != null)
                     p.add(e.toQueryObject());
             }
-            return Utils.getMap(operation, p);
+            return Map.of(operation, p);
         }
     }
 
@@ -2221,7 +2208,7 @@ public abstract class Expr {
 
         @Override
         public Object toQueryObject() {
-            return Utils.getMap(operation, params.toQueryObject());
+            return Map.of(operation, params.toQueryObject());
         }
     }
 

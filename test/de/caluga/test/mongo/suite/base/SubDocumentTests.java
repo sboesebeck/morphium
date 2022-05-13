@@ -102,7 +102,7 @@ public class SubDocumentTests extends MorphiumTestBase {
         s.setCounter(102);
         s.additionals = new HashMap<>();
         s.additionals.put("test", 100);
-        s.additionals.put("sub", Utils.getMap("val", 42));
+        s.additionals.put("sub", Map.of("val", 42));
 
         morphium.store(s);
         Thread.sleep(100);

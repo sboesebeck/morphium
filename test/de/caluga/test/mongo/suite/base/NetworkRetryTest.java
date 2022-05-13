@@ -71,7 +71,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 0; i < 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            Map<String, Object> o = Utils.getMap("counter", i + 1);
+            Map<String, Object> o = Map.of("counter", i + 1);
             List<UncachedObject> lst = q.complexQuery(o);
             log.info("read " + i);
             assert (lst.get(0).getCounter() == i + 1);

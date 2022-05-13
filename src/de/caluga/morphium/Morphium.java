@@ -639,14 +639,14 @@ public class Morphium implements AutoCloseable {
                         options = createIndexMapFrom(i.options());
                     }
                     if (!i.locale().equals("")) {
-                        Map<String, Object> collation = Utils.getMap("locale", i.locale());
+                        Map<String, Object> collation = Map.of("locale", i.locale());
                         collation.put("alternate", i.alternate().mongoText);
                         collation.put("backwards", i.backwards());
                         collation.put("caseFirst", i.caseFirst().mongoText);
                         collation.put("caseLevel", i.caseLevel());
                         collation.put("maxVariable", i.maxVariable().mongoText);
                         collation.put("strength", i.strength().mongoValue);
-                        options.add(Utils.getMap("collation", collation));
+                        options.add(Map.of("collation", collation));
                     }
                     List<Map<String, Object>> idx = createIndexMapFrom(i.value());
                     int cnt = 0;
@@ -1076,11 +1076,11 @@ public class Morphium implements AutoCloseable {
      * @param <T>
      */
     public <T> void currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
-        set(query, Utils.getMap("$currentDate", Utils.getMap(field, 1)), upsert, multiple);
+        set(query, Map.of("$currentDate", Map.of(field, 1)), upsert, multiple);
     }
 
     public <T> void currentDate(final Query<?> query, Enum field, boolean upsert, boolean multiple) {
-        set(query, Utils.getMap("$currentDate", Utils.getMap(field.name(), 1)), upsert, multiple);
+        set(query, Map.of("$currentDate", Map.of(field.name(), 1)), upsert, multiple);
     }
 
     ////////
@@ -1190,11 +1190,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, collection, Utils.getMap(field.name(), value), upserts, callback);
+        set(toSet, collection, Map.of(field.name(), value), upserts, callback);
     }
 
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, collection, Utils.getMap(field, value), upserts, callback);
+        set(toSet, collection, Map.of(field, value), upserts, callback);
     }
 
     public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
@@ -3487,14 +3487,14 @@ public class Morphium implements AutoCloseable {
                     options = createIndexMapFrom(i.options());
                 }
                 if (!i.locale().equals("")) {
-                    Map<String, Object> collation = Utils.getMap("locale", i.locale());
+                    Map<String, Object> collation = Map.of("locale", i.locale());
                     collation.put("alternate", i.alternate().mongoText);
                     collation.put("backwards", i.backwards());
                     collation.put("caseFirst", i.caseFirst().mongoText);
                     collation.put("caseLevel", i.caseLevel());
                     collation.put("maxVariable", i.maxVariable().mongoText);
                     collation.put("strength", i.strength().mongoValue);
-                    options.add(Utils.getMap("collation", collation));
+                    options.add(Map.of("collation", collation));
                 }
                 List<Map<String, Object>> idx = createIndexMapFrom(i.value());
                 if (!morphiumDriver.exists(config.getDatabase(), collection) || indices.size() == 0) {

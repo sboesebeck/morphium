@@ -130,7 +130,7 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testSortEnum() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.sortEnum(Utils.getMap((Enum) UncachedObject.Fields.counter, -1).add(UncachedObject.Fields.strValue, 1));
+        q.sortEnum(Map.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
 
         assert (q.getSort() != null);
         assert (q.getSort().get("counter").equals(Integer.valueOf(-1)));
@@ -216,7 +216,7 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(100);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        List<UncachedObject> lst = q.rawQuery(Utils.getMap("counter", 12)).asList();
+        List<UncachedObject> lst = q.rawQuery(Map.of("counter", 12)).asList();
         assert (lst.size() == 1);
 
     }

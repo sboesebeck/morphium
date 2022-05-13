@@ -28,10 +28,10 @@ public class GeoNearTest extends MorphiumTestBase {
 
 
         Aggregator<Place, Map> agg = morphium.createAggregator(Place.class, Map.class);
-        agg.geoNear(Utils.getMap(Aggregator.GeoNearFields.near, (Object) new Point(-73.98142, 40.71782))
-                .add(Aggregator.GeoNearFields.key, "location")
-                .add(Aggregator.GeoNearFields.distanceField, "dist.calculated")
-                .add(Aggregator.GeoNearFields.query, morphium.createQueryFor(Place.class).f("category").eq("Stadiums").toQueryObject())
+        agg.geoNear(Map.of(Aggregator.GeoNearFields.near, (Object) new Point(-73.98142, 40.71782),
+                Aggregator.GeoNearFields.key, "location",
+                Aggregator.GeoNearFields.distanceField, "dist.calculated",
+                Aggregator.GeoNearFields.query, morphium.createQueryFor(Place.class).f("category").eq("Stadiums").toQueryObject())
         );
 
         List<Map<String, Object>> result = agg.aggregateMap();

@@ -237,7 +237,7 @@ public class AggregationExprTest extends TestCase {
     }
 
     public void testObjectToArray() {
-        Expr e = objectToArray(doc(Utils.getMap("_id", (Object) 12).add("test", "value")));
+        Expr e = objectToArray(doc(Map.of("_id", (Object) 12, "test", "value")));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$objectToArray\" : { \"_id\" : 12, \"test\" : \"value\" }  } "));
     }
@@ -253,8 +253,8 @@ public class AggregationExprTest extends TestCase {
                 intExpr(4)),
                 string(""),
                 mapExpr(
-                        Utils.getMap("sum", add(string("$$value.sum"), string("$$this")))
-                                .add("product", multiply(string("$$value.product"), string("$$this")))
+                        Map.of("sum", add(string("$$value.sum"), string("$$this")),
+                                "product", multiply(string("$$value.product"), string("$$this")))
                 )
 
         );
@@ -372,7 +372,7 @@ public class AggregationExprTest extends TestCase {
     }
 
     public void testSwitchExpr() {
-        Expr e = switchExpr(Utils.getMap(Expr.gt(field("test"), intExpr(12)), string("teststring")), intExpr(12));
+        Expr e = switchExpr(Map.of(Expr.gt(field("test"), intExpr(12)), string("teststring")), intExpr(12));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$switch\" : { \"branches\" :  [ { \"case\" : { \"$gt\" :  [ \"$test\", 12] } , \"then\" : \"teststring\" } ], \"default\" : 12 }  } "));
     }
@@ -516,7 +516,7 @@ public class AggregationExprTest extends TestCase {
     }
 
     public void testMergeObjects() {
-        Expr e = mergeObjects(field("fld"), field("doc2"), mapExpr(Utils.getMap("test", intExpr(123)).add("value", string("val"))));
+        Expr e = mergeObjects(field("fld"), field("doc2"), mapExpr(Map.of("test", intExpr(123), "value", string("val"))));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$mergeObjects\" :  [ \"$fld\", \"$doc2\", { \"test\" : 123, \"value\" : \"val\" } ] } "));
     }
@@ -859,15 +859,15 @@ public class AggregationExprTest extends TestCase {
     }
 
     public void testLet() {
-        Expr e = let(Utils.getMap("var1", Expr.field("testField")), first(field("var1")));
+        Expr e = let(Map.of("var1", Expr.field("testField")), first(field("var1")));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert (Utils.toJsonString(e.toQueryObject()).equals("{ \"$let\" : { \"vars\" : { \"var1\" : \"$testField\" } , \"in\" : { \"$first\" : \"$var1\" }  }  } "));
 
     }
 
     public void testLetEvaluation() {
-        Expr e = Expr.let(Utils.getMap("var1", Expr.field("testField")), Expr.abs(Expr.field("var1")));
-        Object result = e.evaluate(Utils.getMap("testField", 100));
+        Expr e = Expr.let(Map.of("var1", Expr.field("testField")), Expr.abs(Expr.field("var1")));
+        Object result = e.evaluate(Map.of("testField", 100));
         assert (result != null);
         assert (result.equals(100.0));
     }
