@@ -106,15 +106,6 @@ public class Utils {
         out.write(" } ");
     }
 
-    public static <K, V> Map<K, V> getMap(K key, V value) {
-        return Map.of(key, value);
-    }
-
-    public static Map<String, Integer> getIntMap(String key, Integer value) {
-        return Map.of(key, value);
-    }
-
-
     public static String getHex(long i) {
         return (getHex((byte) (i >> 56 & 0xff)) + getHex((byte) (i >> 48 & 0xff)) + getHex((byte) (i >> 40 & 0xff)) + getHex((byte) (i >> 32 & 0xff)) + getHex((byte) (i >> 24 & 0xff)) + getHex((byte) (i >> 16 & 0xff)) + getHex((byte) (i >> 8 & 0xff)) + getHex((byte) (i & 0xff)));
     }
@@ -226,59 +217,6 @@ public class Utils {
         }
         return b.toString();
     }
-
-
-    public static Object replaceMorphiumIds(Map m) {
-        if (m == null) return null;
-        Map toSet = new LinkedHashMap();
-        //noinspection unchecked
-        for (Map.Entry e : (Set<Map.Entry>) m.entrySet()) {
-            if (e.getValue() == null) {
-                //noinspection unchecked
-                toSet.put(e.getKey(), null);
-            } else if (e.getKey().equals("morphium id")) {
-                //identifier!
-                return new ObjectId(e.getValue().toString());
-            } else if (e.getKey().equals("date field")) {
-                return new Date((Long) e.getValue());
-            } else if (e.getValue() instanceof Map) {
-                //noinspection unchecked
-                toSet.put(e.getKey(), replaceMorphiumIds((Map) e.getValue()));
-            } else if (e.getValue() instanceof Collection) {
-                //noinspection unchecked
-                toSet.put(e.getKey(), replaceMorphiumIds((Collection) e.getValue()));
-            } else {
-                //noinspection unchecked
-                toSet.put(e.getKey(), e.getValue());
-            }
-        }
-        return toSet;
-    }
-
-    public static Collection replaceMorphiumIds(Collection value) {
-        if (value == null) return null;
-        Collection ret = new ArrayList();
-        for (Object o : value) {
-            if (o == null) {
-                //noinspection unchecked
-                ret.add(null);
-            } else if (o instanceof Map && ((Map) o).containsKey("morphium id")) {
-                //noinspection unchecked
-                ret.add(new ObjectId((String) ((Map) o).get("morphium id")));
-            } else if (o instanceof Map && ((Map) o).containsKey("date field")) {
-                //noinspection unchecked
-                ret.add(new Date((Long) ((Map) o).get("date field")));
-            } else if (o instanceof Map) {
-                //noinspection unchecked
-                ret.add(replaceMorphiumIds((Map) o));
-            } else {
-                //noinspection unchecked
-                ret.add(o);
-            }
-        }
-        return ret;
-    }
-
 
 
 

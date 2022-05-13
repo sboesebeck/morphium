@@ -897,7 +897,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("value", 123);
         morphium.store(uc);
         Thread.sleep(150);
-        UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(Utils.getMap("$set", Utils.getMap("counter", 42)));
+        UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(Map.of("$set", Map.of("counter", 42)));
         assert (ret.getStrValue().equals("value"));
         assert (morphium.createQueryFor(UncachedObject.class).countAll() == 1);
         morphium.reread(uc);
@@ -909,15 +909,15 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     @Test
     public void shardingReplacementTest() throws Exception {
         try {
-            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("listShards", 1));
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Map.of("listShards", 1));
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
             return;
         }
 
         try {
-            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)))
-                    .add("key", Utils.getMap("_id", "hashed")));
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Map.of("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
+                    "key", Map.of("_id", "hashed")));
 
 
         } catch (MorphiumDriverException e) {
@@ -948,7 +948,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     @Test
     public void shardingStringIdReplacementTest() throws Exception {
         try {
-            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("listShards", 1));
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Map.of("listShards", 1));
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
             return;
@@ -956,8 +956,8 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
 
 
         try {
-            Map<String, Object> state = morphium.getDriver().runCommand("admin", Utils.getMap("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(StringIdTestEntity.class)))
-                    .add("key", Utils.getMap("_id", "hashed")));
+            Map<String, Object> state = morphium.getDriver().runCommand("admin", Map.of("shardCollection", (Object) ("morphium_test." + morphium.getMapper().getCollectionName(StringIdTestEntity.class)),
+                    "key", Map.of("_id", "hashed")));
 
         } catch (MorphiumDriverException e) {
             log.error("Sharding is enabled, but morphium_test sharding is not it seems");

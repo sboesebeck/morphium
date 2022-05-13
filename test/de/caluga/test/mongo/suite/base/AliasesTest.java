@@ -34,9 +34,9 @@ public class AliasesTest extends MorphiumTestBase {
     @Test
     public void aliasReadTest() throws Exception {
         MorphiumId id = new MorphiumId();
-        Map<String, Integer> stats = morphium.storeMap(ComplexObject.class, Utils.getMap("last_changed", (Object) System.currentTimeMillis())
-                .add("_id", id)
-                .add("einText", "A little text")
+        Map<String, Integer> stats = morphium.storeMap(ComplexObject.class, Map.of("last_changed", (Object) System.currentTimeMillis(),
+                "_id", id,
+                "einText", "A little text")
         );
         assertThat(stats).isNotNull();
         assertThat(stats.get("total")).isEqualTo(1);

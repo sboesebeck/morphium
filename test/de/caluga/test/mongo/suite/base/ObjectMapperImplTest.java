@@ -856,7 +856,7 @@ public class ObjectMapperImplTest {
         v2.put("String", "String");
         v2.put("Integer", 123);
         v2.put("List", Arrays.asList("l1", "l2"));
-        v2.put("Map", Utils.getMap("key", 123));
+        v2.put("Map", Map.of("key", 123));
         c.structureK.add(v2);
 
         Map<String, Object> seralized = OM.serialize(c);

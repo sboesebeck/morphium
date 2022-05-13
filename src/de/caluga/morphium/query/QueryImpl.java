@@ -892,7 +892,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (o.get("$and") != null) {
                 //noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).
-                        add(Utils.getMap("$or", lst));
+                        add(Map.of("$or", lst));
             } else {
                 o.put("$or", lst);
             }
@@ -905,7 +905,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             if (o.get("$and") != null) {
                 //noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).
-                        add(Utils.getMap("$nor", lst));
+                        add(Map.of("$nor", lst));
             } else {
                 o.put("$nor", lst);
             }
@@ -1210,7 +1210,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                         }
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        morphium.getDriver().update(getDB(), getCollectionName(), Utils.getMap("_id", id), Utils.getMap("$set", Utils.getMap(ctf, currentTime)), false, false, collation, null);
+                        morphium.getDriver().update(getDB(), getCollectionName(), Map.of("_id", id), Map.of("$set", Map.of(ctf, currentTime)), false, false, collation, null);
                         //                        morphium.getDatabase().getCollection(collName).update(new HashMap<String, Object>("_id", id), new HashMap<String, Object>("$set", new HashMap<String, Object>(ctf, currentTime)));
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -1396,7 +1396,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
 
         List<Map<String, Object>> query;
         try {
-            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Utils.getMap("_id", 1), skip, limit, 1, getRP(), collation, findMetadata);
+            query = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, Map.of("_id", 1), skip, limit, 1, getRP(), collation, findMetadata);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1935,7 +1935,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             b.append(t);
             b.append(" ");
         }
-        Map<String, Object> srch = Utils.getMap("$search", b.toString());
+        Map<String, Object> srch = Map.of("$search", b.toString());
         srch.put("$caseSensitive", caseSensitive);
         srch.put("$diacriticSensitive", diacriticSensitive);
         f.setValue(srch);
@@ -1945,7 +1945,7 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         addChild(f);
         if (metaScoreField != null) {
-            additionalFields = Utils.getMap(metaScoreField, Utils.getMap("$meta", "textScore"));
+            additionalFields = Map.of(metaScoreField, Map.of("$meta", "textScore"));
 
         }
 

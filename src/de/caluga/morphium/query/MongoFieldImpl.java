@@ -134,7 +134,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     private void addSimple(Object val) {
         if (not) {
-            fe.setValue(Utils.getMap("$not", val));
+            fe.setValue(Map.of("$not", val));
         } else {
             fe.setValue(val);
         }
@@ -148,7 +148,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         FilterExpression child = new FilterExpression();
         child.setField(op);
         if (not) {
-            child.setValue(Utils.getMap("$not", value));
+            child.setValue(Map.of("$not", value));
         } else {
             child.setValue(value);
         }
@@ -530,7 +530,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$nearSphere");
-        Map<String, Object> val = Utils.getMap("$geometry", mapper.serialize(point));
+        Map<String, Object> val = Map.of("$geometry", mapper.serialize(point));
         val.put("$maxDistance", maxDistance);
         val.put("$minDistance", minDistance);
         nearExpression.setValue(val);
@@ -570,7 +570,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression nearExpression = new FilterExpression();
         nearExpression.setField("$near");
-        Map<String, Object> val = Utils.getMap("$geometry", mapper.serialize(point));
+        Map<String, Object> val = Map.of("$geometry", mapper.serialize(point));
         val.put("$maxDistance", maxDistance);
         val.put("$minDistance", minDistance);
         nearExpression.setValue(val);
@@ -587,7 +587,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression expr = new FilterExpression();
         expr.setField("$geoIntersects");
-        Map<String, Map<String, Object>> val = Utils.getMap("$geometry", mapper.serialize(shape));
+        Map<String, Map<String, Object>> val = Map.of("$geometry", mapper.serialize(shape));
 
         expr.setValue(val);
         expressionList.add(expr);
@@ -603,7 +603,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
         FilterExpression expr = new FilterExpression();
         expr.setField("$geoWithin");
-        Map<String, Map<String, Object>> val = Utils.getMap("$geometry", mapper.serialize(shape));
+        Map<String, Map<String, Object>> val = Map.of("$geometry", mapper.serialize(shape));
 
         expr.setValue(val);
         expressionList.add(expr);

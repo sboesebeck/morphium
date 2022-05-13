@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,8 +28,8 @@ public class PlainConatinerTest extends MorphiumTestBase {
     @Test
     public void plainMapTest() throws Exception {
         PlainContainer pc = new PlainContainer();
-        //pc.setPlainMap(Utils.getMap("test",(Object)"value").add("test2",Arrays.asList("str1","stre2")));
-        pc.setPlainMap(Utils.getMap("$in", (Object) "value").add("$test2", Utils.getMap("$str1", "stre2")));
+        //pc.setPlainMap(Map.of("test",(Object)"value").add("test2",Arrays.asList("str1","stre2")));
+        pc.setPlainMap(Map.of("$in", (Object) "value", "$test2", Map.of("$str1", "stre2")));
 
         morphium.store(pc);
 
@@ -40,8 +41,8 @@ public class PlainConatinerTest extends MorphiumTestBase {
     @Test
     public void plainMapListTest() throws Exception {
         PlainContainer pc = new PlainContainer();
-        pc.setPlainMap(Utils.getMap("test", (Object) "value").add("test2", Arrays.asList("str1", "stre2")));
-        //pc.setPlainMap(Utils.getMap("$in",(Object)"value").add("$test2",Utils.getMap("$str1","stre2")));
+        pc.setPlainMap(Map.of("test", (Object) "value", "test2", Arrays.asList("str1", "stre2")));
+        //pc.setPlainMap(Map.of("$in",(Object)"value").add("$test2",Map.of("$str1","stre2")));
 
         morphium.store(pc);
 

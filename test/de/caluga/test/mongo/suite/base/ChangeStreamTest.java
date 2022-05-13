@@ -255,7 +255,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
     @Test
     public void changeStreamPipelineTest() throws Exception {
         List<Map<String, Object>> pipeline = new ArrayList<>();
-        pipeline.add(Utils.getMap("$match", Utils.getMap("operationType", Utils.getMap("$in", Arrays.asList("insert")))));
+        pipeline.add(Map.of("$match", Map.of("operationType", Map.of("$in", Arrays.asList("insert")))));
         ChangeStreamMonitor mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
         final AtomicInteger inserts = new AtomicInteger();
         final AtomicInteger updates = new AtomicInteger();
@@ -292,7 +292,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
         updates.set(0);
         deletes.set(0);
         pipeline = new ArrayList<>();
-        pipeline.add(Utils.getMap("$match", Utils.getMap("operationType", Utils.getMap("$in", Arrays.asList("update")))));
+        pipeline.add(Map.of("$match", Map.of("operationType", Map.of("$in", Arrays.asList("update")))));
         mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
 
         mon.addListener(evt -> {

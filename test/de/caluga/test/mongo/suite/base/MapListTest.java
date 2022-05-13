@@ -344,7 +344,7 @@ public class MapListTest extends MorphiumTestBase {
     @Test
     public void complexMapTest() {
         MapListObject o = new MapListObject();
-        o.setMapValue(Utils.getMap("Testvalue", (Object) Utils.getMap("$lte", "@123")));
+        o.setMapValue(Map.of("Testvalue", (Object) Map.of("$lte", "@123")));
         morphium.save(o);
 
         o = morphium.reread(o);

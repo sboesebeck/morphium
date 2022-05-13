@@ -6,6 +6,8 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.Test;
 
+import java.util.Map;
+
 public class InMemBigMessagesTest extends MorphiumInMemTestBase {
 
     @Test
@@ -33,7 +35,7 @@ public class InMemBigMessagesTest extends MorphiumInMemTestBase {
                 big.setName("bigMsg");
                 big.setTtl(30000);
                 big.setValue(txt.toString());
-                big.setMapValue(Utils.getMap("msgNr", i));
+                big.setMapValue(Map.of("msgNr", i));
                 big.getMapValue().put("ts", System.currentTimeMillis());
                 big.setTimestamp(System.currentTimeMillis());
                 sender.sendMessage(big);

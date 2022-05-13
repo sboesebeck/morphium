@@ -40,7 +40,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         lst.add(100);
         lst.add(1001);
         q.f("v2").nin(lst);
-        Map<String, Integer> map = Utils.getMap("v1", 1);
+        Map<String, Integer> map = Map.of("v1", 1);
         map.put("v2", 1);
         q.sort(map);
 

@@ -19,7 +19,7 @@ public class ExprParsingTests {
         qo.put("$add", Arrays.asList("$field", 32.0d, 3));
 
         Expr add = Expr.parse(qo);
-        Map<String, Object> context = Utils.getMap("field", 12);
+        Map<String, Object> context = Map.of("field", 12);
         Object result = add.evaluate(context);
         assert (result.equals(47.0));
         log.info("done");
@@ -31,7 +31,7 @@ public class ExprParsingTests {
         Expr o = Expr.abs(Expr.intExpr(1));
         Expr o2 = Expr.parse(o.toQueryObject());
         assert (o.toQueryObject().equals(o2.toQueryObject()));
-        Map<String, Object> context = Utils.getMap("test", 1);
+        Map<String, Object> context = Map.of("test", 1);
         assert (o.evaluate(context).equals(o2.evaluate(context)));
     }
 

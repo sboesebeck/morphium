@@ -12,7 +12,7 @@ public class BsonGeoMapper implements MorphiumTypeMapper<Geo> {
     @Override
     public Object marshall(Geo o) {
 
-        return Utils.getMap("type", (Object) o.getType().getMongoName()).add("coordinates", o.getCoordinates());
+        return Map.of("type", (Object) o.getType().getMongoName(), "coordinates", o.getCoordinates());
     }
 
     @SuppressWarnings("ConstantConditions")

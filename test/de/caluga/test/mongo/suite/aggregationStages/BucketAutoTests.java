@@ -47,16 +47,14 @@ public class BucketAutoTests extends MorphiumTestBase {
         priceAggregator.bucketAuto(field("price"), 4, null, null);
 
         Aggregator<Artwork, Map> yearAggregator = morphium.createAggregator(Artwork.class, Map.class);
-        yearAggregator.bucketAuto(field("year"), 3, Utils.getMap("count", sum(intExpr(1))).add("years", push(field("year"))), null);
+        yearAggregator.bucketAuto(field("year"), 3, Map.of("count", sum(intExpr(1)), "years", push(field("year"))), null);
 
         Aggregator<Artwork, Map> areaAggregator = morphium.createAggregator(Artwork.class, Map.class);
-        areaAggregator.bucketAuto(multiply(field("dimensions.height"), field("dimensions.width")), 4, Utils.getMap("count", sum(intExpr(1))).add("titles", push(field("title"))), null);
+        areaAggregator.bucketAuto(multiply(field("dimensions.height"), field("dimensions.width")), 4, Map.of("count", sum(intExpr(1)), "titles", push(field("title"))), null);
 
 
         Aggregator<Artwork, Map> aggregator = morphium.createAggregator(Artwork.class, Map.class);
-        aggregator.facet(Utils.getMap("price", (Aggregator) priceAggregator)
-                .add("year", yearAggregator)
-                .add("area", areaAggregator)
+        aggregator.facet(Map.of("price", (Aggregator) priceAggregator, "year", yearAggregator, "area", areaAggregator)
         );
         List<Map> list = aggregator.aggregate();
         assert (list.size() == 1);
