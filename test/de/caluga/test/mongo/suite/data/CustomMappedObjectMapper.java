@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.data;
 
 
-import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 
 import java.util.HashMap;
 import java.util.Map;

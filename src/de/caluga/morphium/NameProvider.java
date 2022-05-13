@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+
 /**
  * User: Stephan Bösebeck
  * Date: 19.06.12

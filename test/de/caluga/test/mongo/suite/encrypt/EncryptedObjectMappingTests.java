@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite.encrypt;
 
-import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;

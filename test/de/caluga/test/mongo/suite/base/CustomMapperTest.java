@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
-import de.caluga.morphium.mapping.BsonGeoMapper;
+import de.caluga.morphium.objectmapping.BsonGeoMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.GeoType;

@@ -908,8 +908,10 @@ Well, the fluent query interface does have its limitations. So its not possible 
 
 # Customization
 Morphium can be customized in many ways. The configuration contains several settings that might be useful for your own custom implementation.
-* AggregatorClass and AggregatorFactory - used for the aggregation framework. Take a closer look here [Aggregator Framework support](https://github.com/sboesebeck/morphium/wiki/Aggregator-Framework-Support)
-* ObjectMapper: If you want to implement your own mapping algorithm you'd set this to your implementation. Default is ```de.caluga.morphium.ObjectMapperImpl```
+* AggregatorClass and AggregatorFactory - used for the aggregation framework. Take a closer look
+  here [Aggregator Framework support](https://github.com/sboesebeck/morphium/wiki/Aggregator-Framework-Support)
+* ObjectMapper: If you want to implement your own mapping algorithm you'd set this to your implementation. Default
+  is ```de.caluga.morphium.objectmapping.ObjectMapperImpl```
 * Cache : you can define your own cache, if you want to.
 * Field: MongoFields are used during querying: query.f() returns a mongoField. Here all operators are implemented. If you want an additional operator to the already existing ones, you could to this here
 * IteratorClass: Used for Morphiums paged iterator. Can be customized as well
@@ -1387,13 +1389,13 @@ lets get in more detail about the last item. Imaginge you stored Several objects
 When you access the collection as Employee, all your persons will read into Employee objects - which means, this might break constraints or might even fail.
 
 here is a testcase for morphium, which shows how polymorphism might be used:
+
 ```java
 package de.caluga.test.mongo.suite;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumSingleton;
 import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.MorphiumObjectMapper;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;

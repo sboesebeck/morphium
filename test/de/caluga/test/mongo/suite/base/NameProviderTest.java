@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.DefaultNameProvider;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;

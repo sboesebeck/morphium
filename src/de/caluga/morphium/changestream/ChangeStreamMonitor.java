@@ -3,6 +3,8 @@ package de.caluga.morphium.changestream;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

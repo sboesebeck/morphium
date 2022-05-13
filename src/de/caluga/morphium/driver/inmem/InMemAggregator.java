@@ -5,6 +5,7 @@ import de.caluga.morphium.aggregation.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -2,14 +2,14 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumReference;
-import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -20,7 +20,6 @@ import de.caluga.test.mongo.suite.data.MapListObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import org.bson.types.ObjectId;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -4,7 +4,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;

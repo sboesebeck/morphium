@@ -1,13 +1,11 @@
-package de.caluga.morphium;
+package de.caluga.morphium.objectmapping;
 
+import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.mapping.BigIntegerTypeMapper;
-import de.caluga.morphium.mapping.BsonGeoMapper;
-import de.caluga.morphium.mapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.geospatial.*;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
@@ -53,7 +51,7 @@ import java.util.stream.Collectors;
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
-    private final ConcurrentHashMap<Class<?>, NameProvider> nameProviders;
+    private final Map<Class<?>, NameProvider> nameProviders;
     private final JSONParser jsonParser = new JSONParser();
     private final ArrayList<Class<?>> mongoTypes;
     private final ContainerFactory containerFactory;
