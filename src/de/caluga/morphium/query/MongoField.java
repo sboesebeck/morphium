@@ -1,7 +1,7 @@
 package de.caluga.morphium.query;
 
 import de.caluga.morphium.MongoType;
-import de.caluga.morphium.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.morphium.query.geospatial.Polygon;

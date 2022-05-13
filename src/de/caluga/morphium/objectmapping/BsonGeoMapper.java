@@ -1,6 +1,5 @@
-package de.caluga.morphium.mapping;
+package de.caluga.morphium.objectmapping;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.query.geospatial.*;
 
 import java.util.List;

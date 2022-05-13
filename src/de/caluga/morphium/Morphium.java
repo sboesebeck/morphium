@@ -21,6 +21,8 @@ import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;

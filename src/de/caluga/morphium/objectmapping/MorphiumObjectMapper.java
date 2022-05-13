@@ -1,6 +1,8 @@
-package de.caluga.morphium;
+package de.caluga.morphium.objectmapping;
 
-import de.caluga.morphium.mapping.MorphiumTypeMapper;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.NameProvider;
 import org.json.simple.parser.ParseException;
 
 import java.io.IOException;

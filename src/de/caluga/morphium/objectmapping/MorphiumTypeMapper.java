@@ -1,4 +1,4 @@
-package de.caluga.morphium.mapping;
+package de.caluga.morphium.objectmapping;
 
 /**
  * User: Stephan Bösebeck

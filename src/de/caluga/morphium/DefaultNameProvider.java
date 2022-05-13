@@ -1,5 +1,6 @@
 package de.caluga.morphium;
 
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import org.slf4j.LoggerFactory;
 
 import java.util.Hashtable;

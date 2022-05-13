@@ -2,7 +2,7 @@ package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;

@@ -1,4 +1,4 @@
-package de.caluga.morphium.mapping;/**
+package de.caluga.morphium.objectmapping;/**
  * Created by stephan on 18.09.15.
  */
 
