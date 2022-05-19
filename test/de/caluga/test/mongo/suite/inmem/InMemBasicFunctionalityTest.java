@@ -10,18 +10,22 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.types.ObjectId;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author stephan
@@ -695,6 +699,22 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void dataIntegrityTest() throws Exception{
+        morphium.dropCollection(UncachedObject.class);
+
+        UncachedObject uc=new UncachedObject("String",42);
+        morphium.insert(uc);
+
+        Map<String, List<Map<String, Object>>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
+        List<Map<String, Object>> collection = database.get("uncached_object");
+        assertThat(collection.size()).isEqualTo(1);
+        assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
+        UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());
+        assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
+        assertThat(uc2).isEqualTo(uc);
+    }
+
+    @Test
     public void insertTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         UncachedObject uc = new UncachedObject();
@@ -714,7 +734,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             log.info("Got exception as expected " + e.getMessage());
             ex = true;
         }
-        assert (ex);
+        assertThat(ex).isTrue();
         uc = new UncachedObject();
         uc.setStrValue("2");
         uc.setMorphiumId(new MorphiumId());

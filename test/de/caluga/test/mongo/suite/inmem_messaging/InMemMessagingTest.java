@@ -14,6 +14,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 26.05.12
@@ -1237,9 +1239,11 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("the_name").setValue("a value");
         m1.sendMessage(m);
         Thread.sleep(100);
+        List<Msg> lst = morphium.createQueryFor(Msg.class).asList();
         m1.removeMessage(m);
         Thread.sleep(100);
-        assert (morphium.createQueryFor(Msg.class).countAll() == 0);
+
+        assertThat(morphium.createQueryFor(Msg.class).countAll()).isEqualTo(0);
         m1.terminate();
     }
 

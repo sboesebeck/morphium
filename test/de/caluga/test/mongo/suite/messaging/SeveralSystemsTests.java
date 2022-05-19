@@ -186,7 +186,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
 
     @Test
-    public void simpleExclusiveNoChangeSteram() throws Exception {
+    public void simpleExclusiveNoChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();

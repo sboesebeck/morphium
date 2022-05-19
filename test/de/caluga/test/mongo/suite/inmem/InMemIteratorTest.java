@@ -14,6 +14,8 @@ import org.junit.Test;
 
 import java.util.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 23.11.12
@@ -551,14 +553,17 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
             u.setCounter(1800);
             u.setStrValue("Should not be read");
             morphium.store(u);
-            waitForWrites();
 
+            waitForWrites();
+            assertThat(it.hasNext()).isTrue();
+            Thread.sleep(1000);
             while (it.hasNext()) {
                 u = it.next();
+
                 log.info("Object: " + u.getCounter() + "/" + u.getStrValue());
             }
 
-            assert (u.getCounter() == 17);
+            assertThat(u.getCounter()).isEqualTo(17);
             //cannot check buffersize anymore
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
         }
