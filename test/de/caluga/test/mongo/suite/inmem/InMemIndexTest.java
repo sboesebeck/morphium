@@ -27,6 +27,7 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         }
         long dur = System.currentTimeMillis() - start;
         log.info("Storing 10000 ucs took " + dur + "ms");
+        //Storing 10000 ucs took 2860ms
 
         start = System.currentTimeMillis();
         for (int i = 0; i < 10000; i++) {
@@ -34,5 +35,6 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching for 10000 ucs took " + dur + "ms");
+        //Searching for 10000 ucs took 11230ms
     }
 }
