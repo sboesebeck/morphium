@@ -580,7 +580,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
-        Map<String, Object> m = Map.of("from", fromCollection);
+        Map<String, Object> m = new HashMap<>(Map.of("from", fromCollection));
         if (localField != null)
             m.put("localField", localField);
         if (foreignField != null)
@@ -655,7 +655,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
         //morphium.getARHelper().getClassForTypeId(intoCollection);
 
-        Map doc = Map.of("into", Map.of("db", intoDb, "coll", intoCollection));
+        Map doc = new HashMap(Map.of("into", Map.of("db", intoDb, "coll", intoCollection)));
         if (let != null) {
             //noinspection unchecked
             doc.put("let", Utils.getNoExprMap((Map) let));

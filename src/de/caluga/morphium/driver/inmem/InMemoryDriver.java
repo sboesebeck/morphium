@@ -1187,7 +1187,7 @@ public class InMemoryDriver implements MorphiumDriver {
                     data.put("fullDocument", doc);
                 if (op != null)
                     data.put("operationType", op);
-                Map m = Collections.synchronizedMap(Map.of("db", db));
+                Map m = Collections.synchronizedMap(new HashMap<>(Map.of("db", db)));
                 //noinspection unchecked
                 m.put("coll", collection);
                 data.put("ns", m);

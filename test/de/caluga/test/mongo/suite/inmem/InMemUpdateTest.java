@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 09.05.12
@@ -98,15 +100,15 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.dec(uc, "counter", 1);
         Thread.sleep(300);
 
-        assert (uc.getCounter() == 4) : "Counter is not correct: " + uc.getCounter();
+        assertThat(uc.getCounter()).isEqualTo(4);
 
         //inc without object - single update, no upsert
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
         morphium.dec(q, "counter", 40);
-        Thread.sleep(300);
+        Thread.sleep(100);
         uc = q.get();
-        assert (uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
+        assertThat(uc.getCounter()).isEqualTo(41);
 
         //inc without object directly in DB - multiple update
         q = morphium.createQueryFor(UncachedObject.class);
@@ -118,7 +120,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         q = q.f("counter").gt(0).f("counter").lte(55);
         List<UncachedObject> lst = q.asList(); //read the data after update
         for (UncachedObject u : lst) {
-            assert (u.getCounter() > 0 && u.getCounter() <= 55) : "Counter wrong: " + u.getCounter();
+            assertThat(u.getCounter()).isGreaterThan(0).isLessThanOrEqualTo(55);
             //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
         }
 
