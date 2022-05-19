@@ -41,8 +41,16 @@ public class InMemoryDriver implements MorphiumDriver {
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
+    /**
+     * index definitions by db and collection name
+     * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
+     */
     private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Map<IndexKey, List<Map<String, Object>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+
+    /**
+     * Map DB->Collection->FieldNames->Keys....
+     */
+    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
@@ -142,14 +150,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<String> listDatabases() {
-        return new CopyOnWriteArrayList<>(database.keySet());
+        return new ArrayList<>(database.keySet());
     }
 
     @Override
     public List<String> listCollections(String db, String pattern) {
 
         Set<String> collections = database.get(db).keySet();
-        List<String> ret = new CopyOnWriteArrayList<>();
+        List<String> ret = new ArrayList<>();
         if (pattern == null) {
             ret.addAll(collections);
         } else {
@@ -546,7 +554,7 @@ public class InMemoryDriver implements MorphiumDriver {
             l = limit;
         }
         List<Map<String, Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
-        crs.setBatch(Collections.synchronizedList(new CopyOnWriteArrayList<>(res)));
+        crs.setBatch(new CopyOnWriteArrayList<>(res));
 
         if (res.size() < batchSize) {
             //noinspection unchecked
@@ -640,7 +648,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         List<Map<String, Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
-        next.setBatch(Collections.synchronizedList(new CopyOnWriteArrayList<>(res)));
+        next.setBatch(new CopyOnWriteArrayList<>(res));
         if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() + oldCrs.getDataRead() > oldCrs.limit)) {
             //finished!
             //noinspection unchecked
@@ -661,8 +669,45 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
-        List<Map<String, Object>> data = new CopyOnWriteArrayList<>(getCollection(db, collection));
-        List<Map<String, Object>> ret = new CopyOnWriteArrayList<>();
+        List<Map<String, Object>> partialHitData = new ArrayList<>();
+        if (query.containsKey("$and")) {
+            //and complex query handling ?!?!?
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
+
+            if (m != null && !m.isEmpty()) {
+                Map<String, Object> subquery = m.get(0);
+                List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+
+                if (dataFromIndex != null) {
+                    partialHitData = dataFromIndex;
+                }
+            }
+
+        } else if (query.containsKey("$or")) {
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
+
+            if (m != null) {
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+                    if (dataFromIndex != null) {
+                        partialHitData.addAll(dataFromIndex);
+                    }
+                }
+
+            }
+        } else {
+
+            partialHitData = getDataFromIndex(db, collection, query);
+        }
+
+        List<Map<String, Object>> data;
+
+        if (partialHitData == null || partialHitData.isEmpty()) {
+            data = new ArrayList<>(getCollection(db, collection));
+        } else {
+            data = partialHitData;
+        }
+        List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
 
         if (sort != null) {
@@ -710,7 +755,59 @@ public class InMemoryDriver implements MorphiumDriver {
             //todo add projection
         }
 
-        return Collections.synchronizedList(new CopyOnWriteArrayList<>(ret));
+        return new ArrayList<>(ret);
+    }
+
+    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) {
+        List<Map<String, Object>> partialHitData = null;
+        Map<String, Object> values = new HashMap<>();
+        StringBuilder fieldList = new StringBuilder();
+        for (Map<String, Object> idx : getIndexes(db, collection)) {
+            if (idx.size() > query.size()) continue; //index has more fields
+
+            boolean found = true;
+            values.clear();
+            fieldList.setLength(0);
+            for (String k : query.keySet()) {
+                if (!idx.containsKey(k)) {
+                    found = false;
+                    break;
+                }
+                Object value = query.get(k);
+                values.put(k, value);
+                fieldList.append(k);
+            }
+            if (found) {
+                //all keys in this index are found in query
+                //log.debug("Index hit");
+                String fields = fieldList.toString();
+                Map<IndexKey, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db, collection, fields);
+                List<Map<String, Object>> ret = indexDataForCollection.get(new IndexKey(values));
+                if (ret == null || ret.size() == 0) {
+                    //no direkt hit, need to use index data
+                    //
+//                    log.debug("indirect Index hit - fields: "+fields+" Index size: "+indexDataForCollection.size());
+                    ret = new ArrayList<>();
+//                    long start = System.currentTimeMillis();
+                    for (IndexKey k : indexDataForCollection.keySet()) {
+                        if (QueryHelper.matchesQuery(query, k.getValues())) {
+                            ret.addAll(indexDataForCollection.get(k));
+                        }
+                    }
+//                    long dur = System.currentTimeMillis() - start;
+//                    log.info("Duration index assembling: " + dur + "ms - "+ret.size());
+                    if (ret.size() == 0) {
+                        log.error("Index miss although index exists");
+                        ret = null;
+                    }
+                }
+                partialHitData = ret;
+
+                break;
+            }
+
+        }
+        return partialHitData;
     }
 
     @Override
@@ -736,7 +833,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
-        List<Map<String, Object>> ret = new CopyOnWriteArrayList<>();
+        List<Map<String, Object>> ret = new ArrayList<>();
 
         List<Map<String, Object>> data = new CopyOnWriteArrayList<>(getCollection(db, coll));
         for (Map<String, Object> obj : data) {
@@ -752,20 +849,24 @@ public class InMemoryDriver implements MorphiumDriver {
                 ret.add(add);
             }
         }
-        return Collections.synchronizedList(new CopyOnWriteArrayList<>(ret));
+        return ret;
     }
 
-    private Map<IndexKey, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection) {
+    public Map<IndexKey, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-        return indexDataByDBCollection.get(db).get(collection);
+        indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
+        return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
     @Override
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
-            if (o.get("_id") != null && getIndexDataForCollection(db, collection).containsKey(new IndexKey(Arrays.asList(o.get("_id"))))) {
-                throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
+            if (o.get("_id") != null) {
+                Map<IndexKey, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, "_id");
+                if (id != null && id.containsKey(new IndexKey(Map.of("_id", o.get("_id"))))) {
+                    throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
+                }
             }
             o.putIfAbsent("_id", new ObjectId());
         }
@@ -774,14 +875,18 @@ public class InMemoryDriver implements MorphiumDriver {
 
         for (Map<String, Object> o : objs) {
             List<Map<String, Object>> idx = getIndexes(db, collection);
-            List<Object> indexValues = new ArrayList<>();
             for (Map<String, Object> i : idx) {
+                Map<String, Object> indexValues = new HashMap<>();
+                StringBuilder fieldNames = new StringBuilder();
                 for (String k : i.keySet()) {
-                    indexValues.add(o.get(k));
+                    indexValues.put(k, o.get(k));
+                    fieldNames.append(k);
                 }
                 IndexKey key = new IndexKey(indexValues);
-                indexDataByDBCollection.get(db).get(collection).putIfAbsent(key, new ArrayList<>());
-                indexDataByDBCollection.get(db).get(collection).get(key).add(o);
+                indexDataByDBCollection.get(db).get(collection).putIfAbsent(fieldNames.toString(), new HashMap<>());
+                indexDataByDBCollection.get(db).get(collection).get(fieldNames.toString()).putIfAbsent(key, new ArrayList<>());
+                indexDataByDBCollection.get(db).get(collection).get(fieldNames.toString()).get(key).add(o);
+
             }
             notifyWatchers(db, collection, "insert", o);
         }
@@ -810,14 +915,17 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             getCollection(db, collection).add(o);
             List<Map<String, Object>> idx = getIndexes(db, collection);
-            List<Object> indexValues = new ArrayList<>();
+            Map<String, Object> indexValues = new HashMap<>();
+            StringBuilder fields = new StringBuilder();
             for (Map<String, Object> i : idx) {
                 for (String k : i.keySet()) {
-                    indexValues.add(o.get(k));
+                    indexValues.put(k, o.get(k));
+                    fields.append(k);
                 }
                 IndexKey key = new IndexKey(indexValues);
-                indexDataByDBCollection.get(db).get(collection).putIfAbsent(key, new ArrayList<>());
-                indexDataByDBCollection.get(db).get(collection).get(key).add(o);
+                indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields.toString(), new HashMap<>());
+                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).putIfAbsent(key, new ArrayList<>());
+                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).get(key).add(o);
             }
         }
         ret.put("matched", upd);
@@ -850,7 +958,7 @@ public class InMemoryDriver implements MorphiumDriver {
         List<Map<String, Object>> lst = find(db, collection, query, null, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         int count = 0;
-        if (lst == null) lst = new CopyOnWriteArrayList<>();
+        if (lst == null) lst = new ArrayList<>();
         if (upsert && lst.isEmpty()) {
             lst.add(new ConcurrentHashMap<>());
             for (String k : query.keySet()) {
@@ -990,7 +1098,7 @@ public class InMemoryDriver implements MorphiumDriver {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             List v = (List) obj.get(entry.getKey());
                             if (v == null) {
-                                v = new CopyOnWriteArrayList();
+                                v = new ArrayList();
                                 obj.put(entry.getKey(), v);
                                 modified.add(obj.get("_id"));
                             }
@@ -1106,7 +1214,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> toDel = find(db, collection, query, null, Utils.getMap("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
+        List<Map<String, Object>> toDel = find(db, collection, query, null, Map.of("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
         for (Map<String, Object> o : toDel) {
             for (Map<String, Object> dat : getCollection(db, collection)) {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
@@ -1126,7 +1234,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private List<Map<String, Object>> getCollection(String db, String collection) {
         if (!getDB(db).containsKey(collection)) {
-            getDB(db).put(collection, Collections.synchronizedList(new CopyOnWriteArrayList<>()));
+            getDB(db).put(collection, new CopyOnWriteArrayList<>());
             createIndex(db, collection, Map.of("_id", 1), Map.of());
         }
         return getDB(db).get(collection);
@@ -1162,7 +1270,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
 
-        return Collections.synchronizedList(new CopyOnWriteArrayList<>(distinctValues));
+        return Collections.synchronizedList(new ArrayList<>(distinctValues));
     }
 
     @Override
@@ -1261,7 +1369,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            private final List<BulkRequest> requests = new CopyOnWriteArrayList<>();
+            private final List<BulkRequest> requests = new ArrayList<>();
 
             @Override
             public Map<String, Object> execute() {
@@ -1320,15 +1428,21 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     private void updateIndexData(String db, String collection) {
-        Map<IndexKey, List<Map<String, Object>>> index = new ConcurrentHashMap<>();
+        StringBuilder b = new StringBuilder();
+        indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
+        indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
+        indexDataByDBCollection.get(db).get(collection).clear();
         for (Map<String, Object> doc : getCollection(db, collection)) {
+
             for (Map<String, Object> idx : getIndexes(db, collection)) {
-                //index has a list of fields, values need to be index key
-                List<Object> indexValues = new ArrayList<>();
+                Map<String, Object> indexValues = new HashMap<>();
+                b.setLength(0);
                 for (String k : idx.keySet()) {
-                    indexValues.add(doc.get(k));
+                    indexValues.put(k, doc.get(k));
+                    b.append(k);
                 }
                 IndexKey key = new IndexKey(indexValues);
+                Map<IndexKey, List<Map<String, Object>>> index = getIndexDataForCollection(db, collection, b.toString());
                 index.putIfAbsent(key, new CopyOnWriteArrayList<>());
                 index.get(key).add(doc);
             }
@@ -1336,14 +1450,23 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     private class IndexKey {
-        private List<Object> values;
+        private Map<String, Object> values;
 
-        public IndexKey(List<Object> values) {
+        public IndexKey(Map<String, Object> values) {
             this.values = values;
         }
 
         public IndexKey() {
-            values = new ArrayList<>();
+            values = new HashMap<>();
+        }
+
+        @Override
+        public int hashCode() {
+            int ret = 17;
+            for (Map.Entry<String, Object> o : values.entrySet()) {
+                ret += o.getKey().hashCode() + o.getValue().hashCode();
+            }
+            return ret;
         }
 
         public boolean equals(Object o) {
@@ -1356,8 +1479,12 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
             boolean ret = true;
-            for (int i = 0; i < this.values.size(); i++) {
-                if (!this.values.get(i).equals(other.values.get(i))) {
+            for (String k : this.values.keySet()) {
+                if (!other.values.containsKey(k)) {
+                    ret = false;
+                    break;
+                }
+                if (!this.values.get(k).equals(other.values.get(k))) {
                     ret = false;
                     break;
                 }
@@ -1365,7 +1492,7 @@ public class InMemoryDriver implements MorphiumDriver {
             return ret;
         }
 
-        public List<Object> getValues() {
+        public Map<String, Object> getValues() {
             return values;
         }
     }

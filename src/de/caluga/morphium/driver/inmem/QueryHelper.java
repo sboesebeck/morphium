@@ -38,6 +38,7 @@ public class QueryHelper {
         }
         //noinspection LoopStatementThatDoesntLoop
         for (String key : query.keySet()) {
+
             switch (key) {
                 case "$and": {
                     //list of field queries
@@ -77,6 +78,7 @@ public class QueryHelper {
 
                 }
                 default:
+
                     //field check
                     if (query.get(key) instanceof Map) {
                         //probably a query operand
@@ -86,7 +88,9 @@ public class QueryHelper {
                             Expr e = Expr.parse(q);
                             return Boolean.TRUE.equals(e.evaluate(toCheck));
                         }
-
+                        if (!toCheck.containsKey(key) && q.get(k) != null) {
+                            return false;
+                        }
                         switch (k) {
                             case "$eq":
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
@@ -261,6 +265,7 @@ public class QueryHelper {
 
 
                     } else {
+                        if (!toCheck.containsKey(key)) return false;
                         //value comparison - should only be one here
                         assert (query.size() == 1);
 //                        if (toCheck.get(key)!=null) {
