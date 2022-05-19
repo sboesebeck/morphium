@@ -1083,6 +1083,7 @@ public abstract class Expr {
 
     public static Expr dayOfYear(Expr date) {
         return new OpExprNoList("dayOfYear", date) {
+
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
