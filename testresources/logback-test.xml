@@ -1,4 +1,4 @@
-<configuration>
+<configuration scan="true">
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <!-- encoders are assigned the type org.springframework.web.servlet.DispatcherServlet.render(DispatcherServlet.java:1266)

@@ -3393,13 +3393,15 @@ public class Morphium implements AutoCloseable {
     }
 
     private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
-        MorphiumObjectMapper mapper = new ObjectMapperImpl();
-        AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
-        mapper.setAnnotationHelper(hlp);
+//        MorphiumObjectMapper mapper = new ObjectMapperImpl();
+//        mapper.setMorphium(this);
+//
+//        AnnotationAndReflectionHelper hlp = new AnnotationAndReflectionHelper(false);
+//        mapper.setAnnotationHelper(hlp);
 
         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.remove("fullDocument");
-        ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, doc);
+        ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, doc);
 
         evt.setFullDocument(obj);
         return lst.incomingData(evt);

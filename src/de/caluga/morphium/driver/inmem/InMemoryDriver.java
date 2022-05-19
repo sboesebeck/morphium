@@ -136,7 +136,8 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public void setAtlasUrl(String atlasUrl) {
-        log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
+        if (atlasUrl != null && !atlasUrl.isEmpty())
+            log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
     }
 
     @Override
@@ -683,22 +684,24 @@ public class InMemoryDriver implements MorphiumDriver {
             if (count < skip) {
                 continue;
             }
+            if (!internal) {
+                while (true) {
+                    try {
+                        o = new HashMap<>(o);
+                        if (o.get("_id") instanceof ObjectId) {
+                            o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
+                        }
+                        break;
+                    } catch (ConcurrentModificationException c) {
+                        //retry until it works
+                    }
+
+                }
+            }
             if (QueryHelper.matchesQuery(query, o)) {
                 if (o == null) o = new HashMap<>();
-                synchronized (this) {
-                    while (true) {
-                        try {
-                            ret.add(internal ? o : new HashMap<>(o));
-                            break;
-                        } catch (ConcurrentModificationException e) {
-                            try {
-                                Thread.sleep(5);
-                            } catch (InterruptedException interruptedException) {
-                                //ignore
-                            }
-                        }
-                    }
-                }
+
+                ret.add(o);
             }
             if (limit > 0 && ret.size() >= limit) {
                 break;
@@ -742,7 +745,11 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             if ((obj.get(field) == null && value == null)
                     || obj.get(field).equals(value)) {
-                ret.add(new ConcurrentHashMap<>(obj));
+                ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
+                if (add.get("_id") instanceof ObjectId) {
+                    add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
+                }
+                ret.add(add);
             }
         }
         return Collections.synchronizedList(new CopyOnWriteArrayList<>(ret));
@@ -760,8 +767,9 @@ public class InMemoryDriver implements MorphiumDriver {
             if (o.get("_id") != null && getIndexDataForCollection(db, collection).containsKey(new IndexKey(Arrays.asList(o.get("_id"))))) {
                 throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
             }
-            o.putIfAbsent("_id", new MorphiumId());
+            o.putIfAbsent("_id", new ObjectId());
         }
+
         getCollection(db, collection).addAll(objs);
 
         for (Map<String, Object> o : objs) {
@@ -1098,9 +1106,19 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> toDel = find(db, collection, query, null, null, 0, multiple ? 0 : 1, 10000, null, collation, null);
+        List<Map<String, Object>> toDel = find(db, collection, query, null, Utils.getMap("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
         for (Map<String, Object> o : toDel) {
-            getCollection(db, collection).remove(o);
+            for (Map<String, Object> dat : getCollection(db, collection)) {
+                if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
+                    if (dat.get("_id").toString().equals(o.get("_id").toString())) {
+                        getCollection(db, collection).remove(dat);
+                    }
+                } else {
+                    if (dat.get("_id").equals(o.get("_id"))) {
+                        getCollection(db, collection).remove(dat);
+                    }
+                }
+            }
             notifyWatchers(db, collection, "delete", o);
         }
         return new ConcurrentHashMap<>();

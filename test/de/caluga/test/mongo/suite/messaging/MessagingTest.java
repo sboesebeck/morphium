@@ -1284,7 +1284,7 @@ public class MessagingTest extends MorphiumTestBase {
                 assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
-            assert (m1.getNumberOfMessages() == 0);
+            assertThat(m1.getNumberOfMessages()).isEqualTo(0);
         } finally {
             m1.terminate();
             m2.terminate();
