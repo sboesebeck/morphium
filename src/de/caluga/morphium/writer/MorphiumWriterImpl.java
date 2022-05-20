@@ -595,7 +595,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         Map<Class, List<Map<String, Object>>> toUpdate = new HashMap<>();
                         Map<Class, List<Map<String, Object>>> newElementsToInsert = new HashMap<>();
                         //HashMap<Object, Boolean> isNew = new HashMap<>();
-                        for (Object o : lst) {
+                        for (int i = 0; i < lst.size(); i++) {
+                            Object o = lst.get(i);
                             Class type = morphium.getARHelper().getRealClass(o.getClass());
                             if (!morphium.getARHelper().isAnnotationPresentInHierarchy(type, Entity.class)) {
                                 logger.error("Not an entity! Storing not possible! Even not in list!");

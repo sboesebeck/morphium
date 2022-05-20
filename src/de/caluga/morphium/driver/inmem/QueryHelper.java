@@ -88,9 +88,7 @@ public class QueryHelper {
                             Expr e = Expr.parse(q);
                             return Boolean.TRUE.equals(e.evaluate(toCheck));
                         }
-                        if (!toCheck.containsKey(key) && q.get(k) != null) {
-                            return false;
-                        }
+
                         switch (k) {
                             case "$eq":
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
@@ -267,17 +265,16 @@ public class QueryHelper {
 
 
                     } else {
-                        if (!toCheck.containsKey(key)) return false;
+                        if (toCheck.get(key) == null && query.get(key) == null) return true;
+                        if (toCheck.get(key) == null && query.get(key) != null) return false;
                         //value comparison - should only be one here
                         assert (query.size() == 1);
-//                        if (toCheck.get(key)!=null) {
+
                         if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
                             return toCheck.get(key).toString().equals(query.get(key).toString());
                         }
-                        if (toCheck.get(key) == null && query.get(key) != null) return false;
-                        if (toCheck.get(key) == null && query.get(key) == null) return true;
                         return toCheck.get(key).equals(query.get(key));
-//                        }
+
                     }
             }
         }
