@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -42,7 +43,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         lst.add(100);
         lst.add(1001);
         q.f("v2").nin(lst);
-        Map<String, Integer> map = new HashMap<>(Map.of("v1", 1));
+        Map<String, Integer> map = UtilsMap.of("v1", 1);
         map.put("v2", 1);
         q.sort(map);
 

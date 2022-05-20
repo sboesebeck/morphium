@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.MorphiumReference;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.query.Query;
@@ -20,7 +21,7 @@ public class TypeIdTests extends MorphiumTestBase {
         AdditionalDataEntity ad = new AdditionalDataEntity();
         ad.setStrValue("test");
         ad.setCounter(12);
-        ad.setAdditionals(Map.of("test", new EmbeddedObject("name", "value", 123)));
+        ad.setAdditionals(UtilsMap.of("test", new EmbeddedObject("name", "value", 123)));
         morphium.store(ad);
 
         Thread.sleep(100);

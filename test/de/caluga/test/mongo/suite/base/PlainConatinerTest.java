@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.test.mongo.suite.data.PlainContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -28,8 +29,8 @@ public class PlainConatinerTest extends MorphiumTestBase {
     @Test
     public void plainMapTest() throws Exception {
         PlainContainer pc = new PlainContainer();
-        //pc.setPlainMap(Map.of("test",(Object)"value").add("test2",Arrays.asList("str1","stre2")));
-        pc.setPlainMap(Map.of("$in", (Object) "value", "$test2", Map.of("$str1", "stre2")));
+        //pc.setPlainMap(UtilsMap.of("test",(Object)"value").add("test2",Arrays.asList("str1","stre2")));
+        pc.setPlainMap(UtilsMap.of("$in", (Object) "value", "$test2", UtilsMap.of("$str1", "stre2")));
 
         morphium.store(pc);
 
@@ -41,8 +42,8 @@ public class PlainConatinerTest extends MorphiumTestBase {
     @Test
     public void plainMapListTest() throws Exception {
         PlainContainer pc = new PlainContainer();
-        pc.setPlainMap(Map.of("test", (Object) "value", "test2", Arrays.asList("str1", "stre2")));
-        //pc.setPlainMap(Map.of("$in",(Object)"value").add("$test2",Map.of("$str1","stre2")));
+        pc.setPlainMap(UtilsMap.of("test", (Object) "value", "test2", Arrays.asList("str1", "stre2")));
+        //pc.setPlainMap(UtilsMap.of("$in",(Object)"value").add("$test2",UtilsMap.of("$str1","stre2")));
 
         morphium.store(pc);
 

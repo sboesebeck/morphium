@@ -2,6 +2,7 @@ package de.caluga.morphium.aggregation;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
@@ -419,7 +420,7 @@ public abstract class Expr {
     }
 
     public static Expr filter(Expr inputArray, String as, Expr cond) {
-        Map<String, Expr> input = Map.of("input", inputArray);
+        Map<String, Expr> input = UtilsMap.of("input", inputArray);
         input.put("as", string(as));
         input.put("cond", cond);
 
@@ -577,7 +578,7 @@ public abstract class Expr {
     }
 
     public static Expr reduce(Expr inputArray, Expr initValue, Expr in) {
-        return new MapOpExpr("reduce", Map.of("input", inputArray, "initialValue", initValue, "in", in)
+        return new MapOpExpr("reduce", UtilsMap.of("input", inputArray, "initialValue", initValue, "in", in)
 
         );
     }
@@ -641,7 +642,7 @@ public abstract class Expr {
     }
 
     public static Expr zip(List<Expr> inputs, Expr useLongestLength, Expr defaults) {
-        return new MapOpExpr("zip", Map.of("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[0])), "useLongestLength", useLongestLength, "defaults", defaults));
+        return new MapOpExpr("zip", UtilsMap.of("inputs", (Expr) new ArrayExpr(inputs.toArray(new Expr[0])), "useLongestLength", useLongestLength, "defaults", defaults));
     }
 
     public static Expr not(Expr expression) {
@@ -817,9 +818,9 @@ public abstract class Expr {
     public static Expr switchExpr(Map<Expr, Expr> branches, Expr defaultCase) {
         List<Map<String, Object>> branchList = new ArrayList<>();
         for (Map.Entry<Expr, Expr> ex : branches.entrySet()) {
-            branchList.add(Map.of("case", ex.getKey().toQueryObject(), "then", ex.getValue().toQueryObject()));
+            branchList.add(UtilsMap.of("case", ex.getKey().toQueryObject(), "then", ex.getValue().toQueryObject()));
         }
-        Map<String, Expr> branches1 = Map.of("branches", new ValueExpr() {
+        Map<String, Expr> branches1 = UtilsMap.of("branches", new ValueExpr() {
             @Override
             public Object toQueryObject() {
                 return branchList;
@@ -857,7 +858,7 @@ public abstract class Expr {
 
     public static Expr function(String code, Expr args, String lang) {
         if (lang == null) lang = "js";
-        return new MapOpExpr("function", Map.of("body", string(code), "args", args, "lang", string(lang)));
+        return new MapOpExpr("function", UtilsMap.of("body", string(code), "args", args, "lang", string(lang)));
     }
 
     // $accumulator: {
@@ -883,7 +884,7 @@ public abstract class Expr {
 
     public static Expr accumulator(String initCode, Expr initArgs, String accumulateCode, Expr accArgs, String mergeCode, String finalizeCode, String lang) {
         if (lang == null) lang = "js";
-        Map<String, Expr> map = Map.of("init", string(initCode), "initArgs", initArgs
+        Map<String, Expr> map = UtilsMap.of("init", string(initCode), "initArgs", initArgs
                 , "accumulate", string(accumulateCode)
                 , "accumulateArgs", accArgs
                 , "merge", string(mergeCode)
@@ -933,7 +934,7 @@ public abstract class Expr {
     }
 
     public static Expr dateFromParts(Expr year) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year)
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year)
         );
     }
 
@@ -946,17 +947,17 @@ public abstract class Expr {
     //Date Expression Operators
 
     public static Expr dateFromParts(Expr year, Expr month) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year, "month", month)
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year, "month", month)
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year, "month", month, "day", day, "hour", hour)
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year, "month", month, "day", day, "hour", hour)
         );
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year,
                 "month", month,
                 "day", day,
                 "hour", hour,
@@ -967,7 +968,7 @@ public abstract class Expr {
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year,
                 "month", month,
                 "day", day,
                 "hour", hour,
@@ -978,7 +979,7 @@ public abstract class Expr {
     }
 
     public static Expr dateFromParts(Expr year, Expr month, Expr day, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
-        return new MapOpExpr("dateFromParts", Map.of("year", year,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("year", year,
                 "month", month,
                 "day", day,
                 "hour", hour,
@@ -990,25 +991,25 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear)
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek)
         );
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek,
                 "hour", hour)
@@ -1016,7 +1017,7 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek,
                 "hour", hour,
@@ -1025,7 +1026,7 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek,
                 "hour", hour,
@@ -1035,7 +1036,7 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek,
                 "hour", hour,
@@ -1046,7 +1047,7 @@ public abstract class Expr {
     }
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
-        return new MapOpExpr("dateFromParts", Map.of("isoWeekYear", isoWeekYear,
+        return new MapOpExpr("dateFromParts", UtilsMap.of("isoWeekYear", isoWeekYear,
                 "month", isoWeek,
                 "day", isoDayOfWeek,
                 "hour", hour,
@@ -1058,7 +1059,7 @@ public abstract class Expr {
     }
 
     public static Expr dateFromString(Expr dateString, Expr format, Expr timezone, Expr onError, Expr onNull) {
-        return new MapOpExpr("dateFromString", Map.of("dateString", dateString,
+        return new MapOpExpr("dateFromString", UtilsMap.of("dateString", dateString,
                 "format", format,
                 "timezone", timezone,
                 "onError", onError,
@@ -1067,14 +1068,14 @@ public abstract class Expr {
     }
 
     public static Expr dateToParts(Expr date, Expr timezone, boolean iso8601) {
-        return new MapOpExpr("dateToParts", Map.of("date", date,
+        return new MapOpExpr("dateToParts", UtilsMap.of("date", date,
                 "timezone", timezone,
                 "iso8601", bool(iso8601))
         );
     }
 
     public static Expr dateToString(Expr date, Expr format, Expr timezone, Expr onNull) {
-        return new MapOpExpr("dateToString", Map.of("dateString", date,
+        return new MapOpExpr("dateToString", UtilsMap.of("dateString", date,
                 "format", format,
                 "timezone", timezone,
                 "onNull", onNull)
@@ -1504,14 +1505,14 @@ public abstract class Expr {
     }
 
     public static Expr ltrim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("ltrim", Map.of("input", str, "chars", charsToTrim));
+        return new MapOpExpr("ltrim", UtilsMap.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr regex(Expr field, Expr regex, Expr options) {
         return new Expr() {
             @Override
             public Object toQueryObject() {
-                return Map.of(field.toQueryObject().toString().substring(1), Map.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
+                return UtilsMap.of(field.toQueryObject().toString().substring(1), UtilsMap.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
             }
 
             @Override
@@ -1523,12 +1524,12 @@ public abstract class Expr {
     }
 
     public static Expr regexFind(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexFind", Map.of("input", input, "regex", regex, "options", options)
+        return new MapOpExpr("regexFind", UtilsMap.of("input", input, "regex", regex, "options", options)
         );
     }
 
     public static Expr regexFindAll(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexFindAll", Map.of("input", input, "regex", regex, "options", options)
+        return new MapOpExpr("regexFindAll", UtilsMap.of("input", input, "regex", regex, "options", options)
         );
     }
 
@@ -1557,21 +1558,21 @@ public abstract class Expr {
     }
 
     public static Expr regexMatch(Expr input, Expr regex, Expr options) {
-        return new MapOpExpr("regexMatch", Map.of("input", input, "regex", regex, "options", options)
+        return new MapOpExpr("regexMatch", UtilsMap.of("input", input, "regex", regex, "options", options)
         );
     }
 
     public static Expr replaceOne(Expr input, Expr find, Expr replacement) {
-        return new MapOpExpr("replaceOne", Map.of("input", input, "find", find, "replacement", replacement)
+        return new MapOpExpr("replaceOne", UtilsMap.of("input", input, "find", find, "replacement", replacement)
         );
     }
 
     public static Expr replaceAll(Expr input, Expr find, Expr replacement) {
-        return new MapOpExpr("replaceAll", Map.of("input", input, "find", find, "replacement", replacement));
+        return new MapOpExpr("replaceAll", UtilsMap.of("input", input, "find", find, "replacement", replacement));
     }
 
     public static Expr rtrim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("rtrim", Map.of("input", str, "chars", charsToTrim));
+        return new MapOpExpr("rtrim", UtilsMap.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr strLenCP(Expr str) {
@@ -1659,13 +1660,13 @@ public abstract class Expr {
         return new ValueExpr() {
             @Override
             public Object toQueryObject() {
-                return Map.of("$meta", metaDataKeyword);
+                return UtilsMap.of("$meta", metaDataKeyword);
             }
         };
     }
 
     public static Expr trim(Expr str, Expr charsToTrim) {
-        return new MapOpExpr("trim", Map.of("input", str, "chars", charsToTrim));
+        return new MapOpExpr("trim", UtilsMap.of("input", str, "chars", charsToTrim));
     }
 
     public static Expr sin(Expr e) {
@@ -1803,7 +1804,7 @@ public abstract class Expr {
     }
 
     public static Expr convert(Expr input, Expr to, Expr onError, Expr onNull) {
-        return new MapOpExpr("convert", Map.of("input", input,
+        return new MapOpExpr("convert", UtilsMap.of("input", input,
                 "to", to,
                 "onError", onError,
                 "onNull", onNull)) {
@@ -2100,7 +2101,7 @@ public abstract class Expr {
                 for (Map.Entry<String, Expr> e : vars.entrySet()) {
                     map.put(e.getKey(), e.getValue().toQueryObject());
                 }
-                return Map.of("$let", Map.of("vars", (Object) map, "in", in.toQueryObject()));
+                return UtilsMap.of("$let", UtilsMap.of("vars", (Object) map, "in", in.toQueryObject()));
             }
 
             @Override
@@ -2160,7 +2161,7 @@ public abstract class Expr {
         @Override
         public Object toQueryObject() {
             Map m = new LinkedHashMap();
-            Map ret = Map.of(operation, m);
+            Map ret = UtilsMap.of(operation, m);
             for (Map.Entry<String, Expr> e : params.entrySet()) {
                 //noinspection unchecked
                 m.put(e.getKey(), e.getValue().toQueryObject());
@@ -2189,7 +2190,7 @@ public abstract class Expr {
                 if (e != null)
                     p.add(e.toQueryObject());
             }
-            return Map.of(operation, p);
+            return UtilsMap.of(operation, p);
         }
     }
 
@@ -2208,7 +2209,7 @@ public abstract class Expr {
 
         @Override
         public Object toQueryObject() {
-            return Map.of(operation, params.toQueryObject());
+            return UtilsMap.of(operation, params.toQueryObject());
         }
     }
 

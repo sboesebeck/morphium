@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import org.junit.Test;
 
 import java.util.Map;
@@ -14,12 +15,12 @@ public class StatisticsTest extends MorphiumTestBase {
 
     @Test(expected = RuntimeException.class)
     public void putAll() {
-        morphium.getStatistics().putAll(Map.of("test", 0.2));
+        morphium.getStatistics().putAll(UtilsMap.of("test", 0.2));
     }
 
     @Test()
     public void equalsTest() {
-        assert (!morphium.getStatistics().equals(Map.of("test", 0.2)));
+        assert (!morphium.getStatistics().equals(UtilsMap.of("test", 0.2)));
     }
 
     @Test()

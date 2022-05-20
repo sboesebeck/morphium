@@ -259,6 +259,8 @@ public class QueryHelper {
                             case "$bitsAnySet":
                                 log.warn("Unsupported op " + k + " for in memory driver");
                                 break;
+                            case "$options":
+                                break;
                             default:
                                 throw new RuntimeException("Unknown Operator " + k);
                         }

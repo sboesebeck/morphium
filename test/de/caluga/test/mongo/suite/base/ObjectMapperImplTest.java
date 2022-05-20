@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumReference;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Embedded;
@@ -855,7 +856,7 @@ public class ObjectMapperImplTest {
         v2.put("String", "String");
         v2.put("Integer", 123);
         v2.put("List", Arrays.asList("l1", "l2"));
-        v2.put("Map", Map.of("key", 123));
+        v2.put("Map", UtilsMap.of("key", 123));
         c.structureK.add(v2);
 
         Map<String, Object> seralized = OM.serialize(c);

@@ -50,7 +50,7 @@ public class SequenceGenerator {
 
         try {
             if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(Sequence.class)) || morphium.createQueryFor(Sequence.class).f("_id").eq(name).countAll() == 0) {
-                List<Map<String, Object>> lst = morphium.getDriver().find(morphium.getConfig().getDatabase(), "sequence", Map.of("name", name), null, null, 0, 1, 100, null, null, new HashMap<>());
+                List<Map<String, Object>> lst = morphium.getDriver().find(morphium.getConfig().getDatabase(), "sequence", UtilsMap.of("name", name), null, null, 0, 1, 100, null, null, new HashMap<>());
                 if (lst.size() != 0) {
                     log.info("Migrating old sequence");
                     //migrate old
@@ -59,7 +59,7 @@ public class SequenceGenerator {
                     seq.put("_id", seq.get("name"));
                     seq.remove("name");
                     morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Collections.singletonList(seq), null);
-                    morphium.getDriver().delete(morphium.getConfig().getDatabase(), "sequence", Map.of("_id", oldId), false, null, null);
+                    morphium.getDriver().delete(morphium.getConfig().getDatabase(), "sequence", UtilsMap.of("_id", oldId), null, false, null, null);
                 } else {
                     //sequence does not exist yet
                     if (log.isDebugEnabled()) {

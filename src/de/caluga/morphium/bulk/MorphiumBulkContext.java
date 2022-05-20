@@ -5,6 +5,7 @@ package de.caluga.morphium.bulk;/**
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
@@ -63,7 +64,7 @@ public class MorphiumBulkContext<T> {
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
         up.setQuery(query.toQueryObject());
         up.setUpsert(upsert);
-        up.setCmd(Map.of(command, values));
+        up.setCmd(UtilsMap.of(command, values));
         up.setMultiple(multiple);
         preEvents.add(() -> {
             switch (command) {
@@ -180,7 +181,7 @@ public class MorphiumBulkContext<T> {
 
     public void addDeleteRequest(T entity) {
         DeleteBulkRequest del = ctx.addDeleteBulkRequest();
-        del.setQuery(Map.of("_id", ctx.getMorphium().getARHelper().getId(entity)));
+        del.setQuery(UtilsMap.of("_id", ctx.getMorphium().getARHelper().getId(entity)));
         del.setMultiple(false);
         preEvents.add(() -> ctx.getMorphium().firePreRemove(entity));
 
@@ -232,15 +233,15 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addSetRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$set", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$set", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addUnsetRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$unset", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$unset", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addIncRequest(Query<T> query, String field, Number value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$inc", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$inc", UtilsMap.of(field, value), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
@@ -263,7 +264,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMinRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$min", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$min", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addMinRequest(Query<T> query, Map<String, Object> toSet, boolean upsert, boolean multiple) {
@@ -276,7 +277,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMaxRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$max", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$max", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addMaxRequest(Query<T> query, Map<String, Object> toSet, boolean upsert, boolean multiple) {
@@ -289,7 +290,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addRenameRequest(Query<T> query, String field, String newName, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$rename", Map.of(field, newName), upsert, multiple);
+        createUpdateRequest(query, "$rename", UtilsMap.of(field, newName), upsert, multiple);
     }
 
     public void addRenameRequest(T obj, String field, String newName, boolean upsert) {
@@ -298,7 +299,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addMulRequest(Query<T> query, String field, Number value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$mul", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$mul", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addMulRequest(T obj, String field, Number value, boolean upsert) {
@@ -307,7 +308,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPopRequest(Query<T> query, String field, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$pop", Map.of(field, 1), upsert, multiple);
+        createUpdateRequest(query, "$pop", UtilsMap.of(field, 1), upsert, multiple);
     }
 
     public void addPopRequest(T obj, String field, boolean upsert) {
@@ -316,7 +317,7 @@ public class MorphiumBulkContext<T> {
     }
 
     public void addPushRequest(Query<T> query, String field, Object value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$push", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$push", UtilsMap.of(field, value), upsert, multiple);
     }
 
     public void addPushRequest(T obj, String field, Object value, boolean upsert) {
@@ -345,7 +346,7 @@ public class MorphiumBulkContext<T> {
 
     @SuppressWarnings("unused")
     public void addPushRequest(Query<T> query, String field, List<Object> value, boolean upsert, boolean multiple) {
-        createUpdateRequest(query, "$push", Map.of(field, value), upsert, multiple);
+        createUpdateRequest(query, "$push", UtilsMap.of(field, value), upsert, multiple);
     }
 
 

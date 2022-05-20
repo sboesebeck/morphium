@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
@@ -27,7 +28,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("mod0"));
         agg.group("$str_value").sum("summe", "$counter").sum("cnt", 1).end();
-        agg.addFields(Map.of("tst", Expr.field("summe")));
+        agg.addFields(UtilsMap.of("tst", Expr.field("summe")));
         agg.project("avg", Expr.divide(Expr.field("tst"), Expr.field("cnt")));
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info("Count: " + lst.size());

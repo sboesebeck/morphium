@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
@@ -67,7 +68,7 @@ public class Aggregation extends MorphiumTestBase {
         Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
         assert (a.getResultType() != null);
         //eingangsdaten reduzieren
-        a = a.project(Map.of("counter", (Object) Expr.intExpr(1), "cnt2", Expr.field("counter")));
+        a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1), "cnt2", Expr.field("counter")));
         //Filtern
 //        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
         a = a.match(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(100)));

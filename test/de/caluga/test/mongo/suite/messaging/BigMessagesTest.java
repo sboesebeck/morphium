@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -43,7 +44,7 @@ public class BigMessagesTest extends MorphiumTestBase {
                 big.setName("bigMsg");
                 big.setTtl(3000000);
                 big.setValue(txt.toString());
-                big.setMapValue(Map.of("msgNr", i));
+                big.setMapValue(UtilsMap.of("msgNr", i));
                 big.getMapValue().put("ts", System.currentTimeMillis());
                 big.setTimestamp(System.currentTimeMillis());
                 sender.sendMessage(big);

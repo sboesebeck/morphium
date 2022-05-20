@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -47,14 +48,14 @@ public class BucketAutoTests extends MorphiumTestBase {
         priceAggregator.bucketAuto(field("price"), 4, null, null);
 
         Aggregator<Artwork, Map> yearAggregator = morphium.createAggregator(Artwork.class, Map.class);
-        yearAggregator.bucketAuto(field("year"), 3, Map.of("count", sum(intExpr(1)), "years", push(field("year"))), null);
+        yearAggregator.bucketAuto(field("year"), 3, UtilsMap.of("count", sum(intExpr(1)), "years", push(field("year"))), null);
 
         Aggregator<Artwork, Map> areaAggregator = morphium.createAggregator(Artwork.class, Map.class);
-        areaAggregator.bucketAuto(multiply(field("dimensions.height"), field("dimensions.width")), 4, Map.of("count", sum(intExpr(1)), "titles", push(field("title"))), null);
+        areaAggregator.bucketAuto(multiply(field("dimensions.height"), field("dimensions.width")), 4, UtilsMap.of("count", sum(intExpr(1)), "titles", push(field("title"))), null);
 
 
         Aggregator<Artwork, Map> aggregator = morphium.createAggregator(Artwork.class, Map.class);
-        aggregator.facet(Map.of("price", (Aggregator) priceAggregator, "year", yearAggregator, "area", areaAggregator)
+        aggregator.facet(UtilsMap.of("price", (Aggregator) priceAggregator, "year", yearAggregator, "area", areaAggregator)
         );
         List<Map> list = aggregator.aggregate();
         assert (list.size() == 1);

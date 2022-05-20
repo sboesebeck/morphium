@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -130,7 +131,7 @@ public class QueryTest extends MorphiumTestBase {
     @Test
     public void testSortEnum() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        q.sortEnum(Map.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
+        q.sortEnum(UtilsMap.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
 
         assert (q.getSort() != null);
         assert (q.getSort().get("counter").equals(Integer.valueOf(-1)));
@@ -216,7 +217,7 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(100);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        List<UncachedObject> lst = q.rawQuery(Map.of("counter", 12)).asList();
+        List<UncachedObject> lst = q.rawQuery(UtilsMap.of("counter", 12)).asList();
         assert (lst.size() == 1);
 
     }
