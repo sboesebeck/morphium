@@ -50,7 +50,8 @@ public class InMemoryDriver implements MorphiumDriver {
     /**
      * Map DB->Collection->FieldNames->Keys....
      */
-    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+//    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
@@ -675,11 +676,13 @@ public class InMemoryDriver implements MorphiumDriver {
             List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
 
             if (m != null && !m.isEmpty()) {
-                Map<String, Object> subquery = m.get(0);
-                List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
-
-                if (dataFromIndex != null) {
-                    partialHitData = dataFromIndex;
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
+                    //one and-query result is enough to find candidates!
+                    if (dataFromIndex != null) {
+                        partialHitData = dataFromIndex;
+                        break;
+                    }
                 }
             }
 
@@ -760,13 +763,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) {
         List<Map<String, Object>> ret = null;
-        Map<String, Object> values = new HashMap<>();
+        int bucketId = 0;
         StringBuilder fieldList = new StringBuilder();
         for (Map<String, Object> idx : getIndexes(db, collection)) {
             if (idx.size() > query.size()) continue; //index has more fields
 
             boolean found = true;
-            values.clear();
+//            values.clear();
+            bucketId = 0;
             fieldList.setLength(0);
             for (String k : query.keySet()) {
                 if (!idx.containsKey(k)) {
@@ -774,30 +778,34 @@ public class InMemoryDriver implements MorphiumDriver {
                     break;
                 }
                 Object value = query.get(k);
-                values.put(k, value);
+                bucketId = iterateBucketId(bucketId, value);
                 fieldList.append(k);
             }
             if (found) {
                 //all keys in this index are found in query
                 //log.debug("Index hit");
                 String fields = fieldList.toString();
-                Map<IndexKey, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db, collection, fields);
-                ret = indexDataForCollection.get(new IndexKey(values));
+                Map<Integer, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db, collection, fields);
+                ret = indexDataForCollection.get(bucketId);
                 if (ret == null || ret.size() == 0) {
                     //no direkt hit, need to use index data
                     //
 //                    log.debug("indirect Index hit - fields: "+fields+" Index size: "+indexDataForCollection.size());
                     ret = new ArrayList<>();
-//                    long start = System.currentTimeMillis();
-                    for (IndexKey k : indexDataForCollection.keySet()) {
-                        if (QueryHelper.matchesQuery(query, k.getValues())) {
-                            ret.addAll(indexDataForCollection.get(k));
+////                    long start = System.currentTimeMillis();
+                    for (Map.Entry<Integer, List<Map<String, Object>>> k : indexDataForCollection.entrySet()) {
+
+                        for (Map<String, Object> o : k.getValue()) {
+                            if (QueryHelper.matchesQuery(query, o)) {
+                                ret.add(o);
+                            }
                         }
+                        //ret.addAll(indexDataForCollection.get(k.getKey()));
                     }
-//                    long dur = System.currentTimeMillis() - start;
-//                    log.info("Duration index assembling: " + dur + "ms - "+ret.size());
+////                    long dur = System.currentTimeMillis() - start;
+////                    log.info("Duration index assembling: " + dur + "ms - "+ret.size());
                     if (ret.size() == 0) {
-                        log.error("Index miss although index exists");
+//                        //log.error("Index miss although index exists");
                         ret = null;
                     }
                 }
@@ -850,7 +858,8 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
-    public Map<IndexKey, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
+    //    public Map<IndexKey, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
+    public Map<Integer, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
@@ -861,8 +870,9 @@ public class InMemoryDriver implements MorphiumDriver {
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") != null) {
-                Map<IndexKey, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, "_id");
-                if (id != null && id.containsKey(new IndexKey(UtilsMap.of("_id", o.get("_id"))))) {
+                Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, "_id");
+//                Map<IndexKey, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, "_id");
+                if (id != null && id.containsKey(Integer.valueOf(o.get("_id").hashCode()))) {
                     throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                 }
             }
@@ -870,24 +880,38 @@ public class InMemoryDriver implements MorphiumDriver {
         }
 
         getCollection(db, collection).addAll(objs);
+        for (int i = 0; i < objs.size(); i++) {
+            Map<String, Object> o = objs.get(i);
 
-        for (Map<String, Object> o : objs) {
             List<Map<String, Object>> idx = getIndexes(db, collection);
-            for (Map<String, Object> i : idx) {
-                Map<String, Object> indexValues = new HashMap<>();
+            for (Map<String, Object> ix : idx) {
+//                Map<String, Object> indexValues = new HashMap<>();
+                int bucketId = 0;
                 StringBuilder fieldNames = new StringBuilder();
-                for (String k : i.keySet()) {
-                    indexValues.put(k, o.get(k));
+                for (String k : ix.keySet()) {
+//                    indexValues.put(k, o.get(k));
+                    bucketId = iterateBucketId(bucketId, o.get(k));
                     fieldNames.append(k);
                 }
-                IndexKey key = new IndexKey(indexValues);
-                indexDataByDBCollection.get(db).get(collection).putIfAbsent(fieldNames.toString(), new HashMap<>());
-                indexDataByDBCollection.get(db).get(collection).get(fieldNames.toString()).putIfAbsent(key, new ArrayList<>());
-                indexDataByDBCollection.get(db).get(collection).get(fieldNames.toString()).get(key).add(o);
+//                IndexKey key = new IndexKey(indexValues);
+                String fn = fieldNames.toString();
+//                Map<String, Map<IndexKey, List<Map<String, Object>>>> indexData = indexDataByDBCollection.get(db).get(collection);
+                Map<String, Map<Integer, List<Map<String, Object>>>> indexData = indexDataByDBCollection.get(db).get(collection);
+                indexData.putIfAbsent(fn, new HashMap<>());
+                indexData.get(fn).putIfAbsent(bucketId, new ArrayList<>());
+                indexData.get(fn).get(bucketId).add(o);
 
             }
+
             notifyWatchers(db, collection, "insert", o);
         }
+    }
+
+    private Integer iterateBucketId(int bucketId, Object o) {
+        if (o == null) {
+            return bucketId + 1;
+        }
+        return (bucketId + o.hashCode());
     }
 
     @Override
@@ -913,17 +937,19 @@ public class InMemoryDriver implements MorphiumDriver {
             }
             getCollection(db, collection).add(o);
             List<Map<String, Object>> idx = getIndexes(db, collection);
-            Map<String, Object> indexValues = new HashMap<>();
+//            Map<String, Object> indexValues = new HashMap<>();
+            int bucketId = 0;
             StringBuilder fields = new StringBuilder();
             for (Map<String, Object> i : idx) {
                 for (String k : i.keySet()) {
-                    indexValues.put(k, o.get(k));
+//                    indexValues.put(k, o.get(k));
+                    bucketId = iterateBucketId(bucketId, o.get(k));
                     fields.append(k);
                 }
-                IndexKey key = new IndexKey(indexValues);
+//                IndexKey key = new IndexKey(indexValues);
                 indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields.toString(), new HashMap<>());
-                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).putIfAbsent(key, new ArrayList<>());
-                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).get(key).add(o);
+                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).putIfAbsent(bucketId, new ArrayList<>());
+                indexDataByDBCollection.get(db).get(collection).get(fields.toString()).get(bucketId).add(o);
             }
         }
         ret.put("matched", upd);
@@ -1433,67 +1459,76 @@ public class InMemoryDriver implements MorphiumDriver {
         for (Map<String, Object> doc : getCollection(db, collection)) {
 
             for (Map<String, Object> idx : getIndexes(db, collection)) {
-                Map<String, Object> indexValues = new HashMap<>();
+//                Map<String, Object> indexValues = new HashMap<>();
                 b.setLength(0);
+                int bucketId = 0;
                 for (String k : idx.keySet()) {
-                    indexValues.put(k, doc.get(k));
+//                    indexValues.put(k, doc.get(k));
+                    bucketId = iterateBucketId(bucketId, doc.get(k));
                     b.append(k);
                 }
-                IndexKey key = new IndexKey(indexValues);
-                Map<IndexKey, List<Map<String, Object>>> index = getIndexDataForCollection(db, collection, b.toString());
-                index.putIfAbsent(key, new CopyOnWriteArrayList<>());
-                index.get(key).add(doc);
+//                IndexKey key = new IndexKey(indexValues);
+                Map<Integer, List<Map<String, Object>>> index = getIndexDataForCollection(db, collection, b.toString());
+//                Map<IndexKey, List<Map<String, Object>>> index = getIndexDataForCollection(db, collection, b.toString());
+                index.putIfAbsent(bucketId, new CopyOnWriteArrayList<>());
+                index.get(bucketId).add(doc);
             }
         }
     }
 
-    private class IndexKey {
-        private Map<String, Object> values;
-
-        public IndexKey(Map<String, Object> values) {
-            this.values = values;
-        }
-
-        public IndexKey() {
-            values = new HashMap<>();
-        }
-
-        @Override
-        public int hashCode() {
-            int ret = 17;
-            for (Map.Entry<String, Object> o : values.entrySet()) {
-                ret += o.getKey().hashCode() + o.getValue().hashCode();
-            }
-            return ret;
-        }
-
-        public boolean equals(Object o) {
-            if (!(o instanceof IndexKey)) {
-                return false;
-            }
-            IndexKey other = (IndexKey) o;
-            if (other.values.size() != this.values.size()) {
-                return false;
-            }
-
-            boolean ret = true;
-            for (String k : this.values.keySet()) {
-                if (!other.values.containsKey(k)) {
-                    ret = false;
-                    break;
-                }
-                if (!this.values.get(k).equals(other.values.get(k))) {
-                    ret = false;
-                    break;
-                }
-            }
-            return ret;
-        }
-
-        public Map<String, Object> getValues() {
-            return values;
-        }
-    }
+//    private class IndexKey {
+//        private Map<String, Object> values;
+//
+//        public IndexKey(Map<String, Object> values) {
+//            this.values = values;
+//        }
+//
+//        public IndexKey() {
+//            values = new HashMap<>();
+//        }
+//
+//        @Override
+//        public int hashCode() {
+//            int ret = 17+values.keySet().hashCode();
+////            for (Map.Entry<String, Object> o : values.entrySet()) {
+////                ret += o.getKey().hashCode();
+////                if (o.getValue()!=null)
+////                    o.getValue().hashCode();
+////            }
+//
+//
+//            return ret;
+//        }
+//
+//        public boolean equals(Object o) {
+//            if (!(o instanceof IndexKey)) {
+//                return false;
+//            }
+//            IndexKey other = (IndexKey) o;
+//            Set<String> keys = this.values.keySet();
+//            if (other.values.size()>keys.size()) {
+//                keys=other.values.keySet();
+//            }
+//
+//            boolean ret = true;
+//            for (String k : keys) {
+//                if (this.values.get(k)!=null && other.values.get(k)!=null) {
+//                    if (!this.values.get(k).equals(other.values.get(k))) {
+//                        ret = false;
+//                        break;
+//                    }
+//                } else if(this.values.get(k)!=other.values.get(k)) {
+//                    ret=false;
+//                    break;
+//                }
+//            }
+//            return ret;
+//        }
+//
+//        public Map<String, Object> getValues() {
+//            return values;
+//        }
+//    }
 
     @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {

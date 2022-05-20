@@ -897,14 +897,14 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         morphium.store(uc2);
 
         morphium.reread(uc);
-        assert (uc.getStrValue() == null);
+        assertThat(uc.getStrValue()).isNull();
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq(null).get();
-        assert (o != null);
-        assert (o.getStrValue() == null);
-        assert (o.getCounter() == 10);
+        assertThat(o).isNotNull();
+        assertThat(o.getStrValue()).isNull();
+        assertThat(o.getCounter()).isEqualTo(10);
 
         List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).in(Arrays.asList("null", null)).asList();
-        assert (list.size() == 2);
+        assertThat(list.size()).isEqualTo(2);
         assert (list.get(0).getStrValue() == null || list.get(1).getStrValue() == null);
         assert (list.get(0).getCounter() == 10 || list.get(1).getCounter() == 10);
 
