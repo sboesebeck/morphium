@@ -366,6 +366,16 @@
             <artifactId>amqp-client</artifactId>
             <version>5.14.2</version>
         </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js</artifactId>
+            <version>RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js-scriptengine</artifactId>
+            <version>RELEASE</version>
+        </dependency>
     </dependencies>
 
 
