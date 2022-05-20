@@ -862,7 +862,7 @@ public class InMemoryDriver implements MorphiumDriver {
     public Map<Integer, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
-        indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
+        indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new ConcurrentHashMap<>());
         return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
