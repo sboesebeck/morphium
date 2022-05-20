@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.inmem;
 
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
@@ -95,7 +96,7 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         log.info("No index: " + dur + " ms");
 
 
-        morphium.ensureIndex(UncachedObject.class, Map.of("counter", 1, "str_value", 1));
+        morphium.ensureIndex(UncachedObject.class, UtilsMap.of("counter", 1, "str_value", 1));
 
         start = System.currentTimeMillis();
         for (int i = 0; i < 100; i++) {

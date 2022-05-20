@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
@@ -152,7 +153,7 @@ public class ComplexTest extends MorphiumTestBase {
         }
         Thread.sleep(250);
         Map<String, Object> query = new HashMap<>();
-        query.put("counter", Map.of("$lt", 10));
+        query.put("counter", UtilsMap.of("$lt", 10));
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.rawQuery(query).asList();
         assert (lst != null && !lst.isEmpty()) : "Nothing found?";
@@ -232,10 +233,10 @@ public class ComplexTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        UncachedObject uc = q.rawQuery(Map.of("counter", 10)).asList().get(0);
+        UncachedObject uc = q.rawQuery(UtilsMap.of("counter", 10)).asList().get(0);
         assert (uc.getCounter() == 10);
 
-        assert (q.q().rawQuery(Map.of("counter", Map.of("$lte", 50))).countAll() == 50);
-        assert (q.q().rawQuery(Map.of("counter", Map.of("$lte", 50))).asList().size() == 50);
+        assert (q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).countAll() == 50);
+        assert (q.q().rawQuery(UtilsMap.of("counter", UtilsMap.of("$lte", 50))).asList().size() == 50);
     }
 }

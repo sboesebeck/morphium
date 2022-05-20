@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.query.Query;
@@ -102,7 +103,7 @@ public class SubDocumentTests extends MorphiumTestBase {
         s.setCounter(102);
         s.additionals = new HashMap<>();
         s.additionals.put("test", 100);
-        s.additionals.put("sub", Map.of("val", 42));
+        s.additionals.put("sub", UtilsMap.of("val", 42));
 
         morphium.store(s);
         Thread.sleep(100);

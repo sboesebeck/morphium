@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
@@ -41,7 +42,7 @@ public class IteratorTest extends MorphiumTestBase {
         lst.add(100);
         lst.add(1001);
         q.f("v2").nin(lst);
-        Map<String, Integer> map = Map.of("v1", 1);
+        Map<String, Integer> map = UtilsMap.of("v1", 1);
         map.put("v2", 1);
         q.sort(map);
 

@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
@@ -73,8 +74,8 @@ public class LookupTests extends MorphiumTestBase {
                         Expr.eq(Expr.field("sku"), Expr.field("$$order_item")),
                         Expr.gte(Expr.field("$instock"), Expr.field("$$order_qty"))
                 ))));
-        pipeline.add(Expr.project(Map.of("sku", Expr.intExpr(0), "_id", Expr.intExpr(0))));
-        agg.lookup("inventory", null, null, "stock_data", pipeline, Map.of("order_item", Expr.field("item"), "order_qty", Expr.field("quantity")));
+        pipeline.add(Expr.project(UtilsMap.of("sku", Expr.intExpr(0), "_id", Expr.intExpr(0))));
+        agg.lookup("inventory", null, null, "stock_data", pipeline, UtilsMap.of("order_item", Expr.field("item"), "order_qty", Expr.field("quantity")));
 
         List<Map<String, Object>> result = agg.aggregateMap();
         for (Map<String, Object> m : result) {

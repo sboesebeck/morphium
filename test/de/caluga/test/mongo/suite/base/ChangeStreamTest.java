@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
@@ -255,7 +256,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
     @Test
     public void changeStreamPipelineTest() throws Exception {
         List<Map<String, Object>> pipeline = new ArrayList<>();
-        pipeline.add(Map.of("$match", Map.of("operationType", Map.of("$in", Arrays.asList("insert")))));
+        pipeline.add(UtilsMap.of("$match", UtilsMap.of("operationType", UtilsMap.of("$in", Arrays.asList("insert")))));
         ChangeStreamMonitor mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
         final AtomicInteger inserts = new AtomicInteger();
         final AtomicInteger updates = new AtomicInteger();
@@ -292,7 +293,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
         updates.set(0);
         deletes.set(0);
         pipeline = new ArrayList<>();
-        pipeline.add(Map.of("$match", Map.of("operationType", Map.of("$in", Arrays.asList("update")))));
+        pipeline.add(UtilsMap.of("$match", UtilsMap.of("operationType", UtilsMap.of("$in", Arrays.asList("update")))));
         mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
 
         mon.addListener(evt -> {

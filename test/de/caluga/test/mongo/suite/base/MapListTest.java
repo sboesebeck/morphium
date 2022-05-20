@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Index;
@@ -344,7 +345,7 @@ public class MapListTest extends MorphiumTestBase {
     @Test
     public void complexMapTest() {
         MapListObject o = new MapListObject();
-        o.setMapValue(Map.of("Testvalue", (Object) Map.of("$lte", "@123")));
+        o.setMapValue(UtilsMap.of("Testvalue", (Object) UtilsMap.of("$lte", "@123")));
         morphium.save(o);
 
         o = morphium.reread(o);

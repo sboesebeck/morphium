@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -33,7 +34,7 @@ public class BucketTests extends MorphiumTestBase {
 
         Aggregator<Artist, ArtistAggregation> agg = morphium.createAggregator(Artist.class, ArtistAggregation.class);
 
-        agg.bucket(field("year_born"), Arrays.asList(intExpr(1840), intExpr(1850), intExpr(1860), intExpr(1870), intExpr(1880)), string("Other"), Map.of("count", sum(intExpr(1)), "artists", push(mapExpr(Map.of("name", concat(field("first_name"), string(" "), field("last_name")), "year_born", field("year_born"))))));
+        agg.bucket(field("year_born"), Arrays.asList(intExpr(1840), intExpr(1850), intExpr(1860), intExpr(1870), intExpr(1880)), string("Other"), UtilsMap.of("count", sum(intExpr(1)), "artists", push(mapExpr(UtilsMap.of("name", concat(field("first_name"), string(" "), field("last_name")), "year_born", field("year_born"))))));
 
         List<ArtistAggregation> lst = agg.aggregate();
         for (ArtistAggregation a : lst) {

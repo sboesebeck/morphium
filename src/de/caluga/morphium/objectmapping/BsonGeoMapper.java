@@ -1,5 +1,6 @@
 package de.caluga.morphium.objectmapping;
 
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.query.geospatial.*;
 
 import java.util.List;
@@ -11,7 +12,7 @@ public class BsonGeoMapper implements MorphiumTypeMapper<Geo> {
     @Override
     public Object marshall(Geo o) {
 
-        return Map.of("type", (Object) o.getType().getMongoName(), "coordinates", o.getCoordinates());
+        return UtilsMap.of("type", (Object) o.getType().getMongoName(), "coordinates", o.getCoordinates());
     }
 
     @SuppressWarnings("ConstantConditions")

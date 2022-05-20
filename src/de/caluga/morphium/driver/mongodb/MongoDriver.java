@@ -1569,7 +1569,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
@@ -1612,7 +1612,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         return DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);

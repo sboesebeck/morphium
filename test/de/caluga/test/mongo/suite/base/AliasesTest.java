@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.AliasesEntity;
@@ -34,7 +35,7 @@ public class AliasesTest extends MorphiumTestBase {
     @Test
     public void aliasReadTest() throws Exception {
         MorphiumId id = new MorphiumId();
-        Map<String, Integer> stats = morphium.storeMap(ComplexObject.class, Map.of("last_changed", (Object) System.currentTimeMillis(),
+        Map<String, Integer> stats = morphium.storeMap(ComplexObject.class, UtilsMap.of("last_changed", (Object) System.currentTimeMillis(),
                 "_id", id,
                 "einText", "A little text")
         );

@@ -277,7 +277,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 ((Map) ret).put("class_name", typeIdForClass);
                 return (Map<String, Object>) ret;
             } else {
-                return Map.of("value", ret);
+                return UtilsMap.of("value", ret);
             }
         }
         //recursively map object to mongo-Object...

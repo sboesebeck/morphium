@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
@@ -22,9 +23,9 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
-        agg.addFields(Map.of("total_homework", (Object) Map.of("$sum", "$homework"), "total_quiz", Map.of("$sum", "$quiz"))
+        agg.addFields(UtilsMap.of("total_homework", (Object) UtilsMap.of("$sum", "$homework"), "total_quiz", UtilsMap.of("$sum", "$quiz"))
         );
-        agg.addFields(Map.of("total_score", (Object) Expr.add(Expr.field("total_homework"),
+        agg.addFields(UtilsMap.of("total_score", (Object) Expr.add(Expr.field("total_homework"),
                 Expr.field("total_quiz"), Expr.field("extra_credit"))));
 
         List<Student> lst = agg.aggregate();
@@ -67,9 +68,9 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
         prepareData();
 
         Aggregator<Student, Student> agg = morphium.createAggregator(Student.class, Student.class);
-        agg.set(Map.of("total_homework", Expr.sum(Expr.field("homework")), "total_quiz", Expr.sum(Expr.field("quiz")))
+        agg.set(UtilsMap.of("total_homework", Expr.sum(Expr.field("homework")), "total_quiz", Expr.sum(Expr.field("quiz")))
         );
-        agg.set(Map.of("total_score", Expr.add(Expr.field("total_homework"),
+        agg.set(UtilsMap.of("total_score", Expr.add(Expr.field("total_homework"),
                 Expr.field("total_quiz"), Expr.field("extra_credit"))));
 
         List<Student> lst = agg.aggregate();

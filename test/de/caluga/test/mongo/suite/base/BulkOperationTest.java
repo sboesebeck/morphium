@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumStorageAdapter;
-import de.caluga.morphium.MorphiumStorageListener;
-import de.caluga.morphium.Utils;
+import de.caluga.morphium.*;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -47,19 +44,19 @@ public class BulkOperationTest extends MorphiumTestBase {
         c.addInsertRequest(Arrays.asList(new UncachedObject("test123", 123)));
         c.addCurrentDateRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), false, false, "date");
         c.addDeleteRequest(morphium.createQueryFor(UncachedObject.class).f("counter").lte(10), false);
-        c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), Map.of("counter", 12), false, false);
+        c.addIncRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), UtilsMap.of("counter", 12), false, false);
         c.addMulRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 2, false, false);
-        c.addUnsetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), Map.of("date", 1), false, false);
+        c.addUnsetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), UtilsMap.of("date", 1), false, false);
         c.addUnSetRequest(uc1, "strValue", null, false);
         c.addSetRequest(uc1, "counter", 33, false);
-        c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), Map.of("strValue", "f"), false, false);
+        c.addSetRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), UtilsMap.of("strValue", "f"), false, false);
         c.addCurrentDateRequest(uc1, "date", false);
         c.addMulRequest(uc1, "counter", 1, false);
         c.addDeleteRequest(uc1);
         c.addDeleteRequest(Arrays.asList(uc1));
         c.addMaxRequest(uc1, "counter", 1, false);
         c.addMaxRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), "counter", 1, false, false);
-        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), Map.of("counter", 12), false, false);
+        c.addMaxRequest(morphium.createQueryFor(UncachedObject.class).f("counter").gte(0), UtilsMap.of("counter", 12), false, false);
         c.addMinRequest(uc1, "counter", 1, false);
         c.addPopRequest(uc1, "lst", false);
         c.addPushRequest(uc1, "lst", "test", false);
