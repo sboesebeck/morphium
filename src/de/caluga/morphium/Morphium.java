@@ -3611,6 +3611,7 @@ public class Morphium implements AutoCloseable {
                     if (cn.startsWith("sun.")) continue;
                     if (cn.startsWith("com.sun.")) continue;
                     if (cn.startsWith("org.assertj.")) continue;
+                    if (cn.startsWith("javax.")) continue;
                     //logger.info("Checking "+cn);
                     Class<?> entity = Class.forName(cn);
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
