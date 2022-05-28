@@ -9,7 +9,7 @@
         <artifactId>oss-parent</artifactId>
         <version>9</version>
     </parent>
-    <name>Morphium</name>
+    <name>Morphium Drivers</name>
     <url>http://caluga.de</url>
     <description>
         Morphium - a Caching Object Mapper for MongoDB

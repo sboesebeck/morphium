@@ -68,7 +68,6 @@ public class UtilsMap<K, V> extends LinkedHashMap<K, V> {
     }
 
     public UtilsMap<K, V> add(K key, V val) {
-        if (val == null) return this;
         put(key, val);
         return this;
     }

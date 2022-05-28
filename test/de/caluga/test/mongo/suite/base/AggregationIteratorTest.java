@@ -15,10 +15,13 @@ public class AggregationIteratorTest extends MorphiumTestBase {
     @Test
     public void aggregatorIteratorTest() {
         morphium.dropCollection(UncachedObject.class);
-        for (int i = 0; i < 10000; i++) {
+        for (int i = 0; i < 1000; i++) {
             morphium.store(new UncachedObject("Value", (int) (1000 * Math.random())));
+            if (i % 100 == 0) {
+                log.info("Stored " + i);
+            }
         }
-
+        log.info("objects stored");
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
 
         agg.group(Expr.field(UncachedObject.Fields.counter)).sum("number", 1).end();
