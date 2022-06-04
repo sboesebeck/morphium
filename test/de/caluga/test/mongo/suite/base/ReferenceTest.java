@@ -138,7 +138,7 @@ public class ReferenceTest extends MorphiumTestBase {
 
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(rc);
-        morphium.getDriver().store(morphium.getConfig().getDatabase(), "reference_container", lst, null);
+//        morphium.getDriver().store(morphium.getConfig().getDatabase(), "reference_container", lst, null);
         Thread.sleep(1000);
 
         assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);

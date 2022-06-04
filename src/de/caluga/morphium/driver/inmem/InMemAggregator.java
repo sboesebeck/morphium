@@ -1088,14 +1088,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 for (Map<String, Object> doc : data) {
                     Object localValue = doc.get(localField);
-                    try {
-                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, UtilsMap.of(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
-                        Map<String, Object> o = new HashMap<>(doc);
-                        o.put(as, other);
-                        ret.add(o);
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
-                    }
+//                    try {
+//                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, UtilsMap.of(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
+//                        Map<String, Object> o = new HashMap<>(doc);
+//                        o.put(as, other);
+//                        ret.add(o);
+//                    } catch (MorphiumDriverException e) {
+//                        throw new RuntimeException(e);
+//                    }
                 }
                 break;
             case "$sample":
@@ -1149,7 +1149,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             for (String onfld : on) {
                                 q.put(onfld, doc.get(onfld));
                             }
-                            List<Map<String, Object>> toMergeTo = morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
+                            List<Map<String, Object>> toMergeTo = null; //morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
                             if (toMergeTo == null || toMergeTo.size() == 0) {
                                 //not matched
                                 switch (notMatched) {
@@ -1158,7 +1158,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     case discard:
                                         continue;
                                     case insert:
-                                        morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
+                                        //morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
                                         break;
                                     default:
                                         throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
@@ -1229,7 +1229,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                             //just merge
                                             Map<String, Object> newDoc = new HashMap<>(doc);
                                             newDoc.putAll(mergeObject);
-                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
+//                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
                                         }
                                         break;
                                     case fail:
@@ -1245,11 +1245,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                     }
                 } else {
-                    try {
-                        morphium.getDriver().store(db, coll, data, null);
-                    } catch (MorphiumDriverException e) {
-                        log.error("Something went wrong with $merge", e);
-                    }
+//                    try {
+//                        morphium.getDriver().store(db, coll, data, null);
+//                    } catch (MorphiumDriverException e) {
+//                        log.error("Something went wrong with $merge", e);
+//                    }
                 }
                 break;
             case "$replaceRoot":

@@ -154,6 +154,7 @@ public class MongodbBulkContext extends BulkRequestContext {
     private BulkWriteResult commitWrite(List<WriteModel<? extends Document>> lst) {
         BulkWriteOptions bulkWriteOptions = new BulkWriteOptions();
         bulkWriteOptions.ordered(ordered);
-        return driver.getCollection(driver.getDb(db), collection, ReadPreference.nearest(), wc).bulkWrite(lst, bulkWriteOptions);
+        //return driver.getCollection(driver.getDb(db), collection, ReadPreference.nearest(), wc).bulkWrite(lst, bulkWriteOptions);
+        return null;
     }
 }

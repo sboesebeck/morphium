@@ -630,7 +630,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         obj.put("_id", new MorphiumId());
         obj.put(CachedObject.Fields.value.name(), "test");
         writings.add(obj);
-        morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
+       // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
         waitForWriteToStart(1000);

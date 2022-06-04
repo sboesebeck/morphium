@@ -1,13 +1,10 @@
 package de.caluga.morphium.driver.inmem;
 
-import com.mongodb.event.ClusterListener;
-import com.mongodb.event.CommandListener;
-import com.mongodb.event.ConnectionPoolListener;
 import com.rits.cloning.Cloner;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
-import de.caluga.morphium.driver.mongodb.Maximums;
+import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -121,7 +118,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
         return new MorphiumTypeMapper<ObjectId>() {
-            @Override
+
             public Object marshall(ObjectId o) {
                 Map<String, String> m = new ConcurrentHashMap<>();
                 m.put("value", o.toHexString());
@@ -130,7 +127,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
             }
 
-            @Override
+
             public ObjectId unmarshall(Object d) {
                 return new ObjectId(((Map) d).get("value").toString());
             }
@@ -138,23 +135,22 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public String getAtlasUrl() {
         return null;
     }
 
-    @Override
+
     public void setAtlasUrl(String atlasUrl) {
         if (atlasUrl != null && !atlasUrl.isEmpty())
             log.warn("InMemoryDriver does not work with atlas - ignoring URL!");
     }
 
-    @Override
+
     public List<String> listDatabases() {
         return new ArrayList<>(database.keySet());
     }
 
-    @Override
+
     public List<String> listCollections(String db, String pattern) {
 
         Set<String> collections = database.get(db).keySet();
@@ -176,44 +172,105 @@ public class InMemoryDriver implements MorphiumDriver {
         currentTransaction.remove();
     }
 
-    @Override
+
     public void setCredentials(String db, String login, char[] pwd) {
 
     }
 
     @Override
-    public int getDefaultWriteTimeout() {
+    public List<Doc> aggregate(AggregateCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public long count(CountCmdSettings settings) {
         return 0;
     }
 
     @Override
-    public void setDefaultWriteTimeout(int wt) {
+    public void watch(WatchCmdSettings settings) {
 
     }
 
     @Override
-    public boolean isReplicaset() {
-        return false;
+    public List<Object> distinct(DistinctCmdSettings settings) {
+        return null;
     }
 
     @Override
-    public String[] getCredentials(String db) {
-        return new String[0];
+    public List<Doc> mapReduce(MapReduceSettings settings) {
+        return null;
     }
 
     @Override
-    public boolean isDefaultFsync() {
-        return false;
+    public int delete(DeleteCmdSettings settings) {
+        return 0;
     }
 
     @Override
-    public void setDefaultFsync(boolean j) {
+    public List<Doc> find(FindCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public List<Doc> findAndModify(FindAndModifyCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public void insert(InsertCmdSettings settings) {
 
     }
 
     @Override
-    public String[] getHostSeed() {
-        return new String[0];
+    public Doc update(UpdateCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public Doc drop(DropCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public Doc dropDatabase(DropCmdSettings settings) {
+        return null;
+    }
+
+    @Override
+    public int clearCollection(ClearCollectionSettings settings) {
+        return 0;
+    }
+
+
+    @Override
+    public String getName() {
+        return null;
+    }
+
+    @Override
+    public int getBuildNumber() {
+        return 0;
+    }
+
+    @Override
+    public int getMajorVersion() {
+        return 0;
+    }
+
+    @Override
+    public int getMinorVersion() {
+        return 0;
+    }
+
+    @Override
+    public void setDatabaseName() {
+
+    }
+
+    @Override
+    public String getDatabaseName() {
+        return null;
     }
 
     @Override
@@ -222,196 +279,10 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int getMaxConnections() {
-        return 0;
-    }
-
-    @Override
-    public void setMaxConnections(int maxConnections) {
+    public void setConnectionUrl(String connectionUrl) {
 
     }
 
-    @Override
-    public int getMinConnections() {
-        return 0;
-    }
-
-    @Override
-    public void setMinConnections(int minConnections) {
-
-    }
-
-    @Override
-    public int getMaxConnectionLifetime() {
-        return 0;
-    }
-
-    @Override
-    public void setMaxConnectionLifetime(int timeout) {
-
-    }
-
-    @Override
-    public int getMaxConnectionIdleTime() {
-        return 0;
-    }
-
-    @Override
-    public void setMaxConnectionIdleTime(int time) {
-
-    }
-
-    @Override
-    public void addCommandListener(CommandListener cmd) {
-
-    }
-
-    @Override
-    public void removeCommandListener(CommandListener cmd) {
-
-    }
-
-    @Override
-    public void addClusterListener(ClusterListener cl) {
-
-    }
-
-    @Override
-    public void removeClusterListener(ClusterListener cl) {
-
-    }
-
-    @Override
-    public void addConnectionPoolListener(ConnectionPoolListener cpl) {
-
-    }
-
-    @Override
-    public void removeConnectionPoolListener(ConnectionPoolListener cpl) {
-
-    }
-
-    @Override
-    public int getConnectionTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setConnectionTimeout(int timeout) {
-
-    }
-
-    @Override
-    public int getDefaultW() {
-        return 0;
-    }
-
-    @Override
-    public void setDefaultW(int w) {
-
-    }
-
-    @Override
-    public int getHeartbeatFrequency() {
-        return 0;
-    }
-
-    @Override
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
-
-    }
-
-
-    @Override
-    public void setDefaultBatchSize(int defaultBatchSize) {
-
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public boolean isRetryReads() {
-        return false;
-    }
-
-    @Override
-    public void setRetryReads(boolean retryReads) {
-
-    }
-
-    @Override
-    public boolean isRetryWrites() {
-        return false;
-    }
-
-    @Override
-    public void setRetryWrites(boolean retryWrites) {
-
-    }
-
-    @Override
-    public String getUuidRepresentation() {
-        return null;
-    }
-
-    @Override
-    public void setUuidRepresentation(String uuidRepresentation) {
-    }
-
-    @Override
-    public boolean isUseSSL() {
-        return false;
-    }
-
-    @Override
-    public void setUseSSL(boolean useSSL) {
-
-    }
-
-    @Override
-    public boolean isDefaultJ() {
-        return false;
-    }
-
-    @Override
-    public void setDefaultJ(boolean j) {
-
-    }
-
-    @Override
-    public int getReadTimeout() {
-        return 0;
-    }
-
-    @Override
-    public void setReadTimeout(int readTimeout) {
-
-    }
-
-    @Override
-    public int getLocalThreshold() {
-        return 0;
-    }
-
-    @Override
-    public void setLocalThreshold(int thr) {
-
-    }
-
-    @Override
-    public void heartBeatFrequency(int t) {
-
-    }
-
-    @Override
-    public void useSsl(boolean ssl) {
-
-    }
-
-    @Override
     public void connect() {
         if (exec.isShutdown()) {
             exec = new ScheduledThreadPoolExecutor(1);
@@ -433,52 +304,38 @@ public class InMemoryDriver implements MorphiumDriver {
         exec.scheduleWithFixedDelay(r, 100, 500, TimeUnit.MILLISECONDS); //check for events every 100ms
     }
 
-    @Override
-    public void setDefaultReadPreference(ReadPreference rp) {
 
-    }
-
-    @Override
     public void connect(String replicasetName) {
         connect();
     }
 
-    @Override
-    public Maximums getMaximums() {
-        Maximums ret = new Maximums();
-        ret.setMaxBsonSize(10000);
-        ret.setMaxMessageSize(10000);
-        ret.setMaxWriteBatchSize(100);
-        return ret;
-    }
 
-    @Override
     public boolean isConnected() {
         return true;
     }
 
-    @Override
+
     public int getRetriesOnNetworkError() {
         return 0;
     }
 
-    @Override
+
     public void setRetriesOnNetworkError(int r) {
 
     }
 
-    @Override
+
     public int getSleepBetweenErrorRetries() {
         return 0;
     }
 
-    @Override
+
     public void setSleepBetweenErrorRetries(int s) {
 
     }
 
-    @Override
-    public void close() {
+
+    public void disconnect() {
         exec.shutdownNow();
         for (Object m : monitors) {
             synchronized (m) {
@@ -487,48 +344,47 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         database.clear();
     }
+//
+//    
+//    public Map<String, Object> getReplsetStatus() {
+//        return new ConcurrentHashMap<>();
+//    }
+//
+//    
+//    public Map<String, Object> getDBStats(String db) {
+//        Map<String, Object> ret = new ConcurrentHashMap<>();
+//        ret.put("collections", getDB(db).size());
+//        return ret;
+//    }
+//
+//    @SuppressWarnings("RedundantThrows")
+//    
+//    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+//        Map<String, Object> ret = new ConcurrentHashMap<>();
+//        ret.put("entries", getDB(db).get(coll).size());
+//        return null;
+//    }
 
-    @Override
-    public Map<String, Object> getReplsetStatus() {
-        return new ConcurrentHashMap<>();
-    }
 
-    @Override
-    public Map<String, Object> getDBStats(String db) {
-        Map<String, Object> ret = new ConcurrentHashMap<>();
-        ret.put("collections", getDB(db).size());
-        return ret;
-    }
-
-    @SuppressWarnings("RedundantThrows")
-    @Override
-    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        Map<String, Object> ret = new ConcurrentHashMap<>();
-        ret.put("entries", getDB(db).get(coll).size());
-        return null;
-    }
-
-    @Override
     public Map<String, Object> getOps(long threshold) {
         log.warn("getOpts not working on memory");
         return new ConcurrentHashMap<>();
     }
 
-    @Override
+
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) {
         log.warn("Runcommand not working on memory");
         return new ConcurrentHashMap<>();
     }
 
     @SuppressWarnings("RedundantThrows")
-    @Override
+
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Map<String, Object> findMetaData) throws MorphiumDriverException {
         log.warn("aggregation not possible in mem");
         return new MorphiumCursor();
     }
 
 
-    @Override
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor();
         crs.setBatchSize(batchSize);
@@ -567,20 +423,20 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("RedundantThrows")
-    @Override
+
     public void watch(String db, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watch(db, null, timeout, fullDocumentOnUpdate, pipeline, cb);
     }
 
     @SuppressWarnings({"RedundantThrows", "CatchMayIgnoreException"})
-    @Override
+
     public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
 
         Object monitor = new Object();
         monitors.add(monitor);
 
         DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
-            @Override
+
             public void incomingData(Map<String, Object> data, long dur) {
                 cb.incomingData(data, dur);
                 if (!cb.isContinued()) {
@@ -590,7 +446,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
             }
 
-            @Override
+
             public boolean isContinued() {
                 return cb.isContinued();
             }
@@ -618,7 +474,7 @@ public class InMemoryDriver implements MorphiumDriver {
         log.debug("Exiting");
     }
 
-    @Override
+
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         MorphiumCursor next = new MorphiumCursor();
         next.setCursorId(crs.getCursorId());
@@ -662,7 +518,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return next;
     }
 
-    @Override
+
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference rp, Collation col, Map<String, Object> findMetaData) throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, skip, limit, false);
     }
@@ -816,7 +672,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
-    @Override
+
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         List<Map<String, Object>> d = getCollection(db, collection);
         List<Map<String, Object>> data = new CopyOnWriteArrayList<>(d);
@@ -833,7 +689,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return cnt;
     }
 
-    @Override
+
     public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
         return getCollection(db, collection).size();
     }
@@ -866,7 +722,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
-    @Override
+
     public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") != null) {
@@ -914,7 +770,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return (bucketId + o.hashCode());
     }
 
-    @Override
+
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
         int upd = 0;
@@ -971,13 +827,13 @@ public class InMemoryDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public void closeIteration(MorphiumCursor crs) {
 
     }
 
     @SuppressWarnings("ConstantConditions")
-    @Override
+
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, sort, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
@@ -1236,7 +1092,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
-    @Override
+
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> toDel = find(db, collection, query, null, UtilsMap.of("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
         for (Map<String, Object> o : toDel) {
@@ -1264,24 +1120,24 @@ public class InMemoryDriver implements MorphiumDriver {
         return getDB(db).get(collection);
     }
 
-    @Override
+
     public void drop(String db, String collection, WriteConcern wc) {
         getDB(db).remove(collection);
         notifyWatchers(db, collection, "drop", null);
     }
 
-    @Override
+
     public void drop(String db, WriteConcern wc) {
         database.remove(db);
         notifyWatchers(db, null, "drop", null);
     }
 
-    @Override
+
     public boolean exists(String db) {
         return database.containsKey(db);
     }
 
-    @Override
+
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, Collation collation, ReadPreference rp) {
         List<Map<String, Object>> list = getDB(db).get(collection);
         Set<Object> distinctValues = new HashSet<>();
@@ -1297,7 +1153,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return Collections.synchronizedList(new ArrayList<>(distinctValues));
     }
 
-    @Override
+
     public boolean exists(String db, String collection) {
         return getDB(db) != null && getDB(db).containsKey(collection);
     }
@@ -1308,7 +1164,6 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public List<Map<String, Object>> getIndexes(String db, String collection) {
         if (!getIndexesForDB(db).containsKey(collection)) {
             //new collection, create default index for _id
@@ -1319,12 +1174,12 @@ public class InMemoryDriver implements MorphiumDriver {
         return getIndexesForDB(db).get(collection);
     }
 
-    @Override
+
     public List<String> getCollectionNames(String db) {
         return null;
     }
 
-    @Override
+
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
         List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1, 1000, null, collation, null);
         if (r.size() == 0) {
@@ -1334,14 +1189,14 @@ public class InMemoryDriver implements MorphiumDriver {
         return r.get(0);
     }
 
-    @Override
+
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new ConcurrentHashMap<>());
         update(db, col, query, null, update, false, false, collation, null);
         return ret.get(0);
     }
 
-    @Override
+
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new ConcurrentHashMap<>());
         if (ret.get(0).get("_id") != null)
@@ -1354,48 +1209,47 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("RedundantThrows")
-    @Override
+
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
         log.warn("Aggregate not possible yet in memory!");
         return new CopyOnWriteArrayList<>();
     }
 
 
-    @Override
     public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("not possible in Mem yet");
     }
 
-    @Override
+
     public int getMaxWaitTime() {
         return 0;
     }
 
-    @Override
+
     public void setMaxWaitTime(int maxWaitTime) {
 
     }
 
-    @Override
+
     public int getServerSelectionTimeout() {
         return 0;
     }
 
-    @Override
+
     public void setServerSelectionTimeout(int serverSelectionTimeout) {
     }
 
-    @Override
+
     public boolean isCapped(String db, String coll) {
         return false;
     }
 
-    @Override
+
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
             private final List<BulkRequest> requests = new ArrayList<>();
 
-            @Override
+
             public Map<String, Object> execute() {
                 try {
                     for (BulkRequest r : requests) {
@@ -1417,7 +1271,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
             }
 
-            @Override
+
             public UpdateBulkRequest addUpdateBulkRequest() {
                 UpdateBulkRequest up = new UpdateBulkRequest();
                 requests.add(up);
@@ -1425,14 +1279,13 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
 
-            @Override
             public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
             }
 
-            @Override
+
             public DeleteBulkRequest addDeleteBulkRequest() {
                 DeleteBulkRequest del = new DeleteBulkRequest();
                 requests.add(del);
@@ -1441,7 +1294,7 @@ public class InMemoryDriver implements MorphiumDriver {
         };
     }
 
-    @Override
+
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) {
 
         List<Map<String, Object>> indexes = getIndexes(db, collection);
@@ -1487,7 +1340,7 @@ public class InMemoryDriver implements MorphiumDriver {
 //            values = new HashMap<>();
 //        }
 //
-//        @Override
+//        
 //        public int hashCode() {
 //            int ret = 17+values.keySet().hashCode();
 ////            for (Map.Entry<String, Object> o : values.entrySet()) {
@@ -1530,22 +1383,22 @@ public class InMemoryDriver implements MorphiumDriver {
 //        }
 //    }
 
-    @Override
+
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
-    @Override
+
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
-    @Override
+
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
-    @Override
+
     public void startTransaction() {
         if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
         InMemTransactionContext ctx = new InMemTransactionContext();
@@ -1555,7 +1408,6 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public void commitTransaction() {
         if (currentTransaction.get() == null) throw new IllegalArgumentException("No transaction in progress");
         InMemTransactionContext ctx = currentTransaction.get();
@@ -1564,17 +1416,17 @@ public class InMemoryDriver implements MorphiumDriver {
         currentTransaction.set(null);
     }
 
-    @Override
+
     public MorphiumTransactionContext getTransactionContext() {
         return currentTransaction.get();
     }
 
-    @Override
+
     public void abortTransaction() {
         currentTransaction.set(null);
     }
 
-    @Override
+
     public void setTransactionContext(MorphiumTransactionContext ctx) {
         currentTransaction.set((InMemTransactionContext) ctx);
     }
@@ -1697,22 +1549,22 @@ public class InMemoryDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public SSLContext getSslContext() {
         return null;
     }
 
-    @Override
+
     public void setSslContext(SSLContext sslContext) {
 
     }
 
-    @Override
+
     public boolean isSslInvalidHostNameAllowed() {
         return false;
     }
 
-    @Override
+
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
 
     }

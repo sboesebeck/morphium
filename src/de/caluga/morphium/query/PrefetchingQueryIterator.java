@@ -172,17 +172,17 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
             //startup
             try {
                 synchronized (this) {
-                    cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+//                    cursor = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), batchsize, query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 }
                 if (cursor == null) {
                     return false;
                 }
                 if (cursor.getBatch() == null) {
-                    try {
-                        query.getMorphium().getDriver().closeIteration(cursor);
-                    } catch (MorphiumDriverException e) {
-                        //swallow
-                    }
+//                    try {
+//                        query.getMorphium().getDriver().closeIteration(cursor);
+//                    } catch (MorphiumDriverException e) {
+//                        //swallow
+//                    }
                     return false;
                 }
                 //Starting background process for filling buffer
@@ -193,7 +193,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
                     return true;
                 }
 
-            } catch (MorphiumDriverException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
 
@@ -202,21 +202,21 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
             Thread.yield(); //for end of data detection
         }
         if (prefetchBuffer.isEmpty()) {
-            try {
-                query.getMorphium().getDriver().closeIteration(cursor);
-            } catch (MorphiumDriverException e) {
-                //swallow
-            }
+//            try {
+//                query.getMorphium().getDriver().closeIteration(cursor);
+//            } catch (MorphiumDriverException e) {
+//                //swallow
+//            }
             return false;
         }
         //end of results
         boolean ret = !(cursorPos % getWindowSize() == 0 && prefetchBuffer.size() == 1 && cursor == null) && (cursorPos % getWindowSize() < prefetchBuffer.get(0).size());
         if (!ret) {
-            try {
-                query.getMorphium().getDriver().closeIteration(cursor);
-            } catch (MorphiumDriverException e) {
-                //swallow
-            }
+//            try {
+//                query.getMorphium().getDriver().closeIteration(cursor);
+//            } catch (MorphiumDriverException e) {
+//                //swallow
+//            }
         }
         return ret;
     }
@@ -243,11 +243,11 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
                         int maxWaitTime = query.getMorphium().getConfig().getMaxWaitTime();
                         if (maxWaitTime > 0 && System.currentTimeMillis() - lastAccess > maxWaitTime) {
                             log.error("Cursor timeout... closing");
-                            try {
-                                query.getMorphium().getDriver().closeIteration(cursor);
-                            } catch (MorphiumDriverException e) {
-                                //e.printStackTrace(); Swallow it, as it is probably timedout anyway
-                            }
+//                            try {
+//                                query.getMorphium().getDriver().closeIteration(cursor);
+//                            } catch (MorphiumDriverException e) {
+//                                //e.printStackTrace(); Swallow it, as it is probably timedout anyway
+//                            }
                             cursor = null;
                             return;
                         }
@@ -257,22 +257,22 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
                     }
                 }
                 while (prefetchBuffer.size() < numPrefetchBuffers) {
-                    try {
-                        if (cursor == null) {
-                            break;
-                        }
-                        MorphiumCursor crs = query.getMorphium().getDriver().nextIteration(cursor);
-                        if (crs == null || crs.getBatch() == null || crs.getBatch().isEmpty()) {
-                            cursor = null;
-                            break;
-                        }
-                        prefetchBuffer.add(getBatch(crs));
-                        cursor = crs;
-                    } catch (MorphiumDriverException e) {
-                        cursor = null;
-                        e.printStackTrace();
-                        break;
-                    }
+//                    try {
+//                        if (cursor == null) {
+//                            break;
+//                        }
+//                        MorphiumCursor crs = query.getMorphium().getDriver().nextIteration(cursor);
+//                        if (crs == null || crs.getBatch() == null || crs.getBatch().isEmpty()) {
+//                            cursor = null;
+//                            break;
+//                        }
+//                        prefetchBuffer.add(getBatch(crs));
+//                        cursor = crs;
+//                    } catch (MorphiumDriverException e) {
+//                        cursor = null;
+//                        e.printStackTrace();
+//                        break;
+//                    }
                 }
             }
             log.info("Prefetch finished");
@@ -331,10 +331,10 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
 
     @Override
     public void close() {
-        try {
-            query.getMorphium().getDriver().closeIteration(cursor);
-        } catch (MorphiumDriverException e) {
-            //swallow
-        }
+//        try {
+//            query.getMorphium().getDriver().closeIteration(cursor);
+//        } catch (MorphiumDriverException e) {
+//            //swallow
+//        }
     }
 }
