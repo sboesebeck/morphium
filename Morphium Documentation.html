@@ -666,7 +666,7 @@ m.addRecipient(messaging1.getId());
             morphium.setDriver(new InMemoryDriver(){
                 @Override
                 public List&lt;Map&lt;String, Object&gt;&gt; aggregate(String db, String collection, List&lt;Map&lt;String, Object&gt;&gt; pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
-                    return Arrays.asList(Utils.getMap(&quot;MockedData&quot;,123.0d));
+                    return Arrays.asList(UtilsMap.of(&quot;MockedData&quot;,123.0d));
                 }
             });
     
@@ -2169,7 +2169,7 @@ queryObject.sort(FIELD_TO_SORTBY);`
     of the Query-Object and can be used rather easily:</p>
 
 <pre><code class="java">        Map&lt;String,Object&gt; query=new HashMap&lt;&gt;();
-        query.put(&quot;counter&quot;,Utils.getMap(&quot;$lt&quot;,10));
+        query.put(&quot;counter&quot;,UtilsMap.of(&quot;$lt&quot;,10));
         Query&lt;UncachedObject&gt; q=MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         List&lt;UncachedObject&gt; lst=q.complexQuery(query);
 </code></pre>
@@ -3690,7 +3690,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
 
 <pre><code class="java">     Aggregator&lt;UncachedObject, Aggregate&gt; a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
             assert (a.getResultType() != null);
-            a = a.project(Utils.getMap(&quot;counter&quot;, (Object) Expr.intExpr(1)).add(&quot;cnt2&quot;, Expr.field(&quot;counter&quot;)));
+            a = a.project(UtilsMap.of(&quot;counter&quot;, (Object) Expr.intExpr(1)).add(&quot;cnt2&quot;, Expr.field(&quot;counter&quot;)));
             a = a.match(Expr.gt(Expr.field(&quot;counter&quot;), Expr.intExpr(100)));
             a = a.sort(&quot;counter&quot;);
             a = a.limit(15);

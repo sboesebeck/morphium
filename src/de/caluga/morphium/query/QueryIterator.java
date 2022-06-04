@@ -150,12 +150,12 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             return true;
         }
         if (currentBatch == null && cursorExternal == 0) {
-            try {
-                //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), getQuery().getCollation(), null);
-            } catch (MorphiumDriverException e) {
-                log.error("error during fetching first batch", e);
-            }
+//            try {
+//                //noinspection unchecked
+//                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), getQuery().getCollation(), null);
+//            } catch (MorphiumDriverException e) {
+//                log.error("error during fetching first batch", e);
+//            }
             return doHasNext();
         }
         close();
@@ -181,27 +181,27 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         Map<String, Object> ret = currentBatch.getBatch().get(cursor);
         //T unmarshall = query.getMorphium().getMapper().deserialize(query.getType(), currentBatch.getBatch().get(cursor));
         //query.getMorphium().firePostLoadEvent(unmarshall);
-        try {
+//        try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+//                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
-                currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+//                currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
             } else {
                 cursor++;
             }
-            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
-                currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
-            }
-
-        } catch (MorphiumDriverException e) {
-            log.error("Got error during iteration...", e);
+        if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
+            currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
         }
+
+//        } catch (MorphiumDriverException e) {
+//            log.error("Got error during iteration...", e);
+//        }
         cursorExternal++;
 
         return ret;
@@ -232,15 +232,15 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             unmarshall = (T) currentBatch.getBatch().get(cursor);
         }
         query.getMorphium().firePostLoadEvent(unmarshall);
-        try {
+//        try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
                 if (multithreadded) {
-                    synchronized (this) {
-                        currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
-                    }
+//                    synchronized (this) {
+//                        currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+//                    }
                 } else {
-                    currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
+//                    currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), query.getCollation(), null);
                 }
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
@@ -248,24 +248,24 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
                 if (multithreadded) {
-                    synchronized (this) {
-                        currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
-                    }
+//                    synchronized (this) {
+//                        currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+//                    }
                 } else {
-                    currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
+//                    currentBatch = query.getMorphium().getDriver().nextIteration(currentBatch);
                 }
 
                 cursor = 0;
             } else {
                 cursor++;
             }
-            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
-                currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
-            }
-
-        } catch (MorphiumDriverException e) {
-            log.error("Got error during iteration...", e);
+        if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
+            currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
         }
+
+//        } catch (MorphiumDriverException e) {
+//            log.error("Got error during iteration...", e);
+//        }
         cursorExternal++;
 
         return unmarshall;
@@ -273,10 +273,10 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
 
     @Override
     public void close() {
-        try {
-            query.getMorphium().getDriver().closeIteration(currentBatch);
-        } catch (MorphiumDriverException e) {
-            //swallow
-        }
+//        try {
+//            query.getMorphium().getDriver().closeIteration(currentBatch);
+//        } catch (MorphiumDriverException e) {
+//            //swallow
+//        }
     }
 }

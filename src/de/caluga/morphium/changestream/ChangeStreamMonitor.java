@@ -179,13 +179,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                 };
 
-                if (dbOnly) {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
-                } else {
-                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, maxWait, fullDocument, pipeline, callback);
-                }
-            } catch (MorphiumDriverException e) {
-                if (e.getMessage().contains("Network error error: state should be: open")){
+//                if (dbOnly) {
+//                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
+//                } else {
+//                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, maxWait, fullDocument, pipeline, callback);
+//                }
+            } catch (Exception e) {
+                if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);

@@ -120,32 +120,32 @@ public class OplogMonitor implements Runnable, ShutdownListener {
         q.put("ts", q2);
         while (running) {
             try {
-                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, new DriverTailableIterationCallback() {
-                    @Override
-                    public void incomingData(Map<String, Object> data, long dur) {
-                        if (!running) {
-                            return;
-                        }
-                        timestamp = (Integer) data.get("ts");
-                        for (OplogListener lst : listeners) {
-                            if (!running) {
-                                return;
-                            }
-                            try {
-                                lst.incomingData(data);
-                            } catch (Exception e) {
-                                log.error("listener threw exception", e);
-                            }
-                        }
-
-                    }
-
-                    @Override
-                    public boolean isContinued() {
-                        return running;
-                    }
-                });
-            } catch (MorphiumDriverException e) {
+//                morphium.getDriver().tailableIteration("local", "oplog.rs", q, null, null, 0, 0, 1000, null, 60000, new DriverTailableIterationCallback() {
+//                    @Override
+//                    public void incomingData(Map<String, Object> data, long dur) {
+//                        if (!running) {
+//                            return;
+//                        }
+//                        timestamp = (Integer) data.get("ts");
+//                        for (OplogListener lst : listeners) {
+//                            if (!running) {
+//                                return;
+//                            }
+//                            try {
+//                                lst.incomingData(data);
+//                            } catch (Exception e) {
+//                                log.error("listener threw exception", e);
+//                            }
+//                        }
+//
+//                    }
+//
+//                    @Override
+//                    public boolean isContinued() {
+//                        return running;
+//                    }
+//                });
+            } catch (Exception e) {
                 log.warn("Error in oplogmonitor - restarting", e);
             }
         }

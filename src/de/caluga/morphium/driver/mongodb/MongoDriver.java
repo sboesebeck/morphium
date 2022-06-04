@@ -3,6 +3,8 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import com.mongodb.*;
+import com.mongodb.ReadPreference;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.ClientSession;
@@ -46,15 +48,10 @@ import com.mongodb.event.ConnectionRemovedEvent;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.MorphiumTransactionContext;
-import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 
+import de.caluga.morphium.driver.commands.*;
 import org.bson.BSONObject;
 import org.bson.BasicBSONObject;
 import org.bson.BsonArray;
@@ -149,12 +146,12 @@ public class MongoDriver implements MorphiumDriver {
 
     private final ThreadLocal<MongoTransactionContext> currentTransaction = new ThreadLocal<>();
 
-    @Override
+
     public boolean isReplicaset() {
         return replicaset;
     }
 
-    @Override
+
     public void setCredentials(String db, String login, char[] pwd) {
         String[] cred = new String[2];
         cred[0] = login;
@@ -163,17 +160,81 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
+    public List<Doc> aggregate(AggregateCmdSettings settings) {
+        return null;
+    }
+
+
+    public long count(CountCmdSettings settings) {
+        return 0;
+    }
+
+
+    public void watch(WatchCmdSettings settings) {
+
+    }
+
+
+    public List<Object> distinct(DistinctCmdSettings settings) {
+        return null;
+    }
+
+
+    public List<Doc> mapReduce(MapReduceSettings settings) {
+        return null;
+    }
+
+
+    public int delete(DeleteCmdSettings settings) {
+        return 0;
+    }
+
+
+    public List<Doc> find(FindCmdSettings settings) {
+        return null;
+    }
+
+
+    public List<Doc> findAndModify(FindAndModifyCmdSettings settings) {
+        return null;
+    }
+
+
+    public void insert(InsertCmdSettings settings) {
+
+    }
+
+
+    public Doc update(UpdateCmdSettings settings) {
+        return null;
+    }
+
+
+    public Doc drop(DropCmdSettings settings) {
+        return null;
+    }
+
+
+    public Doc dropDatabase(DropCmdSettings settings) {
+        return null;
+    }
+
     @Override
+    public int clearCollection(ClearCollectionSettings settings) {
+        return 0;
+    }
+
+
     public String getAtlasUrl() {
         return atlasUrl;
     }
 
-    @Override
+
     public void setAtlasUrl(String atlasUrl) {
         this.atlasUrl = atlasUrl;
     }
 
-    @Override
+
     public List<String> listDatabases() throws MorphiumDriverException {
         if (!isConnected()) {
             return null;
@@ -196,38 +257,37 @@ public class MongoDriver implements MorphiumDriver {
         return ret;
     }
 
-    @Override
+
     public void addCommandListener(CommandListener cmd) {
         commandListeners.add(cmd);
     }
 
-    @Override
+
     public void removeCommandListener(CommandListener cmd) {
         commandListeners.remove(cmd);
     }
 
-    @Override
+
     public void addClusterListener(ClusterListener cl) {
         clusterListeners.add(cl);
     }
 
-    @Override
+
     public void removeClusterListener(ClusterListener cl) {
         clusterListeners.remove(cl);
     }
 
-    @Override
+
     public void addConnectionPoolListener(ConnectionPoolListener cpl) {
         connectionPoolListeners.add(cpl);
     }
 
-    @Override
+
     public void removeConnectionPoolListener(ConnectionPoolListener cpl) {
         connectionPoolListeners.remove(cpl);
     }
 
 
-    @Override
     public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
         if (!isConnected()) {
             return null;
@@ -279,112 +339,147 @@ public class MongoDriver implements MorphiumDriver {
         return defaultReadPreference;
     }
 
-    @Override
+
     public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
     }
 
-    @Override
+
     public String[] getCredentials(String db) {
         return credentials.get(db);
     }
 
-    @Override
+
     public boolean isDefaultFsync() {
         return defaultFsync;
     }
 
-    @Override
+
     public void setDefaultFsync(boolean j) {
         defaultFsync = j;
     }
 
-    @Override
+
     public String[] getHostSeed() {
         return hostSeed;
     }
 
-    @Override
+
+    public String getName() {
+        return null;
+    }
+
+
+    public int getBuildNumber() {
+        return 0;
+    }
+
+
+    public int getMajorVersion() {
+        return 0;
+    }
+
+
+    public int getMinorVersion() {
+        return 0;
+    }
+
+
+    public void setDatabaseName() {
+
+    }
+
+
+    public String getDatabaseName() {
+        return null;
+    }
+
+
     public void setHostSeed(String... host) {
         hostSeed = host;
     }
 
-    @Override
+
+    public void setConnectionUrl(String connectionUrl) {
+
+    }
+
+
     public int getMaxConnections() {
         return maxConnections;
     }
 
-    @Override
+
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
     }
 
-    @Override
+
     public int getMinConnections() {
         return minConnections;
     }
 
-    @Override
+
     public void setMinConnections(int minConnections) {
         this.minConnections = minConnections;
     }
 
-    @Override
+
     public int getMaxConnectionLifetime() {
         return maxConnectionLifetime;
     }
 
-    @Override
+
     public void setMaxConnectionLifetime(int timeout) {
         maxConnectionLifetime = timeout;
     }
 
-    @Override
+
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
     }
 
-    @Override
+
     public void setMaxConnectionIdleTime(int time) {
         maxConnectionIdleTime = time;
     }
 
-    @Override
+
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
 
-    @Override
+
     public void setConnectionTimeout(int timeout) {
         connectionTimeout = timeout;
     }
 
-    @Override
+
     public int getDefaultW() {
         return defaultW;
     }
 
-    @Override
+
     public void setDefaultW(int w) {
         defaultW = w;
     }
 
-    @Override
+
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
 
-    @Override
+
     public void setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
     }
 
-    @Override
+
     public void setDefaultBatchSize(int defaultBatchSize) {
         this.defaultBatchSize = defaultBatchSize;
     }
 
-    @Override
+
     public void setCredentials(Map<String, String[]> credentials) {
         this.credentials = credentials;
     }
@@ -395,95 +490,93 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public boolean isRetryReads() {
         return retryReads;
     }
 
-    @Override
+
     public void setRetryReads(boolean retryReads) {
         this.retryReads = retryReads;
     }
 
-    @Override
+
     public boolean isRetryWrites() {
         return retryWrites;
     }
 
-    @Override
+
     public void setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
     }
 
-    @Override
+
     public String getUuidRepresentation() {
         return uuidRepresentation;
     }
 
-    @Override
+
     public void setUuidRepresentation(String uuidRepresentation) {
         this.uuidRepresentation = uuidRepresentation;
     }
 
-    @Override
+
     public boolean isUseSSL() {
         return useSSL;
     }
 
-    @Override
+
     public void setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
     }
 
-    @Override
+
     public boolean isDefaultJ() {
         return defaultJ;
     }
 
-    @Override
+
     public void setDefaultJ(boolean j) {
         defaultJ = j;
     }
 
-    @Override
+
     public int getLocalThreshold() {
         return localThreshold;
     }
 
-    @Override
+
     public void setLocalThreshold(int thr) {
         localThreshold = thr;
     }
 
-    @Override
+
     public void heartBeatFrequency(int t) {
         heartbeatFrequency = t;
     }
 
 
-    @Override
     public void useSsl(boolean ssl) {
         useSSL = ssl;
     }
 
-    @Override
+
     public int getReadTimeout() {
         return readTimeout;
     }
 
-    @Override
+
     public void setReadTimeout(int readTimeout) {
         this.readTimeout = readTimeout;
     }
 
-    @Override
-    public void connect() throws MorphiumDriverException {
-        connect(null);
+
+    public void connect() {
+
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
-    public void connect(String replicasetName) throws MorphiumDriverException {
+
+    public void connect(String replicasetName) {
         try {
             if (maxConnections == 0) {
                 maxConnections = 1;
@@ -497,21 +590,21 @@ public class MongoDriver implements MorphiumDriver {
             o.retryReads(retryReads);
             o.retryWrites(retryWrites);
             o.addCommandListener(new CommandListener() {
-                @Override
+
                 public void commandStarted(CommandStartedEvent event) {
                     for (CommandListener cl : commandListeners) {
                         cl.commandStarted(event);
                     }
                 }
 
-                @Override
+
                 public void commandSucceeded(CommandSucceededEvent event) {
                     for (CommandListener cl : commandListeners) {
                         cl.commandSucceeded(event);
                     }
                 }
 
-                @Override
+
                 public void commandFailed(CommandFailedEvent event) {
                     //log.error("Command failed: " + event.getCommandName(), event.getThrowable());
                     for (CommandListener cl : commandListeners) {
@@ -532,91 +625,91 @@ public class MongoDriver implements MorphiumDriver {
                 connectionPoolSettings.minSize(minConnections);
                 connectionPoolSettings.maxWaitTime(maxWaitTime, TimeUnit.MILLISECONDS);
                 connectionPoolSettings.addConnectionPoolListener(new ConnectionPoolListener() {
-                    @Override
+
                     public void connectionPoolOpened(ConnectionPoolOpenedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionPoolOpened(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionPoolCreated(ConnectionPoolCreatedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionPoolCreated(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionPoolCleared(ConnectionPoolClearedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionPoolCleared(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionPoolClosed(ConnectionPoolClosedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionPoolClosed(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionCheckOutStarted(ConnectionCheckOutStartedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionCheckOutStarted(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionCheckedOut(ConnectionCheckedOutEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionCheckedOut(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionCheckOutFailed(ConnectionCheckOutFailedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionCheckOutFailed(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionCheckedIn(ConnectionCheckedInEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionCheckedIn(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionAdded(ConnectionAddedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionAdded(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionCreated(ConnectionCreatedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionCreated(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionReady(ConnectionReadyEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionReady(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionRemoved(ConnectionRemovedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionRemoved(event);
                         }
                     }
 
-                    @Override
+
                     public void connectionClosed(ConnectionClosedEvent event) {
                         for (ConnectionPoolListener cpl : connectionPoolListeners) {
                             cpl.connectionClosed(event);
@@ -653,21 +746,21 @@ public class MongoDriver implements MorphiumDriver {
                 clusterSettings.serverSelectionTimeout(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
                 clusterSettings.localThreshold(getLocalThreshold(), TimeUnit.MILLISECONDS);
                 clusterSettings.addClusterListener(new ClusterListener() {
-                    @Override
+
                     public void clusterOpening(ClusterOpeningEvent event) {
                         for (ClusterListener cl : clusterListeners) {
                             cl.clusterOpening(event);
                         }
                     }
 
-                    @Override
+
                     public void clusterClosed(ClusterClosedEvent event) {
                         for (ClusterListener cl : clusterListeners) {
                             cl.clusterClosed(event);
                         }
                     }
 
-                    @Override
+
                     public void clusterDescriptionChanged(ClusterDescriptionChangedEvent event) {
                         //log.info("Cluster description changed: " + event.getNewDescription().toString());
                         for (ClusterListener cl : clusterListeners) {
@@ -739,12 +832,12 @@ public class MongoDriver implements MorphiumDriver {
                 }
             }
         } catch (Exception e) {
-            throw new MorphiumDriverException("Error creating connection to mongo", e);
+            // throw new MorphiumDriverException("Error creating connection to mongo", e);
         }
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public Maximums getMaximums() {
         if (maximums == null) {
             maximums = new Maximums();
@@ -765,23 +858,28 @@ public class MongoDriver implements MorphiumDriver {
         return maximums;
     }
 
-    @Override
+
     public boolean isConnected() {
         return mongo != null;
     }
 
-    @Override
+
+    public void disconnect() {
+
+    }
+
+
     public int getDefaultWriteTimeout() {
         return writeTimeout;
     }
 
-    @Override
+
     public void setDefaultWriteTimeout(int wt) {
         writeTimeout = wt;
     }
 
     @SuppressWarnings("RedundantThrows")
-    @Override
+
     public void close() throws MorphiumDriverException {
         try {
             if (currentTransaction.get() != null) {
@@ -795,7 +893,7 @@ public class MongoDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
@@ -810,7 +908,7 @@ public class MongoDriver implements MorphiumDriver {
         //        return null;
     }
 
-    @Override
+
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject("dbstats", 1));
@@ -819,7 +917,7 @@ public class MongoDriver implements MorphiumDriver {
         //        return null;
     }
 
-    @Override
+
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase(db).runCommand(new Document("collStats", coll));
@@ -828,13 +926,13 @@ public class MongoDriver implements MorphiumDriver {
         //        return null;
     }
 
-    @Override
+
     public Map<String, Object> getOps(long threshold) {
         throw new RuntimeException("Not implemented yet, sorry...");
         //        return null;
     }
 
-    @Override
+
     public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(cmd);
         return DriverHelper.doCall(() -> {
@@ -850,7 +948,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
         //noinspection ConstantConditions
@@ -905,7 +1003,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection ConstantConditions
@@ -972,7 +1070,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, pipeline, cb);
     }
@@ -1012,7 +1109,7 @@ public class MongoDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             List<Bson> p;
@@ -1066,7 +1163,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public void tailableIteration(String db, String collection, final Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection ConstantConditions
@@ -1127,7 +1223,7 @@ public class MongoDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public MorphiumCursor nextIteration(final MorphiumCursor crs) throws MorphiumDriverException {
         //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
@@ -1162,7 +1258,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
+
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             //log.debug("Closing iterator / cursor");
@@ -1174,7 +1270,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
+
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection unused
@@ -1335,72 +1431,72 @@ public class MongoDriver implements MorphiumDriver {
         if (readPreference == null) {
             readPreference = defaultReadPreference;
         }
-        if (readPreference != null) {
-            TagSet tags = null;
-            if (readPreference.getTagSet() != null) {
-                List<Tag> tagList = readPreference.getTagSet().entrySet().stream().map(e -> new Tag(e.getKey(), e.getValue())).collect(Collectors.toList());
-                tags = new TagSet(tagList);
+//        if (readPreference != null) {
+//            TagSet tags = null;
+//            if (readPreference.getTagSet() != null) {
+//                List<Tag> tagList = readPreference.getTagSet().entrySet().stream().map(e -> new Tag(e.getKey(), e.getValue())).collect(Collectors.toList());
+//                tags = new TagSet(tagList);
+//
+//            }
+//            switch (readPreference.getType()) {
+//                case NEAREST:
+//                    if (tags != null) {
+//                        prf = com.mongodb.ReadPreference.nearest(tags);
+//                    } else {
+//                        prf = com.mongodb.ReadPreference.nearest();
+//                    }
+//                    break;
+//                case PRIMARY:
+//                    prf = com.mongodb.ReadPreference.primary();
+//                    if (tags != null) {
+//                        log.warn("Cannot use tags with primary only read preference!");
+//                    }
+//                    break;
+//                case PRIMARY_PREFERRED:
+//                    if (tags != null) {
+//                        prf = com.mongodb.ReadPreference.primaryPreferred(tags);
+//                    } else {
+//                        prf = com.mongodb.ReadPreference.primaryPreferred();
+//                    }
+//                    break;
+//                case SECONDARY:
+//                    if (tags != null) {
+//                        prf = com.mongodb.ReadPreference.secondary(tags);
+//                    } else {
+//                        prf = com.mongodb.ReadPreference.secondary();
+//                    }
+//                    break;
+//                case SECONDARY_PREFERRED:
+//                    if (tags != null) {
+//                        prf = com.mongodb.ReadPreference.secondaryPreferred(tags);
+//                    } else {
+//                        prf = com.mongodb.ReadPreference.secondaryPreferred();
+//                    }
+//                    break;
+//                default:
+//                    log.error("Unhandeled read preference: " + readPreference);
+//                    prf = null;
+//
+//            }
+//            if (prf != null) {
+//                coll = coll.withReadPreference(prf);
+//            }
+//        }
 
-            }
-            switch (readPreference.getType()) {
-                case NEAREST:
-                    if (tags != null) {
-                        prf = com.mongodb.ReadPreference.nearest(tags);
-                    } else {
-                        prf = com.mongodb.ReadPreference.nearest();
-                    }
-                    break;
-                case PRIMARY:
-                    prf = com.mongodb.ReadPreference.primary();
-                    if (tags != null) {
-                        log.warn("Cannot use tags with primary only read preference!");
-                    }
-                    break;
-                case PRIMARY_PREFERRED:
-                    if (tags != null) {
-                        prf = com.mongodb.ReadPreference.primaryPreferred(tags);
-                    } else {
-                        prf = com.mongodb.ReadPreference.primaryPreferred();
-                    }
-                    break;
-                case SECONDARY:
-                    if (tags != null) {
-                        prf = com.mongodb.ReadPreference.secondary(tags);
-                    } else {
-                        prf = com.mongodb.ReadPreference.secondary();
-                    }
-                    break;
-                case SECONDARY_PREFERRED:
-                    if (tags != null) {
-                        prf = com.mongodb.ReadPreference.secondaryPreferred(tags);
-                    } else {
-                        prf = com.mongodb.ReadPreference.secondaryPreferred();
-                    }
-                    break;
-                default:
-                    log.error("Unhandeled read preference: " + readPreference);
-                    prf = null;
-
-            }
-            if (prf != null) {
-                coll = coll.withReadPreference(prf);
-            }
-        }
-
-        if (wc != null) {
-            com.mongodb.WriteConcern writeConcern;
-            if (wc.getW() < 0) {
-                //majority
-                writeConcern = com.mongodb.WriteConcern.MAJORITY;
-            } else {
-                writeConcern = wc.toMongoWriteConcern();
-            }
-            coll = coll.withWriteConcern(writeConcern);
-        }
+//        if (wc != null) {
+//            com.mongodb.WriteConcern writeConcern;
+//            if (wc.getW() < 0) {
+//                //majority
+//                writeConcern = com.mongodb.WriteConcern.MAJORITY;
+//            } else {
+//                writeConcern = wc.toMongoWriteConcern();
+//            }
+//            coll = coll.withWriteConcern(writeConcern);
+//        }
         return coll;
     }
 
-    @Override
+
     public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
@@ -1423,7 +1519,7 @@ public class MongoDriver implements MorphiumDriver {
         }
     }
 
-    @Override
+
     public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
@@ -1431,7 +1527,7 @@ public class MongoDriver implements MorphiumDriver {
      }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
 
         return DriverHelper.doCall(() -> {
@@ -1509,7 +1605,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
         if (objs == null || objs.isEmpty()) {
@@ -1568,7 +1664,7 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
-    @Override
+
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         DriverHelper.replaceMorphiumIdByObjectId(op);
@@ -1611,7 +1707,7 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
-    @Override
+
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         return DriverHelper.doCall(() -> {
@@ -1646,7 +1742,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
+
     public void drop(String db, String collection, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
@@ -1660,7 +1756,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
+
     public void drop(String db, de.caluga.morphium.driver.WriteConcern wc) throws
             MorphiumDriverException {
         DriverHelper.doCall(() -> {
@@ -1678,7 +1774,7 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
+
     public boolean exists(String db) {
         for (String dbName : mongo.listDatabaseNames()) {
             if (dbName.equals(db)) {
@@ -1688,7 +1784,7 @@ public class MongoDriver implements MorphiumDriver {
         return false;
     }
 
-    @Override
+
     public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
@@ -1723,7 +1819,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public boolean exists(String db, String collection) throws MorphiumDriverException {
         Map<String, Object> found = DriverHelper.doCall(() -> {
 
@@ -1746,7 +1842,7 @@ public class MongoDriver implements MorphiumDriver {
         return found != null && !found.isEmpty();
     }
 
-    @Override
+
     public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked,ConstantConditions
         return DriverHelper.doCall(() -> {
@@ -1766,7 +1862,7 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
-    @Override
+
     public List<String> getCollectionNames(String db) throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             final List<String> ret = new ArrayList<>();
@@ -1784,7 +1880,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("ConstantConditions")
-    @Override
+
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndDeleteOptions opts = new FindOneAndDeleteOptions();
@@ -1806,7 +1902,7 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("ConstantConditions")
-    @Override
+
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndUpdateOptions opts = new FindOneAndUpdateOptions();
@@ -1827,7 +1923,7 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("ConstantConditions")
-    @Override
+
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndReplaceOptions opts = new FindOneAndReplaceOptions();
@@ -1848,7 +1944,7 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("CommentedOutCode")
-    @Override
+
     public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
                                                boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
@@ -1892,42 +1988,42 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 //
-//    @Override
+//    
 //    public int getHeartbeatConnectTimeout() {
 //        return heartbeatConnectTimeout;
 //    }
 //
-//    @Override
+//    
 //    public void setHeartbeatConnectTimeout(int heartbeatConnectTimeout) {
 //        this.heartbeatConnectTimeout = heartbeatConnectTimeout;
 //    }
 
-    @Override
+
     public int getMaxWaitTime() {
         return maxWaitTime;
     }
 
-    @Override
+
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
     }
 
-    @Override
+
     public int getServerSelectionTimeout() {
         return serverSelectionTimeout;
     }
 
-    @Override
+
     public void setServerSelectionTimeout(int serverSelectionTimeout) {
         this.serverSelectionTimeout = serverSelectionTimeout;
     }
 
-    @Override
+
     public int getRetriesOnNetworkError() {
         return retriesOnNetworkError;
     }
 
-    @Override
+
     public void setRetriesOnNetworkError(int retriesOnNetworkError) {
         this.retriesOnNetworkError = retriesOnNetworkError;
     }
@@ -1949,7 +2045,7 @@ public class MongoDriver implements MorphiumDriver {
         return cmd;
     }
 
-    @Override
+
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         Object capped = getCollectionStats(db, coll, 1024, false).get("capped");
         if (capped == null) return false;
@@ -1959,7 +2055,7 @@ public class MongoDriver implements MorphiumDriver {
         return capped.equals(Boolean.TRUE) || capped.equals(1) || capped.equals(true);
     }
 
-    @Override
+
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, de.caluga.morphium.driver.WriteConcern wc) {
         return new MongodbBulkContext(m, db, collection, this, ordered, wc);
     }
@@ -1977,7 +2073,7 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @SuppressWarnings("ConstantConditions")
-    @Override
+
     public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             // BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
@@ -2022,17 +2118,16 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) {
         return mapReduce(db, collection, mapping, reducing, null, null, null);
     }
 
-    @Override
+
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) {
         return mapReduce(db, collection, mapping, reducing, query, null, null);
     }
 
-    @Override
+
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) {
         MapReduceIterable<Document> res;
         if (currentTransaction.get() == null) {
@@ -2067,7 +2162,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    @Override
     public void startTransaction() {
         if (currentTransaction.get() != null) {
             throw new IllegalArgumentException("Transaction in progress");
@@ -2086,7 +2180,7 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set(ctx);
     }
 
-    @Override
+
     public void commitTransaction() {
         if (currentTransaction.get() == null) {
             throw new IllegalArgumentException("No transaction in progress");
@@ -2095,12 +2189,12 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set(null);
     }
 
-    @Override
+
     public MorphiumTransactionContext getTransactionContext() {
         return currentTransaction.get();
     }
 
-    @Override
+
     public void abortTransaction() {
         if (currentTransaction.get() == null) {
             throw new IllegalArgumentException("No transaction in progress");
@@ -2109,7 +2203,7 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set(null);
     }
 
-    @Override
+
     public void setTransactionContext(MorphiumTransactionContext ctx) {
         if (currentTransaction.get() != null) {
             throw new IllegalArgumentException("Transaction in progress!");
@@ -2117,12 +2211,12 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set((MongoTransactionContext) ctx);
     }
 
-    @Override
+
     public SSLContext getSslContext() {
         return this.sslContext;
     }
 
-    @Override
+
     public void setSslContext(SSLContext sslContext) {
         this.sslContext = sslContext;
     }

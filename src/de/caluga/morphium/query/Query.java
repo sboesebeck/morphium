@@ -7,6 +7,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.Doc;
 import org.json.simple.parser.ParseException;
 
 import java.util.List;
@@ -161,6 +162,7 @@ public interface Query<T> extends Cloneable {
      * @return query object
      */
     Map<String, Object> toQueryObject();
+
 
     Query<T> expr(Expr exp);
 

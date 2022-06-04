@@ -74,17 +74,17 @@ public class IndexTest extends MorphiumTestBase {
     @Test
     public void indexOnNewCollTest() throws Exception {
         morphium.dropCollection(IndexedObject.class);
-        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
-            log.info("Collection still exists... waiting");
-            Thread.sleep(100);
-        }
+//        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
+//            log.info("Collection still exists... waiting");
+//            Thread.sleep(100);
+//        }
         IndexedObject obj = new IndexedObject("test", 101);
         morphium.store(obj);
         //waiting for indices to be created
         Thread.sleep(1000);
 
         //index should now be available
-        List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_object");
+        List<Map<String, Object>> idx = null;//morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_object");
         boolean foundId = false;
         boolean foundTimerName = false;
         boolean foundTimerName2 = false;
@@ -128,7 +128,7 @@ public class IndexTest extends MorphiumTestBase {
         morphium.dropCollection(IndexedSubObject.class);
         Thread.sleep(250);
         morphium.ensureIndicesFor(IndexedSubObject.class);
-        List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_sub_object");
+        List<Map<String, Object>> idx = null; //morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_sub_object");
         boolean foundnew1 = false;
         boolean foundnew2 = false;
 

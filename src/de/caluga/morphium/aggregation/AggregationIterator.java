@@ -128,12 +128,12 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
             return true;
         }
         if (currentBatch == null && cursorExternal == 0) {
-            try {
-                //noinspection unchecked
-                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
-            } catch (MorphiumDriverException e) {
-                log.error("error during fetching first batch", e);
-            }
+//            try {
+            //noinspection unchecked
+//                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
+//            } catch (MorphiumDriverException e) {
+//                log.error("error during fetching first batch", e);
+//            }
             return doHasNext();
         }
         return false;
@@ -155,13 +155,13 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
+//                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
-                currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
+//                currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
             } else {
                 cursor++;
@@ -170,7 +170,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
                 currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
             }
 
-        } catch (MorphiumDriverException e) {
+        } catch (Exception e) {
             log.error("Got error during iteration...", e);
         }
         cursorExternal++;

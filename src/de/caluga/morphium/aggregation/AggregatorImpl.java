@@ -278,11 +278,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         List<Map<String, Object>> pipeline = new ArrayList<>(getPipeline());
         pipeline.add(UtilsMap.of("$count", "num"));
         List<Map<String, Object>> res = null;
-        try {
-            res = getMorphium().getDriver().aggregate(getMorphium().getConfig().getDatabase(), getCollectionName(), pipeline, isExplain(), isUseDisk(), getCollation(), getMorphium().getReadPreferenceForClass(getSearchType()));
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            res = getMorphium().getDriver().aggregate(getMorphium().getConfig().getDatabase(), getCollectionName(), pipeline, isExplain(), isUseDisk(), getCollation(), getMorphium().getReadPreferenceForClass(getSearchType()));
+//        } catch (MorphiumDriverException e) {
+//            throw new RuntimeException(e);
+//        }
         if (res.size() == 0) return 0;
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
@@ -299,69 +299,71 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
-        if (callback == null) {
-            try {
-                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-
-            morphium.queueTask(() -> {
-                try {
-                    long start = System.currentTimeMillis();
-                    List<R> result = deserializeList();
-
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
-                } catch (MorphiumDriverException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
+//        if (callback == null) {
+//            try {
+//                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+//            } catch (MorphiumDriverException e) {
+//                throw new RuntimeException(e);
+//            }
+//        } else {
+//
+//            morphium.queueTask(() -> {
+//                try {
+//                    long start = System.currentTimeMillis();
+//                    List<R> result = deserializeList();
+//
+//                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
+//                } catch (MorphiumDriverException e) {
+//                    e.printStackTrace();
+//                }
+//            });
+//        }
     }
 
     private List<R> deserializeList() throws MorphiumDriverException {
-        List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-        List<R> result = new ArrayList<>();
-        if (getResultType().equals(Map.class)) {
-            //noinspection unchecked
-            result = (List<R>) r;
-        } else {
-            for (Map<String, Object> dbObj : r) {
-                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
-            }
-        }
-        return result;
+//        List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+//        List<R> result = new ArrayList<>();
+//        if (getResultType().equals(Map.class)) {
+//            //noinspection unchecked
+//            result = (List<R>) r;
+//        } else {
+//            for (Map<String, Object> dbObj : r) {
+//                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+//            }
+//        }
+//        return result;
+        return null;
     }
 
     @Override
     public List<Map<String, Object>> aggregateMap() {
-        try {
-            return morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            return morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+//        } catch (MorphiumDriverException e) {
+//            throw new RuntimeException(e);
+//        }
+        return null;
     }
 
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         if (callback == null) {
-            try {
-                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-            } catch (MorphiumDriverException e) {
-                throw new RuntimeException(e);
-            }
+//            try {
+//                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+//            } catch (MorphiumDriverException e) {
+//                throw new RuntimeException(e);
+//            }
 
         } else {
 
             morphium.queueTask(() -> {
-                try {
-                    long start = System.currentTimeMillis();
-                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
-                } catch (MorphiumDriverException e) {
-                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
-                }
+//                try {
+//                    long start = System.currentTimeMillis();
+//                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
+//                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+//                } catch (MorphiumDriverException e) {
+//                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
+//                }
             });
         }
     }

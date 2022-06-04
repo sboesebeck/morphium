@@ -179,14 +179,14 @@ public class MorphiumTestBase {
         log.info("-----------------------------");
         log.info("------ > TestNumber: " + num);
 
-        try {
-            if (!morphium.getConfig().isAtlas()) {
-                log.info("Dropping database: " + morphium.getConfig().getDatabase());
-                morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
-            }
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            if (!morphium.getConfig().isAtlas()) {
+//                log.info("Dropping database: " + morphium.getConfig().getDatabase());
+//                morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
+//            }
+//        } catch (MorphiumDriverException e) {
+//            e.printStackTrace();
+//        }
 
         log.info("Init complete");
     }

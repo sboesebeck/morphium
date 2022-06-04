@@ -306,9 +306,9 @@ If you want to mock those things in testing, you need to:
 		    MorphiumDriver original=morphium.getDriver();
 		    morphium.setDriver(new InMemoryDriver(){
 		        @Override
-		        public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
-		            return Arrays.asList(Utils.getMap("MockedData",123.0d));
-		        }
+                public List<Map<String, Object>>aggregate(String db,String collection,List<Map<String, Object>>pipeline,boolean explain,boolean allowDiskUse,Collation collation,ReadPreference readPreference)throws MorphiumDriverException{
+        return Arrays.asList(UtilsMap.of("MockedData",123.0d));
+        }
 		    });
 	
 	    Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);        
@@ -1442,7 +1442,7 @@ If that's not enough, specify your own query in "mongo"-Syntax.
 You can also specify your own query object (Map<String,Object>) in case of a very complex query. This is part of the Query-Object and can be used rather easily:
 ```java
         Map<String,Object> query=new HashMap<>();
-        query.put("counter",Utils.getMap("$lt",10));
+        query.put("counter",UtilsMap.of("$lt",10));
         Query<UncachedObject> q=MorphiumSingleton.get().createQueryFor(UncachedObject.class);
         List<UncachedObject> lst=q.complexQuery(query);
 ```
@@ -2702,7 +2702,7 @@ This way you can create complex aggregation pipelines:
 ```java
 	 Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
 	        assert (a.getResultType() != null);
-	        a = a.project(Utils.getMap("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
+	        a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
 	        a = a.match(Expr.gt(Expr.field("counter"), Expr.intExpr(100)));
 	        a = a.sort("counter");
 	        a = a.limit(15);
