@@ -323,7 +323,7 @@ public class Messaging extends Thread implements ShutdownListener {
             in.put("$in", Arrays.asList("insert", "update"));
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
-            changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
+            changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, 15000, pipeline);
             changeStreamMonitor.addListener(evt -> {
 //                    log.debug("incoming message via changeStream");
                 if (!running) return false;

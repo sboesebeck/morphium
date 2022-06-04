@@ -8,6 +8,8 @@ dist/
 MorphiumDoku.html
 slackurl.inc
 
+.DS_Store
+
 #Eclipse
 .classpath
 .settings/
