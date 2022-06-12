@@ -56,11 +56,11 @@ public interface MorphiumDriver {
 
     long count(CountCmdSettings settings) throws MorphiumDriverException;
 
-    void watch(WatchCmdSettings settings);
+    void watch(WatchCmdSettings settings) throws MorphiumDriverException;
 
     List<Object> distinct(DistinctCmdSettings settings) throws MorphiumDriverException;
 
-    List<Doc> mapReduce(MapReduceSettings settings);
+    List<Doc> mapReduce(MapReduceSettings settings) throws MorphiumDriverException;
 
     /**
      * @return number of deleted documents
@@ -75,9 +75,9 @@ public interface MorphiumDriver {
 
     Doc update(UpdateCmdSettings settings) throws MorphiumDriverException;
 
-    Doc drop(DropCmdSettings settings);
+    Doc drop(DropCmdSettings settings) throws MorphiumDriverException;
 
-    Doc dropDatabase(DropCmdSettings settings);
+    Doc dropDatabase(DropCmdSettings settings) throws MorphiumDriverException;
 
     int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
 

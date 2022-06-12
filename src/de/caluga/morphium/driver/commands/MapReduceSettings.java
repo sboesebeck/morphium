@@ -3,12 +3,11 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 
 public class MapReduceSettings extends CmdSettings<MapReduceSettings> {
-    private String db;
-    private String collection;
     private String map;
     private String reduce;
     private String finalize;
-    private String out;
+    private String outColl;
+    private Doc outConfig;
 
     private Doc query;
     private Doc sort;
@@ -22,25 +21,6 @@ public class MapReduceSettings extends CmdSettings<MapReduceSettings> {
     private Doc writeConcern;
     private String comment;
 
-    @Override
-    public String getDb() {
-        return db;
-    }
-
-    @Override
-    public MapReduceSettings setDb(String db) {
-        this.db = db;
-        return this;
-    }
-
-    public String getCollection() {
-        return collection;
-    }
-
-    public MapReduceSettings setCollection(String collection) {
-        this.collection = collection;
-        return this;
-    }
 
     public String getMap() {
         return map;
@@ -69,12 +49,21 @@ public class MapReduceSettings extends CmdSettings<MapReduceSettings> {
         return this;
     }
 
-    public String getOut() {
-        return out;
+    public String getOutColl() {
+        return outColl;
     }
 
-    public MapReduceSettings setOut(String out) {
-        this.out = out;
+    public MapReduceSettings setOutColl(String outColl) {
+        this.outColl = outColl;
+        return this;
+    }
+
+    public Doc getOutConfig() {
+        return outConfig;
+    }
+
+    public MapReduceSettings setOutConfig(Doc outConfig) {
+        this.outConfig = outConfig;
         return this;
     }
 
@@ -168,5 +157,19 @@ public class MapReduceSettings extends CmdSettings<MapReduceSettings> {
     public MapReduceSettings setComment(String comment) {
         this.comment = comment;
         return this;
+    }
+
+    @Override
+    public Doc asMap(String commandName) {
+        Doc m = super.asMap(commandName);
+        if (m.containsKey("outColl") && m.containsKey("outConfig")) {
+            throw new IllegalArgumentException("Cannot specify out coll and out config!");
+        }
+        String k = "outColl";
+        if (m.containsKey("outConfig")) {
+            k = "outConfig";
+        }
+        m.put("out", m.remove(k));
+        return m;
     }
 }
