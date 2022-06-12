@@ -263,15 +263,6 @@ public class InMemoryDriver implements MorphiumDriver {
         return 0;
     }
 
-    @Override
-    public void setDatabaseName() {
-
-    }
-
-    @Override
-    public String getDatabaseName() {
-        return null;
-    }
 
     @Override
     public void setHostSeed(String... host) {

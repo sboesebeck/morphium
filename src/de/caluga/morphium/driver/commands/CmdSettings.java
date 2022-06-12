@@ -5,6 +5,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.Doc;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -50,6 +51,9 @@ public class CmdSettings<T extends CmdSettings> {
         Doc map = new Doc();
         map.put(commandName, getColl());
         for (Field f : an.getAllFields(this.getClass())) {
+            if (Modifier.isStatic(f.getModifiers())) {
+                continue;
+            }
             f.setAccessible(true);
             if (f.getName().equals("coll")) {
                 continue;

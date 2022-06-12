@@ -5,7 +5,7 @@ import de.caluga.morphium.driver.Doc;
 import java.util.List;
 import java.util.Map;
 
-public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
+public class AggregateCmdSettings<T> extends CmdSettings<AggregateCmdSettings> {
     private List<Doc> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
