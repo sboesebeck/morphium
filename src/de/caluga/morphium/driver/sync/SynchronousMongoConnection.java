@@ -489,12 +489,12 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     public Doc getCollStats(String db, String coll) throws MorphiumDriverException {
-        return null;
+        return runCommand(db, Doc.of("collStats", coll, "scale", 1024));
     }
 
 
-    public Doc getOps(long threshold) throws MorphiumDriverException {
-        return null;
+    public Doc currentOp(long threshold) throws MorphiumDriverException {
+        return runCommand("admin", Doc.of("currentOp", 1, "secs_running", Doc.of("$gt", threshold)));
     }
 
 
