@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.mongodb;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.*;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
@@ -56,7 +57,7 @@ public class MongodbBulkContext extends BulkRequestContext {
     }
 
     @Override
-    public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+    public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
         InsertBulkRequest in = new InsertBulkRequest(toInsert);
         addRequest(in);
         return in;
@@ -72,7 +73,7 @@ public class MongodbBulkContext extends BulkRequestContext {
 
 
     @Override
-    public Map<String, Object> execute() {
+    public Doc execute() {
         List<WriteModel<? extends Document>> lst = new ArrayList<>();
         int count = 0;
         List<BulkWriteResult> results = new ArrayList<>();
@@ -124,7 +125,7 @@ public class MongodbBulkContext extends BulkRequestContext {
         }
 
 
-        Map<String, Object> res = new HashMap<>();
+        Doc res = new Doc();
 
         int delCount = 0;
         int matchedCount = 0;

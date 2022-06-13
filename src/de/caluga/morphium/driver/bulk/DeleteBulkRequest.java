@@ -1,5 +1,7 @@
 package de.caluga.morphium.driver.bulk;
 
+import de.caluga.morphium.driver.Doc;
+
 import java.util.Map;
 
 /**
@@ -10,7 +12,7 @@ import java.util.Map;
  * delete bulk request entry
  */
 public class DeleteBulkRequest extends BulkRequest {
-    private Map<String, Object> query;
+    private Doc query;
     private boolean multiple = false;
 
     public boolean isMultiple() {
@@ -21,11 +23,11 @@ public class DeleteBulkRequest extends BulkRequest {
         this.multiple = multiple;
     }
 
-    public Map<String, Object> getQuery() {
+    public Doc getQuery() {
         return query;
     }
 
-    public void setQuery(Map<String, Object> query) {
+    public void setQuery(Doc query) {
         this.query = query;
     }
 }

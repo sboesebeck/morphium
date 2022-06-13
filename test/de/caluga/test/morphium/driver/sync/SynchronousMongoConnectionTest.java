@@ -135,7 +135,7 @@ public class SynchronousMongoConnectionTest {
             private int counter = 0;
 
             @Override
-            public void incomingData(Map<String, Object> data, long dur) {
+            public void incomingData(Doc data, long dur) {
                 log.info("got data after " + (System.currentTimeMillis() - start) + "ms");
                 log.info(Utils.toJsonString(data));
                 counter++;

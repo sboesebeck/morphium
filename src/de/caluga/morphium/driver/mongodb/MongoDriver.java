@@ -195,7 +195,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> findAndModify(FindAndModifyCmdSettings settings) {
+    public Doc findAndModify(FindAndModifyCmdSettings settings) {
         return null;
     }
 
@@ -239,14 +239,14 @@ public class MongoDriver implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Map<String, Object> command = new HashMap<>();
+        Doc command = Doc.of();
         command.put("listDatabases", 1);
-        Map<String, Object> res = runCommand("admin", command);
+        Doc res = runCommand("admin", command);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             //noinspection unchecked
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
-            for (Map<String, Object> db : lst) {
+            List<Doc> lst = (List<Doc>) res.get("databases");
+            for (Doc db : lst) {
                 if (db.get("name") != null) {
                     ret.add(db.get("name").toString());
                 } else {
@@ -292,38 +292,38 @@ public class MongoDriver implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Map<String, Object> command = new LinkedHashMap<>();
+        Doc command = Doc.of();
         command.put("listCollections", 1);
         if (pattern != null) {
-            Map<String, Object> query = new HashMap<>();
+            Doc query = Doc.of();
             query.put("name", Pattern.compile(pattern));
             command.put("filter", query);
         }
-        Map<String, Object> res = runCommand(db, command);
-        List<Map<String, Object>> colList = new ArrayList<>();
+        Doc res = runCommand(db, command);
+        List<Doc> colList = new ArrayList<>();
         List<String> colNames = new ArrayList<>();
         addToListFromCursor(db, colList, res);
 
-        for (Map<String, Object> col : colList) {
+        for (Doc col : colList) {
             colNames.add(col.get("name").toString());
         }
         return colNames;
     }
 
     @SuppressWarnings("unchecked")
-    private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
+    private void addToListFromCursor(String db, List<Doc> data, Doc res) throws MorphiumDriverException {
         boolean valid;
         //noinspection unchecked
-        Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
+        Doc crs = (Doc) res.get("cursor");
         do {
             if (crs.get("firstBatch") != null) {
                 //noinspection unchecked
-                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+                data.addAll((List<Doc>) crs.get("firstBatch"));
             } else if (crs.get("nextBatch") != null) {
-                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
+                data.addAll((List<Doc>) crs.get("firstBatch"));
             }
             //next iteration.
-            Map<String, Object> doc = new LinkedHashMap<>();
+            Doc doc = Doc.of();
             if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
                 valid = true;
                 doc.put("getMore", crs.get("id"));
@@ -842,9 +842,9 @@ public class MongoDriver implements MorphiumDriver {
         if (maximums == null) {
             maximums = new Maximums();
             try {
-                Map<String, Object> cmd = new HashMap<>();
+                Doc cmd = Doc.of();
                 cmd.put("isMaster", 1);
-                Map<String, Object> res = runCommand("admin", cmd);
+                Doc res = runCommand("admin", cmd);
                 maximums.setMaxBsonSize((Integer) res.get("maxBsonObjectSize"));
                 maximums.setMaxMessageSize((Integer) res.get("maxMessageSizeBytes"));
                 maximums.setMaxWriteBatchSize((Integer) res.get("maxWriteBatchSize"));
@@ -894,7 +894,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
+    public Doc getReplsetStatus() throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase("admin").runCommand(new BasicDBObject("replSetGetStatus", 1));
             @SuppressWarnings("unchecked") List<Document> mem = (List) ret.get("members");
@@ -909,7 +909,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
+    public Doc getDBStats(String db) throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase(db).runCommand(new BasicDBObject("dbstats", 1));
             return convertBSON(ret);
@@ -918,7 +918,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+    public Doc getCollStats(String db, String coll) throws MorphiumDriverException {
         return DriverHelper.doCall(() -> {
             Document ret = mongo.getDatabase(db).runCommand(new Document("collStats", coll));
             return convertBSON(ret);
@@ -927,13 +927,13 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> getOps(long threshold) {
+    public Doc getOps(long threshold) {
         throw new RuntimeException("Not implemented yet, sorry...");
         //        return null;
     }
 
 
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public Doc runCommand(String db, Doc cmd) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(cmd);
         return DriverHelper.doCall(() -> {
             Document ret;
@@ -949,7 +949,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
         //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
@@ -975,11 +975,11 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
             handleMetaData(findMetaData, ret);
 
-            List<Map<String, Object>> values = new ArrayList<>();
+            List<Doc> values = new ArrayList<>();
 
             while (ret.hasNext()) {
                 Document d = ret.next();
-                Map<String, Object> obj = convertBSON(d);
+                Doc obj = convertBSON(d);
                 values.add(obj);
                 int cnt = values.size();
                 if ((cnt >= batchSize && batchSize != 0) || (cnt >= 1000 && batchSize == 0)) {
@@ -1004,7 +1004,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initIteration(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
@@ -1041,11 +1041,11 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
             handleMetaData(findMetaData, ret);
 
-            List<Map<String, Object>> values = new ArrayList<>();
+            List<Doc> values = new ArrayList<>();
 
             while (ret.hasNext()) {
                 Document d = ret.next();
-                Map<String, Object> obj = convertBSON(d);
+                Doc obj = convertBSON(d);
                 values.add(obj);
                 int cnt = values.size();
                 if ((cnt >= batchSize && batchSize != 0) || (cnt >= 1000 && batchSize == 0)) {
@@ -1070,14 +1070,14 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, pipeline, cb);
     }
 
     @SuppressWarnings("ConstantConditions")
     private void processChangeStreamEvent(DriverTailableIterationCallback cb, ChangeStreamDocument<Document> doc, long start) {
         try {
-            Map<String, Object> obj = new HashMap<>();
+            Doc obj = Doc.of();
             obj.put("clusterTime", Objects.requireNonNull(doc.getClusterTime()).getValue());
             if (doc.getDocumentKey().get("_id") instanceof BsonNull) {
                 return;
@@ -1091,7 +1091,7 @@ public class MongoDriver implements MorphiumDriver {
                 obj.put("fullDocument", new LinkedHashMap<>(doc.getFullDocument()));
             }
             if (doc.getResumeToken() != null) {
-                obj.put("resumeToken", new LinkedHashMap<String, Object>(doc.getResumeToken()));
+                obj.put("resumeToken", new Doc(doc.getResumeToken()));
             }
             if (doc.getNamespace() != null) {
                 obj.put("collectionName", doc.getNamespace().getCollectionName());
@@ -1099,7 +1099,7 @@ public class MongoDriver implements MorphiumDriver {
             }
             if (doc.getUpdateDescription() != null) {
                 obj.put("removedFields", doc.getUpdateDescription().getRemovedFields());
-                obj.put("updatedFields", new LinkedHashMap<String, Object>(doc.getUpdateDescription().getUpdatedFields()));
+                obj.put("updatedFields", new Doc(doc.getUpdateDescription().getUpdatedFields()));
             }
 
             DriverHelper.replaceBsonValues(obj);
@@ -1110,14 +1110,14 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             List<Bson> p;
             if (pipeline == null) {
                 p = Collections.emptyList();
             } else {
                 p = new ArrayList<>();
-                for (Map<String, Object> o : pipeline) {
+                for (Doc o : pipeline) {
                     p.add(new BasicDBObject(o));
                 }
             }
@@ -1163,7 +1163,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void tailableIteration(String db, String collection, final Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void tailableIteration(String db, String collection, final Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection ConstantConditions
         DriverHelper.doCall(() -> {
@@ -1200,7 +1200,7 @@ public class MongoDriver implements MorphiumDriver {
             long start = System.currentTimeMillis();
             for (Document d : ret) {
                 if (mongo == null || d == null) break; //connection closed!
-                Map<String, Object> obj = convertBSON(d);
+                Doc obj = convertBSON(d);
                 cb.incomingData(obj, System.currentTimeMillis() - start);
                 if (!cb.isContinued()) {
                     break;
@@ -1212,7 +1212,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("ConstantConditions")
-    private void handleMetaData(Map<String, Object> findMetaData, MongoCursor<Document> ret) {
+    private void handleMetaData(Doc findMetaData, MongoCursor<Document> ret) {
         if (findMetaData != null) {
             if (ret.getServerAddress() != null) {
                 findMetaData.put("server", ret.getServerAddress().getHost() + ":" + ret.getServerAddress().getPort());
@@ -1227,7 +1227,7 @@ public class MongoDriver implements MorphiumDriver {
     public MorphiumCursor nextIteration(final MorphiumCursor crs) throws MorphiumDriverException {
         //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
-            List<Map<String, Object>> values = new ArrayList<>();
+            List<Doc> values = new ArrayList<>();
             int batchSize = crs.getBatchSize();
             @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
             if (ret == null) {
@@ -1235,7 +1235,7 @@ public class MongoDriver implements MorphiumDriver {
             }
             while (ret.hasNext()) {
                 Document d = ret.next();
-                Map<String, Object> obj = convertBSON(d);
+                Doc obj = convertBSON(d);
                 values.add(obj);
                 int cnt = values.size();
                 if (cnt >= batchSize && batchSize != 0 || cnt >= 1000 && batchSize == 0) {
@@ -1271,7 +1271,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Map<String, Object> findMetaData) throws MorphiumDriverException {
+    public List<Doc> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection unused
         return DriverHelper.doCall(() -> {
@@ -1306,10 +1306,10 @@ public class MongoDriver implements MorphiumDriver {
             MongoCursor<Document> ret = it.iterator();
             handleMetaData(findMetaData, ret);
 
-            List<Map<String, Object>> values = new ArrayList<>();
+            List<Doc> values = new ArrayList<>();
             while (ret.hasNext()) {
                 Document d = ret.next();
-                Map<String, Object> obj = convertBSON(d);
+                Doc obj = convertBSON(d);
                 values.add(obj);
             }
             ret.close();
@@ -1341,10 +1341,10 @@ public class MongoDriver implements MorphiumDriver {
         return bld.build();
     }
 
-    private <E extends Object> Map<String, Object> convertBSON(Map<String, E> d) {
-        Map<String, Object> obj = new HashMap<>();
+    private <E extends Object> Doc convertBSON(Map<String, E> d) {
+        Doc obj = Doc.of();
 
-        for (Entry<String, E> entry: d.entrySet()) {
+        for (Entry<String, E> entry : d.entrySet()) {
             Object value = entry.getValue();
             if (value instanceof BsonTimestamp) {
                 value = (((BsonTimestamp) value).getTime() * 1000);
@@ -1381,7 +1381,7 @@ public class MongoDriver implements MorphiumDriver {
                         || value instanceof Document
                         || value instanceof BSONObject) {
                     //noinspection unchecked
-                    value = convertBSON((Map<String, Object>) value);
+                    value = convertBSON((Doc) value);
                 } else if (value instanceof Binary) {
                     Binary b = (Binary) value;
                     value = b.getData();
@@ -1395,7 +1395,7 @@ public class MongoDriver implements MorphiumDriver {
                         //noinspection unchecked
                         {
                             //noinspection unchecked
-                            v.add(convertBSON((Map<String, Object>) o));
+                            v.add(convertBSON((Doc) o));
                         } else if (o instanceof ObjectId) {
                             //noinspection unchecked
                             v.add(new MorphiumId(((ObjectId) o).toString()));
@@ -1417,7 +1417,7 @@ public class MongoDriver implements MorphiumDriver {
                         } else //noinspection ConstantConditions,DuplicateCondition
                             if (value instanceof BSONObject) {
                                 //noinspection unchecked
-                                value = convertBSON((Map<String, Object>) value);
+                                value = convertBSON((Doc) value);
                             }
             obj.put(entry.getKey(), value);
         }
@@ -1497,7 +1497,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
+    public long count(String db, String collection, Doc query, Collation collation, ReadPreference rp) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
@@ -1528,7 +1528,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Integer> store(String db, String collection, List<Doc> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
 
         return DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(objs);
@@ -1537,7 +1537,7 @@ public class MongoDriver implements MorphiumDriver {
             //                mongo.getDB(db).getCollection(collection).save()
             int total = objs.size();
             int updated = 0;
-            for (Map<String, Object> toUpdate : objs) {
+            for (Doc toUpdate : objs) {
 
                 Document filter = new Document();
                 Object id = toUpdate.get("_id");
@@ -1606,7 +1606,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public void insert(String db, String collection, List<Doc> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
         if (objs == null || objs.isEmpty()) {
             return;
@@ -1665,7 +1665,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, Map<String, Object> op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Doc update(String db, String collection, Doc query, Map<String, Integer> sort, Doc op, boolean multiple, boolean upsert, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         DriverHelper.replaceMorphiumIdByObjectId(op);
         return DriverHelper.doCall(() -> {
@@ -1696,7 +1696,7 @@ public class MongoDriver implements MorphiumDriver {
 
                 }
             }
-            Map<String, Object> ret = new HashMap<>();
+            Doc ret = Doc.of();
             if (w.isAcknowledged()) {
                 ret.put("matched", res.getMatchedCount());
                 ret.put("modified", res.getModifiedCount());
@@ -1708,7 +1708,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Integer> sort, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Doc delete(String db, String collection, Doc query, Map<String, Integer> sort, boolean multiple, Collation collation, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         return DriverHelper.doCall(() -> {
             MongoDatabase database = mongo.getDatabase(db);
@@ -1734,7 +1734,7 @@ public class MongoDriver implements MorphiumDriver {
                     res = coll.deleteOne(currentTransaction.get().getSession(), new BasicDBObject(query), opts);
                 }
             }
-            Map<String, Object> r = new HashMap<>();
+            Doc r = Doc.of();
             r.put("deleted", res.getDeletedCount());
             r.put("acc", res.wasAcknowledged());
 
@@ -1785,14 +1785,14 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Object> distinct(String db, String collection, String field, final Map<String, Object> filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
+    public List<Object> distinct(String db, String collection, String field, final Doc filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
         DriverHelper.doCall(() -> {
             DistinctIterable<?> it;
             if (currentTransaction.get() == null) {
                 //need to find return-type for distinct otherwise the damn driver will throw exeptions!
-                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
+                List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
                 DistinctIterable<? extends Object> lst = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), r.get(0).get(field).getClass());
                 for (Object o : lst) {
@@ -1800,7 +1800,7 @@ public class MongoDriver implements MorphiumDriver {
                 }
             } else {
 
-                List<Map<String, Object>> r = find(db, collection, filter, null, new BasicDBObject(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
+                List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
 
                 it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
@@ -1821,7 +1821,7 @@ public class MongoDriver implements MorphiumDriver {
     @SuppressWarnings("CommentedOutCode")
 
     public boolean exists(String db, String collection) throws MorphiumDriverException {
-        Map<String, Object> found = DriverHelper.doCall(() -> {
+        Doc found = DriverHelper.doCall(() -> {
 
 
 //            if (currentTransaction.get() != null) {
@@ -1832,7 +1832,7 @@ public class MongoDriver implements MorphiumDriver {
 //            }
             for (Document d : mongo.getDatabase(db).listCollections()) {
                 if (d.get("name").equals(collection)) {
-                    return d;
+                    return Doc.of(d);
                 }
             }
             return null;
@@ -1843,10 +1843,10 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
+    public List<Doc> getIndexes(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked,ConstantConditions
         return DriverHelper.doCall(() -> {
-            List<Map<String, Object>> values = new ArrayList<>();
+            List<Doc> values = new ArrayList<>();
 
             ListIndexesIterable<Document> indexes;
             if (currentTransaction.get() != null) {
@@ -1855,7 +1855,7 @@ public class MongoDriver implements MorphiumDriver {
                 indexes = mongo.getDatabase(db).getCollection(collection).listIndexes();
             }
             for (Document d : indexes) {
-                values.add(new HashMap<>(d));
+                values.add(Doc.of(d));
             }
             return values;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -1881,7 +1881,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("ConstantConditions")
 
-    public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Integer> sort, Collation collation) {
+    public Doc findAndOneAndDelete(String db, String col, Doc query, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndDeleteOptions opts = new FindOneAndDeleteOptions();
         if (collation != null) {
@@ -1903,7 +1903,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("ConstantConditions")
 
-    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Integer> sort, Collation collation) {
+    public Doc findAndOneAndUpdate(String db, String col, Doc query, Doc update, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndUpdateOptions opts = new FindOneAndUpdateOptions();
         if (collation != null) {
@@ -1924,7 +1924,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("ConstantConditions")
 
-    public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Integer> sort, Collation collation) {
+    public Doc findAndOneAndReplace(String db, String col, Doc query, Doc replacement, Map<String, Integer> sort, Collation collation) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         FindOneAndReplaceOptions opts = new FindOneAndReplaceOptions();
         if (collation != null) {
@@ -1945,8 +1945,8 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
-                                               boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
+    public List<Doc> aggregate(String db, String collection, List<Doc> pipeline,
+                               boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
         List<BasicDBObject> list = pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList());
@@ -1954,7 +1954,7 @@ public class MongoDriver implements MorphiumDriver {
 
         if (explain) {
 //            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).explainAggregate(list, null);
-//            List<Map<String, Object>> o = new ArrayList<>();
+//            List<Doc> o = new ArrayList<>();
 //            o.add(new HashMap<>(ret));
 //            return o;
             throw new IllegalArgumentException("Not implemented yet!");
@@ -1975,7 +1975,7 @@ public class MongoDriver implements MorphiumDriver {
                 it.collation(col);
             }
 //            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
-            List<Map<String, Object>> result = new ArrayList<>();
+            List<Doc> result = new ArrayList<>();
 
             for (Document doc : it) {
                 //noinspection unchecked
@@ -2036,8 +2036,8 @@ public class MongoDriver implements MorphiumDriver {
         this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
     }
 
-    public Map<String, Object> getCollectionStats(String db, String coll, int scale, boolean verbose) throws MorphiumDriverException {
-        Map<String, Object> cmd = new LinkedHashMap<>();
+    public Doc getCollectionStats(String db, String coll, int scale, boolean verbose) throws MorphiumDriverException {
+        Doc cmd = Doc.of();
         cmd.put("collStats", coll);
         cmd.put("scale", scale);
         cmd.put("verbose", verbose);
@@ -2074,7 +2074,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("ConstantConditions")
 
-    public void createIndex(String db, String collection, Map<String, Object> index, Map<String, Object> options) throws MorphiumDriverException {
+    public void createIndex(String db, String collection, Doc index, Doc options) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             // BasicDBObject options1 = options == null ? new BasicDBObject() : new BasicDBObject(options);
             IndexOptions options1 = new IndexOptions();
@@ -2118,17 +2118,17 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) {
+    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing) {
         return mapReduce(db, collection, mapping, reducing, null, null, null);
     }
 
 
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) {
+    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query) {
         return mapReduce(db, collection, mapping, reducing, query, null, null);
     }
 
 
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) {
+    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) {
         MapReduceIterable<Document> res;
         if (currentTransaction.get() == null) {
             res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
@@ -2146,10 +2146,10 @@ public class MongoDriver implements MorphiumDriver {
         if (sorting != null) {
             res.sort(new BasicDBObject(sorting));
         }
-        ArrayList<Map<String, Object>> ret = new ArrayList<>();
+        ArrayList<Doc> ret = new ArrayList<>();
         for (Document d : res) {
             //noinspection unchecked
-            Map<String, Object> value = (Map) d.get("value");
+            Doc value = (Doc) d.get("value");
             for (Map.Entry<String, Object> s : value.entrySet()) {
                 if (s.getValue() instanceof ObjectId) {
                     value.put(s.getKey(), new MorphiumId(((ObjectId) s.getValue()).toHexString()));

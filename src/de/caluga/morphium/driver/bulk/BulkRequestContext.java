@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.bulk;/**
  */
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
@@ -25,11 +26,11 @@ public abstract class BulkRequestContext {
 
 
     @SuppressWarnings("RedundantThrows")
-    public abstract Map<String, Object> execute() throws MorphiumDriverException;
+    public abstract Doc execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 
-    public abstract InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert);
+    public abstract InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert);
 
     public abstract DeleteBulkRequest addDeleteBulkRequest();
 

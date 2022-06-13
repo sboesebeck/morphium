@@ -2,6 +2,7 @@ package de.caluga.morphium.query;/**
  * Created by stephan on 04.04.16.
  */
 
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import org.slf4j.Logger;
@@ -21,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     private final Logger log = LoggerFactory.getLogger(PrefetchingQueryIterator.class);
     private long lastAccess = System.currentTimeMillis();
-    private List<List<Map<String, Object>>> prefetchBuffer; //each entry is one buffer
+    private List<List<Doc>> prefetchBuffer; //each entry is one buffer
     private Query<T> query;
     private int batchsize;
     private MorphiumCursor cursor;
@@ -34,13 +35,13 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     @SuppressWarnings("unused")
-    public List<List<Map<String, Object>>> getPrefetchBuffer() {
+    public List<List<Doc>> getPrefetchBuffer() {
         checkAndUpdateLastAccess();
         return prefetchBuffer;
     }
 
     @SuppressWarnings("unused")
-    public void setPrefetchBuffer(List<List<Map<String, Object>>> prefetchBuffer) {
+    public void setPrefetchBuffer(List<List<Doc>> prefetchBuffer) {
         checkAndUpdateLastAccess();
         this.prefetchBuffer = prefetchBuffer;
     }
@@ -81,7 +82,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     public List<T> getCurrentBuffer() {
         checkAndUpdateLastAccess();
         List<T> ret = new ArrayList<>();
-        for (Map<String, Object> o : prefetchBuffer.get(0)) {
+        for (Doc o : prefetchBuffer.get(0)) {
             ret.add(query.getMorphium().getMapper().deserialize(query.getType(), o));
         }
         return ret;
@@ -222,9 +223,9 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
 
-    private List<Map<String, Object>> getBatch(MorphiumCursor crs) {
-        @SuppressWarnings("unchecked") List<Map<String, Object>> batch = crs.getBatch();
-        List<Map<String, Object>> ret = new ArrayList<>();
+    private List<Doc> getBatch(MorphiumCursor crs) {
+        @SuppressWarnings("unchecked") List<Doc> batch = crs.getBatch();
+        List<Doc> ret = new ArrayList<>();
         if (batch == null) {
             return ret;
         }
@@ -280,13 +281,13 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     }
 
     @Override
-    public Map<String, Object> nextMap() {
+    public Doc nextMap() {
         synchronized (this) {
             return doNextMap();
         }
     }
 
-    private Map<String, Object> doNextMap() {
+    private Doc doNextMap() {
         checkAndUpdateLastAccess();
 
         if (cursor == null && !startedAlready) {
@@ -312,7 +313,7 @@ public class PrefetchingQueryIterator<T> implements MorphiumQueryIterator<T> {
     @Override
     public T next() {
         //noinspection NonAtomicOperationOnVolatileField
-        Map<String, Object> o = nextMap();
+        Doc o = nextMap();
         if (o == null) return null;
         return query.getMorphium().getMapper().deserialize(query.getType(), o);
     }

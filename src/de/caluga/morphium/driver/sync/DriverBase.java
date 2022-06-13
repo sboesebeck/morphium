@@ -653,7 +653,7 @@ public abstract class DriverBase implements MorphiumDriver {
                     if (reply.getFirstDoc().get("result") != null) {
                         //noinspection unchecked
                         for (Map<String, Object> d : (List<Map<String, Object>>) reply.getFirstDoc().get("result")) {
-                            cb.incomingData(d, System.currentTimeMillis() - start);
+                            cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
                         }
                     }
                     log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getFirstDoc()));
@@ -666,13 +666,13 @@ public abstract class DriverBase implements MorphiumDriver {
                     log.debug("Firstbatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
-                        cb.incomingData(d, System.currentTimeMillis() - start);
+                        cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
                     }
                 } else if (cursor.get("nextBatch") != null) {
                     log.debug("NextBatch...");
                     //noinspection unchecked
                     for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
-                        cb.incomingData(d, System.currentTimeMillis() - start);
+                        cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
                     }
                 }
                 if (((Long) cursor.get("id")) != 0) {

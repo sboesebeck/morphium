@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
@@ -52,7 +53,7 @@ public class BulkContext extends BulkRequestContext {
     }
 
     @Override
-    public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+    public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
         InsertBulkRequest in = new InsertBulkRequest(toInsert);
         addRequest(in);
         return in;
@@ -69,7 +70,7 @@ public class BulkContext extends BulkRequestContext {
 
     @SuppressWarnings("StatementWithEmptyBody")
     @Override
-    public Map<String, Object> execute() throws MorphiumDriverException {
+    public Doc execute() throws MorphiumDriverException {
 
 
         int count = 0;
