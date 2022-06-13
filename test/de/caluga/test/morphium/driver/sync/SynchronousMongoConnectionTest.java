@@ -198,4 +198,24 @@ public class SynchronousMongoConnectionTest {
         assertThat(((List) res.get(14).get("value")).get(0)).isEqualTo(1.0);
         con.disconnect();
     }
+
+
+    @Test
+    public void testRunCommand() throws Exception {
+        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
+        log.info("Deleted old data: " + deleted);
+        List<Doc> testList = new ArrayList<>();
+        MorphiumObjectMapper om = new ObjectMapperImpl();
+        for (int i = 0; i < 100; i++) {
+            testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
+        }
+        con.store(db, coll, testList, null);
+
+        Doc result = con.runCommand(db, Doc.of("hello", 1));
+        assertThat(result != null).isTrue();
+        assertThat(result.get("primary")).isEqualTo(result.get("me"));
+        assertThat(result.get("secondary")).isEqualTo(false);
+        con.disconnect();
+    }
 }
