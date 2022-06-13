@@ -2,6 +2,8 @@ package de.caluga.morphium.driver.bulk;/**
  * Created by stephan on 13.11.15.
  */
 
+import de.caluga.morphium.driver.Doc;
+
 import java.util.Map;
 
 /**
@@ -9,8 +11,8 @@ import java.util.Map;
  **/
 @SuppressWarnings("CommentedOutCode")
 public class UpdateBulkRequest extends BulkRequest {
-    private Map<String, Object> query;
-    private Map<String, Object> cmd;
+    private Doc query;
+    private Doc cmd;
 
     //    public enum UpdateOperation {
     //        set, inc, pop, push, unset, rename, max, min, mul,
@@ -36,11 +38,11 @@ public class UpdateBulkRequest extends BulkRequest {
         this.upsert = upsert;
     }
 
-    public Map<String, Object> getQuery() {
+    public Doc getQuery() {
         return query;
     }
 
-    public void setQuery(Map<String, Object> query) {
+    public void setQuery(Doc query) {
         this.query = query;
     }
 
@@ -52,11 +54,11 @@ public class UpdateBulkRequest extends BulkRequest {
     //        return op;
     //    }
 
-    public Map<String, Object> getCmd() {
+    public Doc getCmd() {
         return cmd;
     }
 
-    public void setCmd(Map<String, Object> cmd) {
+    public void setCmd(Doc cmd) {
         this.cmd = cmd;
     }
 }

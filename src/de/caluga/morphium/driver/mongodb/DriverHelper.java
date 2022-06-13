@@ -3,10 +3,7 @@ package de.caluga.morphium.driver.mongodb;/**
  */
 
 import de.caluga.morphium.MorphiumReference;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumDriverNetworkException;
-import de.caluga.morphium.driver.MorphiumDriverOperation;
-import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.*;
 import org.bson.types.ObjectId;
 import org.slf4j.LoggerFactory;
 
@@ -87,16 +84,16 @@ public class DriverHelper {
         }
     }
 
-    public static void replaceBsonValues(List<Map<String, Object>> in) {
+    public static void replaceBsonValues(List<Doc> in) {
         if (in == null || in.isEmpty()) {
             return;
         }
-        for (Map<String, Object> map : in) {
+        for (Doc map : in) {
             replaceMorphiumIdByObjectId(map);
         }
     }
 
-    public static void replaceBsonValues(Map<String, Object> m) {
+    public static void replaceBsonValues(Doc m) {
         if (m == null || m.isEmpty()) {
             return;
         }
@@ -114,7 +111,7 @@ public class DriverHelper {
                     replaceMorphiumIdByObjectIdInArray(value);
                 } else if (value instanceof Map) {
                     //noinspection unchecked
-                    replaceMorphiumIdByObjectId((Map<String, Object>) value);
+                    replaceMorphiumIdByObjectId((Doc) value);
                 } else if (value instanceof Collection) {
                     //noinspection unchecked
                     e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
@@ -143,7 +140,7 @@ public class DriverHelper {
                 replaceMorphiumIdByObjectIdInArray(element);
             } else if (element instanceof Map) {
                 //noinspection unchecked
-                replaceMorphiumIdByObjectId((Map<String, Object>) element);
+                replaceMorphiumIdByObjectId((Doc) element);
             } else if (element instanceof Collection) {
                 //noinspection unchecked
                 in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
@@ -168,7 +165,7 @@ public class DriverHelper {
                 replaceMorphiumIdByObjectIdInArray(arrayElement);
             } else if (arrayElement instanceof Map) {
                 //noinspection unchecked
-                replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
+                replaceMorphiumIdByObjectId((Doc) arrayElement);
             } else if (arrayElement instanceof Collection) {
                 //noinspection unchecked
                 Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));
@@ -192,18 +189,17 @@ public class DriverHelper {
         return collection;
     }
 
-    
-    
-    public static void replaceMorphiumIdByObjectId(List<Map<String, Object>> in) {
+
+    public static void replaceMorphiumIdByObjectId(List<Doc> in) {
         if (in == null || in.isEmpty()) {
             return;
         }
-        for (Map<String, Object> map : in) {
+        for (Doc map : in) {
             replaceMorphiumIdByObjectId(map);
         }
     }
 
-    public static void replaceMorphiumIdByObjectId(Map<String, Object> m) {
+    public static void replaceMorphiumIdByObjectId(Doc m) {
         if (m == null || m.isEmpty()) {
             return;
         }
@@ -221,7 +217,7 @@ public class DriverHelper {
                     replaceMorphiumIdByObjectIdInArray(value);
                 } else if (value instanceof Map) {
                     //noinspection unchecked
-                    replaceMorphiumIdByObjectId((Map<String, Object>) value);
+                    replaceMorphiumIdByObjectId((Doc) value);
                 } else if (value instanceof Collection) {
                     //noinspection unchecked
                     e.setValue(replaceMorphiumIdByObjectIdInCollection((Collection<Object>) value));
@@ -250,7 +246,7 @@ public class DriverHelper {
                 replaceMorphiumIdByObjectIdInArray(element);
             } else if (element instanceof Map) {
                 //noinspection unchecked
-                replaceMorphiumIdByObjectId((Map<String, Object>) element);
+                replaceMorphiumIdByObjectId((Doc) element);
             } else if (element instanceof Collection) {
                 //noinspection unchecked
                 in.set(i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) element));
@@ -275,7 +271,7 @@ public class DriverHelper {
                 replaceMorphiumIdByObjectIdInArray(arrayElement);
             } else if (arrayElement instanceof Map) {
                 //noinspection unchecked
-                replaceMorphiumIdByObjectId((Map<String, Object>) arrayElement);
+                replaceMorphiumIdByObjectId((Doc) arrayElement);
             } else if (arrayElement instanceof Collection) {
                 //noinspection unchecked
                 Array.set(o, i, replaceMorphiumIdByObjectIdInCollection((Collection<Object>) arrayElement));

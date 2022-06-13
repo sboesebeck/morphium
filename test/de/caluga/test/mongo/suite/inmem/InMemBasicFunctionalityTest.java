@@ -9,6 +9,7 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.MorphiumIterator;
@@ -699,14 +700,14 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void dataIntegrityTest() throws Exception{
+    public void dataIntegrityTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
 
-        UncachedObject uc=new UncachedObject("String",42);
+        UncachedObject uc = new UncachedObject("String", 42);
         morphium.insert(uc);
 
-        Map<String, List<Map<String, Object>>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
-        List<Map<String, Object>> collection = database.get("uncached_object");
+        Map<String, List<Doc>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
+        List<Doc> collection = database.get("uncached_object");
         assertThat(collection.size()).isEqualTo(1);
         assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
         UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());

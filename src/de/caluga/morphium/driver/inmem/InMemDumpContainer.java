@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.driver.Doc;
 
 import java.util.List;
 import java.util.Map;
@@ -11,7 +12,7 @@ public class InMemDumpContainer {
     @Id
     private Long created;
     private String db;
-    private Map<String, List<Map<String, Object>>> data;
+    private Map<String, List<Doc>> data;
 
     public String getDb() {
         return db;
@@ -29,11 +30,11 @@ public class InMemDumpContainer {
         this.created = created;
     }
 
-    public Map<String, List<Map<String, Object>>> getData() {
+    public Map<String, List<Doc>> getData() {
         return data;
     }
 
-    public void setData(Map<String, List<Map<String, Object>>> data) {
+    public void setData(Map<String, List<Doc>> data) {
         this.data = data;
     }
 }

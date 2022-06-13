@@ -69,9 +69,9 @@ public interface MorphiumDriver {
 
     List<Doc> find(FindCmdSettings settings) throws MorphiumDriverException;
 
-    List<Doc> findAndModify(FindAndModifyCmdSettings settings);
+    Doc findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException;
 
-    void insert(InsertCmdSettings settings);
+    void insert(InsertCmdSettings settings) throws MorphiumDriverException;
 
     Doc update(UpdateCmdSettings settings) throws MorphiumDriverException;
 

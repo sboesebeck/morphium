@@ -1,6 +1,7 @@
 package de.caluga.morphium.changestream;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -151,7 +152,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             try {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
                     @Override
-                    public void incomingData(Map<String, Object> data, long dur) {
+                    public void incomingData(Doc data, long dur) {
                         if (!ChangeStreamMonitor.this.running) {
                             return;
                         }

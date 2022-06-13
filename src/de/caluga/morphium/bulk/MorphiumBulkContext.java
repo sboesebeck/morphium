@@ -6,6 +6,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
@@ -62,9 +63,9 @@ public class MorphiumBulkContext<T> {
             values.put(ctx.getMorphium().getARHelper().getMongoFieldName(query.getType(),e.getKey(),true),e.getValue());
         }
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
-        up.setQuery(query.toQueryObject());
+        up.setQuery(Doc.of(query.toQueryObject()));
         up.setUpsert(upsert);
-        up.setCmd(UtilsMap.of(command, values));
+        up.setCmd(Doc.of(UtilsMap.of(command, values)));
         up.setMultiple(multiple);
         preEvents.add(() -> {
             switch (command) {
@@ -151,10 +152,10 @@ public class MorphiumBulkContext<T> {
 
     public void addInsertRequest(List<T> toInsert) {
         Map<Object, Boolean> isNew = new HashMap<>();
-        List<Map<String, Object>> ins = new ArrayList<>();
+        List<Doc> ins = new ArrayList<>();
         for (Object o : toInsert) {
             Map<String, Object> marshall = ctx.getMorphium().getMapper().serialize(o);
-            ins.add(marshall);
+            ins.add(Doc.of(marshall));
             isNew.put(o, marshall.get("_id") == null);
         }
 
@@ -181,7 +182,7 @@ public class MorphiumBulkContext<T> {
 
     public void addDeleteRequest(T entity) {
         DeleteBulkRequest del = ctx.addDeleteBulkRequest();
-        del.setQuery(UtilsMap.of("_id", ctx.getMorphium().getARHelper().getId(entity)));
+        del.setQuery(Doc.of("_id", ctx.getMorphium().getARHelper().getId(entity)));
         del.setMultiple(false);
         preEvents.add(() -> ctx.getMorphium().firePreRemove(entity));
 
@@ -197,7 +198,7 @@ public class MorphiumBulkContext<T> {
     public void addDeleteRequest(Query<T> q, boolean multiple) {
         DeleteBulkRequest del = ctx.addDeleteBulkRequest();
         del.setMultiple(multiple);
-        del.setQuery(q.toQueryObject());
+        del.setQuery(Doc.of(q.toQueryObject()));
 
         preEvents.add(() -> ctx.getMorphium().firePreRemoveEvent(q));
 
@@ -207,10 +208,10 @@ public class MorphiumBulkContext<T> {
 
     public void addCustomUpdateRequest(Query<T> query, Map<String, Object> command, boolean upsert, boolean multiple) {
         UpdateBulkRequest up = ctx.addUpdateBulkRequest();
-        up.setQuery(query.toQueryObject());
+        up.setQuery(Doc.of(query.toQueryObject()));
         up.setUpsert(upsert);
         up.setMultiple(multiple);
-        up.setCmd(command);
+        up.setCmd(Doc.of(command));
         preEvents.add(() -> ctx.getMorphium().firePreUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM));
 
         postEvents.add(() -> ctx.getMorphium().firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.CUSTOM));

@@ -1,14 +1,12 @@
 package de.caluga.morphium.driver.sync;
 
-import com.mongodb.event.ClusterListener;
-import com.mongodb.event.CommandListener;
-import com.mongodb.event.ConnectionPoolListener;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.mongodb.MongodbBulkContext;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.bson.types.ObjectId;
@@ -21,6 +19,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -325,10 +324,9 @@ public class SynchronousMongoConnection extends DriverBase {
                 sendQuery(op);
 
                 int waitingfor = op.getMessageId();
-                //        if (wc == null || wc.getW() == 0) {
+
                 OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), waitingfor);
                 return reply.getFirstDoc();
-                //        }
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
@@ -353,7 +351,6 @@ public class SynchronousMongoConnection extends DriverBase {
             q.setFlags(0);
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-
                 int waitingfor = q.getMessageId();
                 ret = readBatches(waitingfor, settings.getDb(), settings.getColl(), settings.getBatchSize() == null ? 100 : settings.getBatchSize());
             }
@@ -362,13 +359,32 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
     @Override
-    public List<Doc> findAndModify(FindAndModifyCmdSettings settings) {
-        return null;
+    public Doc findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException {
+        return new NetworkCallHelper().doCall(() -> {
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(getNextId());
+            msg.setFirstDoc(settings.asMap("findAndModify"));
+
+            sendQuery(msg);
+            OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), msg.getMessageId());
+            return reply.getFirstDoc();
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
-    public void insert(InsertCmdSettings settings) {
-
+    public void insert(InsertCmdSettings settings) throws MorphiumDriverException {
+        new NetworkCallHelper().doCall(() -> {
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(getNextId());
+            msg.setFirstDoc(settings.asMap("insert"));
+            sendQuery(msg);
+            OpMsg reply = waitForReply(settings, msg);
+            if (reply.getFirstDoc().get("ok").equals(1.0)) {
+                return null;
+            } else {
+                throw new MorphiumDriverException("Error: " + reply.getFirstDoc().get("code") + ": " + reply.getFirstDoc().get("errmsg"));
+            }
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
@@ -796,6 +812,10 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     @SuppressWarnings("StatementWithEmptyBody")
+    private OpMsg waitForReply(CmdSettings settings, OpMsg query) throws MorphiumDriverException {
+        return waitForReply(settings.getDb(), settings.getColl(), query.getMessageId());
+    }
+
     private OpMsg waitForReply(String db, String collection, int waitingfor) throws MorphiumDriverException {
         OpMsg reply;
         reply = getReply();
@@ -819,9 +839,6 @@ public class SynchronousMongoConnection extends DriverBase {
 
         return reply;
     }
-
-
-
 
 
     public boolean exists(String db) throws MorphiumDriverException {
@@ -863,7 +880,6 @@ public class SynchronousMongoConnection extends DriverBase {
             List<Doc> ret;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-
                 ret = readBatches(q.getMessageId(), db, null, getMaxWriteBatchSize());
             }
             return Doc.of("result", ret);
@@ -876,34 +892,22 @@ public class SynchronousMongoConnection extends DriverBase {
         return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
     }
 
-
-    public Doc findAndOneAndDelete(String db, String col, Doc query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        OpMsg msg = new OpMsg();
-        msg.setMessageId(getNextId());
-        Doc cmd = Doc.of("findAndModify", (Object) col)
-                .add("query", query)
-                .add("sort", sort)
-                .add("collation", collation != null ? collation.toQueryObject() : null)
-                .add("new", true)
-                .add("$db", db);
-        msg.setFirstDoc(cmd);
-        msg.setFlags(0);
-        msg.setResponseTo(0);
-
-        OpMsg reply = sendAndWaitForReply(msg);
-
-        return reply.getFirstDoc();
+    public Doc getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
+        return new NetworkCallHelper().doCall(() -> {
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(getNextId());
+            Doc v = Doc.of("dbStats", 1, "scale", 1024);
+            v.put("$db", db);
+            if (withStorage) {
+                v.put("freeStorage", 1);
+            }
+            msg.setFirstDoc(v);
+            sendQuery(msg);
+            OpMsg reply = waitForReply(db, null, msg.getMessageId());
+            return reply.getFirstDoc();
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
-
-    public Doc findAndOneAndUpdate(String db, String col, Doc query, Doc update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        return null;
-    }
-
-
-    public Doc findAndOneAndReplace(String db, String col, Doc query, Doc replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        return null;
-    }
 
     private List<Doc> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         //noinspection unchecked
@@ -932,16 +936,6 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-    public int getServerSelectionTimeout() {
-        return 0;
-    }
-
-
-    public void setServerSelectionTimeout(int serverSelectionTimeout) {
-
-    }
-
-
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         List<Doc> lst = getCollectionInfo(db, coll);
         try {
@@ -957,7 +951,63 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
-        return null;
+        return new BulkRequestContext(m) {
+            private final List<BulkRequest> requests = new ArrayList<>();
+
+
+            public Doc execute() {
+                try {
+                    for (BulkRequest r : requests) {
+                        if (r instanceof InsertBulkRequest) {
+                            InsertCmdSettings settings = new InsertCmdSettings();
+                            settings.setDb(db).setColl(collection)
+                                    .setComment("Bulk insert")
+                                    .setDocuments(((InsertBulkRequest) r).getToInsert());
+                            insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
+                        } else if (r instanceof UpdateBulkRequest) {
+                            UpdateBulkRequest up = (UpdateBulkRequest) r;
+                            UpdateCmdSettings upCmd = new UpdateCmdSettings();
+                            upCmd.setColl(collection).setDb(db)
+                                    .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
+                            update(upCmd);
+                        } else if (r instanceof DeleteBulkRequest) {
+                            DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
+                            DeleteCmdSettings del = new DeleteCmdSettings();
+                            del.setColl(collection).setDb(db)
+                                    .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
+                            delete(del);
+                        } else {
+                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                    }
+                } catch (MorphiumDriverException e) {
+                    log.error("Got exception: ", e);
+                }
+                return new Doc();
+
+            }
+
+
+            public UpdateBulkRequest addUpdateBulkRequest() {
+                UpdateBulkRequest up = new UpdateBulkRequest();
+                requests.add(up);
+                return up;
+            }
+
+
+            public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
+                InsertBulkRequest in = new InsertBulkRequest(toInsert);
+                requests.add(in);
+                return in;
+            }
+
+
+            public DeleteBulkRequest addDeleteBulkRequest() {
+                DeleteBulkRequest del = new DeleteBulkRequest();
+                requests.add(del);
+                return del;
+            }
+        };
     }
 
 
@@ -984,53 +1034,6 @@ public class SynchronousMongoConnection extends DriverBase {
             runCommand(db, cmd);
             return null;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-
-    }
-
-
-
-
-    public void startTransaction() {
-
-    }
-
-
-    public void commitTransaction() {
-
-    }
-
-
-    public MorphiumTransactionContext getTransactionContext() {
-        return null;
-    }
-
-
-    public void setTransactionContext(MorphiumTransactionContext ctx) {
-
-    }
-
-
-    public void abortTransaction() {
-
-    }
-
-
-    public SSLContext getSslContext() {
-        return null;
-    }
-
-
-    public void setSslContext(SSLContext sslContext) {
-
-    }
-
-
-    public boolean isSslInvalidHostNameAllowed() {
-        return false;
-    }
-
-
-    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
 
     }
 }
