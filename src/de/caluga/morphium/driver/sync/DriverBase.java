@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 /**
@@ -24,11 +25,11 @@ import java.util.regex.Pattern;
 @SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(DriverBase.class);
-    private volatile int rqid = 10000;
+    private volatile AtomicInteger rqid = new AtomicInteger(1000);
     private int maxWait = 1000;
     private boolean keepAlive = true;
     private int soTimeout = 1000;
-    private Map<String, Map<String, char[]>> credentials;
+    private Map<String, Map<String, String>> credentials;
     private int maxBsonObjectSize;
     private int maxMessageSize = 16 * 1024 * 1024;
     private int maxWriteBatchSize = 1000;
@@ -57,24 +58,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
-
-    public boolean isSlaveOk() {
-        return slaveOk;
-    }
-
-    public void setSlaveOk(boolean slaveOk) {
-        this.slaveOk = slaveOk;
-    }
-
-
-    public String getAtlasUrl() {
-        return null;
-    }
-
-
-    public void setAtlasUrl(String atlasUrl) {
-
-    }
 
 
     public int getMaxConnections() {
@@ -154,11 +137,11 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
-    public void setCredentials(String db, String login, char[] pwd) {
+    public void setCredentials(String db, String login, String pwd) {
         if (credentials == null) {
             credentials = new HashMap<>();
         }
-        Map<String, char[]> cred = new HashMap<>();
+        Map<String, String> cred = new HashMap<>();
         cred.put(login, pwd);
         credentials.put(db, cred);
     }
@@ -247,13 +230,17 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     @SuppressWarnings("unused")
-    public Map<String, Map<String, char[]>> getCredentials() {
+    public Map<String, Map<String, String>> getCredentials() {
         return credentials;
     }
 
+    public void setCredentials(Map<String, Map<String, String>> credentials) {
+        this.credentials = credentials;
+    }
 
-    public void setCredentials(Map<String, String[]> credentials) {
-        //this.credentials=credentials;
+    public void setCredentialsFor(String db, String user, String password) {
+        credentials.putIfAbsent(db, new HashMap<>());
+        credentials.get(db).put(user, password);
     }
 
 
@@ -317,10 +304,9 @@ public abstract class DriverBase implements MorphiumDriver {
         this.replicaSet = replicaSet;
     }
 
-
     public int getNextId() {
         synchronized (DriverBase.class) {
-            return ++rqid;
+            return rqid.incrementAndGet();
         }
     }
 

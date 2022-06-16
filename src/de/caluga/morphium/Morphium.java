@@ -241,17 +241,17 @@ public class Morphium implements AutoCloseable {
             }
 
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
-                morphiumDriver.setCredentials(config.getDatabase(), config.getMongoLogin(), config.getMongoPassword().toCharArray());
+                morphiumDriver.setCredentials(config.getDatabase(), config.getMongoLogin(), config.getMongoPassword());
             }
             if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
-                morphiumDriver.setCredentials("admin", config.getMongoAdminUser(), config.getMongoAdminPwd().toCharArray());
+                morphiumDriver.setCredentials("admin", config.getMongoAdminUser(), config.getMongoAdminPwd());
             }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
                 seed[i] = config.getHostSeed().get(i);
             }
             morphiumDriver.setHostSeed(seed);
-            morphiumDriver.setAtlasUrl(config.getAtlasUrl());
+//            morphiumDriver.setAtlasUrl(config.getAtlasUrl());
 
 //            morphiumDriver.setDefaultReadPreference(config.getDefaultReadPreference());
 //            try {

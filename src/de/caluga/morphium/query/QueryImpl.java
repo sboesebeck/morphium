@@ -7,8 +7,11 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.CountCmdSettings;
+import de.caluga.morphium.driver.commands.FindCmdSettings;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -814,28 +817,28 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             return count;
 
         }
-//        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
-//            if (morphium.getDriver().getTransactionContext() != null) {
-//                try {
-//                    ret = morphium.getDriver().count(getDB(), getCollectionName(), this.toQueryObject(), getCollation(), getRP());
-//                } catch (MorphiumDriverException e) {
-//                    log.error("Error counting", e);
-//                    ret = 0;
-//                }
-//            } else {
-//                ret = morphium.getDriver().estimatedDocumentCount(getDB(), getCollectionName(), getRP());
-//            }
-//        } else {
-//            try {
-//                ret = morphium.getDriver().count(getDB(), getCollectionName(), toQueryObject(), getCollation(), getRP());
-//            } catch (MorphiumDriverException e) {
-//                // TODO: Implement Handling
-//                throw new RuntimeException(e);
-//            }
-//        }
+        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
+            try {
+                ret = morphium.getDriver().count(new CountCmdSettings().setDb(getDB())
+                        .setColl(getCollectionName())
+                        .setQuery(Doc.of(this.toQueryObject()))
+                        .setCollation(Doc.of(getCollation().toQueryObject())));
+//                            .setReadConcern(getRP().);
+            } catch (MorphiumDriverException e) {
+                log.error("Error counting", e);
+                ret = 0;
+            }
+        } else {
+            try {
+                ret = morphium.getDriver().count(new CountCmdSettings().setDb(getDB()).setColl(getCollectionName()));
+            } catch (MorphiumDriverException e) {
+                // TODO: Implement Handling
+                throw new RuntimeException(e);
+            }
+        }
 
         morphium.fireProfilingReadEvent(QueryImpl.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
-        return 0;
+        return ret;
     }
 
 
@@ -1023,16 +1026,24 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
             Map<String, Object> lst = getFieldListForQuery();
 
 
-            List<Map<String, Object>> ret = new ArrayList<>();
-//            try {
-//
-//                Map<String, Object> findMetaData = new HashMap<>();
-//                ret = morphium.getDriver().find(getDB(), getCollectionName(), toQueryObject(), sort, lst, skip, limit, morphium.getConfig().getCursorBatchSize(), getRP(), collation, findMetaData);
+            List<Doc> ret = new ArrayList<>();
+            try {
+
+                ret = morphium.getDriver().find(new FindCmdSettings()
+                        .setDb(getDB())
+                        .setColl(getCollectionName())
+                        .setFilter(Doc.of(toQueryObject()))
+                        .setSort(Doc.of(new HashMap<>(sort)))
+                        .setProjection(Doc.of(lst))
+                        .setSkip(skip)
+                        .setLimit(limit)
+                        .setBatchSize(morphium.getConfig().getCursorBatchSize())
+                        .setCollation(Doc.of(collation.toQueryObject())));
 //                srv = (String) findMetaData.get("server");
-//            } catch (Exception e) {
-//                throw new RuntimeException(e);
-//
-//            }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+
+            }
             morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
 
             if (useCache) {
@@ -1040,7 +1051,11 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
                 morphium.getCache().addToCache(ck, type, ret);
             }
             morphium.firePostLoad(ret);
-            return ret;
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Doc o : ret) {
+                result.add(new HashMap<>(o));
+            }
+            return result;
         } else {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
 

@@ -28,7 +28,7 @@ public interface MorphiumDriver {
 
     void setConnectionUrl(String connectionUrl);
 
-    void connect();
+    void connect() throws MorphiumDriverException;
 
     void connect(String replicaSetName);
 
@@ -45,12 +45,21 @@ public interface MorphiumDriver {
 
     void setSleepBetweenErrorRetries(int s);
 
-    String getAtlasUrl();
 
-    void setAtlasUrl(String atlas);
+    void setCredentials(String db, String login, String pwd);
 
-    void setCredentials(String db, String login, char[] pwd);
 
+    public abstract MorphiumTransactionContext startTransaction(boolean autoCommit);
+
+    public abstract boolean isTransactionInProgress();
+
+    public abstract void commitTransaction() throws MorphiumDriverException;
+
+    MorphiumTransactionContext getTransactionContext();
+
+    void setTransactionContext(MorphiumTransactionContext ctx);
+
+    void abortTransaction() throws MorphiumDriverException;
 
     List<Doc> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
 
