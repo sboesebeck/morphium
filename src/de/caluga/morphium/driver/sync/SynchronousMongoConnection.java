@@ -772,6 +772,17 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     protected void sendQuery(OpMsg q) throws MorphiumDriverException {
+        if (transactionContext.get() != null) {
+            q.getFirstDoc().put("lsid", Doc.of("id", transactionContext.get().getLsid()));
+            q.getFirstDoc().put("txnNumber", transactionContext.get().getTxnNumber());
+            if (!transactionContext.get().isStarted()) {
+                q.getFirstDoc().put("startTransaction", true);
+                transactionContext.get().setStarted(true);
+            }
+            if (transactionContext.get().getAutoCommit() != null)
+                q.getFirstDoc().putIfAbsent("autocommit", transactionContext.get().getAutoCommit());
+        }
+
         boolean retry = true;
         long start = System.currentTimeMillis();
         while (retry) {
