@@ -152,11 +152,21 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setCredentials(String db, String login, char[] pwd) {
+    public void setCredentials(String db, String login, String pwd) {
         String[] cred = new String[2];
         cred[0] = login;
-        cred[1] = new String(pwd);
+        cred[1] = pwd;
         credentials.put(db, cred);
+    }
+
+    @Override
+    public MorphiumTransactionContext startTransaction(boolean autoCommit) {
+        return null;
+    }
+
+    @Override
+    public boolean isTransactionInProgress() {
+        return false;
     }
 
 
@@ -569,13 +579,13 @@ public class MongoDriver implements MorphiumDriver {
         this.readTimeout = readTimeout;
     }
 
-
-    public void connect() {
-
+    @Override
+    public void connect() throws MorphiumDriverException {
+        connect(null);
     }
 
     @SuppressWarnings("CommentedOutCode")
-
+    @Override
     public void connect(String replicasetName) {
         try {
             if (maxConnections == 0) {
@@ -2189,26 +2199,26 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set(null);
     }
 
-
+    @Override
     public MorphiumTransactionContext getTransactionContext() {
         return currentTransaction.get();
     }
 
+    @Override
+    public void setTransactionContext(MorphiumTransactionContext ctx) {
+        if (currentTransaction.get() != null) {
+            throw new IllegalArgumentException("Transaction in progress!");
+        }
+        currentTransaction.set((MongoTransactionContext) ctx);
+    }
 
+    @Override
     public void abortTransaction() {
         if (currentTransaction.get() == null) {
             throw new IllegalArgumentException("No transaction in progress");
         }
         currentTransaction.get().getSession().abortTransaction();
         currentTransaction.set(null);
-    }
-
-
-    public void setTransactionContext(MorphiumTransactionContext ctx) {
-        if (currentTransaction.get() != null) {
-            throw new IllegalArgumentException("Transaction in progress!");
-        }
-        currentTransaction.set((MongoTransactionContext) ctx);
     }
 
 

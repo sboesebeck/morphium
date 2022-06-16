@@ -1,25 +1,21 @@
 package de.caluga.morphium.driver.sync;
 
-import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.mongodb.MongodbBulkContext;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +31,8 @@ public class SynchronousMongoConnection extends DriverBase {
     private Socket s;
     private OutputStream out;
     private InputStream in;
+
+    private ThreadLocal<MorphiumTransactionContextImpl> transactionContext = new ThreadLocal<>();
 
     //    private Vector<OpReply> replies = new Vector<>();
 
@@ -59,7 +57,7 @@ public class SynchronousMongoConnection extends DriverBase {
         }
     }
 
-
+    @Override
     public void connect(String replSet) {
         try {
             String host = getHostSeed()[0];
@@ -160,6 +158,100 @@ public class SynchronousMongoConnection extends DriverBase {
         } catch (IOException e) {
             //throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public MorphiumTransactionContext startTransaction(boolean autoCommit) {
+        if (this.transactionContext.get() != null) throw new IllegalArgumentException("Transaction in progress");
+        MorphiumTransactionContextImpl ctx = new MorphiumTransactionContextImpl();
+        ctx.setLsid(UUID.randomUUID().toString());
+        ctx.setTxnNumber((long) getNextId());
+        this.transactionContext.set(ctx);
+        return ctx;
+    }
+
+    @Override
+    public MorphiumTransactionContext getTransactionContext() {
+        return transactionContext.get();
+    }
+
+    @Override
+    public void setTransactionContext(MorphiumTransactionContext ctx) {
+        if (transactionContext.get() != null) throw new IllegalArgumentException("Transaction already in progress!");
+        if (ctx instanceof MorphiumTransactionContextImpl)
+            transactionContext.set((MorphiumTransactionContextImpl) ctx);
+        else
+            throw new IllegalArgumentException("Transaction context of wrong type!");
+    }
+
+    @Override
+    public boolean isTransactionInProgress() {
+        return transactionContext.get() != null;
+    }
+
+    @Override
+    public void commitTransaction() throws MorphiumDriverException {
+        if (transactionContext.get() == null)
+            throw new IllegalArgumentException("No transaction in progress, cannot commit");
+        MorphiumTransactionContextImpl ctx = transactionContext.get();
+        runCommand("admin", Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+        transactionContext.remove();
+    }
+
+    @Override
+    public void abortTransaction() throws MorphiumDriverException {
+        if (transactionContext.get() == null)
+            throw new IllegalArgumentException("No transaction in progress, cannot abort");
+        MorphiumTransactionContextImpl ctx = transactionContext.get();
+        runCommand("admin", Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+        transactionContext.remove();
+    }
+
+    public MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException {
+        return (MorphiumCursor) new NetworkCallHelper().doCall(() -> {
+            OpMsg q = new OpMsg();
+            q.setMessageId(getNextId());
+
+            Doc doc = settings.asMap("aggregate");
+            doc.putIfAbsent("cursor", new Doc());
+            if (settings.getBatchSize() != null) {
+                ((Map) doc.get("cursor")).put("batchSize", settings.getBatchSize());
+                doc.remove("batchSize");
+            } else {
+                ((Map) doc.get("cursor")).put("batchSize", getDefaultBatchSize());
+            }
+            q.setFirstDoc(doc);
+            OpMsg reply;
+            synchronized (SynchronousMongoConnection.this) {
+                sendQuery(q);
+                reply = waitForReply(settings, q);
+            }
+
+            MorphiumCursor crs = new MorphiumCursor();
+            @SuppressWarnings("unchecked") Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
+            if (cursor != null && cursor.get("id") != null) {
+                crs.setCursorId((Long) cursor.get("id"));
+            }
+
+            if (cursor != null) {
+                if (cursor.get("firstBatch") != null) {
+                    //noinspection unchecked
+                    crs.setBatch((List) cursor.get("firstBatch"));
+                } else if (cursor.get("nextBatch") != null) {
+                    //noinspection unchecked
+                    crs.setBatch((List) cursor.get("nextBatch"));
+                }
+            }
+
+            SynchronousConnectCursor internalCursorData = new SynchronousConnectCursor(this);
+            internalCursorData.setBatchSize(settings.getBatchSize() == null ? getDefaultBatchSize() : settings.getBatchSize());
+            internalCursorData.setCollection(settings.getColl());
+            internalCursorData.setDb(settings.getDb());
+            //noinspection unchecked
+            crs.setInternalCursorObject(internalCursorData);
+            return Map.of("cursor", crs);
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("cursor");
+
     }
 
     @Override
@@ -523,38 +615,13 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-    public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Doc findMetaData) throws MorphiumDriverException {
-        return null;
-    }
-
-
-    public MorphiumCursor initIteration(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, Doc findMetaData) throws MorphiumDriverException {
-        if (sort == null) {
-            sort = new HashMap<>();
-        }
+    public MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException {
         OpMsg q = new OpMsg();
         q.setMessageId(getNextId());
-        Doc doc = new Doc();
-        doc.put("$db", db);
-        doc.put("find", collection);
-        if (limit > 0) {
-            doc.put("limit", limit);
-        }
-        doc.put("skip", skip);
-        if (!query.isEmpty()) {
-            doc.put("filter", query);
-        }
-        doc.put("sort", sort);
-        doc.put("batchSize", batchSize);
-
-        q.setFirstDoc(doc);
-        q.setFlags(0);
-        q.setResponseTo(0);
-
+        q.setFirstDoc(settings.asMap("find"));
         OpMsg reply;
         synchronized (SynchronousMongoConnection.this) {
             sendQuery(q);
-
             int waitingfor = q.getMessageId();
             reply = getReply();
             if (reply.getResponseTo() != waitingfor) {
@@ -580,9 +647,9 @@ public class SynchronousMongoConnection extends DriverBase {
         }
 
         SynchronousConnectCursor internalCursorData = new SynchronousConnectCursor(this);
-        internalCursorData.setBatchSize(batchSize);
-        internalCursorData.setCollection(collection);
-        internalCursorData.setDb(db);
+        internalCursorData.setBatchSize(settings.getBatchSize());
+        internalCursorData.setCollection(settings.getColl());
+        internalCursorData.setDb(settings.getDb());
         //noinspection unchecked
         crs.setInternalCursorObject(internalCursorData);
         return crs;

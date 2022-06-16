@@ -113,7 +113,7 @@ public class SynchronousMongoConnectionTest {
                     log.info("Thread is connecting...");
                     SynchronousMongoConnection con = new SynchronousMongoConnection();
                     con.setHostSeed("localhost:27017");
-                    con.setSlaveOk(true);
+
                     con.setDefaultBatchSize(5);
 
                     con.connect();
@@ -155,7 +155,6 @@ public class SynchronousMongoConnectionTest {
     private SynchronousMongoConnection getSynchronousMongoConnection() {
         SynchronousMongoConnection con = new SynchronousMongoConnection();
         con.setHostSeed("localhost:27017");
-        con.setSlaveOk(true);
         con.setDefaultBatchSize(5);
         con.connect();
         log.info("Connected");

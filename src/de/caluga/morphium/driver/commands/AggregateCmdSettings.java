@@ -16,7 +16,18 @@ public class AggregateCmdSettings<T> extends CmdSettings<AggregateCmdSettings> {
     private Object hint;
     private Doc writeConern;
     private Doc let;
+    private Integer batchSize;
     private Doc cursor;
+
+
+    public Integer getBatchSize() {
+        return batchSize;
+    }
+
+    public AggregateCmdSettings<T> setBatchSize(Integer batchSize) {
+        this.batchSize = batchSize;
+        return this;
+    }
 
     public List<Doc> getPipeline() {
         return pipeline;

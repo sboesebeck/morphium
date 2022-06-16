@@ -325,6 +325,21 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public void setCredentials(String db, String login, String pwd) {
+
+    }
+
+    @Override
+    public MorphiumTransactionContext startTransaction(boolean autoCommit) {
+        return null;
+    }
+
+    @Override
+    public boolean isTransactionInProgress() {
+        return false;
+    }
+
 
     public void disconnect() {
         exec.shutdownNow();
