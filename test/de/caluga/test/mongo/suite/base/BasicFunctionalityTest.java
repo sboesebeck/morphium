@@ -777,7 +777,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         Thread.sleep(1000);
         boolean ex = false;
         try {
-            morphium.insert(lst);
+            morphium.insert(lst2);
         } catch (Throwable e) {
             log.info("Exception expected!");
             ex = true;
