@@ -188,10 +188,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                         .setDb(morphium.getDatabase())
                                         .setColl(coll)
                                         .setDocuments(dbLst)
-                                        .setWriteConcern(wc.asMap())
                                         .setOrdered(false)
                                         //.setBypassDocumentValidation(true)
                                         ;
+                                if (wc != null) settings.setWriteConcern(wc.asMap());
                                 morphium.getDriver().insert(settings);
                                 int idx = 0;
 
@@ -299,8 +299,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         start = System.currentTimeMillis();
                         InsertCmdSettings settings = new InsertCmdSettings()
-                                .setDb(morphium.getDatabase()).setWriteConcern(wc.asMap())
+                                .setDb(morphium.getDatabase())
                                 .setColl(collectionName).setDocuments(dbLst);
+                        if (wc != null) settings.setWriteConcern(wc.asMap());
                         morphium.getDriver().insert(settings);
                         dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
@@ -381,7 +382,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(Doc.of(marshall));
                     try {
                         InsertCmdSettings settings = new InsertCmdSettings().setDb(getDbName()).setColl(coll)
-                                .setDocuments(objs).setWriteConcern(wc.asMap());
+                                .setDocuments(objs);
+                        if (wc != null) settings.setWriteConcern(wc.asMap());
                         morphium.getDriver().insert(settings);
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
@@ -1148,8 +1150,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     DeleteCmdSettings settings = new DeleteCmdSettings()
                             .setColl(collectionName)
                             .setDb(getDbName())
-                            .setWriteConcern(wc.asMap())
                             .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", multiple ? 0 : 1, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
+                    if (wc != null) settings.setWriteConcern(wc.asMap());
 
                     morphium.getDriver().delete(settings);
                     long dur = System.currentTimeMillis() - start;

@@ -852,10 +852,12 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         }
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             try {
-                ret = morphium.getDriver().count(new CountCmdSettings().setDb(getDB())
+                CountCmdSettings settings = new CountCmdSettings().setDb(getDB())
                         .setColl(getCollectionName())
-                        .setQuery(Doc.of(this.toQueryObject()))
-                        .setCollation(Doc.of(getCollation().toQueryObject())));
+                        .setQuery(Doc.of(this.toQueryObject()));
+                if (getCollation() != null)
+                    settings.setCollation(Doc.of(getCollation().toQueryObject()));
+                ret = morphium.getDriver().count(settings);
 //                            .setReadConcern(getRP().);
             } catch (MorphiumDriverException e) {
                 log.error("Error counting", e);
@@ -1381,14 +1383,17 @@ public class QueryImpl<T> implements Query<T>, Cloneable {
         try {
             FindCmdSettings settings = new FindCmdSettings()
                     .setDb(getDB())
-                    .setColl(getCollectionName())
-                    .setFilter(Doc.of(toQueryObject()))
-                    .setSort(new Doc(sort))
-                    .setProjection(new Doc(getFieldListForQuery()))
+                    .setColl(getCollectionName());
+            if (toQueryObject() != null)
+                settings.setFilter(Doc.of(toQueryObject()));
+            if (sort != null)
+                settings.setSort(new Doc(sort));
+            settings.setProjection(new Doc(getFieldListForQuery()))
                     .setSkip(skip)
                     .setLimit(limit)
-                    .setBatchSize(1)
-                    .setCollation(Doc.of(collation.toQueryObject()));
+                    .setBatchSize(1);
+            if (collation != null)
+                settings.setCollation(Doc.of(collation.toQueryObject()));
             srch = morphium.getDriver().find(settings);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling

@@ -859,13 +859,27 @@ public class SynchronousMongoConnection extends DriverBase {
                 idx += docs.size();
                 map.put("documents", docs);
                 map.put("$db", settings.getDb());
-                map.put("ordered", false);
-                map.put("writeConcern", settings.getWriteConcern());
+                map.put("ordered", true);
+                if (settings.getWriteConcern() != null)
+                    map.put("writeConcern", settings.getWriteConcern());
                 op.setFirstDoc(map);
 
                 synchronized (SynchronousMongoConnection.this) {
                     sendQuery(op);
-                    waitForReply(settings, op);
+                    OpMsg ret = waitForReply(settings, op);
+                    if (ret.getFirstDoc().containsKey("writeErrors")) {
+                        if (((List) ret.getFirstDoc().get("writeErrors")).size() != 0) {
+                            StringBuilder b = new StringBuilder();
+                            for (Doc d : ((List<Doc>) ret.getFirstDoc().get("writeErrors"))) {
+                                b.append("Error: ");
+                                b.append(d.get("code"));
+                                b.append(" - ");
+                                b.append(d.get("errmsg"));
+                                b.append("\n");
+                            }
+                            throw new MorphiumDriverException("Exception while writing: " + b.toString());
+                        }
+                    }
                 }
             }
             settings.setMetaData("duration", System.currentTimeMillis() - start);
