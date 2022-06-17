@@ -54,6 +54,8 @@ public @interface Entity {
      */
     boolean polymorph() default false;
 
+    ReadConcernLevel readConcernLevel() default ReadConcernLevel.majority;
+
     Class<? extends NameProvider> nameProvider() default DefaultNameProvider.class;
 
     enum ValidationAction {
@@ -62,5 +64,9 @@ public @interface Entity {
 
     enum ValidationLevel {
         off, strict, moderate
+    }
+
+    enum ReadConcernLevel {
+        local, available, majority, linearizable, snapshot
     }
 }

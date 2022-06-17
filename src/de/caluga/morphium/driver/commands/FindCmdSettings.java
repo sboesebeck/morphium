@@ -2,6 +2,8 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 
+import java.util.Map;
+
 public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
     private Doc filter;
     private Doc sort;
@@ -24,6 +26,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
     private Doc collation;
     private Boolean allowDiskUse;
     private Doc let;
+
 
     public Doc getFilter() {
         return filter;
@@ -212,5 +215,41 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
     public FindCmdSettings setLet(Doc let) {
         this.let = let;
         return this;
+    }
+
+    public Boolean getSingleBatch() {
+        return singleBatch;
+    }
+
+    public Boolean getReturnKey() {
+        return returnKey;
+    }
+
+    public Boolean getShowRecordId() {
+        return showRecordId;
+    }
+
+    public Boolean getTailable() {
+        return tailable;
+    }
+
+    public Boolean getOplogReplay() {
+        return oplogReplay;
+    }
+
+    public Boolean getNoCursorTimeout() {
+        return noCursorTimeout;
+    }
+
+    public Boolean getAwaitData() {
+        return awaitData;
+    }
+
+    public Boolean getAllowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public Boolean getAllowDiskUse() {
+        return allowDiskUse;
     }
 }

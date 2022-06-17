@@ -30,7 +30,7 @@ public interface MorphiumDriver {
 
     void connect() throws MorphiumDriverException;
 
-    void connect(String replicaSetName);
+    void connect(String replicaSetName) throws MorphiumDriverException;
 
     boolean isConnected();
 
@@ -82,6 +82,8 @@ public interface MorphiumDriver {
 
     void insert(InsertCmdSettings settings) throws MorphiumDriverException;
 
+    Doc store(StoreCmdSettings settings) throws MorphiumDriverException;
+
     Doc update(UpdateCmdSettings settings) throws MorphiumDriverException;
 
     Doc drop(DropCmdSettings settings) throws MorphiumDriverException;
@@ -90,5 +92,10 @@ public interface MorphiumDriver {
 
     int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
 
+    boolean exists(String db, String coll) throws MorphiumDriverException;
+
+    Doc runCommand(String db, Doc cmd) throws MorphiumDriverException;
+
+    List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 
 }

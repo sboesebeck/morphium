@@ -2,7 +2,9 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -18,8 +20,33 @@ public class CmdSettings<T extends CmdSettings> {
 
     private String comment;
 
+    private Map<String, Object> metaData;
+
     public String getDb() {
         return $db;
+    }
+
+    /**
+     * will be set by the driver, containing information about
+     * total runtime (duration)
+     * host used (server)
+     * and other meta information about the execution of this command
+     *
+     * @return
+     */
+    public Map<String, Object> getMetaData() {
+        return metaData;
+    }
+
+    public CmdSettings<T> setMetaData(Map<String, Object> metaData) {
+        this.metaData = metaData;
+        return this;
+    }
+
+    public CmdSettings<T> setMetaData(String key, Object value) {
+        if (metaData == null) metaData = new HashMap<>();
+        metaData.put(key, value);
+        return this;
     }
 
     public T setDb(String db) {
@@ -54,10 +81,14 @@ public class CmdSettings<T extends CmdSettings> {
             if (Modifier.isStatic(f.getModifiers())) {
                 continue;
             }
-            f.setAccessible(true);
+            if (f.getName().equals("metaData")) continue;
+            if (DriverTailableIterationCallback.class.isAssignableFrom(f.getType())) continue;
+            if (AsyncOperationCallback.class.isAssignableFrom(f.getType())) continue;
             if (f.getName().equals("coll")) {
                 continue;
             }
+
+            f.setAccessible(true);
 
             try {
                 Object v = f.get(this);

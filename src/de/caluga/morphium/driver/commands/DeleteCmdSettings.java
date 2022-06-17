@@ -42,4 +42,17 @@ public class DeleteCmdSettings extends WriteCmdSettings<DeleteCmdSettings> {
         this.ordered = ordered;
         return this;
     }
+
+
+    public DeleteCmdSettings addDelete(Doc query, Integer limit, Doc collation, String hint) {
+        if (deletes == null) deletes = new ArrayList<>();
+
+        Doc del = Doc.of("q", query);
+        if (limit != null) del.put("limit", limit);
+        if (collation != null) del.put("collation", collation);
+        if (hint != null) del.put("hint", hint);
+
+        deletes.add(del);
+        return this;
+    }
 }

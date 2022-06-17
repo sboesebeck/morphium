@@ -214,6 +214,11 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public Doc store(StoreCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public Doc update(UpdateCmdSettings settings) {
         return null;
@@ -595,7 +600,7 @@ public class MongoDriver implements MorphiumDriver {
                 minConnections = 1;
             }
             MongoClientSettings.Builder o = MongoClientSettings.builder();
-            o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern());
+            o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern());
             //read preference check
             o.retryReads(retryReads);
             o.retryWrites(retryWrites);
@@ -1682,7 +1687,7 @@ public class MongoDriver implements MorphiumDriver {
             UpdateOptions opts = new UpdateOptions();
             WriteConcern w = null;
             if (wc == null)
-                w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultFsync(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern();
+                w = de.caluga.morphium.driver.WriteConcern.getWc(getDefaultW(), isDefaultJ(), getDefaultWriteTimeout()).toMongoWriteConcern();
             else w = wc.toMongoWriteConcern();
             if (collation != null) {
                 com.mongodb.client.model.Collation col = getCollation(collation);

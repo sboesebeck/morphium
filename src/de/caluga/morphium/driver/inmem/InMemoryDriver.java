@@ -223,6 +223,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public Doc store(StoreCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
     public Doc update(UpdateCmdSettings settings) {
         return null;
     }
