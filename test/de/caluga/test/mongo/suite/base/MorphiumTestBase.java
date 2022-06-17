@@ -6,6 +6,7 @@ import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.commands.DropCmdSettings;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -72,7 +73,7 @@ public class MorphiumTestBase {
 
     @org.junit.AfterClass
     public static void tearDownClass() {
-       // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
+        // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
     }
 
@@ -116,8 +117,8 @@ public class MorphiumTestBase {
                 //creating default config
                 cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
                 cfg.addHostToSeed("localhost", 27017);
-                //                cfg.addHostToSeed("localhost", 27018);
-                //                cfg.addHostToSeed("localhost", 27019);
+                cfg.addHostToSeed("localhost", 27018);
+                cfg.addHostToSeed("localhost", 27019);
                 cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
                 cfg.setRetryReads(false);
@@ -179,14 +180,16 @@ public class MorphiumTestBase {
         log.info("-----------------------------");
         log.info("------ > TestNumber: " + num);
 
-//        try {
-//            if (!morphium.getConfig().isAtlas()) {
-//                log.info("Dropping database: " + morphium.getConfig().getDatabase());
-//                morphium.getDriver().drop(morphium.getConfig().getDatabase(), null);
-//            }
-//        } catch (MorphiumDriverException e) {
-//            e.printStackTrace();
-//        }
+        try {
+            if (!morphium.getConfig().isAtlas()) {
+                log.info("Dropping database: " + morphium.getConfig().getDatabase());
+                DropCmdSettings settings = new DropCmdSettings();
+                settings.setDb(morphium.getConfig().getDatabase());
+                morphium.getDriver().dropDatabase(settings);
+            }
+        } catch (MorphiumDriverException e) {
+            e.printStackTrace();
+        }
 
         log.info("Init complete");
     }

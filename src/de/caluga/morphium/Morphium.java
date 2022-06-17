@@ -219,6 +219,8 @@ public class Morphium implements AutoCloseable {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+
+            //TODO: add Settings
 //            morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
 //            morphiumDriver.setMaxConnections(config.getMaxConnections());
 //            morphiumDriver.setMinConnections(config.getMinConnectionsHost());
@@ -254,11 +256,11 @@ public class Morphium implements AutoCloseable {
 //            morphiumDriver.setAtlasUrl(config.getAtlasUrl());
 
 //            morphiumDriver.setDefaultReadPreference(config.getDefaultReadPreference());
-//            try {
-//                morphiumDriver.connect(config.getRequiredReplicaSetName());
-//            } catch (MorphiumDriverException e) {
-//                throw new RuntimeException(e);
-//            }
+            try {
+                morphiumDriver.connect(config.getRequiredReplicaSetName());
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         if (config.getWriter() == null) {
@@ -421,12 +423,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public List<String> listCollections(String pattern) {
-//        try {
-//            return getDriver().listCollections(getConfig().getDatabase(), pattern);
-//        } catch (MorphiumDriverException e) {
-//            throw new RuntimeException(e);
-//        }
-        return null;
+        try {
+            return getDriver().listCollections(getConfig().getDatabase(), pattern);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void reconnectToDb(String db) {
@@ -2174,7 +2175,7 @@ public class Morphium implements AutoCloseable {
         if (!isReplicaSet() && timeout < 0) {
             timeout = 0;
         }
-        return WriteConcern.getWc(w, fsync, j, (int) timeout);
+        return WriteConcern.getWc(w, j, (int) timeout);
     }
 
     public void addProfilingListener(ProfilingListener l) {

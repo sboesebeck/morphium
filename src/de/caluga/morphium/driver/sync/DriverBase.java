@@ -156,9 +156,8 @@ public abstract class DriverBase implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Map<String, Object> command = new HashMap<>();
-        command.put("listDatabases", 1);
-        Map<String, Object> res = null;//runCommand("admin", command);
+        Doc command = Doc.of("listDatabases", 1);
+        Doc res = runCommand("admin", command);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
@@ -178,14 +177,13 @@ public abstract class DriverBase implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Map<String, Object> command = new LinkedHashMap<>();
-        command.put("listCollections", 1);
+        Doc command = Doc.of("listCollections", 1);
         if (pattern != null) {
             Map<String, Object> query = new HashMap<>();
             query.put("name", Pattern.compile(pattern));
             command.put("filter", query);
         }
-        Map<String, Object> res = null; //runCommand(db, command);
+        Map<String, Object> res = runCommand(db, command);
         List<Map<String, Object>> colList = new ArrayList<>();
         List<String> colNames = new ArrayList<>();
         addToListFromCursor(db, colList, res);
@@ -208,11 +206,11 @@ public abstract class DriverBase implements MorphiumDriver {
                 data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             }
             //next iteration.
-            Map<String, Object> doc = new LinkedHashMap<>();
+            Doc doc = new Doc();
             if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
                 valid = true;
                 doc.put("getMore", crs.get("id"));
-                crs = null;// runCommand(db, doc);
+                crs = runCommand(db, doc);
             } else {
                 valid = false;
             }
@@ -310,6 +308,9 @@ public abstract class DriverBase implements MorphiumDriver {
         }
     }
 
+    public boolean getDefaultJ() {
+        return defaultJ;
+    }
 
     public int getDefaultWriteTimeout() {
         return defaultWriteTimeout;
@@ -335,15 +336,6 @@ public abstract class DriverBase implements MorphiumDriver {
         return new String[0];
     }
 
-
-    public boolean isDefaultFsync() {
-        return defaultJ;
-    }
-
-
-    public void setDefaultFsync(boolean j) {
-        defaultJ = j;
-    }
 
 
     public String[] getHostSeed() {

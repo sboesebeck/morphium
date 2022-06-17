@@ -32,7 +32,9 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            con.store(db, coll, Arrays.asList(Doc.of(objectMapper.serialize(o))), null);
+            StoreCmdSettings cmd = new StoreCmdSettings()
+                    .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+            con.store(cmd);
         }
         log.info("created test data");
         log.info("running find...");
@@ -70,7 +72,9 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            con.store(db, coll, Arrays.asList(Doc.of(objectMapper.serialize(o))), null);
+            StoreCmdSettings cmd = new StoreCmdSettings()
+                    .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+            con.store(cmd);
         }
         log.info("created test data");
         log.info("running find...");
@@ -104,7 +108,9 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
         UncachedObject o = new UncachedObject("value", 123);
-        con.store(db, coll, Arrays.asList(Doc.of(objectMapper.serialize(o))), null);
+        StoreCmdSettings cmd = new StoreCmdSettings()
+                .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+        con.store(cmd);
 
         long start = System.currentTimeMillis();
         new Thread() {
@@ -123,7 +129,9 @@ public class SynchronousMongoConnectionTest {
                     Thread.sleep(3500);
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
-                    con.store(db, coll, Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))), null);
+                    StoreCmdSettings cmd = new StoreCmdSettings()
+                            .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                    con.store(cmd);
                     log.info("stored data after " + (System.currentTimeMillis() - start) + "ms");
                     con.disconnect();
                 } catch (Exception e) {
@@ -172,7 +180,9 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        con.store(db, coll, testList, null);
+        StoreCmdSettings cmd = new StoreCmdSettings()
+                .setDb(db).setColl(coll).setDocs(testList);
+        con.store(cmd);
 
         MapReduceSettings settings = new MapReduceSettings()
                 .setColl(coll)
@@ -209,7 +219,9 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        con.store(db, coll, testList, null);
+        StoreCmdSettings cmd = new StoreCmdSettings()
+                .setDb(db).setColl(coll).setDocs(testList);
+        con.store(cmd);
 
         Doc result = con.runCommand(db, Doc.of("hello", 1));
         assertThat(result != null).isTrue();
