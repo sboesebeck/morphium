@@ -112,4 +112,6 @@ public interface MorphiumDriver {
     Map<String, Object> getDbStats(String db) throws MorphiumDriverException;
 
     Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
+
+    Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
 }

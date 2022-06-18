@@ -172,7 +172,7 @@ public class MorphiumTestBase {
                 cfg.setDatabase(cfg.getDatabase() + "_" + number.get());
             }
             morphium = new Morphium(cfg);
-
+            log.info("Morphium instanciated");
         }
         int num = number.incrementAndGet();
         log.info("------------------------------------------------");

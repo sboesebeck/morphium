@@ -586,7 +586,7 @@ public class SynchronousMongoConnection extends DriverBase {
         return ret;
     }
 
-    public Doc getReplsetStatus() throws MorphiumDriverException {
+    public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(() -> {
             var ret = runCommand("admin", Doc.of("replSetGetStatus", 1));
             @SuppressWarnings("unchecked") List<Doc> mem = (List) ret.get("members");

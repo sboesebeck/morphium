@@ -1,6 +1,7 @@
 package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.commands.FindCmdSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,12 +136,14 @@ public class RSMonitor {
     public de.caluga.morphium.replicaset.ReplicaSetStatus getReplicaSetStatus(boolean full) {
         if (morphium.isReplicaSet()) {
             try {
-                Map<String, Object> res = new LinkedHashMap<>(); //morphium.getDriver().getReplsetStatus();
+                Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().deserialize(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
 
                 if (full) {
-                    Map<String, Object> findMetaData = new HashMap<>();
-                    List<Map<String, Object>> stats = new ArrayList<>();//morphium.getDriver().find("local", "system.replset", new HashMap<>(), null, null, 0, 10, 10, null, null, findMetaData);
+
+                    FindCmdSettings settings = new FindCmdSettings()
+                            .setDb("local").setColl("system.replset").setBatchSize(10).setLimit(10);
+                    List<Map<String, Object>> stats = morphium.getDriver().find(settings);
                     if (stats == null || stats.isEmpty()) {
                         logger.debug("could not get replicaset status");
                     } else {

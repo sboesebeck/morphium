@@ -371,11 +371,11 @@ public class InMemoryDriver implements MorphiumDriver {
         database.clear();
     }
 //
-//    
-//    public Doc getReplsetStatus() {
-//        return new ConcurrentHashMap<>();
-//    }
-//
+
+    public Map<String, Object> getReplsetStatus() {
+        return new ConcurrentHashMap<>();
+    }
+
 //    
 //    public Doc getDBStats(String db) {
 //        Doc ret = new ConcurrentHashMap<>();

@@ -102,6 +102,19 @@ public class BsonEncoder {
             writeByte(2);
             cString(n);
             string((String) v);
+        } else if (v.getClass().isArray() && v.getClass().getComponentType().equals(byte.class)) {
+            writeByte(5);
+            cString(n);
+
+            byte[] data = ((byte[]) v);
+            if (data == null) {
+                data = new byte[0];
+            }
+            writeInt(data.length);
+            writeByte(0); //subtype
+
+            writeBytes(data);
+
         } else if (v instanceof List || List.class.isAssignableFrom(v.getClass()) || Collection.class.isAssignableFrom(v.getClass())) {
             writeByte(4);
             cString(n);
@@ -222,6 +235,8 @@ public class BsonEncoder {
         } else if (v.getClass().isAssignableFrom(MongoMinKey.class)) {
             writeByte(0xff);
             cString(n);
+        } else {
+            throw new RuntimeException("Unhandled Data type: " + v.getClass().getName());
         }
         return this;
     }
