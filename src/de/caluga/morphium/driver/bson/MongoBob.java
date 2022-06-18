@@ -6,6 +6,7 @@ package de.caluga.morphium.driver.bson;/**
  * BOB implementation for BSON
  **/
 @SuppressWarnings("WeakerAccess")
+@Deprecated
 public class MongoBob {
     private byte[] data;
 

@@ -481,6 +481,7 @@ public abstract class DriverBase implements MorphiumDriver {
     public String getHostAdress(String hn) throws UnknownHostException {
         String hst[] = hn.split(":");
         String h = hst[0];
+        h = h.replaceAll(" ", "");
         int port = 27017;
         if (hst.length > 1) {
             port = Integer.parseInt(hst[1]);

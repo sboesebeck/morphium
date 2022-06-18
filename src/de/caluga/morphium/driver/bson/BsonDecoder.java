@@ -77,15 +77,13 @@ public class BsonDecoder {
                     break;
 
                 case 0x05:
-                    //binary data
-                    //                    throw new RuntimeException("Not implemented yet!");
                     int boblen = readInt(in, idx);
                     byte[] bobdata = new byte[boblen];
                     //skipping subtype!
                     System.arraycopy(in, idx + 5, bobdata, 0, boblen);
                     MongoBob bob = new MongoBob(bobdata);
                     idx += boblen + 5;
-                    value = bob;
+                    value = bob.getData();
                     break;
                 case 0x0e:
                     //deprecated

@@ -433,7 +433,7 @@ public class Morphium implements AutoCloseable {
         Properties prop = getConfig().asProperties();
         close();
         MorphiumConfig cfg = new MorphiumConfig(prop);
-        //cfg.setDatabase(db);
+        cfg.setDatabase(db);
         setConfig(cfg);
     }
 
