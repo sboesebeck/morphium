@@ -170,7 +170,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> aggregate(AggregateCmdSettings settings) {
+    public List<Map<String, Object>> aggregate(AggregateCmdSettings settings) {
         return null;
     }
 
@@ -190,7 +190,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> mapReduce(MapReduceSettings settings) {
+    public List<Map<String, Object>> mapReduce(MapReduceSettings settings) {
         return null;
     }
 
@@ -200,7 +200,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> find(FindCmdSettings settings) {
+    public List<Map<String, Object>> find(FindCmdSettings settings) {
         return null;
     }
 
@@ -270,6 +270,16 @@ public class MongoDriver implements MorphiumDriver {
             }
         }
         return ret;
+    }
+
+    @Override
+    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
+        return null;
     }
 
 
@@ -1797,6 +1807,11 @@ public class MongoDriver implements MorphiumDriver {
             }
         }
         return false;
+    }
+
+    @Override
+    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
 

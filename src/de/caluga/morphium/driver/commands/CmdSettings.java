@@ -92,8 +92,15 @@ public class CmdSettings<T extends CmdSettings> {
 
             try {
                 Object v = f.get(this);
+                if (v instanceof Enum) {
+                    v = v.toString();
+                }
+                String n = f.getName();
+                //TODO: find better solution
+                if (n.equals("newFlag")) n = "new";
                 if (v != null)
-                    map.put(f.getName(), v);
+                    map.put(n, v);
+
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }

@@ -150,6 +150,21 @@ public class InMemoryDriver implements MorphiumDriver {
         return new ArrayList<>(database.keySet());
     }
 
+    @Override
+    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public List<String> listCollections(String db, String pattern) {
 
@@ -178,7 +193,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Doc> aggregate(AggregateCmdSettings settings) {
+    public List<Map<String, Object>> aggregate(AggregateCmdSettings settings) {
         return null;
     }
 
@@ -198,7 +213,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Doc> mapReduce(MapReduceSettings settings) {
+    public List<Map<String, Object>> mapReduce(MapReduceSettings settings) {
         return null;
     }
 
@@ -208,12 +223,12 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Doc> find(FindCmdSettings settings) {
+    public List<Map<String, Object>> find(FindCmdSettings settings) {
         return null;
     }
 
     @Override
-    public Doc findAndModify(FindAndModifyCmdSettings settings) {
+    public Map<String, Object> findAndModify(FindAndModifyCmdSettings settings) {
         return null;
     }
 
@@ -1146,6 +1161,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public boolean exists(String db) {
         return database.containsKey(db);
+    }
+
+    @Override
+    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
 

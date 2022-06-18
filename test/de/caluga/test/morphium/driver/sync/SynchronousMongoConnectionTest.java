@@ -39,7 +39,7 @@ public class SynchronousMongoConnectionTest {
         log.info("created test data");
         log.info("running find...");
         FindCmdSettings fnd = new FindCmdSettings().setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
-        List<Doc> res = con.find(fnd);
+        List<Map<String, Object>> res = con.find(fnd);
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");
@@ -79,7 +79,7 @@ public class SynchronousMongoConnectionTest {
         log.info("created test data");
         log.info("running find...");
         FindCmdSettings fnd = new FindCmdSettings().setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
-        List<Doc> res = con.find(fnd);
+        List<Map<String, Object>> res = con.find(fnd);
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");
@@ -193,13 +193,8 @@ public class SynchronousMongoConnectionTest {
                 .setFinalize("function(key, reducedValue){ return reducedValue;}")
                 .setSort(Doc.of("counter", 1))
                 .setScope(Doc.of("myVar", 1));
-        List<Doc> res = con.mapReduce(settings);
-        res.sort(new Comparator<Doc>() {
-            @Override
-            public int compare(Doc o1, Doc o2) {
-                return ((Comparable) o1.get("_id")).compareTo(o2.get("_id"));
-            }
-        });
+        List<Map<String, Object>> res = con.mapReduce(settings);
+        res.sort((o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
         log.info("Got results");
         assertThat(res.size()).isEqualTo(50);
         assertThat(res.get(0).containsKey("_id")).isTrue();
@@ -223,7 +218,7 @@ public class SynchronousMongoConnectionTest {
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
 
-        Doc result = con.runCommand(db, Doc.of("hello", 1));
+        var result = con.runCommand(db, Doc.of("hello", 1));
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
