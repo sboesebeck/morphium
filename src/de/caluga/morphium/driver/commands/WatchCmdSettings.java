@@ -19,6 +19,26 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
     private Doc writeConern;
     private Doc let;
     private Doc cursor;
+    private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
+    private FullDocumentEnum fullDocument;
+
+    public FullDocumentBeforeChangeEnum getFullDocumentBeforeChange() {
+        return fullDocumentBeforeChange;
+    }
+
+    public WatchCmdSettings setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
+        this.fullDocumentBeforeChange = fullDocumentBeforeChange;
+        return this;
+    }
+
+    public FullDocumentEnum getFullDocument() {
+        return fullDocument;
+    }
+
+    public WatchCmdSettings setFullDocument(FullDocumentEnum fullDocument) {
+        this.fullDocument = fullDocument;
+        return this;
+    }
 
     public List<Doc> getPipeline() {
         return pipeline;
@@ -135,5 +155,24 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
     public WatchCmdSettings setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
+    }
+
+
+    public enum FullDocumentBeforeChangeEnum {
+        whenAvailable, required, off
+    }
+
+    public enum FullDocumentEnum {
+        updateLookup("updateLookup"), whenAvailable("whenAvailable"), required("required"), defaultValue("default");
+
+        String n;
+
+        FullDocumentEnum(String name) {
+            n = name;
+        }
+
+        public String toString() {
+            return n;
+        }
     }
 }

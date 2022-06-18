@@ -14,6 +14,8 @@ import org.junit.Test;
 
 import java.util.*;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 22.03.13
@@ -28,7 +30,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferUpsert() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
 
-        waitForAsyncOperationToStart(10000);
+        assertThat(wiatForAsyncOpToStart(2000)).isTrue();
         waitForWrites();
         List<BufferedBySizeObject> lst = new ArrayList<>();
         for (int i = 0; i < 200; i++) {
@@ -42,23 +44,23 @@ public class BufferedWriterTest extends MorphiumTestBase {
             morphium.store(b);
         }
         Thread.sleep(3000);
-        waitForAsyncOperationToStart(10000);
+        assertThat(wiatForAsyncOpToStart(2000)).isTrue();
         waitForWrites();
         for (BufferedBySizeObject b : lst) {
             b.setStrValue(b.getStrValue() + 100);
             morphium.store(b);
         }
         Thread.sleep(3000);
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
-        assert (morphium.createQueryFor(BufferedBySizeObject.class).countAll() == 200);
+        assertThat(morphium.createQueryFor(BufferedBySizeObject.class).countAll()).isEqualTo(200);
 
     }
     @Test
     public void testWriteBufferUpdate() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
 
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
 
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
@@ -73,7 +75,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         q = morphium.createQueryFor(BufferedBySizeObject.class).f(BufferedBySizeObject.Fields.counter).eq(300);
         morphium.set(q, UncachedObject.Fields.counter, 1, true, false);
 
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         Thread.sleep(3000);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
@@ -87,7 +89,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferUpdateMap() throws Exception {
         morphium.dropCollection(BufferedByTimeObject.class);
 
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
 
         for (int i = 0; i < 100; i++) {
@@ -96,7 +98,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             bo.setDval(1.0);
             morphium.store(bo);
         }
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         Thread.sleep(1000);
         while (morphium.createQueryFor(BufferedByTimeObject.class).countAll() != 100) {
@@ -110,7 +112,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         Query<BufferedByTimeObject> q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(100);
         morphium.inc(q, toInc, false, true, null);
 
-        waitForAsyncOperationToStart(1000);
+        wiatForAsyncOpToStart(1000);
         waitForWrites();
         Thread.sleep(1000);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
@@ -120,7 +122,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
         morphium.inc(q, toInc, true, false, null);
-        waitForAsyncOperationToStart(1000);
+        wiatForAsyncOpToStart(1000);
         waitForWrites();
         Thread.sleep(1000);
 
@@ -137,7 +139,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferIncs() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
 
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
@@ -157,7 +159,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             Thread.sleep(1000); //waiting
             log.info("Waiting for writes to finish...");
         }
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         Thread.sleep(5000);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
@@ -171,7 +173,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeWriteNewObject.class);
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
@@ -248,7 +250,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySizeWithDelOldStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeDelOldObject.class);
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
@@ -266,7 +268,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySizeWithIngoreNewStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeIgnoreNewObject.class);
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
@@ -284,7 +286,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySizeWithWaitStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeWaitObject.class);
-        waitForAsyncOperationToStart(10000);
+        wiatForAsyncOpToStart(2000);
         waitForWrites();
         int amount = 1500;
         for (int i = 0; i < amount; i++) {

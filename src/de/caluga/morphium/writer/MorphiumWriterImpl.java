@@ -491,10 +491,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
                     List<Doc> objs = new ArrayList<>();
                     objs.add(Doc.of(marshall));
-                    Doc ret;
+                    Map<String, Object> ret;
                     try {
                         StoreCmdSettings settings = new StoreCmdSettings()
-                                .setColl(coll).setDb(getDbName()).setDocs(objs).setWriteConcern(wc.asMap());
+                                .setColl(coll).setDb(getDbName()).setDocs(objs);
+                        if (wc != null) settings.setWriteConcern(wc.asMap());
                         ret = morphium.getDriver().store(settings);
                     } catch (MorphiumDriverException mde) {
                         if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()) {
@@ -661,7 +662,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     .setDocs(lst)
                                     .setWriteConcern(wc.asMap())
                                     .setColl(coll);
-                            Doc ret = morphium.getDriver().store(settings);
+                            Map<String, Object> ret = morphium.getDriver().store(settings);
                             if (en.autoVersioning()) {
                                 if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
                                     throw new ConcurrentModificationException("versioning failure");

@@ -102,7 +102,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
                 assert false;
             }
         });
-        waitForAsyncOperationToStart(1000000);
+        wiatForAsyncOpToStart(3000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {
             count++;
@@ -137,7 +137,7 @@ public class AsyncOperationTest extends MorphiumTestBase {
             }
         });
         //waiting for thread to become active
-        waitForAsyncOperationToStart(1000000);
+        wiatForAsyncOpToStart(3000);
         Thread.sleep(2000);
         int count = 0;
         while (q.getNumberOfPendingRequests() > 0) {

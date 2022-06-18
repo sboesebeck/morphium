@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ListContainer;
@@ -48,7 +47,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
         createUncachedObjects(1000);
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
-        waitForAsyncOperationToStart(1000);
+        wiatForAsyncOpToStart(1000);
         waitForWrites();
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 1; i <= 1000; i++) {

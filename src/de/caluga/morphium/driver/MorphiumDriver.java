@@ -2,9 +2,12 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 15.10.15.
  */
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Morphium driver interface
@@ -49,11 +52,11 @@ public interface MorphiumDriver {
     void setCredentials(String db, String login, String pwd);
 
 
-    public abstract MorphiumTransactionContext startTransaction(boolean autoCommit);
+    abstract MorphiumTransactionContext startTransaction(boolean autoCommit);
 
-    public abstract boolean isTransactionInProgress();
+    abstract boolean isTransactionInProgress();
 
-    public abstract void commitTransaction() throws MorphiumDriverException;
+    abstract void commitTransaction() throws MorphiumDriverException;
 
     MorphiumTransactionContext getTransactionContext();
 
@@ -61,7 +64,7 @@ public interface MorphiumDriver {
 
     void abortTransaction() throws MorphiumDriverException;
 
-    List<Doc> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
+    List<Map<String, Object>> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
 
     long count(CountCmdSettings settings) throws MorphiumDriverException;
 
@@ -69,33 +72,44 @@ public interface MorphiumDriver {
 
     List<Object> distinct(DistinctCmdSettings settings) throws MorphiumDriverException;
 
-    List<Doc> mapReduce(MapReduceSettings settings) throws MorphiumDriverException;
+    List<Map<String, Object>> mapReduce(MapReduceSettings settings) throws MorphiumDriverException;
 
     /**
      * @return number of deleted documents
      */
     int delete(DeleteCmdSettings settings) throws MorphiumDriverException;
 
-    List<Doc> find(FindCmdSettings settings) throws MorphiumDriverException;
+    List<Map<String, Object>> find(FindCmdSettings settings) throws MorphiumDriverException;
 
-    Doc findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException;
 
     void insert(InsertCmdSettings settings) throws MorphiumDriverException;
 
-    Doc store(StoreCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> store(StoreCmdSettings settings) throws MorphiumDriverException;
 
-    Doc update(UpdateCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> update(UpdateCmdSettings settings) throws MorphiumDriverException;
 
-    Doc drop(DropCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> drop(DropCmdSettings settings) throws MorphiumDriverException;
 
-    Doc dropDatabase(DropCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> dropDatabase(DropCmdSettings settings) throws MorphiumDriverException;
 
     int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
 
     boolean exists(String db, String coll) throws MorphiumDriverException;
 
-    Doc runCommand(String db, Doc cmd) throws MorphiumDriverException;
+    boolean exists(String db) throws MorphiumDriverException;
+
+    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 
+    BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
+
+    List<String> listDatabases() throws MorphiumDriverException;
+
+    Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException;
+
+    Map<String, Object> getDbStats(String db) throws MorphiumDriverException;
+
+    Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
 }

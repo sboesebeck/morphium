@@ -97,11 +97,11 @@ public class MorphiumInMemTestBase {
     }
 
 
-    public boolean waitForAsyncOperationToStart(int maxWaits) {
-        int cnt = 0;
+    public boolean waitForWriteBufferToFlush(long maxWaitMs) {
+        long start = System.currentTimeMillis();
         while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
-            if (cnt++ > maxWaits) {
+            if (System.currentTimeMillis() - start > maxWaitMs) {
                 return false;
             }
         }

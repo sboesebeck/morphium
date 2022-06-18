@@ -233,7 +233,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         morphium.store(o);
 
 
-        waitForAsyncOperationToStart(1000000);
+        waitForWriteBufferToFlush(3000);
         waitForWrites();
         morphium.reread(o);
         for (int i = 0; i < binaryData.length; i++) {
@@ -241,7 +241,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         }
         o.setBinaryData(binaryData);
         morphium.store(o);
-        waitForAsyncOperationToStart(1000000);
+        waitForWriteBufferToFlush(3000);
         waitForWrites();
 
         for (int i = 0; i < o.getBinaryData().length; i++) {
@@ -259,7 +259,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         o.setBinaryData(binaryData);
         morphium.store(o);
 
-        waitForAsyncOperationToStart(1000000);
+        waitForWriteBufferToFlush(3000);
         waitForWrites();
         morphium.reread(o);
         for (int i = 0; i < o.getBinaryData().length; i++) {
@@ -502,7 +502,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 
         long dur = System.currentTimeMillis() - start;
         log.info("Storing (in Cache) single took " + dur + " ms");
-        waitForAsyncOperationToStart(1000000);
+        waitForWriteBufferToFlush(3000);
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
@@ -574,7 +574,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
 
         morphium.storeList(tst);
-        waitForAsyncOperationToStart(1000000);
+        waitForWriteBufferToFlush(3000);
         waitForWrites();
         //Still waiting - storing lists is not shown in number of write buffer entries
         //        try {

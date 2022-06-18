@@ -49,22 +49,22 @@ public class OpMsg extends WireProtocolMessage {
     public static final int EXHAUST_ALLOWED = 65536;
 
 
-    private Doc firstDoc;
-    private Map<String, List<Doc>> documents;
+    private Map<String, Object> firstDoc;
+    private Map<String, List<Map<String, Object>>> documents;
 
     private int flags;
 
-    public void addDoc(String seqId, Doc o) {
+    public void addDoc(String seqId, Map<String, Object> o) {
         if (documents == null) documents = new LinkedHashMap<>();
         documents.putIfAbsent(seqId, new ArrayList<>());
         documents.get(seqId).add(o);
     }
 
-    public Doc getFirstDoc() {
+    public Map<String, Object> getFirstDoc() {
         return firstDoc;
     }
 
-    public void setFirstDoc(Doc o) {
+    public void setFirstDoc(Map<String, Object> o) {
         firstDoc = o;
     }
 
@@ -131,7 +131,7 @@ public class OpMsg extends WireProtocolMessage {
             for (String seqId : documents.keySet()) {
                 ByteArrayOutputStream sectionOut = new ByteArrayOutputStream();
                 writeString(seqId, sectionOut);
-                for (Doc doc : documents.get(seqId)) {
+                for (var doc : documents.get(seqId)) {
                     sectionOut.write(BsonEncoder.encodeDocument(doc));
                 }
                 byte[] section = sectionOut.toByteArray();

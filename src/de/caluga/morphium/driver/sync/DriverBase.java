@@ -157,7 +157,7 @@ public abstract class DriverBase implements MorphiumDriver {
             return null;
         }
         Doc command = Doc.of("listDatabases", 1);
-        Doc res = runCommand("admin", command);
+        Map<String, Object> res = runCommand("admin", command);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");

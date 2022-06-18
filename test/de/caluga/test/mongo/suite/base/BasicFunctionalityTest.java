@@ -4,9 +4,13 @@
  */
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.*;
-import de.caluga.morphium.annotations.*;
-import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.annotations.Embedded;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
@@ -22,7 +26,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author stephan
@@ -101,7 +110,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     @Test
     public void getDatabaseListTest() {
         List<String> dbs = morphium.listDatabases();
-        assert (dbs != null);
+        assertThat(dbs).isNotNull();
         assert (dbs.size() != 0);
         for (String s : dbs) {
             log.info("Got DB: " + s);
@@ -112,8 +121,8 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
     @Test
     public void reconnectDatabaseTest() throws Exception {
         List<String> dbs = morphium.listDatabases();
-        assert (dbs != null);
-        assert (dbs.size() != 0);
+        assertThat(dbs).isNotNull();
+        assertThat(dbs.size()).isNotEqualTo(0);
         for (String s : dbs) {
             log.info("Got DB: " + s);
             morphium.reconnectToDb(s);
@@ -232,7 +241,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.store(o);
 
 
-        waitForAsyncOperationToStart(1000000);
+        wiatForAsyncOpToStart(3000);
         waitForWrites();
         morphium.reread(o);
         for (int i = 0; i < binaryData.length; i++) {
@@ -240,7 +249,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         }
         o.setBinaryData(binaryData);
         morphium.store(o);
-        waitForAsyncOperationToStart(1000000);
+        wiatForAsyncOpToStart(3000);
         waitForWrites();
 
         for (int i = 0; i < o.getBinaryData().length; i++) {
@@ -258,7 +267,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         o.setBinaryData(binaryData);
         morphium.store(o);
 
-        waitForAsyncOperationToStart(1000000);
+        wiatForAsyncOpToStart(3000);
         waitForWrites();
         morphium.reread(o);
         for (int i = 0; i < o.getBinaryData().length; i++) {
@@ -333,7 +342,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").notExists().f("str_value").eq("Uncached 1");
         long c = q.countAll();
-        assert (c == 0);
+        assertThat(c).isEqualTo(0);
     }
 
 
@@ -519,7 +528,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
 
         long dur = System.currentTimeMillis() - start;
         log.info("Storing (in Cache) single took " + dur + " ms");
-        waitForAsyncOperationToStart(100000);
+        wiatForAsyncOpToStart(1000);
         waitForWrites();
         dur = System.currentTimeMillis() - start;
         log.info("Storing took " + dur + " ms overall");
@@ -592,7 +601,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
 
         morphium.storeList(tst);
-        waitForAsyncOperationToStart(1000000);
+        assertThat(wiatForAsyncOpToStart(3000)).isTrue();
         waitForWrites();
         //Still waiting - storing lists is not shown in number of write buffer entries
         //        try {
@@ -601,9 +610,9 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         //            throw new RuntimeException(e);
         //        }
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
-        assert (qu.countAll() == uncached) : "Difference in object count for cached objects. Wrote " + uncached + " found: " + qu.countAll();
+        assertThat(qu.countAll()).isEqualTo(uncached);
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-        assert (q.countAll() == cached) : "Difference in object count for cached objects. Wrote " + cached + " found: " + q.countAll();
+        assertThat(q.countAll()).isEqualTo(cached);
 
     }
 
@@ -898,10 +907,10 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.store(uc);
         Thread.sleep(150);
         UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(UtilsMap.of("$set", UtilsMap.of("counter", 42)));
-        assert (ret.getStrValue().equals("value"));
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 1);
+        assertThat(ret.getStrValue()).isEqualTo("value");
+        assertThat(morphium.createQueryFor(UncachedObject.class).countAll()).isEqualTo(1);
         morphium.reread(uc);
-        assert (uc.getCounter() == 42);
+        assertThat(uc.getCounter()).isEqualTo(42);
 
     }
 
@@ -985,7 +994,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
 
     }
 
-    
+
     @Entity
     public static class StringIdTestEntity {
         @Id
