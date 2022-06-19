@@ -1558,7 +1558,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     UpdateCmdSettings settings = new UpdateCmdSettings()
                             .setDb(getDbName())
                             .setColl(coll)
-                            .setWriteConcern(wc.asMap())
+                            .setWriteConcern(wc != null ? wc.asMap() : null)
                             .addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
 
                     Map<String, Object> daa = morphium.getDriver().update(settings);
@@ -1849,7 +1849,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             UpdateCmdSettings settings = new UpdateCmdSettings()
                     .setColl(coll)
                     .setDb(getDbName())
-                    .setWriteConcern(wc.asMap())
+                    .setWriteConcern(wc != null ? wc.asMap() : null)
                     .addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, collation, null, null);
             morphium.getDriver().update(settings);
             morphium.inc(StatisticKeys.WRITES);

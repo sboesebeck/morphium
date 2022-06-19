@@ -2,6 +2,7 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.FindCmdSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +18,7 @@ import java.util.Map;
  * <p>
  * iterating over huge collections using the mongodb internal cursor
  */
-public class QueryIterator<T> implements MorphiumQueryIterator<T> {
+public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Iterable<T> {
 
     private final Logger log = LoggerFactory.getLogger(QueryIterator.class);
     private Query<T> query;
@@ -28,7 +29,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
     private boolean multithreadded;
     private int windowSize = -1;
 
-    @Override
+
     public int getWindowSize() {
         if (query == null) {
             return 0;
@@ -39,46 +40,42 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         return windowSize;
     }
 
-    @Override
+
     public void setWindowSize(int sz) {
         windowSize = sz;
     }
 
-    @Override
+
     public Query<T> getQuery() {
         return query;
     }
 
-    @Override
+
     public void setQuery(Query<T> q) {
-        try {
             query = q.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
-        }
     }
 
-    @Override
+
     public int getCurrentBufferSize() {
         return currentBatch.getBatch().size();
     }
 
-    @Override
+
     public List<T> getCurrentBuffer() {
         return null;
     }
 
-    @Override
+
     public long getCount() {
         return query.countAll();
     }
 
-    @Override
+
     public int getCursor() {
         return cursorExternal;
     }
 
-    @Override
+
     public void ahead(int jump) {
         cursor += jump;
         cursorExternal += jump;
@@ -91,7 +88,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         }
     }
 
-    @Override
+
     public void back(int jump) {
         cursor -= jump;
         cursorExternal -= jump;
@@ -100,38 +97,37 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         }
     }
 
-    @Override
+
     public void setNumberOfPrefetchWindows(int n) {
         throw new IllegalArgumentException("not possible");
     }
 
-    @Override
+
     public int getNumberOfAvailableThreads() {
         return 1;
     }
 
 
-    @Override
     public int getNumberOfThreads() {
         return 1;
     }
 
-    @Override
+
     public boolean isMultithreaddedAccess() {
         return multithreadded;
     }
 
-    @Override
+
     public void setMultithreaddedAccess(boolean mu) {
         multithreadded = mu;
     }
 
-    @Override
+
     public Iterator<T> iterator() {
         return this;
     }
 
-    @Override
+
     public boolean hasNext() {
         if (multithreadded) {
             synchronized (this) {
@@ -150,19 +146,19 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
             return true;
         }
         if (currentBatch == null && cursorExternal == 0) {
-//            try {
-//                //noinspection unchecked
-//                currentBatch = query.getMorphium().getDriver().initIteration(query.getMorphium().getConfig().getDatabase(), query.getCollectionName(), query.toQueryObject(), query.getSort(), query.getFieldListForQuery(), query.getSkip(), query.getLimit(), getWindowSize(), query.getMorphium().getReadPreferenceForClass(query.getType()), getQuery().getCollation(), null);
-//            } catch (MorphiumDriverException e) {
-//                log.error("error during fetching first batch", e);
-//            }
+            try {
+                //noinspection unchecked
+                currentBatch = query.getMorphium().getDriver().initIteration(query.getFindCmdSettings());
+            } catch (MorphiumDriverException e) {
+                log.error("error during fetching first batch", e);
+            }
             return doHasNext();
         }
         close();
         return false;
     }
 
-    @Override
+
     public Map<String, Object> nextMap() {
         if (multithreadded) {
             synchronized (this) {
@@ -207,7 +203,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         return ret;
     }
 
-    @Override
+
     public T next() {
         if (multithreadded) {
             synchronized (this) {
@@ -271,7 +267,7 @@ public class QueryIterator<T> implements MorphiumQueryIterator<T> {
         return unmarshall;
     }
 
-    @Override
+
     public void close() {
 //        try {
 //            query.getMorphium().getDriver().closeIteration(currentBatch);

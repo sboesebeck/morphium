@@ -203,6 +203,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
     public long count(CountCmdSettings settings) {
         return 0;
     }

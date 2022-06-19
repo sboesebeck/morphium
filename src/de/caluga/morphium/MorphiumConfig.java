@@ -480,7 +480,7 @@ public class MorphiumConfig {
 
     public Class<? extends Query> getQueryClass() {
         if (queryClass == null) {
-            queryClass = QueryImpl.class;
+            queryClass = Query.class;
         }
         return queryClass;
     }

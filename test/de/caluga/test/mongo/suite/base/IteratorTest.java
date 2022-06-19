@@ -7,7 +7,6 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.QueryIterator;
 import de.caluga.morphium.query.MorphiumIterator;
-import de.caluga.morphium.query.PrefetchingQueryIterator;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -49,7 +48,7 @@ public class IteratorTest extends MorphiumTestBase {
 
         long lastv2 = -1;
         int lastv1 = 0;
-        MorphiumIterator<SimpleEntity> it = q.asIterable(1000);
+        QueryIterator<SimpleEntity> it = q.asIterable(1000);
         it.setMultithreaddedAccess(true);
         boolean error = false;
         for (SimpleEntity u : it) {
@@ -94,7 +93,7 @@ public class IteratorTest extends MorphiumTestBase {
         Thread.sleep(250);
         long totals = qu.countAll();
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000), qu.asIterable(1000, 15)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000)};
         for (final MorphiumIterator<UncachedObject> it : toTest) {
             final AtomicInteger count = new AtomicInteger(0);
             log.info("Running test with " + it.getClass().getName());
@@ -166,7 +165,7 @@ public class IteratorTest extends MorphiumTestBase {
                 Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
                 qu.setCollectionName("test_uc");
                 //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
-                MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
+                MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000)};
                 for (MorphiumIterator<UncachedObject> it : toTest) {
                     for (UncachedObject uc : it) {
                         assert (it.getCursor() == uc.getCounter());
@@ -195,7 +194,7 @@ public class IteratorTest extends MorphiumTestBase {
 
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).f("counter").lt(10000).sort("counter");
         qu.setCollectionName("test_uc");
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 1), qu.asIterable(10)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             //        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
             for (UncachedObject u : it) {
@@ -217,177 +216,6 @@ public class IteratorTest extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void iterationSpeedTest() {
-        createTestUc();
-        Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("_id");
-        qu.setCollectionName("test_uc");
-        log.info("creating iterator");
-        MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 1);
-        log.info("iterating 5000/1");
-        long start = System.currentTimeMillis();
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            //            log.info("." + it.getCursor()+": "+o.getCounter());
-            //            if (it.getCursor()%1000==0) {
-            //                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            //                log.info("Running threads: " + thbean.getThreadCount());
-            //                log.info("Buffers: "+it.getCurrentBufferSize());
-            //            }
-            assert (it.getCursor() == o.getCounter()) : "cursor=" + it.getCursor() + " != counter=" + o.getCounter();
-        }
-
-        log.info("iterator 5000/1 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 1000/5");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(1000, 5);
-
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-            //            if (it.getCursor()%1000==0) {
-            //                ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-            //                log.info("Running threads: " + thbean.getThreadCount());
-            //            }
-
-        }
-        log.info("iterator 1000/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 1000/10");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(1000, 10);
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-        log.info("iterator 1000/10 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 1000/15");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(1000, 15);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-        log.info("iterator 1000/15 Took " + (System.currentTimeMillis() - start) + " ms");
-
-        log.info("iterating singlethreadded no prefetch, window size 1000");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(1000);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-
-        }
-        log.info("iterator singlethreadded Took " + (System.currentTimeMillis() - start) + " ms");
-
-        //
-        //
-        //        log.info("iterating 100/5");
-        //        start = System.currentTimeMillis();
-        //        it = qu.asIterable(100, 5);
-        //
-        //        while (it.hasNext()) {
-        //            UncachedObject o = it.next();
-        //            assert (it.getCursor() == o.getCounter());
-        //
-        //        }
-        //
-        //        log.info("iterator 100/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-        //
-        //        log.info("iterating 100/15");
-        //        start = System.currentTimeMillis();
-        //        it = qu.asIterable(100, 15);
-        //
-        //        while (it.hasNext()) {
-        //            UncachedObject o = it.next();
-        //            assert (it.getCursor() == o.getCounter());
-        //
-        //        }
-        //
-        //        log.info("iterator 100/15 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        //        log.info("iterating 100/100");
-        //        start = System.currentTimeMillis();
-        //        it = qu.asIterable(100, 100);
-        //
-        //        while (it.hasNext()) {
-        //            UncachedObject o = it.next();
-        //            assert (it.getCursor() == o.getCounter());
-        //
-        //        }
-        //
-        //        log.info("iterator 100/100 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 1000/50");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(5000, 5);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-        }
-
-        log.info("iterator 5000/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 5000/5");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(5000, 5);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-        }
-
-        log.info("iterator 5000/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 10000/5");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(10000, 5);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-        }
-
-        log.info("iterator 10000/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("iterating 15000/5");
-        start = System.currentTimeMillis();
-        it = qu.asIterable(15000, 5);
-
-        while (it.hasNext()) {
-            UncachedObject o = it.next();
-            assert (it.getCursor() == o.getCounter());
-        }
-
-        log.info("iterator 15000/5 Took " + (System.currentTimeMillis() - start) + " ms");
-
-
-        log.info("Iterating directly over list");
-        start = System.currentTimeMillis();
-        List<UncachedObject> lst = qu.sort("-counter").asList(); //force new query
-        for (UncachedObject u : lst) {
-            assert (u.getStrValue() != null);
-        }
-        log.info("iterating directly took " + (System.currentTimeMillis() - start) + " ms");
-
-    }
 
     private void createTestUc() {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
@@ -473,7 +301,7 @@ public class IteratorTest extends MorphiumTestBase {
             assert (System.currentTimeMillis() - start < 5000);
         }
         start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject> it = qu.asIterable(2, 10);
+        MorphiumIterator<UncachedObject> it = qu.asIterable(2);
         assert (it.hasNext());
         start = System.currentTimeMillis();
         while (it.getCount() != 1000) {
@@ -522,7 +350,7 @@ public class IteratorTest extends MorphiumTestBase {
             log.info("not stored yet...");
         }
         long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(107, 2), qu.asIterable(107)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(107)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
 
             int read = 0;
@@ -546,7 +374,7 @@ public class IteratorTest extends MorphiumTestBase {
         qu = qu.sort("_id");
         //        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(20, 1), qu.asIterable(20, 10), qu.asIterable(20)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(20)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             HashMap<String, String> hash = new HashMap<>();
             boolean error = false;
@@ -573,7 +401,7 @@ public class IteratorTest extends MorphiumTestBase {
         Thread.sleep(1000);
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(3, 1), qu.asIterable(3, 5), qu.asIterable(3)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(3)};
         for (final MorphiumIterator<UncachedObject> it : toTest) {
             long start = System.currentTimeMillis();
 
@@ -608,7 +436,7 @@ public class IteratorTest extends MorphiumTestBase {
         qu.limit(10);
 
         long start = System.currentTimeMillis();
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(3, 1), qu.asIterable(3, 3), qu.asIterable(3)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(3)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             //        MorphiumIterator<UncachedObject> it = qu.asIterable(3);
             int count = 0;
@@ -628,7 +456,7 @@ public class IteratorTest extends MorphiumTestBase {
         Thread.sleep(500);
         Query<UncachedObject> qu = getUncachedObjectQuery();
         qu.limit(20);
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 1), qu.asIterable(10)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             long start = System.currentTimeMillis();
             int cnt = 0;
@@ -648,7 +476,7 @@ public class IteratorTest extends MorphiumTestBase {
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
 
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10, 5), qu.asIterable(10)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             log.info("Testing " + it.getClass());
             long start = System.currentTimeMillis();
@@ -711,7 +539,7 @@ public class IteratorTest extends MorphiumTestBase {
         Thread.sleep(500);
         Query<UncachedObject> query = morphium.createQueryFor(UncachedObject.class).sort("counter");
         //        MorphiumIterator<UncachedObject> it = query.asIterable(10, 10);
-        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{query.asIterable(10, 10), query.asIterable(10)};
+        MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{query.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
             it.setMultithreaddedAccess(false);
 
@@ -732,7 +560,7 @@ public class IteratorTest extends MorphiumTestBase {
         createUncachedObjects(1000);
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
 
-        MorphiumIterator<UncachedObject> it = qu.asIterable(10, 10);
+        MorphiumIterator<UncachedObject> it = qu.asIterable(10);
         for (UncachedObject u : it) {
             log.info("." + it.getCursor());
         }
@@ -745,7 +573,6 @@ public class IteratorTest extends MorphiumTestBase {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
         assert (qu.asIterable().getClass().equals(QueryIterator.class));
         assert (qu.asIterable(10).getClass().equals(QueryIterator.class));
-        assert (qu.asIterable(10, 5).getClass().equals(PrefetchingQueryIterator.class));
     }
 
 }

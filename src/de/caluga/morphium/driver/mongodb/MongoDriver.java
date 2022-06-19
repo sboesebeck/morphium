@@ -179,6 +179,11 @@ public class MongoDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public long count(CountCmdSettings settings) {
         return 0;

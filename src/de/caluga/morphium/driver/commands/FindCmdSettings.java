@@ -5,17 +5,17 @@ import de.caluga.morphium.driver.Doc;
 import java.util.Map;
 
 public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
-    private Doc filter;
-    private Doc sort;
-    private Doc projection;
+    private Map<String, Object> filter;
+    private Map<String, Object> sort;
+    private Map<String, Object> projection;
     private Object hint;
     private Integer skip;
     private Integer limit;
     private Integer batchSize;
     private Boolean singleBatch = false;
     private Integer maxTimeMS;
-    private Doc max;
-    private Doc min;
+    private Map<String, Object> max;
+    private Map<String, Object> min;
     private Boolean returnKey;
     private Boolean showRecordId;
     private Boolean tailable;
@@ -23,34 +23,34 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
     private Boolean noCursorTimeout;
     private Boolean awaitData;
     private Boolean allowPartialResults;
-    private Doc collation;
+    private Map<String, Object> collation;
     private Boolean allowDiskUse;
-    private Doc let;
+    private Map<String, Object> let;
 
 
-    public Doc getFilter() {
+    public Map<String, Object> getFilter() {
         return filter;
     }
 
-    public FindCmdSettings setFilter(Doc filter) {
+    public FindCmdSettings setFilter(Map<String, Object> filter) {
         this.filter = filter;
         return this;
     }
 
-    public Doc getSort() {
+    public Map<String, Object> getSort() {
         return sort;
     }
 
-    public FindCmdSettings setSort(Doc sort) {
+    public FindCmdSettings setSort(Map<String, Object> sort) {
         this.sort = sort;
         return this;
     }
 
-    public Doc getProjection() {
+    public Map<String, Object> getProjection() {
         return projection;
     }
 
-    public FindCmdSettings setProjection(Doc projection) {
+    public FindCmdSettings setProjection(Map<String, Object> projection) {
         this.projection = projection;
         return this;
     }
@@ -109,20 +109,20 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return this;
     }
 
-    public Doc getMax() {
+    public Map<String, Object> getMax() {
         return max;
     }
 
-    public FindCmdSettings setMax(Doc max) {
+    public FindCmdSettings setMax(Map<String, Object> max) {
         this.max = max;
         return this;
     }
 
-    public Doc getMin() {
+    public Map<String, Object> getMin() {
         return min;
     }
 
-    public FindCmdSettings setMin(Doc min) {
+    public FindCmdSettings setMin(Map<String, Object> min) {
         this.min = min;
         return this;
     }
@@ -190,11 +190,11 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public FindCmdSettings setCollation(Doc collation) {
+    public FindCmdSettings setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -208,11 +208,11 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return this;
     }
 
-    public Doc getLet() {
+    public Map<String, Object> getLet() {
         return let;
     }
 
-    public FindCmdSettings setLet(Doc let) {
+    public FindCmdSettings setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }

@@ -18,78 +18,78 @@ import java.util.List;
  * TODO: Add documentation here
  */
 public class TextIndexTest extends MorphiumTestBase {
-
-    @Test
-    public void textIndexTest() {
-        morphium.dropCollection(Person.class);
-        try {
-            morphium.ensureIndicesFor(Person.class);
-
-        } catch (Exception e) {
-            log.info("Text search not enabled - test skipped");
-            return;
-        }
-        createData();
-        waitForWrites();
-        Query<Person> p = morphium.createQueryFor(Person.class);
-        List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
-        assert (lst.size() == 2) : "size is " + lst.size();
-        p = morphium.createQueryFor(Person.class);
-        lst = p.text(Query.TextSearchLanguages.english, false, false, "Hugo", "Bruce").asList();
-        assert (lst.size() == 2) : "size is " + lst.size();
-    }
-
-
-    @Test
-    public void textOperatorTest() {
-        morphium.dropCollection(Person.class);
-        try {
-            morphium.ensureIndicesFor(Person.class);
-
-        } catch (Exception e) {
-            log.info("Text search not enabled - test skipped");
-            return;
-        }
-        createData();
-
-        waitForWrites();
-
-        Query<Person> p = morphium.createQueryFor(Person.class);
-        p = p.text("hugo", "Bruce");
-        p = p.f("anrede").eq("Mr.");
-        log.info("Query: " + p.toQueryObject().toString());
-        List<Person> lst = p.asList();
-        assert (lst.size() == 2);
-
-        p = p.q();
-        p.text("batman");
-        log.info("List: " + p.countAll());
-        for (Person pers : p.asIterable()) {
-            log.info(" Name: " + pers.getNachname());
-        }
-        p = p.q();
-
-        p = p.text("score", Query.TextSearchLanguages.english, "batman");
-        log.info("Query: " + p.toQueryObject().toString());
-        for (Person pers : p.asIterable()) {
-            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
-            assert (pers.getScore() > 0);
-        }
-
-        //TODO - solve sort of text indexes
-        //        HashMap<String, Integer> sort = new HashMap<>();
-        //        sort.put("score", morphium.getMap("$meta", "textScore"));
-
-        //        p.sort(sort);
-        //        float last = 999999;
-        //        for (Person pers : p.asIterable()) {
-        //            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
-        //            assert (pers.getScore() > 0);
-        //            assert (last >= pers.getScore());
-        //            last = pers.getScore();
-        //        }
-
-    }
+//
+//    @Test
+//    public void textIndexTest() {
+//        morphium.dropCollection(Person.class);
+//        try {
+//            morphium.ensureIndicesFor(Person.class);
+//
+//        } catch (Exception e) {
+//            log.info("Text search not enabled - test skipped");
+//            return;
+//        }
+//        createData();
+//        waitForWrites();
+//        Query<Person> p = morphium.createQueryFor(Person.class);
+//        List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
+//        assert (lst.size() == 2) : "size is " + lst.size();
+//        p = morphium.createQueryFor(Person.class);
+//        lst = p.text(Query.TextSearchLanguages.english, false, false, "Hugo", "Bruce").asList();
+//        assert (lst.size() == 2) : "size is " + lst.size();
+//    }
+//
+//
+//    @Test
+//    public void textOperatorTest() {
+//        morphium.dropCollection(Person.class);
+//        try {
+//            morphium.ensureIndicesFor(Person.class);
+//
+//        } catch (Exception e) {
+//            log.info("Text search not enabled - test skipped");
+//            return;
+//        }
+//        createData();
+//
+//        waitForWrites();
+//
+//        Query<Person> p = morphium.createQueryFor(Person.class);
+//        p = p.text("hugo", "Bruce");
+//        p = p.f("anrede").eq("Mr.");
+//        log.info("Query: " + p.toQueryObject().toString());
+//        List<Person> lst = p.asList();
+//        assert (lst.size() == 2);
+//
+//        p = p.q();
+//        p.text("batman");
+//        log.info("List: " + p.countAll());
+//        for (Person pers : p.asIterable()) {
+//            log.info(" Name: " + pers.getNachname());
+//        }
+//        p = p.q();
+//
+//        p = p.text("score", Query.TextSearchLanguages.english, "batman");
+//        log.info("Query: " + p.toQueryObject().toString());
+//        for (Person pers : p.asIterable()) {
+//            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
+//            assert (pers.getScore() > 0);
+//        }
+//
+//        //TODO - solve sort of text indexes
+//        //        HashMap<String, Integer> sort = new HashMap<>();
+//        //        sort.put("score", morphium.getMap("$meta", "textScore"));
+//
+//        //        p.sort(sort);
+//        //        float last = 999999;
+//        //        for (Person pers : p.asIterable()) {
+//        //            log.info(" Name: " + pers.getNachname() + " score: " + pers.getScore());
+//        //            assert (pers.getScore() > 0);
+//        //            assert (last >= pers.getScore());
+//        //            last = pers.getScore();
+//        //        }
+//
+//    }
 
     private void createData() {
         morphium.store(new Person("hugo", "Strange", "Mr.", 65, "Professor Hugo Strange is a fictional character, a comic book supervillain appearing in books published by DC Comics. He serves as an adversary of Batman. He first appeared in Detective Comics #36 (February 1940),[3] and is one of Batman's first recurring villains, preceding the Joker and Catwoman by several months. He is also one of the first of Batman's villains to deduce Batman's secret identity."));

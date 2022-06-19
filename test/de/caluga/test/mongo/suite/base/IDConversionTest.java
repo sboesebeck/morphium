@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.query.QueryImpl;
+import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
 
@@ -15,7 +15,7 @@ import org.junit.Test;
 public class IDConversionTest extends MorphiumTestBase {
     @Test
     public void testIdConversion() {
-        QueryImpl qu = new QueryImpl();
+        Query qu = new Query();
         qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");
@@ -24,7 +24,7 @@ public class IDConversionTest extends MorphiumTestBase {
         System.out.println(qu.toQueryObject().toString());
         assert (qu.toQueryObject().toString().contains("_id="));
 
-        qu = new QueryImpl();
+        qu = new Query();
         qu.setMorphium(morphium);
         qu.setType(UncachedObject.class);
         qu.setCollectionName("uncached");

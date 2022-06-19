@@ -818,7 +818,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
                 Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
                 qu.setCollectionName("test_uc");
                 //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
-                MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000, 1), qu.asIterable(1000)};
+                MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000)};
                 for (MorphiumIterator<UncachedObject> it : toTest) {
                     for (UncachedObject uc : it) {
                         assert (it.getCursor() == uc.getCounter());
