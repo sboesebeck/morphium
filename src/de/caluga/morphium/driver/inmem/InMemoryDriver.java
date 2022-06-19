@@ -198,6 +198,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
     public long count(CountCmdSettings settings) {
         return 0;
     }
@@ -463,7 +468,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
         DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
 
-            public void incomingData(Doc data, long dur) {
+            public void incomingData(Map<String, Object> data, long dur) {
                 cb.incomingData(data, dur);
                 if (!cb.isContinued()) {
                     synchronized (monitor) {

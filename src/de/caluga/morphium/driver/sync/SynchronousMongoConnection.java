@@ -267,7 +267,7 @@ public class SynchronousMongoConnection extends DriverBase {
             long start = System.currentTimeMillis();
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-                List<Doc> lst = readBatches(q.getMessageId(), settings.getDb(), settings.getColl(), getMaxWriteBatchSize());
+                List<Map<String, Object>> lst = readBatches(q.getMessageId(), settings.getDb(), settings.getColl(), getMaxWriteBatchSize());
                 settings.setMetaData("duration", System.currentTimeMillis() - start);
                 return Doc.of("result", lst);
             }
@@ -276,7 +276,7 @@ public class SynchronousMongoConnection extends DriverBase {
 
     @Override
     public long count(CountCmdSettings settings) throws MorphiumDriverException {
-        Doc ret = new NetworkCallHelper().doCall(() -> {
+        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
             OpMsg q = new OpMsg();
             q.setMessageId(getNextId());
 
@@ -327,18 +327,18 @@ public class SynchronousMongoConnection extends DriverBase {
         while (true) {
             OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), msg.getMessageId());
             log.info("got answer for watch!");
-            Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
+            Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
             if (cursor == null) throw new MorphiumDriverException("Could not watch - cursor is null");
             log.debug("CursorID:" + cursor.get("id").toString());
 
             long cursorId = Long.parseLong(cursor.get("id").toString());
             settings.setMetaData("cursor", cursorId);
-            List<Doc> result = (List<Doc>) cursor.get("firstBatch");
+            List<Map<String, Object>> result = (List<Map<String, Object>>) cursor.get("firstBatch");
             if (result == null) {
-                result = (List<Doc>) cursor.get("nextBatch");
+                result = (List<Map<String, Object>>) cursor.get("nextBatch");
             }
             if (result != null) {
-                for (Doc o : result) {
+                for (Map<String, Object> o : result) {
                     settings.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
@@ -374,7 +374,7 @@ public class SynchronousMongoConnection extends DriverBase {
 
     @Override
     public List<Object> distinct(DistinctCmdSettings settings) throws MorphiumDriverException {
-        Doc ret = new NetworkCallHelper().doCall(() -> {
+        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
             OpMsg op = new OpMsg();
             op.setMessageId(getNextId());
 
@@ -402,14 +402,14 @@ public class SynchronousMongoConnection extends DriverBase {
         msg.setFirstDoc(settings.asMap("mapReduce"));
         long start = System.currentTimeMillis();
         sendQuery(msg);
-        List<Doc> res = readBatches(msg.getMessageId(), settings.getDb(), settings.getColl(), getDefaultBatchSize());
+        List<Map<String, Object>> res = readBatches(msg.getMessageId(), settings.getDb(), settings.getColl(), getDefaultBatchSize());
         settings.setMetaData("duration", System.currentTimeMillis() - start);
-        return Doc.convertToMapList(res);
+        return res;
     }
 
     @Override
     public int delete(DeleteCmdSettings settings) throws MorphiumDriverException {
-        Doc d = new NetworkCallHelper().doCall(() -> {
+        Map<String, Object> d = new NetworkCallHelper().doCall(() -> {
             OpMsg op = new OpMsg();
             op.setMessageId(getNextId());
             Doc o = settings.asMap("delete");
@@ -439,7 +439,7 @@ public class SynchronousMongoConnection extends DriverBase {
         //noinspection unchecked
         return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
 
-            List<Doc> ret;
+            List<Map<String, Object>> ret;
 
             OpMsg q = new OpMsg();
 
@@ -460,7 +460,7 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
     @Override
-    public Doc findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException {
+    public Map<String, Object> findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(() -> {
             OpMsg msg = new OpMsg();
             msg.setMessageId(getNextId());
@@ -495,7 +495,7 @@ public class SynchronousMongoConnection extends DriverBase {
 //    }
 
     @Override
-    public Doc update(UpdateCmdSettings settings) throws MorphiumDriverException {
+    public Map<String, Object> update(UpdateCmdSettings settings) throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(() -> {
             OpMsg op = new OpMsg();
             op.setResponseTo(0);
@@ -543,7 +543,7 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
     @Override
-    public Doc dropDatabase(DropCmdSettings settings) throws MorphiumDriverException {
+    public Map<String, Object> dropDatabase(DropCmdSettings settings) throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(() -> {
             OpMsg op = new OpMsg();
             op.setResponseTo(0);
@@ -741,10 +741,10 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-    private List<Doc> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverException {
-        List<Doc> ret = new ArrayList<>();
+    private List<Map<String, Object>> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverException {
+        List<Map<String, Object>> ret = new ArrayList<>();
 
-        Doc doc;
+        Map<String, Object> doc;
         synchronized (SynchronousMongoConnection.this) {
             while (true) {
                 OpMsg reply = getReply();
@@ -754,15 +754,15 @@ public class SynchronousMongoConnection extends DriverBase {
                     continue;
                 }
                 //                    replies.remove(i);
-                @SuppressWarnings("unchecked") Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
+                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
                 if (cursor == null) {
                     //trying result
                     if (reply.getFirstDoc().get("result") != null) {
                         //noinspection unchecked
-                        return (List<Doc>) reply.getFirstDoc().get("result");
+                        return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
                     }
                     if (reply.getFirstDoc().containsKey("results")) {
-                        return (List<Doc>) reply.getFirstDoc().get("results");
+                        return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
                     }
                     throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
                 }
@@ -889,12 +889,12 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-    public Doc store(StoreCmdSettings settings) throws MorphiumDriverException {
+    public Map<String, Object> store(StoreCmdSettings settings) throws MorphiumDriverException {
         new NetworkCallHelper().doCall(() -> {
-            List<Doc> opsLst = new ArrayList<>();
-            for (Doc o : settings.getDocs()) {
+            List<Map<String, Object>> opsLst = new ArrayList<>();
+            for (Map<String, Object> o : settings.getDocs()) {
                 o.putIfAbsent("_id", new ObjectId());
-                Doc up = new Doc();
+                Map<String, Object> up = new LinkedHashMap<>();
                 up.put("q", Doc.of("_id", o.get("_id")));
                 up.put("u", o);
                 up.put("upsert", true);
@@ -955,8 +955,8 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     public boolean exists(String db, String collection) throws MorphiumDriverException {
-        List<Doc> ret = getCollectionInfo(db, collection);
-        for (Doc c : ret) {
+        List<Map<String, Object>> ret = getCollectionInfo(db, collection);
+        for (Map<String, Object> c : ret) {
             if (c.get("name").equals(collection)) {
                 return true;
             }
@@ -979,7 +979,7 @@ public class SynchronousMongoConnection extends DriverBase {
             q.setFlags(0);
             q.setResponseTo(0);
 
-            List<Doc> ret;
+            List<Map<String, Object>> ret;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
                 ret = readBatches(q.getMessageId(), db, null, getMaxWriteBatchSize());
@@ -990,19 +990,19 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     public List<String> getCollectionNames(String db) throws MorphiumDriverException {
-        List<Doc> ret = getCollectionInfo(db, null);
+        List<Map<String, Object>> ret = getCollectionInfo(db, null);
         return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
     }
 
-    public Doc getDbStats(String db) throws MorphiumDriverException {
+    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
         return getDbStats(db, false);
     }
 
-    public Doc getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
+    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
         return new NetworkCallHelper().doCall(() -> {
             OpMsg msg = new OpMsg();
             msg.setMessageId(getNextId());
-            Doc v = Doc.of("dbStats", 1, "scale", 1024);
+            Map<String, Object> v = Doc.of("dbStats", 1, "scale", 1024);
             v.put("$db", db);
             if (withStorage) {
                 v.put("freeStorage", 1);
@@ -1015,10 +1015,10 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-    private List<Doc> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
+    private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         //noinspection unchecked
-        return (List<Doc>) new NetworkCallHelper().doCall(() -> {
-            Doc cmd = new Doc();
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            Map<String, Object> cmd = new Doc();
             cmd.put("listCollections", 1);
             OpMsg q = new OpMsg();
             q.setMessageId(getNextId());
@@ -1031,10 +1031,9 @@ public class SynchronousMongoConnection extends DriverBase {
             q.setFlags(0);
             q.setResponseTo(0);
 
-            List<Doc> ret;
+            List<Map<String, Object>> ret;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-
                 ret = readBatches(q.getMessageId(), db, null, getMaxWriteBatchSize());
             }
             return Doc.of("result", ret);
@@ -1043,7 +1042,7 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
-        List<Doc> lst = getCollectionInfo(db, coll);
+        List<Map<String, Object>> lst = getCollectionInfo(db, coll);
         try {
             if (!lst.isEmpty() && lst.get(0).get("name").equals(coll)) {
                 Object capped = ((Map) lst.get(0).get("options")).get("capped");

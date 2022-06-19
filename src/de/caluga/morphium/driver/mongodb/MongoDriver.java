@@ -174,6 +174,11 @@ public class MongoDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public long count(CountCmdSettings settings) {
         return 0;
@@ -1571,11 +1576,7 @@ public class MongoDriver implements MorphiumDriver {
                     id = new ObjectId(id.toString());
                 }
                 filter.put("_id", id);
-                //Hack to detect versioning
-                if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null) {
-                    filter.put(MorphiumDriver.VERSION_NAME, toUpdate.get(MorphiumDriver.VERSION_NAME));
-                    toUpdate.put(MorphiumDriver.VERSION_NAME, (Long) toUpdate.get(MorphiumDriver.VERSION_NAME) + 1L);
-                }
+
 
                 //                    toUpdate.remove("_id");
                 //                    Document update = new Document("$set", toUpdate);
@@ -1610,9 +1611,7 @@ public class MongoDriver implements MorphiumDriver {
                     if (id instanceof ObjectId) {
                         toUpdate.put("_id", new MorphiumId(((ObjectId) id).toHexString()));
                     }
-                    if (toUpdate.get(MorphiumDriver.VERSION_NAME) != null && res.getModifiedCount() == 0) {
-                        throw new MorphiumDriverException("Version mismatch!");
-                    }
+
                 } catch (MongoWriteException e) {
                     //log.error("",e);
                     if (e.getMessage().contains("E11000 duplicate key error")) {

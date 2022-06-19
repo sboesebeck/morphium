@@ -5,32 +5,33 @@ import de.caluga.morphium.driver.Doc;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class UpdateCmdSettings extends WriteCmdSettings<UpdateCmdSettings> {
-    private List<Doc> updates;
+    private List<Map<String, Object>> updates;
     private Boolean ordered;
-    private Doc let;
+    private Map<String, Object> let;
 
-    public UpdateCmdSettings addUpdate(Doc upd) {
+    public UpdateCmdSettings addUpdate(Map<String, Object> upd) {
         if (updates == null) updates = new ArrayList<>();
         updates.add(upd);
         return this;
     }
 
-    public List<Doc> getUpdates() {
+    public List<Map<String, Object>> getUpdates() {
         return updates;
     }
 
-    public UpdateCmdSettings setUpdates(List<Doc> updates) {
+    public UpdateCmdSettings setUpdates(List<Map<String, Object>> updates) {
         this.updates = updates;
         return this;
     }
 
-    public Doc getLet() {
+    public Map<String, Object> getLet() {
         return let;
     }
 
-    public UpdateCmdSettings setLet(Doc let) {
+    public UpdateCmdSettings setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }

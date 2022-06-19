@@ -143,7 +143,7 @@ public class SynchronousMongoConnectionTest {
             private int counter = 0;
 
             @Override
-            public void incomingData(Doc data, long dur) {
+            public void incomingData(Map<String, Object> data, long dur) {
                 log.info("got data after " + (System.currentTimeMillis() - start) + "ms");
                 log.info(Utils.toJsonString(data));
                 counter++;
@@ -175,7 +175,7 @@ public class SynchronousMongoConnectionTest {
         SynchronousMongoConnection con = getSynchronousMongoConnection();
         int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
         log.info("Deleted old data: " + deleted);
-        List<Doc> testList = new ArrayList<>();
+        List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
@@ -209,7 +209,7 @@ public class SynchronousMongoConnectionTest {
         SynchronousMongoConnection con = getSynchronousMongoConnection();
         int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
         log.info("Deleted old data: " + deleted);
-        List<Doc> testList = new ArrayList<>();
+        List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));

@@ -17,7 +17,6 @@ import java.util.Map;
  **/
 @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "RedundantThrows", "UnusedReturnValue"})
 public interface MorphiumDriver {
-    String VERSION_NAME = "morphium version";
 
     String getName();
 
@@ -65,6 +64,10 @@ public interface MorphiumDriver {
     void abortTransaction() throws MorphiumDriverException;
 
     List<Map<String, Object>> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
+
+    MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException;
+
+    MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
     long count(CountCmdSettings settings) throws MorphiumDriverException;
 

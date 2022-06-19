@@ -3,15 +3,14 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 
 import java.util.List;
-import java.util.Map;
 
-public class AggregateCmdSettings<T> extends CmdSettings<AggregateCmdSettings> {
+public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
     private List<Doc> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
     private Integer maxWaitTime;
     private Boolean bypassDocumentValidation;
-    private Doc readConvern;
+    private Doc readConcern;
     private Doc collation;
     private Object hint;
     private Doc writeConern;
@@ -24,7 +23,7 @@ public class AggregateCmdSettings<T> extends CmdSettings<AggregateCmdSettings> {
         return batchSize;
     }
 
-    public AggregateCmdSettings<T> setBatchSize(Integer batchSize) {
+    public AggregateCmdSettings setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }
@@ -74,12 +73,12 @@ public class AggregateCmdSettings<T> extends CmdSettings<AggregateCmdSettings> {
         return this;
     }
 
-    public Doc getReadConvern() {
-        return readConvern;
+    public Doc getReadConcern() {
+        return readConcern;
     }
 
-    public AggregateCmdSettings setReadConvern(Doc readConvern) {
-        this.readConvern = readConvern;
+    public AggregateCmdSettings setReadConcern(Doc readConcern) {
+        this.readConcern = readConcern;
         return this;
     }
 
