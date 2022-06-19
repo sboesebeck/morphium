@@ -67,6 +67,8 @@ public interface MorphiumDriver {
 
     MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException;
 
+    MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException;
+
     MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
     long count(CountCmdSettings settings) throws MorphiumDriverException;
