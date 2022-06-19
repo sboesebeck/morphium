@@ -2748,7 +2748,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
         StoreCmdSettings settings = new StoreCmdSettings()
-                .setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(Doc.convertToDocList(lst));
+                .setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(lst);
         getDriver().store(settings);
         return null;
     }
@@ -2770,7 +2770,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
         StoreCmdSettings settings = new StoreCmdSettings()
-                .setColl(collection).setDb(getDatabase()).setDocs(Doc.convertToDocList(lst));
+                .setColl(collection).setDb(getDatabase()).setDocs(lst);
         Map<String, Object> ret = getDriver().store(settings);
 
         return null;
@@ -2812,9 +2812,14 @@ public class Morphium implements AutoCloseable {
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
-//        return getDriver().store(getDatabase(), getMapper().getCollectionName(type), Arrays.asList(m), getWriteConcernForClass(type));
-        return null;
+    public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
+        StoreCmdSettings settings = new StoreCmdSettings()
+                .setDb(getDatabase())
+                .setColl(getMapper().getCollectionName(type))
+                .setDocs(Arrays.asList(m));
+        WriteConcern wc = getWriteConcernForClass(type);
+        if (wc != null) settings.setWriteConcern(wc.asMap());
+        return getDriver().store(settings);
     }
 
     /**
@@ -3357,7 +3362,7 @@ public class Morphium implements AutoCloseable {
                         boolean b = true;
 
                         @Override
-                        public void incomingData(Doc data, long dur) {
+                        public void incomingData(Map<String, Object> data, long dur) {
                             b = processEvent(lst, data);
                         }
 
@@ -3427,7 +3432,7 @@ public class Morphium implements AutoCloseable {
                         private boolean b = true;
 
                         @Override
-                        public void incomingData(Doc data, long dur) {
+                        public void incomingData(Map<String, Object> data, long dur) {
 
                         }
 

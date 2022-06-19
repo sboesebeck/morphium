@@ -365,9 +365,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     setIdIfNull(o);
                     Entity en = morphium.getARHelper().getAnnotationFromHierarchy(type, Entity.class);
-                    if (en.autoVersioning()) {
-                        morphium.getARHelper().setValue(o, 1, morphium.getARHelper().getFields(type, Version.class).get(0));
-                    }
+
 
                     Map<String, Object> marshall = morphium.getMapper().serialize(o);
 
@@ -489,8 +487,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     checkIndexAndCaps(type, coll, callback);
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
-                    List<Doc> objs = new ArrayList<>();
-                    objs.add(Doc.of(marshall));
+                    List<Map<String, Object>> objs = new ArrayList<>();
+                    objs.add(marshall);
                     Map<String, Object> ret;
                     try {
                         StoreCmdSettings settings = new StoreCmdSettings()
@@ -498,24 +496,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (wc != null) settings.setWriteConcern(wc.asMap());
                         ret = morphium.getDriver().store(settings);
                     } catch (MorphiumDriverException mde) {
-                        if (mde.getMessage().contains("duplicate key") && mde.getMessage().contains("_id") && en.autoVersioning()) {
-                            throw new ConcurrentModificationException("Versioning / upsert failure - concurrent modification!");
-                        } else {
-                            throw mde;
-                        }
+
+                        throw mde;
+
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }
-                    if (en.autoVersioning()) {
-//                        if (ret.get("total") < ret.get("modified")) {
-//                            throw new ConcurrentModificationException("versioning failure");
-//                        }
 
-                        String fld = morphium.getARHelper().getFields(type, Version.class).get(0);
-                        Long v = morphium.getARHelper().getLongValue(o, fld);
-                        v = v + 1;
-                        morphium.getARHelper().setValue(o, v, fld);
-                    }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
                     //                    if (logger.isDebugEnabled()) {
@@ -655,19 +642,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             Entity en = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
                             long start = System.currentTimeMillis();
-                            List<Doc> lst = new ArrayList<>();
-                            lst.addAll((List) es.getValue());
+                            List<Map<String, Object>> lst = new ArrayList<>();
+                            lst.addAll(es.getValue());
                             StoreCmdSettings settings = new StoreCmdSettings()
                                     .setDb(morphium.getConfig().getDatabase())
                                     .setDocs(lst)
                                     .setWriteConcern(wc.asMap())
                                     .setColl(coll);
                             Map<String, Object> ret = morphium.getDriver().store(settings);
-                            if (en.autoVersioning()) {
-                                if (((Integer) ret.get("total")) < ((Integer) ret.get("modified"))) {
-                                    throw new ConcurrentModificationException("versioning failure");
-                                }
-                            }
 
                             morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
@@ -1040,12 +1022,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                        morphium.ensureIndicesFor((Class<T>) ent.getClass(), collectionName, callback);
 //                    }
                     Entity en = morphium.getARHelper().getAnnotationFromHierarchy(ent.getClass(), Entity.class);
-                    if (en != null && en.autoVersioning()) {
-                        List<String> fl = morphium.getARHelper().getFields(ent.getClass(), Version.class);
 
-                        find.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getValue(ent, fl.get(0)));
-                        update.put(MorphiumDriver.VERSION_NAME, ((Long) morphium.getARHelper().getValue(ent, fl.get(0))) + 1);
-                    }
                     UpdateCmdSettings up = new UpdateCmdSettings()
                             .setDb(getDbName())
                             .setColl(collectionName)
@@ -1273,11 +1250,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 //                        morphium.ensureIndicesFor(cls, coll, callback);
 //                    }
                     Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
-                    Long currentVersion = morphium.getARHelper().getLongValue(toInc, MorphiumDriver.VERSION_NAME);
-                    if (en != null && en.autoVersioning()) {
-                        query.put(MorphiumDriver.VERSION_NAME, currentVersion);
-                        ((Map) update.get("$inc")).put(MorphiumDriver.VERSION_NAME, currentVersion + 1L);
-                    }
+
                     handleLastChange(cls, update);
                     UpdateCmdSettings settings = new UpdateCmdSettings()
                             .setColl(coll)
@@ -1286,13 +1259,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             .addUpdate(Doc.of(query), Doc.of(update), null, false, false, null, null, null);
                     ;
                     Map<String, Object> res = morphium.getDriver().update(settings);
-                    if (en != null && en.autoVersioning() && res.get("modified").equals(0L)) {
-                        throw new ConcurrentModificationException("Versioning error? Could not update");
-                    }
+
                     morphium.getCache().clearCacheIfNecessary(cls);
-                    if (en != null && en.autoVersioning()) {
-                        morphium.getARHelper().setValue(toInc, currentVersion + 1L, morphium.getARHelper().getFields(cls, Version.class).get(0));
-                    }
+
                     if (f.getType().equals(Integer.class) || f.getType().equals(int.class)) {
                         try {
                             f.set(toInc, ((Integer) f.get(toInc)) + amount.intValue());
@@ -1574,9 +1543,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> qobj = query.toQueryObject();
 
                 Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
-                if (en.autoVersioning()) {
-                    update.put("$inc", UtilsMap.of(MorphiumDriver.VERSION_NAME, 1));
-                }
+
                 handleLastChange(cls, update);
                 handleCreationTimeOnUpsert(cls, coll, query.toQueryObject(), update, upsert);
 
@@ -1870,9 +1837,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
 
         Entity en = morphium.getARHelper().getAnnotationFromHierarchy(cls, Entity.class);
-        if (en.autoVersioning()) {
-            update.put("$inc", UtilsMap.of(MorphiumDriver.VERSION_NAME, 1));
-        }
+
         if (coll == null) coll = morphium.getMapper().getCollectionName(cls);
         handleLastChange(cls, update);
         handleCreationTimeOnUpsert(cls, coll, qobj, update, upsert);

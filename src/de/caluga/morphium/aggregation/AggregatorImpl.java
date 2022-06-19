@@ -1,12 +1,16 @@
 package de.caluga.morphium.aggregation;
 
+import com.mongodb.ReadConcern;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.AggregateCmdSettings;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
@@ -275,14 +279,16 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public long getCount() {
-        List<Map<String, Object>> pipeline = new ArrayList<>(getPipeline());
-        pipeline.add(UtilsMap.of("$count", "num"));
+        List<Doc> pipeline = new ArrayList<>(Doc.convertToDocList(getPipeline()));
+        pipeline.add(Doc.of("$count", "num"));
         List<Map<String, Object>> res = null;
-//        try {
-//            res = getMorphium().getDriver().aggregate(getMorphium().getConfig().getDatabase(), getCollectionName(), pipeline, isExplain(), isUseDisk(), getCollation(), getMorphium().getReadPreferenceForClass(getSearchType()));
-//        } catch (MorphiumDriverException e) {
-//            throw new RuntimeException(e);
-//        }
+        try {
+            AggregateCmdSettings settings = getAggregateCmdSettings();
+            settings.setPipeline(pipeline);
+            res = getMorphium().getDriver().aggregate(settings);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
         if (res.size() == 0) return 0;
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
@@ -299,73 +305,94 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
-//        if (callback == null) {
-//            try {
-//                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-//            } catch (MorphiumDriverException e) {
-//                throw new RuntimeException(e);
-//            }
-//        } else {
-//
-//            morphium.queueTask(() -> {
-//                try {
-//                    long start = System.currentTimeMillis();
-//                    List<R> result = deserializeList();
-//
-//                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
-//                } catch (MorphiumDriverException e) {
-//                    e.printStackTrace();
-//                }
-//            });
-//        }
+        if (callback == null) {
+            try {
+                AggregateCmdSettings settings = getAggregateCmdSettings();
+                morphium.getDriver().aggregate(settings);
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+
+            morphium.queueTask(() -> {
+                try {
+                    long start = System.currentTimeMillis();
+                    List<R> result = deserializeList();
+
+                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
+                } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
     }
 
     private List<R> deserializeList() throws MorphiumDriverException {
-//        List<Map<String, Object>> r = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-//        List<R> result = new ArrayList<>();
-//        if (getResultType().equals(Map.class)) {
-//            //noinspection unchecked
-//            result = (List<R>) r;
-//        } else {
-//            for (Map<String, Object> dbObj : r) {
-//                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
-//            }
-//        }
-//        return result;
-        return null;
+        AggregateCmdSettings settings = getAggregateCmdSettings();
+        List<Map<String, Object>> r = morphium.getDriver().aggregate(settings);
+        List<R> result = new ArrayList<>();
+        if (getResultType().equals(Map.class)) {
+            //noinspection unchecked
+            result = (List<R>) r;
+        } else {
+            for (Map<String, Object> dbObj : r) {
+                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+            }
+        }
+        return result;
+
     }
 
     @Override
     public List<Map<String, Object>> aggregateMap() {
-//        try {
-//            return morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-//        } catch (MorphiumDriverException e) {
-//            throw new RuntimeException(e);
-//        }
-        return null;
+        try {
+            AggregateCmdSettings settings = getAggregateCmdSettings();
+            var rc = Entity.ReadConcernLevel.majority;
+            if (collation != null) settings.setCollation(Doc.of(getCollation().toQueryObject()));
+            return morphium.getDriver().aggregate(settings);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         if (callback == null) {
-//            try {
-//                morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-//            } catch (MorphiumDriverException e) {
-//                throw new RuntimeException(e);
-//            }
+            try {
+                AggregateCmdSettings settings = getAggregateCmdSettings();
+                morphium.getDriver().aggregate(settings);
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
 
         } else {
 
             morphium.queueTask(() -> {
-//                try {
-//                    long start = System.currentTimeMillis();
-//                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(morphium.getConfig().getDatabase(), getCollectionName(), getPipeline(), isExplain(), isUseDisk(), getCollation(), morphium.getReadPreferenceForClass(getSearchType()));
-//                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
-//                } catch (MorphiumDriverException e) {
-//                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
-//                }
+                try {
+                    long start = System.currentTimeMillis();
+                    AggregateCmdSettings settings = getAggregateCmdSettings();
+                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(settings);
+                    callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
+                } catch (MorphiumDriverException e) {
+                    LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
+                }
             });
         }
+    }
+
+    private AggregateCmdSettings getAggregateCmdSettings() {
+        AggregateCmdSettings settings = new AggregateCmdSettings();
+        settings.setDb(morphium.getDatabase())
+                .setColl(getCollectionName())
+                .setPipeline(Doc.convertToDocList(getPipeline()))
+                .setExplain(isExplain())
+                .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
+                .setAllowDiskUse(isUseDisk());
+
+        //TODO .setReadConcern(morphium.getReadPreferenceForC)
+
+        if (collation != null) settings.setCollation(Doc.of(getCollation().toQueryObject()));
+        return settings;
     }
 
     @Override

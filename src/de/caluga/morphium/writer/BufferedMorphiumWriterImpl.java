@@ -2,7 +2,6 @@ package de.caluga.morphium.writer;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.Capped;
-import de.caluga.morphium.annotations.Version;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -388,10 +387,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 up.setQuery(Doc.of((morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o))).toQueryObject()));
                 Doc cmd = new Doc();
                 up.setCmd(Doc.of("$set", cmd));
-                if (morphium.getARHelper().isAnnotationPresentInHierarchy(o.getClass(), Version.class)) {
-                    up.getQuery().put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getVersion(o));
-                    cmd.put(MorphiumDriver.VERSION_NAME, morphium.getARHelper().getVersion(o) + 1);
-                }
                 //noinspection unchecked
                 for (String f : morphium.getARHelper().getFields(o.getClass())) {
                     try {

@@ -1,7 +1,9 @@
 package de.caluga.morphium.aggregation;
 
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.AggregateCmdSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,15 +130,28 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
             return true;
         }
         if (currentBatch == null && cursorExternal == 0) {
-//            try {
-            //noinspection unchecked
-//                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
-//            } catch (MorphiumDriverException e) {
-//                log.error("error during fetching first batch", e);
-//            }
+            try {
+                //noinspection unchecked
+                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(getAggregateCmdSettings());
+            } catch (MorphiumDriverException e) {
+                log.error("error during fetching first batch", e);
+            }
             return doHasNext();
         }
         return false;
+    }
+
+    private AggregateCmdSettings getAggregateCmdSettings() {
+        AggregateCmdSettings settings = new AggregateCmdSettings();
+        settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
+                .setColl(aggregator.getCollectionName())
+                .setPipeline(Doc.convertToDocList(aggregator.getPipeline()))
+                .setExplain(aggregator.isExplain())
+                .setReadPreference(aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()))
+                .setAllowDiskUse(aggregator.isUseDisk());
+        if (aggregator.getCollation() != null) settings.setCollation(Doc.of(aggregator.getCollation().toQueryObject()));
+        //TODO .setReadConcern(morphium.getReadPreferenceForC)
+        return settings;
     }
 
     @Override
@@ -155,13 +170,14 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-//                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(aggregator.getMorphium().getConfig().getDatabase(), aggregator.getCollectionName(), aggregator.getPipeline(), aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()), aggregator.getCollation(), getWindowSize(), null);
+
+                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(getAggregateCmdSettings());
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
-//                currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
+                currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
             } else {
                 cursor++;

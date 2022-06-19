@@ -5,6 +5,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.ReadPreference;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -19,7 +20,7 @@ public class CmdSettings<T extends CmdSettings> {
     private String coll;
 
     private String comment;
-
+    private ReadPreference readPreference;
     private Map<String, Object> metaData;
 
     public String getDb() {
@@ -72,6 +73,14 @@ public class CmdSettings<T extends CmdSettings> {
         return (T) this;
     }
 
+    public ReadPreference getReadPreference() {
+        return readPreference;
+    }
+
+    public T setReadPreference(ReadPreference readPreference) {
+        this.readPreference = readPreference;
+        return (T) this;
+    }
 
     public Doc asMap(String commandName) {
         Object o;
@@ -82,11 +91,10 @@ public class CmdSettings<T extends CmdSettings> {
                 continue;
             }
             if (f.getName().equals("metaData")) continue;
+            if (f.getName().equals("readPreference")) continue;
+            if (f.getName().equals("coll")) continue;
             if (DriverTailableIterationCallback.class.isAssignableFrom(f.getType())) continue;
             if (AsyncOperationCallback.class.isAssignableFrom(f.getType())) continue;
-            if (f.getName().equals("coll")) {
-                continue;
-            }
 
             f.setAccessible(true);
 

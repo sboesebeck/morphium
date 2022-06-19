@@ -2,6 +2,7 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 05.11.15.
  */
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -56,7 +57,7 @@ public class WriteConcern {
         return wtimeout;
     }
 
-    public Doc asMap() {
+    public Map<String, Object> asMap() {
         return Doc.of("w", w, "j", j, "wtimeout", wtimeout);
     }
 

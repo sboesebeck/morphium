@@ -21,10 +21,10 @@ public class NetworkCallHelper {
     private final Logger logger = LoggerFactory.getLogger(NetworkCallHelper.class);
 
 
-    public Doc doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+    public Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
         for (int i = 0; i < maxRetry; i++) {
             try {
-                return (Doc) r.execute();
+                return (Map<String, Object>) r.execute();
             } catch (Exception e) {
                 handleNetworkError(maxRetry, i, sleep, e);
             }

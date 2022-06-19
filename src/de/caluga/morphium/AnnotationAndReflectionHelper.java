@@ -284,9 +284,7 @@ public class AnnotationAndReflectionHelper {
                     return p.fieldName();
                 }
             }
-            if (f.isAnnotationPresent(Version.class)) {
-                return MorphiumDriver.VERSION_NAME;
-            }
+
 
             if (f.isAnnotationPresent(Reference.class)) {
                 Reference p = f.getAnnotation(Reference.class);
@@ -423,11 +421,7 @@ public class AnnotationAndReflectionHelper {
                 ret = f;
 
             }
-            if (ret == null && f.isAnnotationPresent(Version.class) && fld.equals(MorphiumDriver.VERSION_NAME)) {
-                f.setAccessible(true);
-                fc.put(key, f);
-                ret = f;
-            }
+
             if (ret == null && f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
 
@@ -693,34 +687,6 @@ public class AnnotationAndReflectionHelper {
         return null;
     }
 
-    public Field getVersionField(Object o) {
-        Class<?> cls;
-        if (o instanceof Class) {
-            cls = getRealClass((Class<?>) o);
-        } else {
-            cls = getRealClass(o.getClass());
-        }
-
-        List<String> flds = getFields(cls, Version.class);
-        if (flds == null || flds.isEmpty()) {
-            throw new IllegalArgumentException("Object has no version field defined: " + o.getClass().getSimpleName());
-        }
-        return getField(cls, flds.get(0));
-    }
-
-    public Long getVersion(Object o) {
-        if (o == null) {
-            throw new IllegalArgumentException("Object cannot be null");
-        }
-
-        List<String> flds = getFields(o.getClass(), Version.class);
-        if (flds == null || flds.isEmpty()) throw new IllegalArgumentException("No version field defined");
-        try {
-            return (Long) (getField(o.getClass(), flds.get(0))).get(o);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public Object getId(Object o) {
         if (o == null) {
@@ -866,10 +832,7 @@ public class AnnotationAndReflectionHelper {
                     continue;
                 }
             }
-            if (f.isAnnotationPresent(Version.class)) {
-                ret.add(MongoDriver.VERSION_NAME);
-                continue;
-            }
+
             if (f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName())) {
                 ret.add(f.getAnnotation(Reference.class).fieldName());
                 continue;

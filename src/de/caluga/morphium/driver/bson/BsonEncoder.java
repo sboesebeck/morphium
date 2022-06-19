@@ -93,6 +93,11 @@ public class BsonEncoder {
         if (v == null) {
             writeByte(10).cString(n);
 
+        } else if (v instanceof Float) {
+            writeByte(1).cString(n);
+            long lng = Double.doubleToLongBits(((Float) v).doubleValue());
+
+            writeLong(lng);
         } else if (v instanceof Double) {
             writeByte(1).cString(n);
             long lng = Double.doubleToLongBits((Double) v);

@@ -2164,7 +2164,8 @@ public abstract class Expr {
             Map ret = UtilsMap.of(operation, m);
             for (Map.Entry<String, Expr> e : params.entrySet()) {
                 //noinspection unchecked
-                m.put(e.getKey(), e.getValue().toQueryObject());
+                if (e.getValue() != null)
+                    m.put(e.getKey(), e.getValue().toQueryObject());
             }
             return ret;
         }

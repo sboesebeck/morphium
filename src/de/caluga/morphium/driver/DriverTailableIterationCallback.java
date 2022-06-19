@@ -11,7 +11,7 @@ public interface DriverTailableIterationCallback {
      * @param dur  - duration since start
      * @return true, if you want to continue reading
      */
-    void incomingData(Doc data, long dur);
+    void incomingData(Map<String, Object> data, long dur);
 
     boolean isContinued();
 }
