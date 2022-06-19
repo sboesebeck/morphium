@@ -448,15 +448,12 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> obj = null;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
-            FindCmdSettings settings = new FindCmdSettings()
-                    .setDb(getDB())
-                    .setColl(getCollectionName())
-                    .setFilter(Doc.of(query))
-                    .setSort(new Doc(sort))
+            FindCmdSettings settings = getFindCmdSettings();
+            settings.setFilter(query)
                     .setSkip(skip)
-                    .setLimit(limit)
-                    .setBatchSize(morphium.getConfig().getCursorBatchSize())
-                    .setCollation(Doc.of(getCollation().toQueryObject()));
+                    .setSort(new LinkedHashMap<>(sort))
+                    .setLimit(limit);
+            if (collation != null) settings.setCollation(getCollation().toQueryObject());
             obj = morphium.getDriver().find(settings);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
@@ -1063,17 +1060,8 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                ret = morphium.getDriver().find(new FindCmdSettings()
-                        .setDb(getDB())
-                        .setColl(getCollectionName())
-                        .setFilter(Doc.of(toQueryObject()))
-                        .setSort(Doc.of(new HashMap<>(sort)))
-                        .setProjection(Doc.of(lst))
-                        .setSkip(skip)
-                        .setLimit(limit)
-                        .setBatchSize(morphium.getConfig().getCursorBatchSize())
-                        .setCollation(Doc.of(collation.toQueryObject())));
-//                srv = (String) findMetaData.get("server");
+                ret = morphium.getDriver().find(getFindCmdSettings());
+
             } catch (Exception e) {
                 throw new RuntimeException(e);
 
@@ -1101,16 +1089,7 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                FindCmdSettings settings = new FindCmdSettings()
-                        .setDb(getDB())
-                        .setColl(getCollectionName())
-                        .setFilter(Doc.of(toQueryObject()))
-                        .setSort(new Doc(sort))
-                        .setProjection(new Doc(lst))
-                        .setSkip(skip)
-                        .setLimit(limit)
-                        .setBatchSize(morphium.getConfig().getCursorBatchSize())
-                        .setCollation(Doc.of(collation.toQueryObject()));
+                FindCmdSettings settings = getFindCmdSettings();
                 ret = morphium.getDriver().find(settings);
                 srv = (String) settings.getMetaData().get("server");
             } catch (Exception e) {
@@ -1157,13 +1136,7 @@ public class Query<T> implements Cloneable {
         List<T> ret = new ArrayList<>();
         ret.clear();
         try {
-            FindCmdSettings settings = new FindCmdSettings()
-                    .setDb(getDB())
-                    .setColl(getCollectionName())
-                    .setProjection(new Doc(lst))
-                    .setSkip(skip)
-                    .setLimit(limit)
-                    .setBatchSize(morphium.getConfig().getCursorBatchSize());
+            FindCmdSettings settings = getFindCmdSettings();
             Map<String, Object> queryObject = toQueryObject();
             if (queryObject != null) settings.setFilter(Doc.of(queryObject));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -1362,19 +1335,7 @@ public class Query<T> implements Cloneable {
         int lim = getLimit();
         limit(1);
         try {
-            FindCmdSettings settings = new FindCmdSettings()
-                    .setDb(getDB())
-                    .setColl(getCollectionName());
-            if (toQueryObject() != null)
-                settings.setFilter(Doc.of(toQueryObject()));
-            if (sort != null)
-                settings.setSort(new Doc(sort));
-            settings.setProjection(new Doc(getFieldListForQuery()))
-                    .setSkip(skip)
-                    .setLimit(limit)
-                    .setBatchSize(1);
-            if (collation != null)
-                settings.setCollation(Doc.of(collation.toQueryObject()));
+            FindCmdSettings settings = getFindCmdSettings();
             srch = morphium.getDriver().find(settings);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
@@ -1458,21 +1419,15 @@ public class Query<T> implements Cloneable {
         //        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
         //        setReadPreferenceFor(collection);
         //                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
-        Map<String, Object> findMetadata = new HashMap<>();
+
 
         List<Map<String, Object>> query;
         try {
-            FindCmdSettings settings = new FindCmdSettings()
-                    .setDb(getDB())
-                    .setColl(getCollectionName())
-                    .setFilter(Doc.of(toQueryObject()))
-                    .setSort(new Doc(sort))
-                    .setProjection(Doc.of("_id", 1))
-                    .setSkip(skip)
-                    .setLimit(limit)
-                    .setBatchSize(morphium.getConfig().getCursorBatchSize())
-                    .setCollation(Doc.of(collation.toQueryObject()));
+
+            FindCmdSettings settings = getFindCmdSettings();
+            settings.setProjection(Doc.of("_id", 1));
             query = morphium.getDriver().find(settings);
+            srv = (String) settings.getMetaData().get("server");
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1480,7 +1435,6 @@ public class Query<T> implements Cloneable {
 
         //noinspection unchecked
         List<R> ret = new ArrayList<>(); //query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
-        srv = (String) findMetadata.get("server");
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
@@ -2260,6 +2214,7 @@ public class Query<T> implements Cloneable {
                 .setSkip(getSkip())
                 .setLimit(getLimit())
                 .setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
+        settings.setBatchSize(morphium.getConfig().getCursorBatchSize());
         return settings;
     }
 }
