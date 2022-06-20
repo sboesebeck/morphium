@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 
 /**
  * TODO: Add Documentation here
@@ -45,7 +47,7 @@ public class BsonTest extends BaseTest {
         //        System.err.println(Utils.getHex(bytes));
 
         BsonDecoder dec = new BsonDecoder();
-        Doc aDoc = dec.decodeDocument(bytes);
+        Map<String, Object> aDoc = dec.decodeDocument(bytes);
         assert (aDoc.equals(doc));
     }
 
@@ -89,5 +91,61 @@ public class BsonTest extends BaseTest {
 
     }
 
+
+    @Test
+    public void uuidDecodeTest() throws Exception {
+        UUID uuid = UUID.fromString("00112233-4455-6677-8899-aabbccddeeff");
+        var d = Doc.of("uuid_value", uuid);
+        byte[] ret = BsonEncoder.encodeDocument(d);
+
+        var res = BsonDecoder.decodeDocument(ret);
+        assertThat(res).isNotNull();
+        assertThat(res).isNotEmpty();
+        assertThat(res.get("uuid_value")).isInstanceOf(UUID.class);
+        assertThat(res.get("uuid_value")).isEqualTo(uuid);
+
+        ret = BsonEncoder.encodeDocument(d, BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
+        res = BsonDecoder.decodeDocument(ret);
+        assertThat(res).isNotNull();
+        assertThat(res).isNotEmpty();
+        assertThat(res.get("uuid_value")).isInstanceOf(UUID.class);
+        assertThat(res.get("uuid_value")).isEqualTo(uuid);
+    }
+
+    @Test
+    public void uuidTest() throws Exception {
+        //Standard representation
+        UUID u = UUID.fromString("00112233-4455-6677-8899-aabbccddeeff");
+        BsonEncoder enc = new BsonEncoder();
+        enc.encodeObject("test", u);
+        log.info("\n" + Utils.getHex(enc.getBytes()));
+        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 04 00 11 22 33 44     .test-.---.-...D\n" +
+                "00000010:  55 66 77 88 99 AA BB CC DD EE FF                    Ufw........\n");
+        //LEGACY_JAVA
+        enc = new BsonEncoder();
+        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
+        enc.encodeObject("test", u);
+        log.info("\n" + Utils.getHex(enc.getBytes()));
+        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 77 66 55 44 33     .test-.---.wfUD.\n" +
+                "00000010:  22 11 00 FF EE DD CC BB AA 99 88                    ..-........\n");
+
+        //PYTHON_LEGACY
+        enc = new BsonEncoder();
+        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.PYTHON_LEGACY);
+        enc.encodeObject("test", u);
+        log.info("\n" + Utils.getHex(enc.getBytes()));
+        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 00 11 22 33 44     .test-.---.-...D\n" +
+                "00000010:  55 66 77 88 99 AA BB CC DD EE FF                    Ufw........\n");
+
+        //CSHarp
+        enc = new BsonEncoder();
+        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.C_SHARP_LEGACY);
+        enc.encodeObject("test", u);
+        log.info("\n" + Utils.getHex(enc.getBytes()));
+        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 33 22 11 00 55     .test-.---....-U\n" +
+                "00000010:  44 77 66 88 99 AA BB CC DD EE FF                    Dwf........\n");
+
+
+    }
 
 }

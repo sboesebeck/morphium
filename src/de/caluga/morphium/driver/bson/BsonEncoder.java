@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("WeakerAccess")
 public class BsonEncoder {
     private final ByteArrayOutputStream out;
+    private UUIDRepresentation uuidRepresentation = UUIDRepresentation.STANDARD;
 
     public BsonEncoder() {
 
@@ -26,9 +27,14 @@ public class BsonEncoder {
     }
 
     public static byte[] encodeDocument(Map<String, Object> m) {
+        return encodeDocument(m, UUIDRepresentation.STANDARD);
+    }
+
+    public static byte[] encodeDocument(Map<String, Object> m, UUIDRepresentation representation) {
         ByteArrayOutputStream o = new ByteArrayOutputStream();
         for (Map.Entry<String, Object> e : m.entrySet()) {
             BsonEncoder enc = new BsonEncoder();
+            enc.setUuidRepresentation(representation);
             enc.encodeObject(e.getKey(), e.getValue());
             try {
                 o.write(enc.getBytes());
@@ -46,6 +52,15 @@ public class BsonEncoder {
             throw new RuntimeException(e);
         }
         return o2.toByteArray();
+    }
+
+    public UUIDRepresentation getUuidRepresentation() {
+        return uuidRepresentation;
+    }
+
+    public BsonEncoder setUuidRepresentation(UUIDRepresentation uuidRepresentation) {
+        this.uuidRepresentation = uuidRepresentation;
+        return this;
     }
 
     @SuppressWarnings("UnusedReturnValue")
@@ -88,7 +103,7 @@ public class BsonEncoder {
     }
 
     @SuppressWarnings("UnusedReturnValue")
-    private BsonEncoder encodeObject(String n, Object v) {
+    public BsonEncoder encodeObject(String n, Object v) {
 
         if (v == null) {
             writeByte(10).cString(n);
@@ -104,9 +119,38 @@ public class BsonEncoder {
 
             writeLong(lng);
         } else if (v instanceof String) {
+
             writeByte(2);
             cString(n);
             string((String) v);
+        } else if (v instanceof UUID) {
+            writeByte(5);
+            cString(n);
+
+            writeInt(16);
+            writeByte(uuidRepresentation.subtype); //subtype
+            switch (uuidRepresentation) {
+                case UNSPECIFIED:
+                    throw new IllegalArgumentException("Cannot encode using UNSPECIFIED representation");
+                case STANDARD:
+                case PYTHON_LEGACY:
+                    writeLongBigEndian(((UUID) v).getMostSignificantBits());
+                    writeLongBigEndian(((UUID) v).getLeastSignificantBits());
+                    break;
+                case JAVA_LEGACY:
+                    writeLong(((UUID) v).getMostSignificantBits());
+                    writeLong(((UUID) v).getLeastSignificantBits());
+                    break;
+                case C_SHARP_LEGACY:
+                    for (int i : new int[]{3, 2, 1, 0, 5, 4, 7, 6})
+                        writeByte((byte) ((((UUID) v).getMostSignificantBits() >> ((7 - i) * 8)) & 0xff));
+                    writeLongBigEndian(((UUID) v).getLeastSignificantBits());
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown UUID representation " + uuidRepresentation.name());
+            }
+
+
         } else if (v.getClass().isArray() && v.getClass().getComponentType().equals(byte.class)) {
             writeByte(5);
             cString(n);
@@ -262,8 +306,23 @@ public class BsonEncoder {
         for (int i = 7; i >= 0; i--) writeByte((byte) ((lng >> ((7 - i) * 8)) & 0xff));
     }
 
+    private void writeLongBigEndian(long lng) {
+        for (int i = 0; i <= 7; i++) writeByte((byte) ((lng >> ((7 - i) * 8)) & 0xff));
+    }
+
     private BsonEncoder writeByte(int v) {
         out.write((byte) v);
         return this;
+    }
+
+
+    public enum UUIDRepresentation {
+        UNSPECIFIED(-1), STANDARD(4), C_SHARP_LEGACY(3), JAVA_LEGACY(3), PYTHON_LEGACY(3);
+
+        int subtype;
+
+        UUIDRepresentation(int s) {
+            subtype = s;
+        }
     }
 }

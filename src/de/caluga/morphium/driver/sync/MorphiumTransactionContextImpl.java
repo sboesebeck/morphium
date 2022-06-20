@@ -2,17 +2,19 @@ package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 
+import java.util.UUID;
+
 public class MorphiumTransactionContextImpl extends MorphiumTransactionContext {
-    private String lsid;
+    private UUID lsid;
     private Long txnNumber;
-    private Boolean autoCommit;
+    private boolean autoCommit = false;
     private boolean started;
 
-    public Boolean getAutoCommit() {
+    public boolean getAutoCommit() {
         return autoCommit;
     }
 
-    public MorphiumTransactionContextImpl setAutoCommit(Boolean autoCommit) {
+    public MorphiumTransactionContextImpl setAutoCommit(boolean autoCommit) {
         this.autoCommit = autoCommit;
         return this;
     }
@@ -26,11 +28,11 @@ public class MorphiumTransactionContextImpl extends MorphiumTransactionContext {
         return this;
     }
 
-    public String getLsid() {
+    public UUID getLsid() {
         return lsid;
     }
 
-    public MorphiumTransactionContextImpl setLsid(String lsid) {
+    public MorphiumTransactionContextImpl setLsid(UUID lsid) {
         this.lsid = lsid;
         return this;
     }

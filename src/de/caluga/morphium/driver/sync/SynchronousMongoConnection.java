@@ -162,7 +162,7 @@ public class SynchronousMongoConnection extends DriverBase {
     public MorphiumTransactionContext startTransaction(boolean autoCommit) {
         if (this.transactionContext.get() != null) throw new IllegalArgumentException("Transaction in progress");
         MorphiumTransactionContextImpl ctx = new MorphiumTransactionContextImpl();
-        ctx.setLsid(UUID.randomUUID().toString());
+        ctx.setLsid(UUID.randomUUID());
         ctx.setTxnNumber((long) getNextId());
         this.transactionContext.set(ctx);
         return ctx;
@@ -276,6 +276,18 @@ public class SynchronousMongoConnection extends DriverBase {
 
     @Override
     public long count(CountCmdSettings settings) throws MorphiumDriverException {
+        if (isTransactionInProgress()) {
+            log.warn("Cannot count while in transaction, will use IDlist!");
+            //TODO: use Aggregation
+            FindCmdSettings fs = new FindCmdSettings();
+            fs.setMetaData(settings.getMetaData());
+            fs.setDb(settings.getDb());
+            fs.setColl(settings.getColl());
+            fs.setFilter(settings.getQuery());
+            fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
+            fs.setCollation(settings.getCollation());
+            return find(fs).size();
+        }
         Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
             OpMsg q = new OpMsg();
             q.setMessageId(getNextId());
@@ -804,8 +816,8 @@ public class SynchronousMongoConnection extends DriverBase {
                 q.getFirstDoc().put("startTransaction", true);
                 transactionContext.get().setStarted(true);
             }
-            if (transactionContext.get().getAutoCommit() != null)
-                q.getFirstDoc().putIfAbsent("autocommit", transactionContext.get().getAutoCommit());
+            q.getFirstDoc().putIfAbsent("autocommit", transactionContext.get().getAutoCommit());
+            q.getFirstDoc().remove("writeConcern");
         }
 
         boolean retry = true;
