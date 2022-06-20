@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("WeakerAccess")
 public class BsonDecoder {
 
-    public static Doc decodeDocument(byte[] in) throws UnsupportedEncodingException {
+    public static Map<String, Object> decodeDocument(byte[] in) throws UnsupportedEncodingException {
         Doc ret = Doc.of();
         decodeDocumentIn(ret, in, 0);
         return ret;
@@ -78,12 +78,26 @@ public class BsonDecoder {
 
                 case 0x05:
                     int boblen = readInt(in, idx);
-                    byte[] bobdata = new byte[boblen];
-                    //skipping subtype!
-                    System.arraycopy(in, idx + 5, bobdata, 0, boblen);
-                    MongoBob bob = new MongoBob(bobdata);
+
+                    byte subtype = in[idx + 4];
+
+
+                    if (subtype == 0x03) {
+                        //UUID
+                        //Assuming java legacy
+                        UUID u = new UUID(readLong(in, idx + 5), readLong(in, idx + 13));
+                        value = u;
+                    } else if (subtype == 0x04) {
+                        //UUID Standard rep?
+                        UUID u = new UUID(readLongBigEndian(in, idx + 5), readLongBigEndian(in, idx + 13));
+                        value = u;
+                    } else {
+                        byte[] bobdata = new byte[boblen];
+                        System.arraycopy(in, idx + 5, bobdata, 0, boblen);
+                        value = bobdata;
+                    }
                     idx += boblen + 5;
-                    value = bob.getData();
+
                     break;
                 case 0x0e:
                     //deprecated
@@ -197,6 +211,18 @@ public class BsonDecoder {
 
     public static int readInt(byte[] bytes, int idx) {
         return (bytes[idx] & 0xFF) | (bytes[idx + 1] & 0xFF) << 8 | (bytes[idx + 2] & 0xFF) << 16 | ((bytes[idx + 3] & 0xFF) << 24);
+
+    }
+
+    public static long readLongBigEndian(byte[] bytes, int idx) {
+        return ((long) (bytes[idx + 7] & 0xFF)) |
+                ((long) (bytes[idx + 6] & 0xFF) << 8) |
+                ((long) (bytes[idx + 5] & 0xFF) << 16) |
+                ((long) (bytes[idx + 4] & 0xFF) << 24) |
+                ((long) (bytes[idx + 3] & 0xFF) << 32) |
+                ((long) (bytes[idx + 2] & 0xFF) << 40) |
+                ((long) (bytes[idx + 1] & 0xFF) << 48) |
+                ((long) (bytes[idx + 0] & 0xFF) << 56);
 
     }
 

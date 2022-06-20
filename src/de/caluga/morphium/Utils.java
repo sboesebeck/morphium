@@ -140,7 +140,11 @@ public class Utils {
                 sb.append(getHex(by));
                 sb.append(" ");
             }
-
+            if (mainIdx + 16 > b.length) {
+                for (int i = b.length % 16; i < 16; i++) {
+                    sb.append("   ");
+                }
+            }
             int l = 16;
             if (mainIdx + 16 > b.length) {
                 l = b.length - mainIdx;
