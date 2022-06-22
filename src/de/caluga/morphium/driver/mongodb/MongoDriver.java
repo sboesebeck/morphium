@@ -2,75 +2,23 @@ package de.caluga.morphium.driver.mongodb;/**
  * Created by stephan on 05.11.15.
  */
 
-import com.mongodb.*;
 import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
-import com.mongodb.client.AggregateIterable;
-import com.mongodb.client.ChangeStreamIterable;
-import com.mongodb.client.ClientSession;
-import com.mongodb.client.DistinctIterable;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.ListIndexesIterable;
-import com.mongodb.client.MapReduceIterable;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.*;
+import com.mongodb.client.*;
 import com.mongodb.client.model.*;
 import com.mongodb.client.model.changestream.ChangeStreamDocument;
 import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import com.mongodb.connection.ClusterConnectionMode;
-import com.mongodb.event.ClusterClosedEvent;
-import com.mongodb.event.ClusterDescriptionChangedEvent;
-import com.mongodb.event.ClusterListener;
-import com.mongodb.event.ClusterOpeningEvent;
-import com.mongodb.event.CommandFailedEvent;
-import com.mongodb.event.CommandListener;
-import com.mongodb.event.CommandStartedEvent;
-import com.mongodb.event.CommandSucceededEvent;
-import com.mongodb.event.ConnectionAddedEvent;
-import com.mongodb.event.ConnectionCheckOutFailedEvent;
-import com.mongodb.event.ConnectionCheckOutStartedEvent;
-import com.mongodb.event.ConnectionCheckedInEvent;
-import com.mongodb.event.ConnectionCheckedOutEvent;
-import com.mongodb.event.ConnectionClosedEvent;
-import com.mongodb.event.ConnectionCreatedEvent;
-import com.mongodb.event.ConnectionPoolClearedEvent;
-import com.mongodb.event.ConnectionPoolClosedEvent;
-import com.mongodb.event.ConnectionPoolCreatedEvent;
-import com.mongodb.event.ConnectionPoolListener;
-import com.mongodb.event.ConnectionPoolOpenedEvent;
-import com.mongodb.event.ConnectionReadyEvent;
-import com.mongodb.event.ConnectionRemovedEvent;
-
+import com.mongodb.event.*;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-
 import de.caluga.morphium.driver.commands.*;
-import org.bson.BSONObject;
-import org.bson.BasicBSONObject;
-import org.bson.BsonArray;
-import org.bson.BsonBinary;
-import org.bson.BsonBoolean;
-import org.bson.BsonDateTime;
-import org.bson.BsonDocument;
-import org.bson.BsonDouble;
-import org.bson.BsonInt32;
-import org.bson.BsonInt64;
-import org.bson.BsonNull;
-import org.bson.BsonObjectId;
-import org.bson.BsonRegularExpression;
-import org.bson.BsonString;
-import org.bson.BsonTimestamp;
-import org.bson.BsonUndefined;
-import org.bson.BsonValue;
-import org.bson.Document;
-import org.bson.UuidRepresentation;
+import org.bson.*;
 import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
 import org.bson.types.Binary;
@@ -79,18 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLContext;
-
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.ConcurrentModificationException;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Vector;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1010,7 +949,7 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
             handleMetaData(findMetaData, ret);
 
-            List<Doc> values = new ArrayList<>();
+            List<Map<String, Object>> values = new ArrayList<>();
 
             while (ret.hasNext()) {
                 Document d = ret.next();
@@ -1021,17 +960,37 @@ public class MongoDriver implements MorphiumDriver {
                     break;
                 }
             }
-            MorphiumCursor crs = new MorphiumCursor();
+            MorphiumCursor crs = new MorphiumCursor() {
+                private MongoCursor<Document> cursor = ret;
+
+                @Override
+                public boolean hasNext() throws MorphiumDriverException {
+                    return ret.hasNext();
+                }
+
+                @Override
+                public Map<String, Object> next() throws MorphiumDriverException {
+                    return ret.next();
+                }
+
+                @Override
+                public void close() throws MorphiumDriverException {
+                    ret.close();
+                }
+
+                @Override
+                public int available() throws MorphiumDriverException {
+                    return ret.available();
+                }
+            };
             crs.setBatchSize(batchSize);
 
             if (values.size() < batchSize || values.size() < 1000 && batchSize == 0) {
                 ret.close();
-            } else {
-                crs.setInternalCursorObject(ret);
             }
-//            if (ret.hasNext() && ret.getServerCursor() != null) {
-////                crs.setCursorId(ret.getServerCursor().getId());
-////            }
+            if (ret.hasNext() && ret.getServerCursor() != null) {
+                crs.setCursorId(ret.getServerCursor().getId());
+            }
             crs.setBatch(values);
             return crs;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -1076,7 +1035,7 @@ public class MongoDriver implements MorphiumDriver {
 //            DBCursor ret = coll.find(new BasicDBObject(query), projection != null ? new BasicDBObject(projection) : null);
             handleMetaData(findMetaData, ret);
 
-            List<Doc> values = new ArrayList<>();
+            List<Map<String, Object>> values = new ArrayList<>();
 
             while (ret.hasNext()) {
                 Document d = ret.next();
@@ -1088,17 +1047,37 @@ public class MongoDriver implements MorphiumDriver {
                 }
             }
 
-            MorphiumCursor crs = new MorphiumCursor();
+            MorphiumCursor crs = new MorphiumCursor() {
+                private MongoCursor<Document> cursor = ret;
+
+                @Override
+                public boolean hasNext() throws MorphiumDriverException {
+                    return ret.hasNext();
+                }
+
+                @Override
+                public Map<String, Object> next() throws MorphiumDriverException {
+                    return ret.next();
+                }
+
+                @Override
+                public void close() throws MorphiumDriverException {
+                    ret.close();
+                }
+
+                @Override
+                public int available() throws MorphiumDriverException {
+                    return ret.available();
+                }
+            };
             crs.setBatchSize(batchSize);
 
             if (values.size() < batchSize || values.size() < 1000 && batchSize == 0) {
                 ret.close();
-            } else {
-                crs.setInternalCursorObject(ret);
             }
-//            if (ret.hasNext() && ret.getServerCursor() != null) {
-////                crs.setCursorId(ret.getServerCursor().getId());
-////            }
+            if (ret.hasNext() && ret.getServerCursor() != null) {
+                crs.setCursorId(ret.getServerCursor().getId());
+            }
             crs.setBatch(values);
             return crs;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
@@ -1262,14 +1241,14 @@ public class MongoDriver implements MorphiumDriver {
     public MorphiumCursor nextIteration(final MorphiumCursor crs) throws MorphiumDriverException {
         //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
-            List<Doc> values = new ArrayList<>();
+            List<Map<String, Object>> values = new ArrayList<>();
             int batchSize = crs.getBatchSize();
-            @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
-            if (ret == null) {
-                return null; //finished
-            }
-            while (ret.hasNext()) {
-                Document d = ret.next();
+//            @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
+//            if (ret == null) {
+//                return null; //finished
+//            }
+            while (crs.hasNext()) {
+                Map<String, Object> d = crs.next();
                 Doc obj = convertBSON(d);
                 values.add(obj);
                 int cnt = values.size();
@@ -1280,16 +1259,12 @@ public class MongoDriver implements MorphiumDriver {
                     return null; //connection closed!
                 }
             }
-            MorphiumCursor crs1 = new MorphiumCursor();
-            crs1.setBatchSize(batchSize);
-//            crs1.setCursorId(ret.getCursorId());
+
             if ((batchSize != 0 && values.size() < batchSize) || (batchSize == 0 && values.size() < 1000)) {
-                ret.close();
-            } else {
-                crs1.setInternalCursorObject(ret);
+                crs.close();
             }
-            crs1.setBatch(values);
-            return crs1;
+            crs.setBatch(values);
+            return crs;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
@@ -1298,8 +1273,7 @@ public class MongoDriver implements MorphiumDriver {
         DriverHelper.doCall(() -> {
             //log.debug("Closing iterator / cursor");
             if (crs != null) {
-                @SuppressWarnings("unchecked") MongoCursor<Document> ret = (MongoCursor<Document>) crs.getInternalCursorObject();
-                ret.close();
+                crs.close();
             }
             return null;
         }, retriesOnNetworkError, sleepBetweenErrorRetries);

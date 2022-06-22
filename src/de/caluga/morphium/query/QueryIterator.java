@@ -2,7 +2,6 @@ package de.caluga.morphium.query;
 
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.FindCmdSettings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,21 +94,6 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
         if (cursor < 0) {
             throw new IllegalArgumentException("cannot jump back over batch boundaries!");
         }
-    }
-
-
-    public void setNumberOfPrefetchWindows(int n) {
-        throw new IllegalArgumentException("not possible");
-    }
-
-
-    public int getNumberOfAvailableThreads() {
-        return 1;
-    }
-
-
-    public int getNumberOfThreads() {
-        return 1;
     }
 
 

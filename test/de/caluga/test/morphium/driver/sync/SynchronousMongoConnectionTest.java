@@ -1,7 +1,6 @@
 package de.caluga.test.morphium.driver.sync;
 
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.commands.*;
@@ -13,7 +12,10 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -61,6 +63,32 @@ public class SynchronousMongoConnectionTest {
         assertThat(res.get(0).get("counter")).isEqualTo(9999);
         con.disconnect();
     }
+
+
+//
+//    public void pseudoCode(){
+//        FindCommand fnd=FindCommand.builder(driver).setQuery().setDB().set...();
+//        List(Map<String,Object>) fnd.exec();
+//        //Builder
+//        static Vector<FindCommand> commands=new Vector<FindCommand>();
+//        runner={
+//                while (commands.size()<10){
+//                    commands.add(new FindCommand(drvier));
+//                }
+//        };
+//        scheduler.schedule(runner,10sek);
+//
+//
+//        builder{
+//            return commands.remove(0);
+//        }
+//        purge(){
+//            clear();
+//            commands.add(this);
+//        }
+//        fnd.purge();
+//
+//    }
 
 
     @Test

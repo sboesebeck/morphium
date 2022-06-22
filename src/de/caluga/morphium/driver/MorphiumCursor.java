@@ -8,11 +8,28 @@ import java.util.Map;
 /**
  * Morphiums representation of the mongodb Cursor.
  **/
-public class MorphiumCursor {
+public abstract class MorphiumCursor {
     private long cursorId;
     private int batchSize;
-    private List<Doc> batch;
-    private Object internalCursorObject;
+    private List<Map<String, Object>> batch;
+    private String db;
+    private String collection;
+
+    public String getDb() {
+        return db;
+    }
+
+    public void setDb(String db) {
+        this.db = db;
+    }
+
+    public String getCollection() {
+        return collection;
+    }
+
+    public void setCollection(String collection) {
+        this.collection = collection;
+    }
 
     public int getBatchSize() {
         return batchSize;
@@ -30,19 +47,20 @@ public class MorphiumCursor {
         this.cursorId = cursorId;
     }
 
-    public List<Doc> getBatch() {
+    public List<Map<String, Object>> getBatch() {
         return batch;
     }
 
-    public void setBatch(List<Doc> batch) {
+    public void setBatch(List<Map<String, Object>> batch) {
         this.batch = batch;
     }
 
-    public Object getInternalCursorObject() {
-        return internalCursorObject;
-    }
+    public abstract boolean hasNext() throws MorphiumDriverException;
 
-    public void setInternalCursorObject(Object internalCursorObject) {
-        this.internalCursorObject = internalCursorObject;
-    }
+    public abstract Map<String, Object> next() throws MorphiumDriverException;
+
+    public abstract void close() throws MorphiumDriverException;
+
+    public abstract int available() throws MorphiumDriverException;
+
 }
