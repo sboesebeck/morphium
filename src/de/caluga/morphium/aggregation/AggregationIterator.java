@@ -85,22 +85,6 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     }
 
     @Override
-    public void setNumberOfPrefetchWindows(int n) {
-        throw new IllegalArgumentException("not possible");
-    }
-
-    @Override
-    public int getNumberOfAvailableThreads() {
-        return 1;
-    }
-
-
-    @Override
-    public int getNumberOfThreads() {
-        return 1;
-    }
-
-    @Override
     public boolean isMultithreaddedAccess() {
         return multithreadded;
     }
@@ -177,7 +161,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
                 cursor++;
             } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
                 //noinspection unchecked
-                currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
+                //currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
                 cursor = 0;
             } else {
                 cursor++;

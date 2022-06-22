@@ -218,6 +218,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public MorphiumCursor waitForReplyIterable(long id) {
+        return null;
+    }
+
+    @Override
     public List<Object> distinct(DistinctCmdSettings settings) {
         return null;
     }
@@ -276,21 +281,6 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public String getName() {
         return null;
-    }
-
-    @Override
-    public int getBuildNumber() {
-        return 0;
-    }
-
-    @Override
-    public int getMajorVersion() {
-        return 0;
-    }
-
-    @Override
-    public int getMinorVersion() {
-        return 0;
     }
 
 
@@ -417,12 +407,62 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Doc findMetaData) throws MorphiumDriverException {
         log.warn("aggregation not possible in mem");
-        return new MorphiumCursor();
+        return new MorphiumCursor() {
+            @Override
+            public boolean hasNext() throws MorphiumDriverException {
+                return false;
+            }
+
+            @Override
+            public Map<String, Object> next() throws MorphiumDriverException {
+                return null;
+            }
+
+            @Override
+            public void close() throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int available() throws MorphiumDriverException {
+                return 0;
+            }
+
+            @Override
+            public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+                return null;
+            }
+        };
     }
 
 
     public MorphiumCursor initIteration(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Doc findMetaData) throws MorphiumDriverException {
-        MorphiumCursor crs = new MorphiumCursor();
+        MorphiumCursor crs = new MorphiumCursor() {
+            @Override
+            public boolean hasNext() throws MorphiumDriverException {
+                return false;
+            }
+
+            @Override
+            public Map<String, Object> next() throws MorphiumDriverException {
+                return null;
+            }
+
+            @Override
+            public void close() throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int available() throws MorphiumDriverException {
+                return 0;
+            }
+
+            @Override
+            public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+                return null;
+            }
+        };
         crs.setBatchSize(batchSize);
         crs.setCursorId(System.currentTimeMillis());
         InMemoryCursor inCrs = new InMemoryCursor();
@@ -441,20 +481,20 @@ public class InMemoryDriver implements MorphiumDriver {
         inCrs.setReadPreference(readPreference);
         inCrs.setSort(sort);
         //noinspection unchecked
-        crs.setInternalCursorObject(inCrs);
-        int l = batchSize;
-        if (limit != 0 && limit < batchSize) {
-            l = limit;
-        }
-        List<Doc> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
-        crs.setBatch(new CopyOnWriteArrayList<>(res));
-
-        if (res.size() < batchSize) {
-            //noinspection unchecked
-            crs.setInternalCursorObject(null); //cursor ended - no more data
-        } else {
-            inCrs.dataRead = res.size();
-        }
+//        crs.setInternalCursorObject(inCrs);
+//        int l = batchSize;
+//        if (limit != 0 && limit < batchSize) {
+//            l = limit;
+//        }
+//        List<Doc> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
+//        crs.setBatch(new CopyOnWriteArrayList<>(res));
+//
+//        if (res.size() < batchSize) {
+//            //noinspection unchecked
+//            crs.setInternalCursorObject(null); //cursor ended - no more data
+//        } else {
+//            inCrs.dataRead = res.size();
+//        }
         return crs;
     }
 
@@ -512,45 +552,70 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
-        MorphiumCursor next = new MorphiumCursor();
+        MorphiumCursor next = new MorphiumCursor() {
+            @Override
+            public boolean hasNext() throws MorphiumDriverException {
+                return false;
+            }
+
+            @Override
+            public Map<String, Object> next() throws MorphiumDriverException {
+                return null;
+            }
+
+            @Override
+            public void close() throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int available() throws MorphiumDriverException {
+                return 0;
+            }
+
+            @Override
+            public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+                return null;
+            }
+        };
         next.setCursorId(crs.getCursorId());
 
-        InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
-        if (oldCrs == null) {
-            return null;
-        }
-
-        InMemoryCursor inCrs = new InMemoryCursor();
-        inCrs.setReadPreference(oldCrs.getReadPreference());
-        inCrs.setFindMetaData(oldCrs.getFindMetaData());
-        inCrs.setDb(oldCrs.getDb());
-        inCrs.setQuery(oldCrs.getQuery());
-        inCrs.setCollection(oldCrs.getCollection());
-        inCrs.setProjection(oldCrs.getProjection());
-        inCrs.setBatchSize(oldCrs.getBatchSize());
-        inCrs.setCollation(oldCrs.getCollation());
-
-        inCrs.setLimit(oldCrs.getLimit());
-
-        inCrs.setSort(oldCrs.getSort());
-        inCrs.skip = oldCrs.getDataRead() + 1;
-        int limit = oldCrs.getBatchSize();
-        if (oldCrs.getLimit() != 0) {
-            if (oldCrs.getDataRead() + oldCrs.getBatchSize() > oldCrs.getLimit()) {
-                limit = oldCrs.getLimit() - oldCrs.getDataRead();
-            }
-        }
-        List<Doc> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
-        next.setBatch(new CopyOnWriteArrayList<>(res));
-        if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() + oldCrs.getDataRead() > oldCrs.limit)) {
-            //finished!
-            //noinspection unchecked
-            next.setInternalCursorObject(null);
-        } else {
-            inCrs.setDataRead(oldCrs.getDataRead() + res.size());
-            //noinspection unchecked
-            next.setInternalCursorObject(inCrs);
-        }
+//        InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
+//        if (oldCrs == null) {
+//            return null;
+//        }
+//
+//        InMemoryCursor inCrs = new InMemoryCursor();
+//        inCrs.setReadPreference(oldCrs.getReadPreference());
+//        inCrs.setFindMetaData(oldCrs.getFindMetaData());
+//        inCrs.setDb(oldCrs.getDb());
+//        inCrs.setQuery(oldCrs.getQuery());
+//        inCrs.setCollection(oldCrs.getCollection());
+//        inCrs.setProjection(oldCrs.getProjection());
+//        inCrs.setBatchSize(oldCrs.getBatchSize());
+//        inCrs.setCollation(oldCrs.getCollation());
+//
+//        inCrs.setLimit(oldCrs.getLimit());
+//
+//        inCrs.setSort(oldCrs.getSort());
+//        inCrs.skip = oldCrs.getDataRead() + 1;
+//        int limit = oldCrs.getBatchSize();
+//        if (oldCrs.getLimit() != 0) {
+//            if (oldCrs.getDataRead() + oldCrs.getBatchSize() > oldCrs.getLimit()) {
+//                limit = oldCrs.getLimit() - oldCrs.getDataRead();
+//            }
+//        }
+//        List<Doc> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
+//        next.setBatch(new CopyOnWriteArrayList<>(res));
+//        if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() + oldCrs.getDataRead() > oldCrs.limit)) {
+//            //finished!
+//            //noinspection unchecked
+//            next.setInternalCursorObject(null);
+//        } else {
+//            inCrs.setDataRead(oldCrs.getDataRead() + res.size());
+//            //noinspection unchecked
+//            next.setInternalCursorObject(inCrs);
+//        }
         return next;
     }
 
@@ -1174,8 +1239,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
+    }
+
+    @Override
+    public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return 0;
     }
 
 

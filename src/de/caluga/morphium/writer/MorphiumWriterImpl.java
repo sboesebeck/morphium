@@ -788,7 +788,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
 
         try {
-            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), Doc.of(cmd));
+            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), null, Doc.of(cmd));
         } catch (MorphiumDriverException ex) {
             if (ex.getMessage().startsWith("internal error: Command failed with error 48 (NamespaceExists): 'Collection already exists. NS:")) {
                 LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...?");
@@ -833,7 +833,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         cmd.put("max", capped.maxEntries());
                     }
                     //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
-                    morphium.getDriver().runCommand(getDbName(), Doc.of(cmd));
+                    morphium.getDriver().runCommand(getDbName(), null, Doc.of(cmd));
                 } else {
                     Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
@@ -841,7 +841,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         cmd.put("convertToCapped", coll);
                         cmd.put("size", capped.maxSize());
                         cmd.put("max", capped.maxEntries());
-                        morphium.getDriver().runCommand(getDbName(), Doc.of(cmd));
+                        morphium.getDriver().runCommand(getDbName(), null, Doc.of(cmd));
                         //Indexes are not available after converting - recreate them
                         morphium.ensureIndicesFor(c, callback);
                     }

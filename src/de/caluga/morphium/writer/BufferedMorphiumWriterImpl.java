@@ -98,7 +98,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             return;
         }
         try {
-            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
+            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), null, cmd);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);

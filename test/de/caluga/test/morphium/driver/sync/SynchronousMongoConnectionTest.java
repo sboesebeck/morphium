@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -246,10 +247,76 @@ public class SynchronousMongoConnectionTest {
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
 
-        var result = con.runCommand(db, Doc.of("hello", 1));
+        var result = con.runCommand(db, null, Doc.of("hello", 1)).next();
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
         con.disconnect();
+    }
+
+
+    @Test
+    public void iteratorTest() throws Exception {
+        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
+        log.info("Deleted old data: " + deleted);
+        List<Map<String, Object>> testList = new ArrayList<>();
+        MorphiumObjectMapper om = new ObjectMapperImpl();
+        for (int i = 0; i < 1000; i++) {
+            testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
+        }
+        StoreCmdSettings cmd = new StoreCmdSettings()
+                .setDb(db).setColl(coll).setDocs(testList);
+        con.store(cmd);
+
+        FindCmdSettings fnd = new FindCmdSettings().setDb(db).setColl(coll).setBatchSize(17);
+        var crs = con.runCommand(db, coll, fnd.asMap("find"));
+        int cnt = 0;
+        while (crs.hasNext()) {
+            cnt++;
+            var obj = crs.next();
+            assertThat(obj).isNotNull();
+            assertThat(obj).isNotEmpty();
+            assertThat(obj.get("_id")).isNotNull();
+        }
+        assertThat(cnt).isEqualTo(1000);
+        //GEtAll
+        crs = con.runCommand(db, coll, fnd.asMap("find"));
+        List<Map<String, Object>> lst = crs.getAll();
+        assertThat(lst).isNotNull();
+        assertThat(lst.size()).isEqualTo(1000);
+        assertThat(lst.get(0).get("_id")).isNotNull();
+
+        con.disconnect();
+    }
+
+    @Test
+    public void pipeliningCheck() throws Exception {
+        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
+        log.info("Deleted old data: " + deleted);
+        List<Map<String, Object>> testList = new ArrayList<>();
+        MorphiumObjectMapper om = new ObjectMapperImpl();
+        for (int i = 0; i < 10000; i++) {
+            testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
+        }
+        StoreCmdSettings cmd = new StoreCmdSettings()
+                .setDb(db).setColl(coll).setDocs(testList);
+        con.store(cmd);
+        long start = System.currentTimeMillis();
+        int id = con.sendCommand(db, cmd.asMap("errorMsg"));
+        log.info((System.currentTimeMillis() - start) + ": sent " + id);
+        id = con.sendCommand(db, new FindCmdSettings().setDb(db).setColl(coll).setFilter(Doc.of("$where", "for (let i=0;i<1000000;i++){ var s=s+i;}; return true;")).asMap("find"));
+        log.info((System.currentTimeMillis() - start) + ": sent " + id);
+        id = con.sendCommand("admin", Doc.of("hello", true));
+        log.info((System.currentTimeMillis() - start) + ": sent " + id);
+
+        var reply = con.getNextReply();
+
+        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
+        reply = con.getNextReply();
+        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
+        reply = con.getNextReply();
+        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
     }
 }

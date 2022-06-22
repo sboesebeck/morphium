@@ -133,6 +133,11 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public MorphiumCursor waitForReplyIterable(long id) {
+        return null;
+    }
+
 
     public List<Object> distinct(DistinctCmdSettings settings) {
         return null;
@@ -982,6 +987,12 @@ public class MongoDriver implements MorphiumDriver {
                 public int available() throws MorphiumDriverException {
                     return ret.available();
                 }
+
+                @Override
+                public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+                    //TODO: read all
+                    return null;
+                }
             };
             crs.setBatchSize(batchSize);
 
@@ -1068,6 +1079,12 @@ public class MongoDriver implements MorphiumDriver {
                 @Override
                 public int available() throws MorphiumDriverException {
                     return ret.available();
+                }
+
+                @Override
+                public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+                    //TODO: implement
+                    return null;
                 }
             };
             crs.setBatchSize(batchSize);
@@ -1788,8 +1805,18 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
+    }
+
+    @Override
+    public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return 0;
     }
 
 
