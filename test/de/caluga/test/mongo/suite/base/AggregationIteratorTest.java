@@ -41,10 +41,8 @@ public class AggregationIteratorTest extends MorphiumTestBase {
         //checking other methods
 
         maps.setMultithreaddedAccess(true);
-        maps.getNumberOfThreads();
         maps.setWindowSize(10);
         assert (maps.getWindowSize() == 10);
-        assert (maps.getNumberOfAvailableThreads() != 0);
         assert (maps.getCurrentBuffer() == null);
         assert (maps.getCurrentBufferSize() == 0);
 

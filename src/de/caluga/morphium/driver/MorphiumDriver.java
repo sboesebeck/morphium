@@ -83,7 +83,7 @@ public interface MorphiumDriver {
 
     MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException;
 
-    MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
+    //MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
     void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
@@ -95,9 +95,11 @@ public interface MorphiumDriver {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    //Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
-    MorphiumCursor runCommandIterable(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException;
+
+    MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     /**
      * sends runcommand message, but only returns ID for later check for replies
@@ -107,7 +109,7 @@ public interface MorphiumDriver {
      * @return
      * @throws MorphiumDriverException
      */
-    long sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
 
     //____    __    ____  ___   .___________.  ______  __    __
@@ -124,8 +126,6 @@ public interface MorphiumDriver {
     //|      /     |   __|  |   ___/  |  |     |  | |   __|     \   \
     //|  |\  \----.|  |____ |  |      |  `----.|  | |  |____.----)   |
     //| _| `._____||_______|| _|      |_______||__| |_______|_______/
-
-    Map<String, Object> waitForReply(long id);
 
     MorphiumCursor waitForReplyIterable(long id);
 
