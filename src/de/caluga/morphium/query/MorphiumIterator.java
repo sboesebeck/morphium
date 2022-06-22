@@ -65,12 +65,6 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      */
     void back(int jump);
 
-    void setNumberOfPrefetchWindows(int n);
-
-    int getNumberOfAvailableThreads();
-
-    int getNumberOfThreads();
-
     boolean isMultithreaddedAccess();
 
     void setMultithreaddedAccess(boolean mu);

@@ -18,13 +18,13 @@ import java.util.Map;
 @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "RedundantThrows", "UnusedReturnValue"})
 public interface MorphiumDriver {
 
+    //     _______. _______ .___________.___________. __  .__   __.   _______      _______.
+    //    /       ||   ____||           |           ||  | |  \ |  |  /  _____|    /       |
+    //   |   (----`|  |__   `---|  |----`---|  |----`|  | |   \|  | |  |  __     |   (----`
+    //    \   \    |   __|      |  |        |  |     |  | |  . `  | |  | |_ |     \   \
+    //.----)   |   |  |____     |  |        |  |     |  | |  |\   | |  |__| | .----)   |
+    //|_______/    |_______|    |__|        |__|     |__| |__| \__|  \______| |_______/
     String getName();
-
-    int getBuildNumber();
-
-    int getMajorVersion();
-
-    int getMinorVersion();
 
     void setHostSeed(String... host);
 
@@ -38,7 +38,6 @@ public interface MorphiumDriver {
 
     void disconnect();
 
-
     int getRetriesOnNetworkError();
 
     void setRetriesOnNetworkError(int r);
@@ -47,8 +46,16 @@ public interface MorphiumDriver {
 
     void setSleepBetweenErrorRetries(int s);
 
-
     void setCredentials(String db, String login, String pwd);
+
+
+    ////////////////////////////////////////////////////
+    // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
+    //|           ||   _  \        /   \     |  \ |  |     /       |    /   \     /      ||           ||  |  /  __  \  |  \ |  |     /       |
+    //`---|  |----`|  |_)  |      /  ^  \    |   \|  |    |   (----`   /  ^  \   |  ,----'`---|  |----`|  | |  |  |  | |   \|  |    |   (----`
+    //    |  |     |      /      /  /_\  \   |  . `  |     \   \      /  /_\  \  |  |         |  |     |  | |  |  |  | |  . `  |     \   \
+    //    |  |     |  |\  \----./  _____  \  |  |\   | .----)   |    /  _____  \ |  `----.    |  |     |  | |  `--'  | |  |\   | .----)   |
+    //    |__|     | _| `._____/__/     \__\ |__| \__| |_______/    /__/     \__\ \______|    |__|     |__|  \______/  |__| \__| |_______/
 
 
     abstract MorphiumTransactionContext startTransaction(boolean autoCommit);
@@ -63,7 +70,14 @@ public interface MorphiumDriver {
 
     void abortTransaction() throws MorphiumDriverException;
 
-    List<Map<String, Object>> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
+
+    // __  .___________. _______ .______          ___   .___________. __    ______   .__   __.      _______.
+    //|  | |           ||   ____||   _  \        /   \  |           ||  |  /  __  \  |  \ |  |     /       |
+    //|  | `---|  |----`|  |__   |  |_)  |      /  ^  \ `---|  |----`|  | |  |  |  | |   \|  |    |   (----`
+    //|  |     |  |     |   __|  |      /      /  /_\  \    |  |     |  | |  |  |  | |  . `  |     \   \
+    //|  |     |  |     |  |____ |  |\  \----./  _____  \   |  |     |  | |  `--'  | |  |\   | .----)   |
+    //|__|     |__|     |_______|| _| `._____/__/     \__\  |__|     |__|  \______/  |__| \__| |_______/
+
 
     MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException;
 
@@ -71,9 +85,55 @@ public interface MorphiumDriver {
 
     MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
+    void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
+
+
+    //.______       __    __  .__   __.      ______   ______   .___  ___. .___  ___.      ___      .__   __.  _______
+    //|   _  \     |  |  |  | |  \ |  |     /      | /  __  \  |   \/   | |   \/   |     /   \     |  \ |  | |       \
+    //|  |_)  |    |  |  |  | |   \|  |    |  ,----'|  |  |  | |  \  /  | |  \  /  |    /  ^  \    |   \|  | |  .--.  |
+    //|      /     |  |  |  | |  . `  |    |  |     |  |  |  | |  |\/|  | |  |\/|  |   /  /_\  \   |  . `  | |  |  |  |
+    //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
+    //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
+
+    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+
+    MorphiumCursor runCommandIterable(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+
+    /**
+     * sends runcommand message, but only returns ID for later check for replies
+     *
+     * @param db
+     * @param cmd
+     * @return
+     * @throws MorphiumDriverException
+     */
+    long sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+
+
+    //____    __    ____  ___   .___________.  ______  __    __
+    //\   \  /  \  /   / /   \  |           | /      ||  |  |  |
+    // \   \/    \/   / /  ^  \ `---|  |----`|  ,----'|  |__|  |
+    //  \            / /  /_\  \    |  |     |  |     |   __   |
+    //   \    /\    / /  _____  \   |  |     |  `----.|  |  |  |
+    //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
+    void watch(WatchCmdSettings settings) throws MorphiumDriverException;
+
+    //.______       _______ .______    __       __   _______     _______.
+    //|   _  \     |   ____||   _  \  |  |     |  | |   ____|   /       |
+    //|  |_)  |    |  |__   |  |_)  | |  |     |  | |  |__     |   (----`
+    //|      /     |   __|  |   ___/  |  |     |  | |   __|     \   \
+    //|  |\  \----.|  |____ |  |      |  `----.|  | |  |____.----)   |
+    //| _| `._____||_______|| _|      |_______||__| |_______|_______/
+
+    Map<String, Object> waitForReply(long id);
+
+    MorphiumCursor waitForReplyIterable(long id);
+
+
+    List<Map<String, Object>> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
+
     long count(CountCmdSettings settings) throws MorphiumDriverException;
 
-    void watch(WatchCmdSettings settings) throws MorphiumDriverException;
 
     List<Object> distinct(DistinctCmdSettings settings) throws MorphiumDriverException;
 
@@ -103,8 +163,6 @@ public interface MorphiumDriver {
     boolean exists(String db, String coll) throws MorphiumDriverException;
 
     boolean exists(String db) throws MorphiumDriverException;
-
-    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 

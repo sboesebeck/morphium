@@ -110,6 +110,14 @@ public class SynchronousMongoConnection extends DriverBase {
     private synchronized OpMsg getReply() throws MorphiumDriverNetworkException {
         return (OpMsg) WireProtocolMessage.parseFromStream(in);
     }
+//
+//    private boolean isAnswered(long id){
+//        //return answer.containskey(id);
+//    }
+//    private OpMsg getReply(long id, boolean wait){
+//        while (!isAnswered(id)) sleep(100)
+//        return answers.get(id);
+//    }
 
 
     @Override
@@ -637,11 +645,9 @@ public class SynchronousMongoConnection extends DriverBase {
             OpMsg rep = null;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-                try {
+
                     rep = waitForReply(db, null, q.getMessageId());
-                } catch (MorphiumDriverException e) {
-                    e.printStackTrace();
-                }
+
             }
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
@@ -716,7 +722,27 @@ public class SynchronousMongoConnection extends DriverBase {
             sendQuery(q);
             reply = getReply();
         }
-        crs = new MorphiumCursor();
+        crs = new MorphiumCursor() {
+            @Override
+            public boolean hasNext() throws MorphiumDriverException {
+                return false;
+            }
+
+            @Override
+            public Map<String, Object> next() throws MorphiumDriverException {
+                return null;
+            }
+
+            @Override
+            public void close() throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int available() throws MorphiumDriverException {
+                return 0;
+            }
+        };
         //noinspection unchecked
         crs.setInternalCursorObject(internalCursorData);
         @SuppressWarnings("unchecked") Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
@@ -743,9 +769,9 @@ public class SynchronousMongoConnection extends DriverBase {
         if (crs == null) {
             return;
         }
-        SynchronousConnectCursor internalCursor = (SynchronousConnectCursor) crs.getInternalCursorObject();
+
         @SuppressWarnings("MismatchedQueryAndUpdateOfCollection") Doc m = new Doc();
-        m.put("killCursors", internalCursor.getCollection());
+        m.put("killCursors", crs.getCollection());
         List<Long> cursors = new ArrayList<>();
         cursors.add(crs.getCursorId());
         m.put("cursors", cursors);

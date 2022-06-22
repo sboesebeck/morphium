@@ -1,5 +1,10 @@
 package de.caluga.morphium.driver.sync;
 
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriverException;
+
+import java.util.Map;
+
 /**
  * User: Stephan Bösebeck
  * Date: 23.03.16
@@ -7,7 +12,7 @@ package de.caluga.morphium.driver.sync;
  * <p>
  * Cursor implementation for the singleconnect drivers
  */
-public class SynchronousConnectCursor {
+public class SynchronousConnectCursor extends MorphiumCursor {
 
 
     private final DriverBase driver;
@@ -33,6 +38,26 @@ public class SynchronousConnectCursor {
 
     public void setBatchSize(int batchSize) {
         this.batchSize = batchSize;
+    }
+
+    @Override
+    public boolean hasNext() throws MorphiumDriverException {
+        return false;
+    }
+
+    @Override
+    public Map<String, Object> next() throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public void close() throws MorphiumDriverException {
+
+    }
+
+    @Override
+    public int available() throws MorphiumDriverException {
+        return 0;
     }
 
     public String getDb() {
