@@ -251,7 +251,7 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyCmdSettings settings = new FindAndModifyCmdSettings()
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand()
                     .setQuery(Doc.of(toQueryObject()))
                     .setRemove(true)
                     .setSort(new Doc(getSort()))
@@ -323,7 +323,7 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyCmdSettings settings = new FindAndModifyCmdSettings()
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand()
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setQuery(Doc.of(toQueryObject()))
@@ -391,7 +391,7 @@ public class Query<T> implements Cloneable {
 
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
-        CountCmdSettings settings = new CountCmdSettings()
+        CountMongoCommand settings = new CountMongoCommand()
                 .setColl(collectionName)
                 .setDb(getDB())
                 .setQuery(Doc.of(query));
@@ -448,7 +448,7 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> obj = null;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
-            FindCmdSettings settings = getFindCmdSettings();
+            FindCommand settings = getFindCmdSettings();
             settings.setFilter(query)
                     .setSkip(skip)
                     .setSort(new LinkedHashMap<>(sort))
@@ -543,7 +543,7 @@ public class Query<T> implements Cloneable {
 
     public List distinct(String field) {
         try {
-            return morphium.getDriver().distinct(new DistinctCmdSettings()
+            return morphium.getDriver().distinct(new DistinctMongoCommand()
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setKey(field)
@@ -849,7 +849,7 @@ public class Query<T> implements Cloneable {
         }
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             try {
-                CountCmdSettings settings = new CountCmdSettings().setDb(getDB())
+                CountMongoCommand settings = new CountMongoCommand().setDb(getDB())
                         .setColl(getCollectionName())
                         //.setQuery(Doc.of(this.toQueryObject()))
                         ;
@@ -863,7 +863,7 @@ public class Query<T> implements Cloneable {
             }
         } else {
             try {
-                ret = morphium.getDriver().count(new CountCmdSettings().setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())));
+                ret = morphium.getDriver().count(new CountMongoCommand().setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())));
             } catch (MorphiumDriverException e) {
                 // TODO: Implement Handling
                 throw new RuntimeException(e);
@@ -1089,7 +1089,7 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                FindCmdSettings settings = getFindCmdSettings();
+                FindCommand settings = getFindCmdSettings();
                 ret = morphium.getDriver().find(settings);
                 srv = (String) settings.getMetaData().get("server");
             } catch (Exception e) {
@@ -1136,7 +1136,7 @@ public class Query<T> implements Cloneable {
         List<T> ret = new ArrayList<>();
         ret.clear();
         try {
-            FindCmdSettings settings = getFindCmdSettings();
+            FindCommand settings = getFindCmdSettings();
             Map<String, Object> queryObject = toQueryObject();
             if (queryObject != null) settings.setFilter(Doc.of(queryObject));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -1179,7 +1179,7 @@ public class Query<T> implements Cloneable {
 
     public QueryIterator<T> asIterable(int windowSize) {
         QueryIterator<T> it = new QueryIterator<>();
-        it.setWindowSize(windowSize);
+//        it.setWindowSize(windowSize);
         it.setQuery(this);
         return it;
     }
@@ -1198,7 +1198,7 @@ public class Query<T> implements Cloneable {
     public QueryIterator<T> asIterable(int windowSize, Class<? extends QueryIterator<T>> it) {
         try {
             QueryIterator<T> ret = it.getDeclaredConstructor().newInstance();
-            ret.setWindowSize(windowSize);
+//            ret.setWindowSize(windowSize);
             return asIterable(ret);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -1233,7 +1233,7 @@ public class Query<T> implements Cloneable {
                         }
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        UpdateCmdSettings settings = new UpdateCmdSettings()
+                        UpdateMongoCommand settings = new UpdateMongoCommand()
                                 .setDb(getDB())
                                 .setColl(getCollectionName())
                                 .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
@@ -1335,7 +1335,7 @@ public class Query<T> implements Cloneable {
         int lim = getLimit();
         limit(1);
         try {
-            FindCmdSettings settings = getFindCmdSettings();
+            FindCommand settings = getFindCmdSettings();
             srch = morphium.getDriver().find(settings);
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
@@ -1424,7 +1424,7 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> query;
         try {
 
-            FindCmdSettings settings = getFindCmdSettings();
+            FindCommand settings = getFindCmdSettings();
             settings.setProjection(Doc.of("_id", 1));
             query = morphium.getDriver().find(settings);
             srv = (String) settings.getMetaData().get("server");
@@ -2204,8 +2204,8 @@ public class Query<T> implements Cloneable {
         return ret;
     }
 
-    public FindCmdSettings getFindCmdSettings() {
-        FindCmdSettings settings = new FindCmdSettings()
+    public FindCommand getFindCmdSettings() {
+        FindCommand settings = new FindCommand()
                 .setDb(getMorphium().getConfig().getDatabase())
                 .setColl(getCollectionName())
                 .setFilter(toQueryObject())

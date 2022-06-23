@@ -1,10 +1,8 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-
 import java.util.Map;
 
-public abstract class WriteCmdSettings<T extends CmdSettings> extends CmdSettings<T> {
+public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCommand<T> {
     private Map<String, Object> writeConcern;
     private Boolean bypassDocumentValidation;
 
@@ -21,7 +19,7 @@ public abstract class WriteCmdSettings<T extends CmdSettings> extends CmdSetting
         return bypassDocumentValidation;
     }
 
-    public WriteCmdSettings<T> setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public WriteMongoCommand<T> setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }

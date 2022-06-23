@@ -2,9 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 
-import java.util.List;
-
-public class DistinctCmdSettings extends CmdSettings<DistinctCmdSettings> {
+public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
     private String key;
     private Doc query;
     private Doc readConcern;
@@ -14,7 +12,7 @@ public class DistinctCmdSettings extends CmdSettings<DistinctCmdSettings> {
         return key;
     }
 
-    public DistinctCmdSettings setKey(String key) {
+    public DistinctMongoCommand setKey(String key) {
         this.key = key;
         return this;
     }
@@ -23,7 +21,7 @@ public class DistinctCmdSettings extends CmdSettings<DistinctCmdSettings> {
         return query;
     }
 
-    public DistinctCmdSettings setQuery(Doc query) {
+    public DistinctMongoCommand setQuery(Doc query) {
         this.query = query;
         return this;
     }
@@ -32,7 +30,7 @@ public class DistinctCmdSettings extends CmdSettings<DistinctCmdSettings> {
         return readConcern;
     }
 
-    public DistinctCmdSettings setReadConcern(Doc readConcern) {
+    public DistinctMongoCommand setReadConcern(Doc readConcern) {
         this.readConcern = readConcern;
         return this;
     }
@@ -41,7 +39,7 @@ public class DistinctCmdSettings extends CmdSettings<DistinctCmdSettings> {
         return collation;
     }
 
-    public DistinctCmdSettings setCollation(Doc collation) {
+    public DistinctMongoCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }

@@ -1,10 +1,12 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
+import java.util.Map;
 
-public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
+public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
     private List<Doc> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
@@ -23,7 +25,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return batchSize;
     }
 
-    public AggregateCmdSettings setBatchSize(Integer batchSize) {
+    public AggregateMongoCommand setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }
@@ -32,7 +34,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return pipeline;
     }
 
-    public AggregateCmdSettings setPipeline(List<Doc> pipeline) {
+    public AggregateMongoCommand setPipeline(List<Doc> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -41,7 +43,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return explain;
     }
 
-    public AggregateCmdSettings setExplain(Boolean explain) {
+    public AggregateMongoCommand setExplain(Boolean explain) {
         this.explain = explain;
         return this;
     }
@@ -50,7 +52,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return allowDiskUse;
     }
 
-    public AggregateCmdSettings setAllowDiskUse(Boolean allowDiskUse) {
+    public AggregateMongoCommand setAllowDiskUse(Boolean allowDiskUse) {
         this.allowDiskUse = allowDiskUse;
         return this;
     }
@@ -59,7 +61,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return maxWaitTime;
     }
 
-    public AggregateCmdSettings setMaxWaitTime(Integer maxWaitTime) {
+    public AggregateMongoCommand setMaxWaitTime(Integer maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
         return this;
     }
@@ -68,7 +70,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return bypassDocumentValidation;
     }
 
-    public AggregateCmdSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public AggregateMongoCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -77,7 +79,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return readConcern;
     }
 
-    public AggregateCmdSettings setReadConcern(Doc readConcern) {
+    public AggregateMongoCommand setReadConcern(Doc readConcern) {
         this.readConcern = readConcern;
         return this;
     }
@@ -86,7 +88,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return collation;
     }
 
-    public AggregateCmdSettings setCollation(Doc collation) {
+    public AggregateMongoCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }
@@ -95,7 +97,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return hint;
     }
 
-    public AggregateCmdSettings setHint(Object hint) {
+    public AggregateMongoCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -104,7 +106,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return writeConern;
     }
 
-    public AggregateCmdSettings setWriteConern(Doc writeConern) {
+    public AggregateMongoCommand setWriteConern(Doc writeConern) {
         this.writeConern = writeConern;
         return this;
     }
@@ -113,7 +115,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return let;
     }
 
-    public AggregateCmdSettings setLet(Doc let) {
+    public AggregateMongoCommand setLet(Doc let) {
         this.let = let;
         return this;
     }
@@ -122,7 +124,7 @@ public class AggregateCmdSettings extends CmdSettings<AggregateCmdSettings> {
         return cursor;
     }
 
-    public AggregateCmdSettings setCursor(Doc cursor) {
+    public AggregateMongoCommand setCursor(Doc cursor) {
         this.cursor = cursor;
         return this;
     }

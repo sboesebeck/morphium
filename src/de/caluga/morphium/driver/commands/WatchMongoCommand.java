@@ -5,7 +5,7 @@ import de.caluga.morphium.driver.DriverTailableIterationCallback;
 
 import java.util.List;
 
-public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
+public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
     private DriverTailableIterationCallback cb;
     private Integer batchSize;
     private List<Doc> pipeline;
@@ -26,7 +26,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return fullDocumentBeforeChange;
     }
 
-    public WatchCmdSettings setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
+    public WatchMongoCommand setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
         this.fullDocumentBeforeChange = fullDocumentBeforeChange;
         return this;
     }
@@ -35,7 +35,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return fullDocument;
     }
 
-    public WatchCmdSettings setFullDocument(FullDocumentEnum fullDocument) {
+    public WatchMongoCommand setFullDocument(FullDocumentEnum fullDocument) {
         this.fullDocument = fullDocument;
         return this;
     }
@@ -44,7 +44,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return pipeline;
     }
 
-    public WatchCmdSettings setPipeline(List<Doc> pipeline) {
+    public WatchMongoCommand setPipeline(List<Doc> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -53,7 +53,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return explain;
     }
 
-    public WatchCmdSettings setExplain(Boolean explain) {
+    public WatchMongoCommand setExplain(Boolean explain) {
         this.explain = explain;
         return this;
     }
@@ -62,7 +62,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return allowDiskUse;
     }
 
-    public WatchCmdSettings setAllowDiskUse(Boolean allowDiskUse) {
+    public WatchMongoCommand setAllowDiskUse(Boolean allowDiskUse) {
         this.allowDiskUse = allowDiskUse;
         return this;
     }
@@ -71,7 +71,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return maxWaitTime;
     }
 
-    public WatchCmdSettings setMaxWaitTime(Integer maxWaitTime) {
+    public WatchMongoCommand setMaxWaitTime(Integer maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
         return this;
     }
@@ -80,7 +80,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return bypassDocumentValidation;
     }
 
-    public WatchCmdSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public WatchMongoCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -89,7 +89,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return readConvern;
     }
 
-    public WatchCmdSettings setReadConvern(Doc readConvern) {
+    public WatchMongoCommand setReadConvern(Doc readConvern) {
         this.readConvern = readConvern;
         return this;
     }
@@ -98,7 +98,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return collation;
     }
 
-    public WatchCmdSettings setCollation(Doc collation) {
+    public WatchMongoCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }
@@ -107,7 +107,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return hint;
     }
 
-    public WatchCmdSettings setHint(Object hint) {
+    public WatchMongoCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -116,7 +116,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return writeConern;
     }
 
-    public WatchCmdSettings setWriteConern(Doc writeConern) {
+    public WatchMongoCommand setWriteConern(Doc writeConern) {
         this.writeConern = writeConern;
         return this;
     }
@@ -125,7 +125,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return let;
     }
 
-    public WatchCmdSettings setLet(Doc let) {
+    public WatchMongoCommand setLet(Doc let) {
         this.let = let;
         return this;
     }
@@ -134,7 +134,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return cursor;
     }
 
-    public WatchCmdSettings setCursor(Doc cursor) {
+    public WatchMongoCommand setCursor(Doc cursor) {
         this.cursor = cursor;
         return this;
     }
@@ -143,7 +143,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return cb;
     }
 
-    public WatchCmdSettings setCb(DriverTailableIterationCallback cb) {
+    public WatchMongoCommand setCb(DriverTailableIterationCallback cb) {
         this.cb = cb;
         return this;
     }
@@ -152,7 +152,7 @@ public class WatchCmdSettings extends CmdSettings<WatchCmdSettings> {
         return batchSize;
     }
 
-    public WatchCmdSettings setBatchSize(Integer batchSize) {
+    public WatchMongoCommand setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }

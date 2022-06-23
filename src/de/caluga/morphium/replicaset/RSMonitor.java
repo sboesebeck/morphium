@@ -1,7 +1,7 @@
 package de.caluga.morphium.replicaset;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.commands.FindCmdSettings;
+import de.caluga.morphium.driver.commands.FindCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -141,7 +141,7 @@ public class RSMonitor {
 
                 if (full) {
 
-                    FindCmdSettings settings = new FindCmdSettings()
+                    FindCommand settings = new FindCommand()
                             .setDb("local").setColl("system.replset").setBatchSize(10).setLimit(10);
                     List<Map<String, Object>> stats = morphium.getDriver().find(settings);
                     if (stats == null || stats.isEmpty()) {

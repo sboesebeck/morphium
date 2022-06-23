@@ -1,10 +1,17 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.sync.DriverBase;
+import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
+public class FindCommand extends MongoCommand<FindCommand> {
+    private DriverBase driver;
     private Map<String, Object> filter;
     private Map<String, Object> sort;
     private Map<String, Object> projection;
@@ -28,11 +35,20 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
     private Map<String, Object> let;
 
 
+    public DriverBase getDriver() {
+        return driver;
+    }
+
+    public FindCommand setDriver(DriverBase driver) {
+        this.driver = driver;
+        return this;
+    }
+
     public Map<String, Object> getFilter() {
         return filter;
     }
 
-    public FindCmdSettings setFilter(Map<String, Object> filter) {
+    public FindCommand setFilter(Map<String, Object> filter) {
         this.filter = filter;
         return this;
     }
@@ -41,7 +57,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return sort;
     }
 
-    public FindCmdSettings setSort(Map<String, Object> sort) {
+    public FindCommand setSort(Map<String, Object> sort) {
         this.sort = sort;
         return this;
     }
@@ -50,7 +66,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return projection;
     }
 
-    public FindCmdSettings setProjection(Map<String, Object> projection) {
+    public FindCommand setProjection(Map<String, Object> projection) {
         this.projection = projection;
         return this;
     }
@@ -59,7 +75,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return hint;
     }
 
-    public FindCmdSettings setHint(Object hint) {
+    public FindCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -68,7 +84,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return skip;
     }
 
-    public FindCmdSettings setSkip(Integer skip) {
+    public FindCommand setSkip(Integer skip) {
         this.skip = skip;
         return this;
     }
@@ -77,7 +93,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return limit;
     }
 
-    public FindCmdSettings setLimit(Integer limit) {
+    public FindCommand setLimit(Integer limit) {
         this.limit = limit;
         return this;
     }
@@ -86,7 +102,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return batchSize;
     }
 
-    public FindCmdSettings setBatchSize(Integer batchSize) {
+    public FindCommand setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }
@@ -95,7 +111,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return singleBatch;
     }
 
-    public FindCmdSettings setSingleBatch(Boolean singleBatch) {
+    public FindCommand setSingleBatch(Boolean singleBatch) {
         this.singleBatch = singleBatch;
         return this;
     }
@@ -104,7 +120,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return maxTimeMS;
     }
 
-    public FindCmdSettings setMaxTimeMS(Integer maxTimeMS) {
+    public FindCommand setMaxTimeMS(Integer maxTimeMS) {
         this.maxTimeMS = maxTimeMS;
         return this;
     }
@@ -113,7 +129,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return max;
     }
 
-    public FindCmdSettings setMax(Map<String, Object> max) {
+    public FindCommand setMax(Map<String, Object> max) {
         this.max = max;
         return this;
     }
@@ -122,7 +138,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return min;
     }
 
-    public FindCmdSettings setMin(Map<String, Object> min) {
+    public FindCommand setMin(Map<String, Object> min) {
         this.min = min;
         return this;
     }
@@ -131,7 +147,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return returnKey;
     }
 
-    public FindCmdSettings setReturnKey(Boolean returnKey) {
+    public FindCommand setReturnKey(Boolean returnKey) {
         this.returnKey = returnKey;
         return this;
     }
@@ -140,7 +156,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return showRecordId;
     }
 
-    public FindCmdSettings setShowRecordId(Boolean showRecordId) {
+    public FindCommand setShowRecordId(Boolean showRecordId) {
         this.showRecordId = showRecordId;
         return this;
     }
@@ -149,7 +165,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return tailable;
     }
 
-    public FindCmdSettings setTailable(Boolean tailable) {
+    public FindCommand setTailable(Boolean tailable) {
         this.tailable = tailable;
         return this;
     }
@@ -158,7 +174,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return oplogReplay;
     }
 
-    public FindCmdSettings setOplogReplay(Boolean oplogReplay) {
+    public FindCommand setOplogReplay(Boolean oplogReplay) {
         this.oplogReplay = oplogReplay;
         return this;
     }
@@ -167,7 +183,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return noCursorTimeout;
     }
 
-    public FindCmdSettings setNoCursorTimeout(Boolean noCursorTimeout) {
+    public FindCommand setNoCursorTimeout(Boolean noCursorTimeout) {
         this.noCursorTimeout = noCursorTimeout;
         return this;
     }
@@ -176,7 +192,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return awaitData;
     }
 
-    public FindCmdSettings setAwaitData(Boolean awaitData) {
+    public FindCommand setAwaitData(Boolean awaitData) {
         this.awaitData = awaitData;
         return this;
     }
@@ -185,7 +201,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return allowPartialResults;
     }
 
-    public FindCmdSettings setAllowPartialResults(Boolean allowPartialResults) {
+    public FindCommand setAllowPartialResults(Boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
         return this;
     }
@@ -194,7 +210,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return collation;
     }
 
-    public FindCmdSettings setCollation(Map<String, Object> collation) {
+    public FindCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -203,7 +219,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return allowDiskUse;
     }
 
-    public FindCmdSettings setAllowDiskUse(Boolean allowDiskUse) {
+    public FindCommand setAllowDiskUse(Boolean allowDiskUse) {
         this.allowDiskUse = allowDiskUse;
         return this;
     }
@@ -212,7 +228,7 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
         return let;
     }
 
-    public FindCmdSettings setLet(Map<String, Object> let) {
+    public FindCommand setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }
@@ -251,5 +267,54 @@ public class FindCmdSettings extends CmdSettings<FindCmdSettings> {
 
     public Boolean getAllowDiskUse() {
         return allowDiskUse;
+    }
+
+    //    @Override
+    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+
+            List<Map<String, Object>> ret = new ArrayList<>();
+
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            long start = System.currentTimeMillis();
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap("find"));
+            while (crs.hasNext()) {
+                ret.addAll(crs.getBatch());
+                crs.ahead(crs.getBatch().size());
+            }
+            long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", dur);
+            return Doc.of("values", ret);
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("values");
+    }
+
+    //    @Override
+    public MorphiumCursor execute() throws MorphiumDriverException {
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return (MorphiumCursor) new NetworkCallHelper().doCall(() -> {
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            long start = System.currentTimeMillis();
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap("find"));
+            long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", dur);
+            return Doc.of("cursor", crs);
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("cursor");
+    }
+
+    //    @Override_
+    public int executeGetID() throws MorphiumDriverException {
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return (Integer) new NetworkCallHelper().doCall(() -> {
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            long start = System.currentTimeMillis();
+            int id = driver.sendCommand(getDb(), asMap("find"));
+            long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", dur);
+            return Doc.of("id", id);
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("id");
     }
 }

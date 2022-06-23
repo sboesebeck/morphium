@@ -3,7 +3,7 @@ package de.caluga.morphium.aggregation;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.AggregateCmdSettings;
+import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,25 +24,11 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     private int cursor = 0;
     private int cursorExternal = 0;
     private boolean multithreadded;
-    private int windowSize = -1;
     private Aggregator<T, R> aggregator;
 
-    @Override
-    public int getWindowSize() {
-
-        if (windowSize <= 0) {
-            windowSize = aggregator.getMorphium().getConfig().getCursorBatchSize();
-        }
-        return windowSize;
-    }
 
     @Override
-    public void setWindowSize(int sz) {
-        windowSize = sz;
-    }
-
-    @Override
-    public int getCurrentBufferSize() {
+    public int available() {
         if (currentBatch == null || currentBatch.getBatch() == null) return 0;
         return currentBatch.getBatch().size();
     }
@@ -52,10 +38,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         return null;
     }
 
-    @Override
-    public long getCount() {
-        return aggregator.getCount();
-    }
+
 
     @Override
     public int getCursor() {
@@ -85,14 +68,15 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     }
 
     @Override
-    public boolean isMultithreaddedAccess() {
-        return multithreadded;
+    public void close() {
+
     }
 
     @Override
-    public void setMultithreaddedAccess(boolean mu) {
-        multithreadded = mu;
+    public Map<String, Object> nextMap() {
+        return null;
     }
+
 
     @Override
     public Iterator<R> iterator() {
@@ -125,8 +109,8 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         return false;
     }
 
-    private AggregateCmdSettings getAggregateCmdSettings() {
-        AggregateCmdSettings settings = new AggregateCmdSettings();
+    private AggregateMongoCommand getAggregateCmdSettings() {
+        AggregateMongoCommand settings = new AggregateMongoCommand();
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
                 .setPipeline(Doc.convertToDocList(aggregator.getPipeline()))

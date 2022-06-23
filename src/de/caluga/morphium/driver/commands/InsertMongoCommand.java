@@ -4,7 +4,7 @@ import de.caluga.morphium.driver.Doc;
 
 import java.util.List;
 
-public class InsertCmdSettings extends WriteCmdSettings<InsertCmdSettings> {
+public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
     private List<Doc> documents;
     private Boolean ordered;
     private Boolean bypassDocumentValidation;
@@ -14,7 +14,7 @@ public class InsertCmdSettings extends WriteCmdSettings<InsertCmdSettings> {
         return documents;
     }
 
-    public InsertCmdSettings setDocuments(List<Doc> documents) {
+    public InsertMongoCommand setDocuments(List<Doc> documents) {
         this.documents = documents;
         return this;
     }
@@ -23,7 +23,7 @@ public class InsertCmdSettings extends WriteCmdSettings<InsertCmdSettings> {
         return ordered;
     }
 
-    public InsertCmdSettings setOrdered(Boolean ordered) {
+    public InsertMongoCommand setOrdered(Boolean ordered) {
         this.ordered = ordered;
         return this;
     }
@@ -32,7 +32,7 @@ public class InsertCmdSettings extends WriteCmdSettings<InsertCmdSettings> {
         return bypassDocumentValidation;
     }
 
-    public InsertCmdSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public InsertMongoCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -43,7 +43,7 @@ public class InsertCmdSettings extends WriteCmdSettings<InsertCmdSettings> {
     }
 
     @Override
-    public InsertCmdSettings setComment(String comment) {
+    public InsertMongoCommand setComment(String comment) {
         this.comment = comment;
         return this;
     }

@@ -6,7 +6,7 @@ import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.commands.DropCmdSettings;
+import de.caluga.morphium.driver.commands.DropMongoCommand;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -183,7 +183,7 @@ public class MorphiumTestBase {
         try {
             if (!morphium.getConfig().isAtlas()) {
                 log.info("Dropping database: " + morphium.getConfig().getDatabase());
-                DropCmdSettings settings = new DropCmdSettings();
+                DropMongoCommand settings = new DropMongoCommand();
                 settings.setDb(morphium.getConfig().getDatabase());
                 morphium.getDriver().dropDatabase(settings);
             }
