@@ -50,7 +50,6 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         long lastv2 = -1;
         int lastv1 = 0;
         MorphiumIterator<SimpleEntity> it = q.asIterable(1000);
-        it.setMultithreaddedAccess(true);
         boolean error = false;
         for (SimpleEntity u : it) {
             log.info(u.v1 + " ---- " + u.v2);
@@ -81,7 +80,6 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
 
             log.info("Running test with " + it.getClass().getName());
             //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
-            it.setMultithreaddedAccess(true);
             //            data = Collections.synchronizedList(new ArrayList<>());
 
             final Vector<Thread> threads = new Vector<>();
@@ -146,11 +144,12 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                 qu.setCollectionName("test_uc");
                 //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
                 MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000)};
+                long count = qu.countAll();
                 for (MorphiumIterator<UncachedObject> it : toTest) {
                     for (UncachedObject uc : it) {
                         assert (it.getCursor() == uc.getCounter());
                         if (it.getCursor() % 2500 == 0) {
-                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
+                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + count);
                             Thread.yield();
                         }
                     }
@@ -175,6 +174,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).f("counter").lt(10000).sort("counter");
         qu.setCollectionName("test_uc");
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(10)};
+        long count = qu.countAll();
         for (MorphiumIterator<UncachedObject> it : toTest) {
             //        MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 3);
             for (UncachedObject u : it) {
@@ -188,7 +188,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                     assert (co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
                 }
                 if (it.getCursor() % 100 == 0) {
-                    log.info("Iteration it: " + it.getCursor() + "/" + it.getCount());
+                    log.info("Iteration it: " + it.getCursor() + "/" + count);
                 }
             }
         }
@@ -228,14 +228,14 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         UncachedObject u = it.next();
         assert (u.getCounter() == 1);
         log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
-        log.info("Current Buffersize: " + it.getCurrentBufferSize());
-        assert (it.getCurrentBufferSize() == 2);
+        log.info("Current Buffersize: " + it.available());
+        assert (it.available() == 2);
 
         u = it.next();
         assert (u.getCounter() == 2);
         u = it.next();
         assert (u.getCounter() == 3);
-        assert (it.getCount() == 1000);
+        assert (qu.countAll() == 1000);
         assert (it.getCursor() == 3);
 
         u = it.next();
@@ -279,14 +279,14 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         UncachedObject u = it.next();
         assert (u.getCounter() == 1) : "Counter wrong: " + u.getCounter();
         log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
-        log.info("Current Buffersize: " + it.getCurrentBufferSize());
-        assert (it.getCurrentBufferSize() <= 20) : "buffer is " + it.getCurrentBufferSize();
+        log.info("Current Buffersize: " + it.available());
+        assert (it.available() <= 20) : "buffer is " + it.available();
         u = it.next();
         assert (u.getCounter() == 2) : "Counter wrong: " + u.getCounter();
         it.hasNext();
         u = it.next();
         assert (u.getCounter() == 3) : "Counter wrong: " + u.getCounter() + " cursor: " + it.getCursor();
-        assert (it.getCount() == 1000);
+        assert (qu.countAll() == 1000);
         assert (it.getCursor() == 3);
 
         u = it.next();
@@ -507,7 +507,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
         //        MorphiumIterator<UncachedObject> it = query.asIterable(10, 10);
         MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{query.asIterable(10)};
         for (MorphiumIterator<UncachedObject> it : toTest) {
-            it.setMultithreaddedAccess(false);
+            //it.setMultithreaddedAccess(false);
 
             int cnt = 0;
             while (it.hasNext()) {
@@ -516,7 +516,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                 cnt++;
                 assert (uc.getCounter() == cnt);
             }
-            assert (cnt == it.getCount());
+            assert (cnt == query.countAll());
         }
     }
 

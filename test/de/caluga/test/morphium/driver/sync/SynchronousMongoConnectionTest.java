@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,20 +34,20 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            StoreCmdSettings cmd = new StoreCmdSettings()
+            StoreMongoCommand cmd = new StoreMongoCommand()
                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             con.store(cmd);
         }
         log.info("created test data");
         log.info("running find...");
-        FindCmdSettings fnd = new FindCmdSettings().setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
+        FindCommand fnd = new FindCommand().setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = con.find(fnd);
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");
 
         log.info("Updating...");
-        UpdateCmdSettings update = new UpdateCmdSettings();
+        UpdateMongoCommand update = new UpdateMongoCommand();
         update.addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
         update.setOrdered(false);
         update.setDb(db);
@@ -101,20 +100,20 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            StoreCmdSettings cmd = new StoreCmdSettings()
+            StoreMongoCommand cmd = new StoreMongoCommand()
                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             con.store(cmd);
         }
         log.info("created test data");
         log.info("running find...");
-        FindCmdSettings fnd = new FindCmdSettings().setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
+        FindCommand fnd = new FindCommand().setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = con.find(fnd);
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");
 
         log.info("Updating...");
-        UpdateCmdSettings update = new UpdateCmdSettings()
+        UpdateMongoCommand update = new UpdateMongoCommand()
                 .setDb(db)
                 .setColl(coll)
                 .addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
@@ -137,7 +136,7 @@ public class SynchronousMongoConnectionTest {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
         UncachedObject o = new UncachedObject("value", 123);
-        StoreCmdSettings cmd = new StoreCmdSettings()
+        StoreMongoCommand cmd = new StoreMongoCommand()
                 .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         con.store(cmd);
 
@@ -158,7 +157,7 @@ public class SynchronousMongoConnectionTest {
                     Thread.sleep(3500);
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
-                    StoreCmdSettings cmd = new StoreCmdSettings()
+                    StoreMongoCommand cmd = new StoreMongoCommand()
                             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     con.store(cmd);
                     log.info("stored data after " + (System.currentTimeMillis() - start) + "ms");
@@ -168,7 +167,7 @@ public class SynchronousMongoConnectionTest {
                 }
             }
         }.start();
-        con.watch(new WatchCmdSettings().setCb(new DriverTailableIterationCallback() {
+        con.watch(new WatchMongoCommand().setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
             @Override
@@ -209,7 +208,7 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreCmdSettings cmd = new StoreCmdSettings()
+        StoreMongoCommand cmd = new StoreMongoCommand()
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
 
@@ -243,11 +242,11 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreCmdSettings cmd = new StoreCmdSettings()
+        StoreMongoCommand cmd = new StoreMongoCommand()
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
 
-        var result = con.runCommand(db, null, Doc.of("hello", 1)).next();
+        var result = con.runCommand(db, Doc.of("hello", 1)).next();
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
@@ -265,12 +264,12 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 1000; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreCmdSettings cmd = new StoreCmdSettings()
+        StoreMongoCommand cmd = new StoreMongoCommand()
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
 
-        FindCmdSettings fnd = new FindCmdSettings().setDb(db).setColl(coll).setBatchSize(17);
-        var crs = con.runCommand(db, coll, fnd.asMap("find"));
+        FindCommand fnd = new FindCommand().setDb(db).setColl(coll).setBatchSize(17);
+        var crs = con.runCommand(db, fnd.asMap("find"));
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;
@@ -281,7 +280,7 @@ public class SynchronousMongoConnectionTest {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        crs = con.runCommand(db, coll, fnd.asMap("find"));
+        crs = con.runCommand(db, fnd.asMap("find"));
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(1000);
@@ -300,13 +299,13 @@ public class SynchronousMongoConnectionTest {
         for (int i = 0; i < 10000; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreCmdSettings cmd = new StoreCmdSettings()
+        StoreMongoCommand cmd = new StoreMongoCommand()
                 .setDb(db).setColl(coll).setDocs(testList);
         con.store(cmd);
         long start = System.currentTimeMillis();
         int id = con.sendCommand(db, cmd.asMap("errorMsg"));
         log.info((System.currentTimeMillis() - start) + ": sent " + id);
-        id = con.sendCommand(db, new FindCmdSettings().setDb(db).setColl(coll).setFilter(Doc.of("$where", "for (let i=0;i<1000000;i++){ var s=s+i;}; return true;")).asMap("find"));
+        id = con.sendCommand(db, new FindCommand().setDb(db).setColl(coll).setFilter(Doc.of("$where", "for (let i=0;i<1000000;i++){ var s=s+i;}; return true;")).asMap("find"));
         log.info((System.currentTimeMillis() - start) + ": sent " + id);
         id = con.sendCommand("admin", Doc.of("hello", true));
         log.info((System.currentTimeMillis() - start) + ": sent " + id);

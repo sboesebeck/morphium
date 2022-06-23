@@ -2,7 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 
-public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
+public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
     private Doc query;
     private Integer limit;
     private Integer skip;
@@ -11,12 +11,11 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
     private Doc collation;
 
 
-
     public Doc getQuery() {
         return query;
     }
 
-    public CountCmdSettings setQuery(Doc query) {
+    public CountMongoCommand setQuery(Doc query) {
         this.query = query;
         return this;
     }
@@ -25,7 +24,7 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
         return limit;
     }
 
-    public CountCmdSettings setLimit(Integer limit) {
+    public CountMongoCommand setLimit(Integer limit) {
         this.limit = limit;
         return this;
     }
@@ -34,7 +33,7 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
         return skip;
     }
 
-    public CountCmdSettings setSkip(Integer skip) {
+    public CountMongoCommand setSkip(Integer skip) {
         this.skip = skip;
         return this;
     }
@@ -43,7 +42,7 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
         return hint;
     }
 
-    public CountCmdSettings setHint(Object hint) {
+    public CountMongoCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -52,7 +51,7 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
         return readConcern;
     }
 
-    public CountCmdSettings setReadConcern(Doc readConcern) {
+    public CountMongoCommand setReadConcern(Doc readConcern) {
         this.readConcern = readConcern;
         return this;
     }
@@ -61,7 +60,7 @@ public class CountCmdSettings extends CmdSettings<CountCmdSettings> {
         return collation;
     }
 
-    public CountCmdSettings setCollation(Doc collation) {
+    public CountMongoCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }

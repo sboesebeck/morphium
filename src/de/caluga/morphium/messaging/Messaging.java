@@ -5,9 +5,8 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.commands.UpdateCmdSettings;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.bson.BsonNull;
@@ -650,7 +649,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
             Map<String, Object> update = UtilsMap.of("$set", toSet);
             //morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), q.q().f("_id").in(lst).toQueryObject(), null, update, multiple, false, null, null);
-            morphium.getDriver().update(new UpdateCmdSettings().setColl(getCollectionName())
+            morphium.getDriver().update(new UpdateMongoCommand().setColl(getCollectionName())
                     .setDb(morphium.getDatabase())
                     .addUpdate(new Doc(q.q().f("_id").in(lst).toQueryObject()))
             );
@@ -763,7 +762,7 @@ public class Messaging extends Thread implements ShutdownListener {
         try {
 //            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj,
 //                    null, update, processMultiple, false, null, null); //always locking single message
-            morphium.getDriver().update(new UpdateCmdSettings().setDb(morphium.getConfig().getDatabase())
+            morphium.getDriver().update(new UpdateMongoCommand().setDb(morphium.getConfig().getDatabase())
                     .addUpdate(new Doc(qobj))
             );
 //            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1)) || q.countAll() > 0) {

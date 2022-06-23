@@ -193,27 +193,27 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> aggregate(AggregateCmdSettings settings) {
+    public List<Map<String, Object>> aggregate(AggregateMongoCommand settings) {
         return null;
     }
 
     @Override
-    public MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException {
+    public MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException {
+    public MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public long count(CountCmdSettings settings) {
+    public long count(CountMongoCommand settings) {
         return 0;
     }
 
     @Override
-    public void watch(WatchCmdSettings settings) {
+    public void watch(WatchMongoCommand settings) {
 
     }
 
@@ -223,7 +223,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Object> distinct(DistinctCmdSettings settings) {
+    public List<Object> distinct(DistinctMongoCommand settings) {
         return null;
     }
 
@@ -233,42 +233,42 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public int delete(DeleteCmdSettings settings) {
+    public int delete(DeleteMongoCommand settings) {
         return 0;
     }
 
     @Override
-    public List<Map<String, Object>> find(FindCmdSettings settings) {
+    public List<Map<String, Object>> find(FindCommand settings) {
         return null;
     }
 
     @Override
-    public Map<String, Object> findAndModify(FindAndModifyCmdSettings settings) {
+    public Map<String, Object> findAndModify(FindAndModifyMongoCommand settings) {
         return null;
     }
 
     @Override
-    public void insert(InsertCmdSettings settings) {
+    public void insert(InsertMongoCommand settings) {
 
     }
 
     @Override
-    public Doc store(StoreCmdSettings settings) throws MorphiumDriverException {
+    public Doc store(StoreMongoCommand settings) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public Doc update(UpdateCmdSettings settings) {
+    public Doc update(UpdateMongoCommand settings) {
         return null;
     }
 
     @Override
-    public Doc drop(DropCmdSettings settings) {
+    public Doc drop(DropMongoCommand settings) {
         return null;
     }
 
     @Override
-    public Doc dropDatabase(DropCmdSettings settings) {
+    public Doc dropDatabase(DropMongoCommand settings) {
         return null;
     }
 
@@ -424,13 +424,28 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
             @Override
-            public int available() throws MorphiumDriverException {
+            public int available() {
                 return 0;
             }
 
             @Override
             public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                 return null;
+            }
+
+            @Override
+            public void ahead(int skip) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public void back(int jump) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int getCursor() {
+                return 0;
             }
         };
     }
@@ -454,13 +469,28 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
             @Override
-            public int available() throws MorphiumDriverException {
+            public int available() {
                 return 0;
             }
 
             @Override
             public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                 return null;
+            }
+
+            @Override
+            public void ahead(int skip) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public void back(int jump) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int getCursor() {
+                return 0;
             }
         };
         crs.setBatchSize(batchSize);
@@ -569,13 +599,28 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
             @Override
-            public int available() throws MorphiumDriverException {
+            public int available() {
                 return 0;
             }
 
             @Override
             public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                 return null;
+            }
+
+            @Override
+            public void ahead(int skip) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public void back(int jump) throws MorphiumDriverException {
+
+            }
+
+            @Override
+            public int getCursor() {
+                return 0;
             }
         };
         next.setCursorId(crs.getCursorId());
@@ -1238,10 +1283,6 @@ public class InMemoryDriver implements MorphiumDriver {
         return database.containsKey(db);
     }
 
-    @Override
-    public MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
 
     @Override
     public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {

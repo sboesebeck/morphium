@@ -1,7 +1,10 @@
 package de.caluga.morphium.query;
 
+import de.caluga.morphium.driver.MorphiumDriverException;
+
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -19,16 +22,12 @@ import java.util.List;
  */
 @SuppressWarnings("UnusedDeclaration")
 public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
-    void setWindowSize(int sz);
-
-    int getWindowSize();
-
     /**
      * retruns the number of elements now in buffer. Max windowsize
      *
      * @return list
      */
-    int getCurrentBufferSize();
+    int available();
 
     /**
      * get the current buffer. Maximum length is specified windowsize
@@ -36,13 +35,6 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      * @return list
      */
     List<T> getCurrentBuffer();
-    /**
-     * how many elements are to be processed.
-     * Attention: this count is not updated. It shows how many elements are there at the beginning of the interation!
-     *
-     * @return count
-     */
-    long getCount();
 
     /**
      * returns current cursor position
@@ -65,7 +57,8 @@ public interface MorphiumIterator<T> extends Iterable<T>, Iterator<T> {
      */
     void back(int jump);
 
-    boolean isMultithreaddedAccess();
+    void close();
 
-    void setMultithreaddedAccess(boolean mu);
+    Map<String, Object> nextMap();
+
 }

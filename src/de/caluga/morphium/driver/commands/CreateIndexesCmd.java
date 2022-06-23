@@ -5,7 +5,7 @@ import de.caluga.morphium.driver.Doc;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CreateIndexesCmd extends WriteCmdSettings<CreateIndexesCmd> {
+public class CreateIndexesCmd extends WriteMongoCommand<CreateIndexesCmd> {
     private List<Doc> indexes;
     private String commitQuorum;
 

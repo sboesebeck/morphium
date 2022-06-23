@@ -61,8 +61,14 @@ public abstract class MorphiumCursor {
 
     public abstract void close() throws MorphiumDriverException;
 
-    public abstract int available() throws MorphiumDriverException;
+    public abstract int available();
 
     public abstract List<Map<String, Object>> getAll() throws MorphiumDriverException;
+
+    public abstract void ahead(int skip) throws MorphiumDriverException;
+
+    public abstract void back(int jump) throws MorphiumDriverException;
+
+    public abstract int getCursor();
 
 }

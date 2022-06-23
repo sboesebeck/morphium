@@ -5,12 +5,12 @@ import de.caluga.morphium.driver.Doc;
 import java.util.ArrayList;
 import java.util.List;
 
-public class DeleteCmdSettings extends WriteCmdSettings<DeleteCmdSettings> {
+public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
     private List<Doc> deletes;
     private Doc let;
     private Boolean ordered;
 
-    public DeleteCmdSettings addDelete(Doc del) {
+    public DeleteMongoCommand addDelete(Doc del) {
         if (deletes == null) deletes = new ArrayList<>();
         deletes.add(del);
         return this;
@@ -20,7 +20,7 @@ public class DeleteCmdSettings extends WriteCmdSettings<DeleteCmdSettings> {
         return deletes;
     }
 
-    public DeleteCmdSettings setDeletes(List<Doc> deletes) {
+    public DeleteMongoCommand setDeletes(List<Doc> deletes) {
         this.deletes = deletes;
         return this;
     }
@@ -29,7 +29,7 @@ public class DeleteCmdSettings extends WriteCmdSettings<DeleteCmdSettings> {
         return let;
     }
 
-    public DeleteCmdSettings setLet(Doc let) {
+    public DeleteMongoCommand setLet(Doc let) {
         this.let = let;
         return this;
     }
@@ -38,13 +38,13 @@ public class DeleteCmdSettings extends WriteCmdSettings<DeleteCmdSettings> {
         return ordered;
     }
 
-    public DeleteCmdSettings setOrdered(Boolean ordered) {
+    public DeleteMongoCommand setOrdered(Boolean ordered) {
         this.ordered = ordered;
         return this;
     }
 
 
-    public DeleteCmdSettings addDelete(Doc query, Integer limit, Doc collation, String hint) {
+    public DeleteMongoCommand addDelete(Doc query, Integer limit, Doc collation, String hint) {
         if (deletes == null) deletes = new ArrayList<>();
 
         Doc del = Doc.of("q", query);

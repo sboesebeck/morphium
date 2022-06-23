@@ -4,7 +4,7 @@ import de.caluga.morphium.driver.Doc;
 
 import java.util.List;
 
-public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdSettings> {
+public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMongoCommand> {
     private Doc query;
     private Doc sort;
     private boolean remove;
@@ -22,7 +22,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return query;
     }
 
-    public FindAndModifyCmdSettings setQuery(Doc query) {
+    public FindAndModifyMongoCommand setQuery(Doc query) {
         this.query = query;
         return this;
     }
@@ -31,7 +31,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return sort;
     }
 
-    public FindAndModifyCmdSettings setSort(Doc sort) {
+    public FindAndModifyMongoCommand setSort(Doc sort) {
         this.sort = sort;
         return this;
     }
@@ -40,7 +40,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return remove;
     }
 
-    public FindAndModifyCmdSettings setRemove(boolean remove) {
+    public FindAndModifyMongoCommand setRemove(boolean remove) {
         this.remove = remove;
         return this;
     }
@@ -49,7 +49,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return update;
     }
 
-    public FindAndModifyCmdSettings setUpdate(Doc update) {
+    public FindAndModifyMongoCommand setUpdate(Doc update) {
         this.update = update;
         return this;
     }
@@ -58,7 +58,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return pipeline;
     }
 
-    public FindAndModifyCmdSettings setPipeline(List<Doc> pipeline) {
+    public FindAndModifyMongoCommand setPipeline(List<Doc> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -67,7 +67,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return newFlag;
     }
 
-    public FindAndModifyCmdSettings setNewFlag(boolean newFlag) {
+    public FindAndModifyMongoCommand setNewFlag(boolean newFlag) {
         this.newFlag = newFlag;
         return this;
     }
@@ -76,7 +76,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return upsert;
     }
 
-    public FindAndModifyCmdSettings setUpsert(boolean upsert) {
+    public FindAndModifyMongoCommand setUpsert(boolean upsert) {
         this.upsert = upsert;
         return this;
     }
@@ -85,7 +85,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return fields;
     }
 
-    public FindAndModifyCmdSettings setFields(Doc fields) {
+    public FindAndModifyMongoCommand setFields(Doc fields) {
         this.fields = fields;
         return this;
     }
@@ -94,7 +94,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return bypassDocumentValidation;
     }
 
-    public FindAndModifyCmdSettings setBypassDocumentValidation(boolean bypassDocumentValidation) {
+    public FindAndModifyMongoCommand setBypassDocumentValidation(boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -103,7 +103,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return collation;
     }
 
-    public FindAndModifyCmdSettings setCollation(Doc collation) {
+    public FindAndModifyMongoCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }
@@ -112,7 +112,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return hint;
     }
 
-    public FindAndModifyCmdSettings setHint(Object hint) {
+    public FindAndModifyMongoCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -121,7 +121,7 @@ public class FindAndModifyCmdSettings extends WriteCmdSettings<FindAndModifyCmdS
         return let;
     }
 
-    public FindAndModifyCmdSettings setLet(Doc let) {
+    public FindAndModifyMongoCommand setLet(Doc let) {
         this.let = let;
         return this;
     }

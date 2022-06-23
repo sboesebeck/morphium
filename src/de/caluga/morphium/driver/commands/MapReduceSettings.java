@@ -2,7 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 
-public class MapReduceSettings extends CmdSettings<MapReduceSettings> {
+public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     private String map;
     private String reduce;
     private String finalize;

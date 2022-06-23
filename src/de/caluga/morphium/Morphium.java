@@ -17,10 +17,10 @@ import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.commands.DistinctCmdSettings;
-import de.caluga.morphium.driver.commands.FindCmdSettings;
-import de.caluga.morphium.driver.commands.StoreCmdSettings;
-import de.caluga.morphium.driver.commands.WatchCmdSettings;
+import de.caluga.morphium.driver.commands.DistinctMongoCommand;
+import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.StoreMongoCommand;
+import de.caluga.morphium.driver.commands.WatchMongoCommand;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.MongoField;
@@ -1801,7 +1801,7 @@ public class Morphium implements AutoCloseable {
 
         try {
 
-            FindCmdSettings settings = new FindCmdSettings()
+            FindCommand settings = new FindCommand()
                     .setDb(config.getDatabase()).setColl(collection)
                     .setFilter(Doc.of(srch))
                     .setBatchSize(1).setLimit(1);
@@ -2259,7 +2259,7 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         try {
-            DistinctCmdSettings settings = new DistinctCmdSettings()
+            DistinctMongoCommand settings = new DistinctMongoCommand()
                     .setColl(q.getCollectionName())
                     .setDb(config.getDatabase())
                     .setQuery(Doc.of(q.toQueryObject()))
@@ -2277,7 +2277,7 @@ public class Morphium implements AutoCloseable {
 
     public List<Object> distinct(String key, Class cls, Collation collation) {
         try {
-            DistinctCmdSettings settings = new DistinctCmdSettings()
+            DistinctMongoCommand settings = new DistinctMongoCommand()
                     .setColl(objectMapper.getCollectionName(cls))
                     .setDb(config.getDatabase())
                     .setKey(getARHelper().getMongoFieldName(cls, key));
@@ -2747,7 +2747,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
-        StoreCmdSettings settings = new StoreCmdSettings()
+        StoreMongoCommand settings = new StoreMongoCommand()
                 .setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(lst);
         getDriver().store(settings);
         return null;
@@ -2769,7 +2769,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
-        StoreCmdSettings settings = new StoreCmdSettings()
+        StoreMongoCommand settings = new StoreMongoCommand()
                 .setColl(collection).setDb(getDatabase()).setDocs(lst);
         Map<String, Object> ret = getDriver().store(settings);
 
@@ -2792,7 +2792,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
-        StoreCmdSettings settings = new StoreCmdSettings()
+        StoreMongoCommand settings = new StoreMongoCommand()
                 .setDb(getDatabase()).setColl(collection).setDocs(Arrays.asList(Doc.of(m)));
         Map<String, Integer> res = new HashMap<>();
         Map<String, Object> result = getDriver().store(settings);
@@ -2813,7 +2813,7 @@ public class Morphium implements AutoCloseable {
      * @throws MorphiumDriverException
      */
     public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
-        StoreCmdSettings settings = new StoreCmdSettings()
+        StoreMongoCommand settings = new StoreMongoCommand()
                 .setDb(getDatabase())
                 .setColl(getMapper().getCollectionName(type))
                 .setDocs(Arrays.asList(m));
@@ -3352,12 +3352,12 @@ public class Morphium implements AutoCloseable {
         try {
             List<Doc> pipe = new ArrayList<>();
             for (Map<String, Object> p : pipeline) pipe.add(Doc.of(p));
-            WatchCmdSettings settings = new WatchCmdSettings()
+            WatchMongoCommand settings = new WatchMongoCommand()
                     .setDb(config.getDatabase())
                     .setColl(collectionName)
                     .setMaxWaitTime(maxWaitTime)
                     .setPipeline(pipe)
-                    .setFullDocument(updateFull ? WatchCmdSettings.FullDocumentEnum.updateLookup : WatchCmdSettings.FullDocumentEnum.defaultValue)
+                    .setFullDocument(updateFull ? WatchMongoCommand.FullDocumentEnum.updateLookup : WatchMongoCommand.FullDocumentEnum.defaultValue)
                     .setCb(new DriverTailableIterationCallback() {
                         boolean b = true;
 
@@ -3423,10 +3423,10 @@ public class Morphium implements AutoCloseable {
             for (Map<String, Object> p : pipeline) {
                 pipe.add(Doc.of(p));
             }
-            WatchCmdSettings settings = new WatchCmdSettings()
+            WatchMongoCommand settings = new WatchMongoCommand()
                     .setDb(dbName)
                     .setMaxWaitTime(maxWaitTime)
-                    .setFullDocument(updateFull ? WatchCmdSettings.FullDocumentEnum.updateLookup : WatchCmdSettings.FullDocumentEnum.defaultValue)
+                    .setFullDocument(updateFull ? WatchMongoCommand.FullDocumentEnum.updateLookup : WatchMongoCommand.FullDocumentEnum.defaultValue)
                     .setPipeline(pipe)
                     .setCb(new DriverTailableIterationCallback() {
                         private boolean b = true;

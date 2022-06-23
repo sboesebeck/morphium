@@ -7,12 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class UpdateCmdSettings extends WriteCmdSettings<UpdateCmdSettings> {
+public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
     private List<Map<String, Object>> updates;
     private Boolean ordered;
     private Map<String, Object> let;
 
-    public UpdateCmdSettings addUpdate(Map<String, Object> upd) {
+    public UpdateMongoCommand addUpdate(Map<String, Object> upd) {
         if (updates == null) updates = new ArrayList<>();
         updates.add(upd);
         return this;
@@ -22,7 +22,7 @@ public class UpdateCmdSettings extends WriteCmdSettings<UpdateCmdSettings> {
         return updates;
     }
 
-    public UpdateCmdSettings setUpdates(List<Map<String, Object>> updates) {
+    public UpdateMongoCommand setUpdates(List<Map<String, Object>> updates) {
         this.updates = updates;
         return this;
     }
@@ -31,7 +31,7 @@ public class UpdateCmdSettings extends WriteCmdSettings<UpdateCmdSettings> {
         return let;
     }
 
-    public UpdateCmdSettings setLet(Map<String, Object> let) {
+    public UpdateMongoCommand setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }
@@ -40,12 +40,12 @@ public class UpdateCmdSettings extends WriteCmdSettings<UpdateCmdSettings> {
         return ordered;
     }
 
-    public UpdateCmdSettings setOrdered(Boolean ordered) {
+    public UpdateMongoCommand setOrdered(Boolean ordered) {
         this.ordered = ordered;
         return this;
     }
 
-    public UpdateCmdSettings addUpdate(Doc query, Doc update, Doc context, boolean upsert, boolean multi, Collation collation, List<Doc> arrayFilters, String hint) {
+    public UpdateMongoCommand addUpdate(Doc query, Doc update, Doc context, boolean upsert, boolean multi, Collation collation, List<Doc> arrayFilters, String hint) {
         if (updates == null) updates = new ArrayList<>();
 
         Doc upd = Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);

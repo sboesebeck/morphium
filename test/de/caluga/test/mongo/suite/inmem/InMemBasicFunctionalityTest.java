@@ -819,11 +819,12 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
                 qu.setCollectionName("test_uc");
                 //                    MorphiumIterator<UncachedObject> it = qu.asIterable(5000, 15);
                 MorphiumIterator<UncachedObject>[] toTest = new MorphiumIterator[]{qu.asIterable(), qu.asIterable(1000)};
+                long count = qu.countAll();
                 for (MorphiumIterator<UncachedObject> it : toTest) {
                     for (UncachedObject uc : it) {
                         assert (it.getCursor() == uc.getCounter());
                         if (it.getCursor() % 2500 == 0) {
-                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + it.getCount());
+                            log.info("Thread " + myNum + " read " + it.getCursor() + "/" + count);
                             Thread.yield();
                         }
                     }
@@ -850,14 +851,14 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         UncachedObject u = it.next();
         assert (u.getCounter() == 1);
         log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
-        log.info("Current Buffersize: " + it.getCurrentBufferSize());
-        assert (it.getCurrentBufferSize() == 2);
+        log.info("Current Buffersize: " + it.available());
+        assert (it.available() == 2);
 
         u = it.next();
         assert (u.getCounter() == 2);
         u = it.next();
         assert (u.getCounter() == 3);
-        assert (it.getCount() == 1000);
+        assert (qu.countAll() == 1000);
         assert (it.getCursor() == 3);
 
         u = it.next();

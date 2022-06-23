@@ -157,7 +157,7 @@ public abstract class DriverBase implements MorphiumDriver {
             return null;
         }
         Doc command = Doc.of("listDatabases", 1);
-        Map<String, Object> res = runCommand("admin", null, command).next();
+        Map<String, Object> res = runCommand("admin", command).next();
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
@@ -183,7 +183,7 @@ public abstract class DriverBase implements MorphiumDriver {
             query.put("name", Pattern.compile(pattern));
             command.put("filter", query);
         }
-        Map<String, Object> res = runCommand(db, null, command).next();
+        Map<String, Object> res = runCommand(db, command).next();
         List<Map<String, Object>> colList = new ArrayList<>();
         List<String> colNames = new ArrayList<>();
         addToListFromCursor(db, colList, res);
@@ -210,7 +210,7 @@ public abstract class DriverBase implements MorphiumDriver {
             if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
                 valid = true;
                 doc.put("getMore", crs.get("id"));
-                crs = runCommand(db, null, doc).next();
+                crs = runCommand(db, doc).next();
             } else {
                 valid = false;
             }
@@ -548,11 +548,11 @@ public abstract class DriverBase implements MorphiumDriver {
 //        return ret;
 //    }
 
-    protected abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
+    public abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
 
     public abstract OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException;
 
-    protected abstract OpMsg getReply(int waitingFor, int timeout) throws MorphiumDriverException;
+//    protected abstract OpMsg getReply(int waitingFor, int timeout) throws MorphiumDriverException;
 
 
     protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {

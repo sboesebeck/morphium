@@ -29,7 +29,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
     private int index = 0;
 
 
-    public SynchronousConnectCursor(DriverBase drv, String db, String collection, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
+    public SynchronousConnectCursor(DriverBase drv, String db, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
         this.driver = drv;
         this.multithreaddedAccess = multithreaddedAccess;
         Long cursorId = null;
@@ -41,6 +41,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
             cursorId = (Long) cursor.get("id");
         }
         setCursorId(cursorId);
+        setCollection(((String) cursor.get("ns")).split("\\.")[1]); //collection name
         List<Map<String, Object>> firstBatch;
         if (cursor.get("firstBatch") != null) {
             //noinspection unchecked
@@ -55,7 +56,6 @@ public class SynchronousConnectCursor extends MorphiumCursor {
         }
 
         setBatchSize(batchSize);
-        setCollection(collection);
         setDb(db);
     }
 //    public SynchronousConnectCursor(DriverBase drv, long id,String db, String collection, int batchSize,List<Map<String,Object>> firstBatch , boolean multithreadded) {
@@ -67,6 +67,12 @@ public class SynchronousConnectCursor extends MorphiumCursor {
 //        setCollection(collection);
 //        setDb(db);
 //    }
+
+
+    @Override
+    public int getCursor() {
+        return index;
+    }
 
     @Override
     public boolean hasNext() throws MorphiumDriverException {
@@ -114,7 +120,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
     }
 
     @Override
-    public int available() throws MorphiumDriverException {
+    public int available() {
         return getBatch().size() - internalIndex;
     }
 
@@ -183,5 +189,27 @@ public class SynchronousConnectCursor extends MorphiumCursor {
             internalIndex = getBatch().size();
         }
         return ret;
+    }
+
+    @Override
+    public void ahead(int jump) throws MorphiumDriverException {
+        internalIndex += jump;
+        index += jump;
+        while (internalIndex >= getBatch().size()) {
+            int diff = internalIndex - getBatch().size();
+            internalIndex = getBatch().size() - 1;
+
+            next();
+            internalIndex += diff;
+        }
+    }
+
+    @Override
+    public void back(int jump) throws MorphiumDriverException {
+        internalIndex -= jump;
+        index -= jump;
+        if (internalIndex < 0) {
+            throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+        }
     }
 }

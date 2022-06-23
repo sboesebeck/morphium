@@ -28,23 +28,16 @@ public class AggregationIteratorTest extends MorphiumTestBase {
         agg.sort("-number");
 
         MorphiumAggregationIterator<UncachedObject, Map> maps = agg.aggregateIterable();
-        long count = maps.getCount();
-        log.info("Got count: " + count);
         for (Map m : maps) {
             log.info(m.toString());
             assert (m.get("number") != null);
             assert (((Integer) m.get("number")).intValue() > 0);
-            count--;
         }
-        assert (count == 0) : "Count is not null now: " + count;
 
         //checking other methods
 
-        maps.setMultithreaddedAccess(true);
-        maps.setWindowSize(10);
-        assert (maps.getWindowSize() == 10);
         assert (maps.getCurrentBuffer() == null);
-        assert (maps.getCurrentBufferSize() == 0);
+        assert (maps.available() == 0);
 
 
         Aggregator<UncachedObject, AggRes> agg2 = morphium.createAggregator(UncachedObject.class, AggRes.class);

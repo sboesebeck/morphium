@@ -1,6 +1,6 @@
 package de.caluga.morphium.driver.commands;
 
-public class GetMoreCmdSettings extends CmdSettings<GetMoreCmdSettings> {
+public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     private long cursorId;
     private Integer batchSize;
     private Integer maxTimeMs;
@@ -9,7 +9,7 @@ public class GetMoreCmdSettings extends CmdSettings<GetMoreCmdSettings> {
         return cursorId;
     }
 
-    public GetMoreCmdSettings setCursorId(long cursorId) {
+    public GetMoreMongoCommand setCursorId(long cursorId) {
         this.cursorId = cursorId;
         return this;
     }
@@ -18,7 +18,7 @@ public class GetMoreCmdSettings extends CmdSettings<GetMoreCmdSettings> {
         return batchSize;
     }
 
-    public GetMoreCmdSettings setBatchSize(Integer batchSize) {
+    public GetMoreMongoCommand setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }
@@ -27,7 +27,7 @@ public class GetMoreCmdSettings extends CmdSettings<GetMoreCmdSettings> {
         return maxTimeMs;
     }
 
-    public GetMoreCmdSettings setMaxTimeMs(Integer maxTimeMs) {
+    public GetMoreMongoCommand setMaxTimeMs(Integer maxTimeMs) {
         this.maxTimeMs = maxTimeMs;
         return this;
     }

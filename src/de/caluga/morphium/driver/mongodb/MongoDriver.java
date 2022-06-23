@@ -109,27 +109,27 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Map<String, Object>> aggregate(AggregateCmdSettings settings) {
+    public List<Map<String, Object>> aggregate(AggregateMongoCommand settings) {
         return null;
     }
 
     @Override
-    public MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException {
+    public MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) {
         return null;
     }
 
     @Override
-    public MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException {
+    public MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException {
         return null;
     }
 
 
-    public long count(CountCmdSettings settings) {
+    public long count(CountMongoCommand settings) {
         return 0;
     }
 
 
-    public void watch(WatchCmdSettings settings) {
+    public void watch(WatchMongoCommand settings) {
 
     }
 
@@ -139,7 +139,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Object> distinct(DistinctCmdSettings settings) {
+    public List<Object> distinct(DistinctMongoCommand settings) {
         return null;
     }
 
@@ -149,42 +149,42 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public int delete(DeleteCmdSettings settings) {
+    public int delete(DeleteMongoCommand settings) {
         return 0;
     }
 
 
-    public List<Map<String, Object>> find(FindCmdSettings settings) {
+    public List<Map<String, Object>> find(FindCommand settings) {
         return null;
     }
 
 
-    public Doc findAndModify(FindAndModifyCmdSettings settings) {
+    public Doc findAndModify(FindAndModifyMongoCommand settings) {
         return null;
     }
 
 
-    public void insert(InsertCmdSettings settings) {
+    public void insert(InsertMongoCommand settings) {
 
     }
 
     @Override
-    public Doc store(StoreCmdSettings settings) throws MorphiumDriverException {
+    public Doc store(StoreMongoCommand settings) throws MorphiumDriverException {
         return null;
     }
 
 
-    public Doc update(UpdateCmdSettings settings) {
+    public Doc update(UpdateMongoCommand settings) {
         return null;
     }
 
 
-    public Doc drop(DropCmdSettings settings) {
+    public Doc drop(DropMongoCommand settings) {
         return null;
     }
 
 
-    public Doc dropDatabase(DropCmdSettings settings) {
+    public Doc dropDatabase(DropMongoCommand settings) {
         return null;
     }
 
@@ -292,7 +292,6 @@ public class MongoDriver implements MorphiumDriver {
     @SuppressWarnings("unchecked")
     private void addToListFromCursor(String db, List<Doc> data, Doc res) throws MorphiumDriverException {
         boolean valid;
-        //noinspection unchecked
         Doc crs = (Doc) res.get("cursor");
         do {
             if (crs.get("firstBatch") != null) {
@@ -930,7 +929,6 @@ public class MongoDriver implements MorphiumDriver {
 
     public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
-        //noinspection ConstantConditions
         return DriverHelper.doCall(() -> {
 
             MongoDatabase database = mongo.getDatabase(db);
@@ -984,7 +982,7 @@ public class MongoDriver implements MorphiumDriver {
                 }
 
                 @Override
-                public int available() throws MorphiumDriverException {
+                public int available() {
                     return ret.available();
                 }
 
@@ -992,6 +990,21 @@ public class MongoDriver implements MorphiumDriver {
                 public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                     //TODO: read all
                     return null;
+                }
+
+                @Override
+                public void ahead(int skip) throws MorphiumDriverException {
+
+                }
+
+                @Override
+                public void back(int jump) throws MorphiumDriverException {
+
+                }
+
+                @Override
+                public int getCursor() {
+                    return 0;
                 }
             };
             crs.setBatchSize(batchSize);
@@ -1077,7 +1090,7 @@ public class MongoDriver implements MorphiumDriver {
                 }
 
                 @Override
-                public int available() throws MorphiumDriverException {
+                public int available() {
                     return ret.available();
                 }
 
@@ -1085,6 +1098,21 @@ public class MongoDriver implements MorphiumDriver {
                 public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                     //TODO: implement
                     return null;
+                }
+
+                @Override
+                public void ahead(int skip) throws MorphiumDriverException {
+
+                }
+
+                @Override
+                public void back(int jump) throws MorphiumDriverException {
+
+                }
+
+                @Override
+                public int getCursor() {
+                    return 0;
                 }
             };
             crs.setBatchSize(batchSize);
@@ -1804,10 +1832,6 @@ public class MongoDriver implements MorphiumDriver {
         return false;
     }
 
-    @Override
-    public MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
 
     @Override
     public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {

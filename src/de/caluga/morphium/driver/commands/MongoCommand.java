@@ -1,20 +1,16 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.*;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-public class CmdSettings<T extends CmdSettings> {
-
+public abstract class MongoCommand<T extends MongoCommand> {
     private static AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);
     private String $db;
     private String coll;
@@ -22,6 +18,17 @@ public class CmdSettings<T extends CmdSettings> {
     private String comment;
     private ReadPreference readPreference;
     private Map<String, Object> metaData;
+    private MorphiumDriver driver;
+
+
+    public MorphiumDriver getDriver() {
+        return driver;
+    }
+
+    public MongoCommand<T> setDriver(MorphiumDriver driver) {
+        this.driver = driver;
+        return this;
+    }
 
     public String getDb() {
         return $db;
@@ -39,12 +46,12 @@ public class CmdSettings<T extends CmdSettings> {
         return metaData;
     }
 
-    public CmdSettings<T> setMetaData(Map<String, Object> metaData) {
+    public MongoCommand<T> setMetaData(Map<String, Object> metaData) {
         this.metaData = metaData;
         return this;
     }
 
-    public CmdSettings<T> setMetaData(String key, Object value) {
+    public MongoCommand<T> setMetaData(String key, Object value) {
         if (metaData == null) metaData = new HashMap<>();
         metaData.put(key, value);
         return this;
@@ -92,6 +99,7 @@ public class CmdSettings<T extends CmdSettings> {
             }
             if (f.getName().equals("metaData")) continue;
             if (f.getName().equals("readPreference")) continue;
+            if (f.getName().equals("driver")) continue;
             if (f.getName().equals("coll")) continue;
             if (DriverTailableIterationCallback.class.isAssignableFrom(f.getType())) continue;
             if (AsyncOperationCallback.class.isAssignableFrom(f.getType())) continue;
@@ -116,5 +124,23 @@ public class CmdSettings<T extends CmdSettings> {
 
         return map;
     }
+
+    public void clear() {
+        for (Field f : an.getAllFields(this.getClass())) {
+            if (Modifier.isStatic(f.getModifiers())) {
+                continue;
+            }
+            f.setAccessible(true);
+            try {
+                f.set(this, null);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+//
+//    public abstract List<Map<String,Object>> executeGetResult() throws MorphiumDriverException;
+//    public abstract MorphiumCursor execute() throws MorphiumDriverException;
+//    public abstract int executeGetID() throws MorphiumDriverException;
 
 }

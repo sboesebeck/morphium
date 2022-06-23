@@ -79,9 +79,9 @@ public interface MorphiumDriver {
     //|__|     |__|     |_______|| _| `._____/__/     \__\  |__|     |__|  \______/  |__| \__| |_______/
 
 
-    MorphiumCursor initAggregationIteration(AggregateCmdSettings settings) throws MorphiumDriverException;
+    MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) throws MorphiumDriverException;
 
-    MorphiumCursor initIteration(FindCmdSettings settings) throws MorphiumDriverException;
+    MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException;
 
     //MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
@@ -97,7 +97,6 @@ public interface MorphiumDriver {
 
     //Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
-    MorphiumCursor runCommand(String db, String coll, Map<String, Object> cmd) throws MorphiumDriverException;
 
     MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
@@ -118,7 +117,7 @@ public interface MorphiumDriver {
     //  \            / /  /_\  \    |  |     |  |     |   __   |
     //   \    /\    / /  _____  \   |  |     |  `----.|  |  |  |
     //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
-    void watch(WatchCmdSettings settings) throws MorphiumDriverException;
+    void watch(WatchMongoCommand settings) throws MorphiumDriverException;
 
     //.______       _______ .______    __       __   _______     _______.
     //|   _  \     |   ____||   _  \  |  |     |  | |   ____|   /       |
@@ -130,33 +129,33 @@ public interface MorphiumDriver {
     MorphiumCursor waitForReplyIterable(long id);
 
 
-    List<Map<String, Object>> aggregate(AggregateCmdSettings settings) throws MorphiumDriverException;
+    List<Map<String, Object>> aggregate(AggregateMongoCommand settings) throws MorphiumDriverException;
 
-    long count(CountCmdSettings settings) throws MorphiumDriverException;
+    long count(CountMongoCommand settings) throws MorphiumDriverException;
 
 
-    List<Object> distinct(DistinctCmdSettings settings) throws MorphiumDriverException;
+    List<Object> distinct(DistinctMongoCommand settings) throws MorphiumDriverException;
 
     List<Map<String, Object>> mapReduce(MapReduceSettings settings) throws MorphiumDriverException;
 
     /**
      * @return number of deleted documents
      */
-    int delete(DeleteCmdSettings settings) throws MorphiumDriverException;
+    int delete(DeleteMongoCommand settings) throws MorphiumDriverException;
 
-    List<Map<String, Object>> find(FindCmdSettings settings) throws MorphiumDriverException;
+    List<Map<String, Object>> find(FindCommand settings) throws MorphiumDriverException;
 
-    Map<String, Object> findAndModify(FindAndModifyCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> findAndModify(FindAndModifyMongoCommand settings) throws MorphiumDriverException;
 
-    void insert(InsertCmdSettings settings) throws MorphiumDriverException;
+    void insert(InsertMongoCommand settings) throws MorphiumDriverException;
 
-    Map<String, Object> store(StoreCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> store(StoreMongoCommand settings) throws MorphiumDriverException;
 
-    Map<String, Object> update(UpdateCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> update(UpdateMongoCommand settings) throws MorphiumDriverException;
 
-    Map<String, Object> drop(DropCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> drop(DropMongoCommand settings) throws MorphiumDriverException;
 
-    Map<String, Object> dropDatabase(DropCmdSettings settings) throws MorphiumDriverException;
+    Map<String, Object> dropDatabase(DropMongoCommand settings) throws MorphiumDriverException;
 
     int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
 
