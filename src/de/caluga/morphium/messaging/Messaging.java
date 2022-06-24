@@ -495,7 +495,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private void handleAnswer(Msg obj) {
         if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
             updateProcessedBy(obj);
-            waitingForAnswers.putIfAbsent(obj.getInAnswerTo(), new ArrayList<>());
             if (!waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
                 waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
             }
@@ -825,7 +824,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg.getInAnswerTo() != null) {
             if (waitingForMessages.containsKey(msg.getInAnswerTo())) {
                 updateProcessedBy(msg);
-                waitingForAnswers.putIfAbsent(msg.getInAnswerTo(), new ArrayList<>());
                 if (!waitingForAnswers.get(msg.getInAnswerTo()).contains(msg)) {
                     waitingForAnswers.get(msg.getInAnswerTo()).add(msg);
                 }
@@ -1351,10 +1349,11 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         theMessage.setMsgId(new MorphiumId());
+        waitingForAnswers.put(theMessage.getMsgId(), new ArrayList<>());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
         sendMessage(theMessage);
         long start = System.currentTimeMillis();
-        while (!waitingForAnswers.containsKey(theMessage.getMsgId()) || waitingForAnswers.get(theMessage.getMsgId()).size() == 0) {
+        while (waitingForAnswers.get(theMessage.getMsgId()).size() == 0) {
             if (!running) {
                 throw new SystemShutdownException("Messaging shutting down - abort waiting!");
             }
@@ -1382,19 +1381,21 @@ public class Messaging extends Thread implements ShutdownListener {
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
         if (theMessage.getMsgId() == null)
             theMessage.setMsgId(new MorphiumId());
+        waitingForAnswers.put(theMessage.getMsgId(), new ArrayList<>());
         waitingForMessages.put(theMessage.getMsgId(), theMessage);
 
         sendMessage(theMessage);
         long start = System.currentTimeMillis();
         while (running) {
-            if (waitingForAnswers.get(theMessage.getMsgId()) != null) {
-                if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
-                    break;
-                }
+            //Reached number of expected answers
+            if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
+                break;
             }
-            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()) == null || waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
+            //Did not receive any message in time
+            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
                 throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
             }
+            //time up - return all answers that were received
             if (System.currentTimeMillis() - start > timeout) break;
             Thread.yield();
         }
