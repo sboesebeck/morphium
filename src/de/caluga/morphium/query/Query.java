@@ -391,7 +391,7 @@ public class Query<T> implements Cloneable {
 
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
-        CountMongoCommand settings = new CountMongoCommand()
+        CountMongoCommand settings = new CountMongoCommand(morphium.getDriver())
                 .setColl(collectionName)
                 .setDb(getDB())
                 .setQuery(Doc.of(query));

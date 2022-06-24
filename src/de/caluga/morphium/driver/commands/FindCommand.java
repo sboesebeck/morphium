@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.sync.DriverBase;
 import de.caluga.morphium.driver.sync.NetworkCallHelper;
@@ -11,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 
 public class FindCommand extends MongoCommand<FindCommand> {
-    private DriverBase driver;
     private Map<String, Object> filter;
     private Map<String, Object> sort;
     private Map<String, Object> projection;
@@ -34,14 +34,8 @@ public class FindCommand extends MongoCommand<FindCommand> {
     private Boolean allowDiskUse;
     private Map<String, Object> let;
 
-
-    public DriverBase getDriver() {
-        return driver;
-    }
-
-    public FindCommand setDriver(DriverBase driver) {
-        this.driver = driver;
-        return this;
+    public FindCommand(MorphiumDriver d) {
+        super(d);
     }
 
     public Map<String, Object> getFilter() {
@@ -269,8 +263,9 @@ public class FindCommand extends MongoCommand<FindCommand> {
         return allowDiskUse;
     }
 
-    //    @Override
+    @Override
     public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
@@ -292,6 +287,7 @@ public class FindCommand extends MongoCommand<FindCommand> {
 
     //    @Override
     public MorphiumCursor execute() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return (MorphiumCursor) new NetworkCallHelper().doCall(() -> {
@@ -305,7 +301,8 @@ public class FindCommand extends MongoCommand<FindCommand> {
     }
 
     //    @Override_
-    public int executeGetID() throws MorphiumDriverException {
+    public int executeGetMsgID() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return (Integer) new NetworkCallHelper().doCall(() -> {
@@ -317,4 +314,5 @@ public class FindCommand extends MongoCommand<FindCommand> {
             return Doc.of("id", id);
         }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("id");
     }
+
 }

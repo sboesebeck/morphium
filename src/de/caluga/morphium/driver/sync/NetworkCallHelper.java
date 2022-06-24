@@ -17,14 +17,14 @@ import java.util.Map;
  * this class capsulates these calls.
  **/
 @SuppressWarnings("WeakerAccess")
-public class NetworkCallHelper {
+public class NetworkCallHelper<T> {
     private final Logger logger = LoggerFactory.getLogger(NetworkCallHelper.class);
 
 
-    public Map<String, Object> doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+    public T doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
         for (int i = 0; i < maxRetry; i++) {
             try {
-                return (Map<String, Object>) r.execute();
+                return (T) r.execute();
             } catch (Exception e) {
                 handleNetworkError(maxRetry, i, sleep, e);
             }
