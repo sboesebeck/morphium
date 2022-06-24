@@ -824,7 +824,8 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg.getInAnswerTo() != null) {
             if (waitingForMessages.containsKey(msg.getInAnswerTo())) {
                 updateProcessedBy(msg);
-                if (!waitingForAnswers.get(msg.getInAnswerTo()).contains(msg)) {
+                List<Msg> lst=waitingForAnswers.get(msg.getInAnswerTo());
+                if (lst!=null && !lst.contains(msg)) {
                     waitingForAnswers.get(msg.getInAnswerTo()).add(msg);
                 }
             }
