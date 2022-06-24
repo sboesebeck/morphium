@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +12,10 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
     private List<Map<String, Object>> updates;
     private Boolean ordered;
     private Map<String, Object> let;
+
+    public UpdateMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
 
     public UpdateMongoCommand addUpdate(Map<String, Object> upd) {
         if (updates == null) updates = new ArrayList<>();
@@ -56,5 +61,10 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
 
         updates.add(upd);
         return this;
+    }
+
+    @Override
+    public String getCommandName() {
+        return "update";
     }
 }

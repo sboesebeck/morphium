@@ -1,14 +1,28 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
     private List<Doc> deletes;
     private Doc let;
     private Boolean ordered;
+
+    public DeleteMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
+
+    @Override
+    public String getCommandName() {
+        return "delete";
+    }
 
     public DeleteMongoCommand addDelete(Doc del) {
         if (deletes == null) deletes = new ArrayList<>();
@@ -55,4 +69,6 @@ public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
         deletes.add(del);
         return this;
     }
+
+
 }

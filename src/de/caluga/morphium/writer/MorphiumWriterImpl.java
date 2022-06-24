@@ -1125,13 +1125,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 long start = System.currentTimeMillis();
                 try {
                     String collectionName = q.getCollectionName();
-                    DeleteMongoCommand settings = new DeleteMongoCommand()
+                    DeleteMongoCommand settings = new DeleteMongoCommand(morphium.getDriver())
                             .setColl(collectionName)
                             .setDb(getDbName())
                             .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", multiple ? 0 : 1, "collation", q.getCollation() == null ? null : q.getCollation().toQueryObject())));
                     if (wc != null) settings.setWriteConcern(wc.asMap());
 
-                    morphium.getDriver().delete(settings);
+                    settings.executeGetResult();
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(q.getType(), q.toQueryObject(), dur, false, WriteAccessType.BULK_DELETE);
                     morphium.inc(StatisticKeys.WRITES);
@@ -1177,12 +1177,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     if (collection == null) {
                         morphium.getMapper().getCollectionName(o.getClass());
                     }
-                    DeleteMongoCommand settings = new DeleteMongoCommand()
+                    DeleteMongoCommand settings = new DeleteMongoCommand(morphium.getDriver())
                             .setDb(getDbName())
                             .setColl(collection)
                             .setWriteConcern(wc.asMap())
                             .setDeletes(Arrays.asList(Doc.of("q", db, "mutli", false, "limit", 1)));
-                    morphium.getDriver().delete(settings);
+                    settings.executeGetResult();
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
                     morphium.clearCachefor(o.getClass());

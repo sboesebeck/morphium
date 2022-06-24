@@ -4,9 +4,11 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.sync.DriverBase;
+import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,10 +95,10 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return (T) this;
     }
 
-    public Doc asMap(String commandName) {
+    public Doc asMap() {
         Object o;
         Doc map = new Doc();
-        map.put(commandName, getColl());
+        map.put(getCommandName(), getColl());
         for (Field f : an.getAllFields(this.getClass())) {
             if (Modifier.isStatic(f.getModifiers())) {
                 continue;
@@ -143,11 +145,57 @@ public abstract class MongoCommand<T extends MongoCommand> {
         }
     }
 
-    //
-    public abstract List<Map<String, Object>> executeGetResult() throws MorphiumDriverException;
 
-    public abstract MorphiumCursor execute() throws MorphiumDriverException;
+    public abstract String getCommandName();
 
-    public abstract int executeGetMsgID() throws MorphiumDriverException;
+    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
+            List<Map<String, Object>> ret = new ArrayList<>();
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            long start = System.currentTimeMillis();
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+            while (crs.hasNext()) {
+                ret.addAll(crs.getBatch());
+                crs.ahead(crs.getBatch().size());
+            }
+            long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", dur);
+            return Doc.of("values", ret);
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+    }
+
+    //    @Override
+    public MorphiumCursor execute() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return new NetworkCallHelper<MorphiumCursor>().doCall(() -> {
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            long start = System.currentTimeMillis();
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+            long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", dur);
+            return crs;
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+    }
+
+    //    @Override_
+    public int executeGetMsgID() throws MorphiumDriverException {
+        MorphiumDriver driver = getDriver();
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+        return new NetworkCallHelper<Integer>().doCall(() -> {
+            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            //long start = System.currentTimeMillis();
+            int id = driver.sendCommand(getDb(), asMap());
+            // long dur = System.currentTimeMillis() - start;
+            getMetaData().put("duration", 0); //not waiting!
+            return id;
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+    }
+
 
 }

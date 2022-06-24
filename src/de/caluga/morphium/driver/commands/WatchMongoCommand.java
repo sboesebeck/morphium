@@ -2,8 +2,11 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
+import java.util.Map;
 
 public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
     private DriverTailableIterationCallback cb;
@@ -174,5 +177,20 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         public String toString() {
             return n;
         }
+    }
+
+    @Override
+    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+        throw new IllegalArgumentException("Please use DriverBase.watch()");
+    }
+
+    @Override
+    public MorphiumCursor execute() throws MorphiumDriverException {
+        throw new IllegalArgumentException("Please use DriverBase.watch()");
+    }
+
+    @Override
+    public int executeGetMsgID() throws MorphiumDriverException {
+        throw new IllegalArgumentException("Please use DriverBase.watch()");
     }
 }

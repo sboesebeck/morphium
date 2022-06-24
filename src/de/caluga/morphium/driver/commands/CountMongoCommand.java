@@ -75,7 +75,14 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
         return this;
     }
 
-    private Map<String, Object> doCount() throws MorphiumDriverException {
+
+    @Override
+    public String getCommandName() {
+        return "count";
+    }
+
+    @Override
+    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
         if (getDriver().isTransactionInProgress()) {
             //log.warn("Cannot count while in transaction, will use IDlist!");
             //TODO: use Aggregation
@@ -86,46 +93,33 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
             fs.setFilter(getQuery());
             fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
             fs.setCollation(getCollation());
-            return Doc.of("n", fs.executeGetResult().size());
+            return List.of(Doc.of("n", fs.executeGetResult().size()));
         }
-        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
-            Doc doc = asMap("count");
-            setMetaData("server", getDriver().getHostSeed()[0]);
-
-            long start = System.currentTimeMillis();
-            var result = getDriver().runCommand(getDb(), doc);
-            setMetaData("duration", System.currentTimeMillis() - start);
-            return result.getBatch().get(0);
-        }, getDriver().getRetriesOnNetworkError(), getDriver().getSleepBetweenErrorRetries());
-        return ret;
-    }
-
-    @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
-        return Arrays.asList(doCount());
-
+        return super.executeGetResult();
     }
 
     @Override
     public MorphiumCursor execute() throws MorphiumDriverException {
-        var doc = doCount();
-        return new SingleElementCursor(doc);
+        if (getDriver().isTransactionInProgress()) {
+            //log.warn("Cannot count while in transaction, will use IDlist!");
+            //TODO: use Aggregation
+            FindCommand fs = new FindCommand(getDriver());
+            fs.setMetaData(getMetaData());
+            fs.setDb(getDb());
+            fs.setColl(getColl());
+            fs.setFilter(getQuery());
+            fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
+            fs.setCollation(getCollation());
+            return new SingleElementCursor(Doc.of("n", fs.executeGetResult().size()));
+        }
+        return super.execute();
     }
 
     @Override
     public int executeGetMsgID() throws MorphiumDriverException {
         if (getDriver().isTransactionInProgress()) {
-            throw new MorphiumDriverException("not possible during transaction");
+            throw new MorphiumDriverException("Count during transaction is not allowed");
         }
-        Map<String, Object> ret = new NetworkCallHelper().doCall(() -> {
-            Doc doc = asMap("count");
-            setMetaData("server", getDriver().getHostSeed()[0]);
-
-            long start = System.currentTimeMillis();
-            var result = getDriver().sendCommand(getDb(), doc);
-            setMetaData("duration", System.currentTimeMillis() - start);
-            return Doc.of("id", result);
-        }, getDriver().getRetriesOnNetworkError(), getDriver().getSleepBetweenErrorRetries());
-        return (int) ret.get("id");
+        return super.executeGetMsgID();
     }
 }
