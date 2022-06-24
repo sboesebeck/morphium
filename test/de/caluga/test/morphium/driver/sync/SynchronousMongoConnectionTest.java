@@ -29,7 +29,7 @@ public class SynchronousMongoConnectionTest {
     public void testSyncConnection() throws Exception {
         SynchronousMongoConnection con = getSynchronousMongoConnection();
         log.info("Connected");
-        int deleted = con.clearCollection(new ClearCollectionSettings().setColl(coll).setDb(db));
+        int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).executeGetResult().get(0).get("deleted");
         log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
@@ -41,7 +41,7 @@ public class SynchronousMongoConnectionTest {
         }
         log.info("created test data");
         log.info("running find...");
-        FindCommand fnd = new FindCommand().setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
+        FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = con.find(fnd);
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
@@ -270,7 +270,7 @@ public class SynchronousMongoConnectionTest {
         con.store(cmd);
 
         FindCommand fnd = new FindCommand().setDb(db).setColl(coll).setBatchSize(17);
-        var crs = con.runCommand(db, fnd.asMap("find"));
+        var crs = con.runCommand(db, fnd.asMap());
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;
@@ -281,7 +281,7 @@ public class SynchronousMongoConnectionTest {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        crs = con.runCommand(db, fnd.asMap("find"));
+        crs = con.runCommand(db, fnd.asMap());
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(1000);

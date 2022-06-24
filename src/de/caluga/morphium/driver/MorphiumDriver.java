@@ -7,10 +7,7 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
 
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * Morphium driver interface
@@ -59,23 +56,11 @@ public interface MorphiumDriver {
 
     String[] getCredentials(String db);
 
-    String[] getHostSeed();
+    List<String> hostSeed = new ArrayList<>();
 
     default void setHostSeed(String... host) {
-        if (hostSeed == null) {
-            hostSeed = new Vector<>();
-        }
-        for (String h : host) {
-            try {
-                hostSeed.add(getHostAdress(h));
-            } catch (UnknownHostException e) {
-                throw new RuntimeException("Could not add host", e);
-            }
-        }
-
+        hostSeed.addAll(Arrays.asList(host));
     }
-
-    String[] getHostSeed(String... host);
 
     void setConnectionUrl(String connectionUrl);
 

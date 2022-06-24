@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.commands.WatchMongoCommand;
 import de.caluga.morphium.driver.mongodb.Maximums;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
@@ -58,6 +59,36 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryWrites = true;
     private int readTimeout = 30000;
 
+
+    @Override
+    public void setConnectionUrl(String connectionUrl) {
+
+    }
+
+    @Override
+    public int getRetriesOnNetworkError() {
+        return MorphiumDriver.super.getRetriesOnNetworkError();
+    }
+
+    @Override
+    public void setRetriesOnNetworkError(int r) {
+        MorphiumDriver.super.setRetriesOnNetworkError(r);
+    }
+
+    @Override
+    public int getSleepBetweenErrorRetries() {
+        return MorphiumDriver.super.getSleepBetweenErrorRetries();
+    }
+
+    @Override
+    public void setSleepBetweenErrorRetries(int s) {
+        MorphiumDriver.super.setSleepBetweenErrorRetries(s);
+    }
+
+    @Override
+    public void setCredentials(String db, String login, String pwd) {
+        MorphiumDriver.super.setCredentials(db, login, pwd);
+    }
 
     @Override
     public int getMaxConnections() {
@@ -550,6 +581,8 @@ public abstract class DriverBase implements MorphiumDriver {
 //
 //        return ret;
 //    }
+
+    public abstract void watch(WatchMongoCommand settings) throws MorphiumDriverException;
 
     public abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
 

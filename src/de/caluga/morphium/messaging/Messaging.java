@@ -208,7 +208,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
-        return Utils.getMap(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
+        return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
                 .add(prefix + "task_count", threadPool.getTaskCount())
                 .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
                 .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
@@ -321,7 +321,7 @@ public class Messaging extends Thread implements ShutdownListener {
             Map<String, Object> in = new LinkedHashMap<>();
             in.put("$in", Arrays.asList("insert", "update"));
             match.put("operationType", in);
-            pipeline.add(Utils.getMap("$match", match));
+            pipeline.add(UtilsMap.of("$match", match));
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
             changeStreamMonitor.addListener(evt -> {
 //                    log.debug("incoming message via changeStream");
@@ -647,8 +647,8 @@ public class Messaging extends Thread implements ShutdownListener {
                 String fieldName = morphium.getARHelper().getMongoFieldName(q.getType(), ef.getKey());
                 toSet.put(fieldName, ef.getValue());
             }
-            Map<String, Object> update = Utils.getMap("$set", toSet);
-            morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), q.q().f("_id").in(lst).toQueryObject(), update, multiple, false, null, null);
+            Map<String, Object> update = Doc.of("$set", toSet);
+//            morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), q.q().f("_id").in(lst).toQueryObject(), update, multiple, false, null, null);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -753,18 +753,18 @@ public class Messaging extends Thread implements ShutdownListener {
             String fieldName = morphium.getARHelper().getMongoFieldName(q.getType(), ef.getKey());
             toSet.put(fieldName, ((MorphiumWriterImpl) morphium.getWriterForClass(Msg.class)).marshallIfNecessary(ef.getValue()));
         }
-        Map<String, Object> update = Utils.getMap("$set", toSet);
+        Map<String, Object> update = Doc.of("$set", toSet);
         Map<String, Object> qobj = q.toQueryObject();
         try {
-            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, processMultiple, false, null, null); //always locking single message
-            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1)) || q.countAll() > 0) {
+//            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, processMultiple, false, null, null); //always locking single message
+//            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1)) || q.countAll() > 0) {
 //                if (log.isDebugEnabled())
 //                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
-                //updated
-                obj.setLocked((Long) values.get("locked"));
-                obj.setLockedBy((String) values.get("locked_by"));
-                processMessage(obj);
-            }
+            //updated
+            obj.setLocked((Long) values.get("locked"));
+            obj.setLockedBy((String) values.get("locked_by"));
+            processMessage(obj);
+//            }
             //wait for the locking to be saved
 //            Thread.sleep(10);
 //        } catch (InterruptedException e) {
@@ -1074,16 +1074,16 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> qobj = idq.toQueryObject();
 
         String fieldName = morphium.getARHelper().getMongoFieldName(msg.getClass(), "processed_by");
-        Map<String, Object> set = Utils.getMap(fieldName, id);
-        Map<String, Object> update = Utils.getMap("$push", set);
-        try {
-            Map<String, Object> ret = morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), qobj, update, false, false, null, null);
-            if (ret.get("modified") == null) {
-                log.warn("Could not update processed_by in msg " + msg.getMsgId());
-            }
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
-        }
+        Map<String, Object> set = Doc.of(fieldName, id);
+        Map<String, Object> update = Doc.of("$push", set);
+//        try {
+//            Map<String, Object> ret = morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), qobj, update, false, false, null, null);
+//            if (ret.get("modified") == null) {
+//                log.warn("Could not update processed_by in msg " + msg.getMsgId());
+//            }
+//        } catch (MorphiumDriverException e) {
+//            e.printStackTrace();
+//        }
     }
 
     private void queueOrRun(Runnable r) {
@@ -1395,20 +1395,22 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
                     break;
                 }
-            //Reached number of expected answers
-            if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
-                break;
+                //Reached number of expected answers
+                if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
+                    break;
+                }
+                //Did not receive any message in time
+                if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
+                }
+                //time up - return all answers that were received
+                if (System.currentTimeMillis() - start > timeout) break;
+                Thread.yield();
             }
-            //Did not receive any message in time
-            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
-                throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
+
+            if (!running) {
+                throw new SystemShutdownException("Messaging shutting down - abort waiting!");
             }
-            //time up - return all answers that were received
-            if (System.currentTimeMillis() - start > timeout) break;
-            Thread.yield();
-        }
-        if (!running) {
-            throw new SystemShutdownException("Messaging shutting down - abort waiting!");
         }
         waitingForMessages.remove(theMessage.getMsgId());
         return (List<T>) waitingForAnswers.remove(theMessage.getMsgId());

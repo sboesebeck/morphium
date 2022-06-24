@@ -38,6 +38,11 @@ public class FindCommand extends MongoCommand<FindCommand> {
         super(d);
     }
 
+    @Override
+    public String getCommandName() {
+        return "find";
+    }
+
     public Map<String, Object> getFilter() {
         return filter;
     }
@@ -261,58 +266,6 @@ public class FindCommand extends MongoCommand<FindCommand> {
 
     public Boolean getAllowDiskUse() {
         return allowDiskUse;
-    }
-
-    @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
-        //noinspection unchecked
-        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
-
-            List<Map<String, Object>> ret = new ArrayList<>();
-
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
-            long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap("find"));
-            while (crs.hasNext()) {
-                ret.addAll(crs.getBatch());
-                crs.ahead(crs.getBatch().size());
-            }
-            long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
-            return Doc.of("values", ret);
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("values");
-    }
-
-    //    @Override
-    public MorphiumCursor execute() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
-        //noinspection unchecked
-        return (MorphiumCursor) new NetworkCallHelper().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
-            long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap("find"));
-            long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
-            return Doc.of("cursor", crs);
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("cursor");
-    }
-
-    //    @Override_
-    public int executeGetMsgID() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
-        //noinspection unchecked
-        return (Integer) new NetworkCallHelper().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
-            long start = System.currentTimeMillis();
-            int id = driver.sendCommand(getDb(), asMap("find"));
-            long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
-            return Doc.of("id", id);
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries()).get("id");
     }
 
 }

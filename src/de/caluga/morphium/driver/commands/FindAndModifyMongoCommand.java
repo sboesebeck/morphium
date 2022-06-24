@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 
 import java.util.List;
 
@@ -17,6 +18,10 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     private Doc collation;
     private Object hint;
     private Doc let;
+
+    public FindAndModifyMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
 
     public Doc getQuery() {
         return query;
@@ -124,5 +129,10 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     public FindAndModifyMongoCommand setLet(Doc let) {
         this.let = let;
         return this;
+    }
+
+    @Override
+    public String getCommandName() {
+        return "findAndModify";
     }
 }

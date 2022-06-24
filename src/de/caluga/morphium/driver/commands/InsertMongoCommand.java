@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 
 import java.util.List;
 
@@ -9,6 +10,10 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
     private Boolean ordered;
     private Boolean bypassDocumentValidation;
     private String comment;
+
+    public InsertMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
 
     public List<Doc> getDocuments() {
         return documents;
@@ -46,5 +51,10 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
     public InsertMongoCommand setComment(String comment) {
         this.comment = comment;
         return this;
+    }
+
+    @Override
+    public String getCommandName() {
+        return "insert";
     }
 }

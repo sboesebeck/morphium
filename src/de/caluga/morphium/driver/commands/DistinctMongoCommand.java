@@ -1,12 +1,30 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.sync.NetworkCallHelper;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
     private String key;
     private Doc query;
     private Doc readConcern;
     private Doc collation;
+
+    public DistinctMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
+
+    @Override
+    public String getCommandName() {
+        return "distinct";
+    }
 
     public String getKey() {
         return key;
@@ -43,4 +61,5 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         this.collation = collation;
         return this;
     }
+
 }

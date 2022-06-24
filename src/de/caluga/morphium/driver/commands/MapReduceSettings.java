@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 
 public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     private String map;
@@ -20,6 +21,10 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     private Doc collation;
     private Doc writeConcern;
     private String comment;
+
+    public MapReduceSettings(MorphiumDriver d) {
+        super(d);
+    }
 
 
     public String getMap() {
@@ -160,8 +165,13 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     }
 
     @Override
-    public Doc asMap(String commandName) {
-        Doc m = super.asMap(commandName);
+    public String getCommandName() {
+        return "mapReduce";
+    }
+
+    @Override
+    public Doc asMap() {
+        Doc m = super.asMap();
         if (m.containsKey("outColl") && m.containsKey("outConfig")) {
             throw new IllegalArgumentException("Cannot specify out coll and out config!");
         }

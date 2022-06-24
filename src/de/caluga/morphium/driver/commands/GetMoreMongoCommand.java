@@ -1,9 +1,15 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.driver.MorphiumDriver;
+
 public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     private long cursorId;
     private Integer batchSize;
     private Integer maxTimeMs;
+
+    public GetMoreMongoCommand(MorphiumDriver d) {
+        super(d);
+    }
 
     public long getCursorId() {
         return cursorId;
@@ -30,5 +36,10 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     public GetMoreMongoCommand setMaxTimeMs(Integer maxTimeMs) {
         this.maxTimeMs = maxTimeMs;
         return this;
+    }
+
+    @Override
+    public String getCommandName() {
+        return "getMore";
     }
 }
