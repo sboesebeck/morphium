@@ -28,7 +28,6 @@ public class SynchronousConnectCursor extends MorphiumCursor {
     private int internalIndex = 0;
     private int index = 0;
 
-
     public SynchronousConnectCursor(DriverBase drv, String db, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
         this.driver = drv;
         this.multithreaddedAccess = multithreaddedAccess;
@@ -145,7 +144,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
                     ));
             q.setMessageId(driver.getNextId());
             driver.sendQuery(q);
-            reply = driver.getReply(q.getMessageId(), driver.getMaxWaitTime());
+            reply = driver.getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
         }
 
         //noinspection unchecked

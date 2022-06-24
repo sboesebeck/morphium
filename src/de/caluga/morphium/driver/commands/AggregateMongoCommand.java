@@ -1,8 +1,15 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.sync.DriverBase;
+import de.caluga.morphium.driver.sync.NetworkCallHelper;
+import de.caluga.morphium.driver.sync.SynchronousConnectCursor;
+import de.caluga.morphium.driver.sync.SynchronousMongoConnection;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +26,10 @@ public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
     private Doc let;
     private Integer batchSize;
     private Doc cursor;
+
+    public AggregateMongoCommand(DriverBase d) {
+        super(d);
+    }
 
 
     public Integer getBatchSize() {
@@ -129,4 +140,56 @@ public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
         return this;
     }
 
+    @Override
+    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+        return aggregate();
+    }
+
+    @Override
+    public MorphiumCursor execute() throws MorphiumDriverException {
+        return initAggregationIteration();
+    }
+
+    @Override
+    public int executeGetMsgID() throws MorphiumDriverException {
+        return 0;
+    }
+
+    public MorphiumCursor initAggregationIteration() throws MorphiumDriverException {
+        return new NetworkCallHelper<MorphiumCursor>().doCall(() -> {
+            setMetaData("server", getDriver().getHostSeed()[0]);
+            Doc doc = asMap("aggregate");
+            doc.putIfAbsent("cursor", new Doc());
+            if (getBatchSize() != null) {
+                ((Map) doc.get("cursor")).put("batchSize", getBatchSize());
+                doc.remove("batchSize");
+            } else {
+                ((Map) doc.get("cursor")).put("batchSize", getDriver().getDefaultBatchSize());
+            }
+            var crs = getDriver().runCommand(getDb(), doc);
+            return crs;
+        }, getDriver().getRetriesOnNetworkError(), getDriver().getSleepBetweenErrorRetries());
+
+    }
+
+    public List<Map<String, Object>> aggregate() throws MorphiumDriverException {
+        //noinspection unchecked
+        return (List<Map<String, Object>>) new NetworkCallHelper().doCall(() -> {
+            Doc doc = asMap("aggregate");
+            doc.put("cursor", Doc.of("batchSize", getDriver().getDefaultBatchSize()));
+            setMetaData("server", getDriver().getHostSeed()[0]);
+            long start = System.currentTimeMillis();
+
+            List<Map<String, Object>> ret = new ArrayList<>();
+            var crs = getDriver().runCommand(getDb(), doc);
+            while (crs.hasNext()) {
+                ret.addAll(crs.getBatch());
+                crs.ahead(crs.getBatch().size());
+            }
+//                List<Map<String, Object>> lst = getDriver().readBatches(q.getMessageId(), settings.getDb(), settings.getColl(), getDriver().getMaxWriteBatchSize());
+            setMetaData("duration", System.currentTimeMillis() - start);
+            return Doc.of("result", ret);
+
+        }, getDriver().getRetriesOnNetworkError(), getDriver().getSleepBetweenErrorRetries());
+    }
 }

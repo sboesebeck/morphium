@@ -1,7 +1,6 @@
 package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.mongodb.Maximums;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -60,42 +59,50 @@ public abstract class DriverBase implements MorphiumDriver {
     private int readTimeout = 30000;
 
 
+    @Override
     public int getMaxConnections() {
         return maxConnectionsPerHost;
     }
 
 
+    @Override
     public void setMaxConnections(int maxConnections) {
         maxConnectionsPerHost = maxConnections;
     }
 
 
+    @Override
     public int getMinConnections() {
         return 1;
     }
 
 
+    @Override
     public void setMinConnections(int minConnections) {
         minConnectionsPerHost = minConnections;
 
     }
 
 
+    @Override
     public boolean isRetryReads() {
         return retryReads;
     }
 
 
+    @Override
     public void setRetryReads(boolean retryReads) {
         this.retryReads = retryReads;
     }
 
 
+    @Override
     public boolean isRetryWrites() {
         return retryWrites;
     }
 
 
+    @Override
     public void setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
     }
@@ -111,47 +118,45 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    @Override
     public int getReadTimeout() {
         return readTimeout;
     }
 
 
+    @Override
     public void setReadTimeout(int readTimeout) {
         this.readTimeout = readTimeout;
     }
 
+    @Override
     public int getMinConnectionsPerHost() {
         return minConnectionsPerHost;
     }
 
+    @Override
     public void setMinConnectionsPerHost(int minConnectionsPerHost) {
         this.minConnectionsPerHost = minConnectionsPerHost;
     }
 
+    @Override
     public int getMaxConnectionsPerHost() {
         return maxConnectionsPerHost;
     }
 
+    @Override
     public void setMaxConnectionsPerHost(int maxConnectionsPerHost) {
         this.maxConnectionsPerHost = maxConnectionsPerHost;
     }
 
 
-    public void setCredentials(String db, String login, String pwd) {
-        if (credentials == null) {
-            credentials = new HashMap<>();
-        }
-        Map<String, String> cred = new HashMap<>();
-        cred.put(login, pwd);
-        credentials.put(db, cred);
-    }
-
-
+    @Override
     public boolean isReplicaset() {
         return replicaSet;
     }
 
 
+    @Override
     public List<String> listDatabases() throws MorphiumDriverException {
         if (!isConnected()) {
             return null;
@@ -173,6 +178,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    @Override
     public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
         if (!isConnected()) {
             return null;
@@ -218,86 +224,74 @@ public abstract class DriverBase implements MorphiumDriver {
         } while (valid);
     }
 
+    @Override
     public String getReplicaSetName() {
         return replicaSetName;
     }
 
+    @Override
     public void setReplicaSetName(String replicaSetName) {
         this.replicaSetName = replicaSetName;
     }
 
 
+    @Override
     @SuppressWarnings("unused")
     public Map<String, Map<String, String>> getCredentials() {
         return credentials;
     }
 
+    @Override
     public void setCredentials(Map<String, Map<String, String>> credentials) {
         this.credentials = credentials;
     }
 
+    @Override
     public void setCredentialsFor(String db, String user, String password) {
         credentials.putIfAbsent(db, new HashMap<>());
         credentials.get(db).put(user, password);
     }
 
 
-    public int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
-    }
-
-
-    public void setRetriesOnNetworkError(int r) {
-        if (r < 1) {
-            r = 1;
-        }
-        retriesOnNetworkError = r;
-    }
-
-
-    public int getSleepBetweenErrorRetries() {
-        return sleepBetweenRetries;
-    }
-
-
-    public void setSleepBetweenErrorRetries(int s) {
-        if (s < 100) {
-            s = 100;
-        }
-        sleepBetweenRetries = s;
-    }
-
+    @Override
     @SuppressWarnings("unused")
     public int getMaxBsonObjectSize() {
         return maxBsonObjectSize;
     }
 
+    @Override
     public void setMaxBsonObjectSize(int maxBsonObjectSize) {
         this.maxBsonObjectSize = maxBsonObjectSize;
     }
 
+    @Override
     public int getMaxMessageSize() {
         return maxMessageSize;
     }
 
+    @Override
     public void setMaxMessageSize(int maxMessageSize) {
         this.maxMessageSize = maxMessageSize;
     }
 
+    @Override
     public int getMaxWriteBatchSize() {
         return maxWriteBatchSize;
     }
 
+    @Override
     public void setMaxWriteBatchSize(int maxWriteBatchSize) {
         this.maxWriteBatchSize = maxWriteBatchSize;
     }
 
 
+    @Override
     @SuppressWarnings("unused")
     public boolean isReplicaSet() {
         return replicaSet;
     }
 
+    @Override
     public void setReplicaSet(boolean replicaSet) {
         this.replicaSet = replicaSet;
     }
@@ -308,36 +302,42 @@ public abstract class DriverBase implements MorphiumDriver {
         }
     }
 
+    @Override
     public boolean getDefaultJ() {
         return defaultJ;
     }
 
+    @Override
     public int getDefaultWriteTimeout() {
         return defaultWriteTimeout;
     }
 
 
+    @Override
     public void setDefaultWriteTimeout(int wt) {
         defaultWriteTimeout = wt;
     }
 
 
+    @Override
     public int getMaxWaitTime() {
         return this.maxWait;
     }
 
 
+    @Override
     public void setMaxWaitTime(int maxWaitTime) {
         this.maxWait = maxWaitTime;
     }
 
 
+    @Override
     public String[] getCredentials(String db) {
         return new String[0];
     }
 
 
-
+    @Override
     public String[] getHostSeed() {
         if (hostSeed == null) {
             return null;
@@ -346,66 +346,61 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
-    public void setHostSeed(String... host) {
-        if (hostSeed == null) {
-            hostSeed = new Vector<>();
-        }
-        for (String h : host) {
-            try {
-                hostSeed.add(getHostAdress(h));
-            } catch (UnknownHostException e) {
-                throw new RuntimeException("Could not add host", e);
-            }
-        }
-
-    }
-
-
+    @Override
     public int getMaxConnectionLifetime() {
         return maxConnectionLifetime;
     }
 
 
+    @Override
     public void setMaxConnectionLifetime(int timeout) {
         maxConnectionLifetime = timeout;
     }
 
 
+    @Override
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
     }
 
 
+    @Override
     public void setMaxConnectionIdleTime(int time) {
         maxConnectionIdleTime = time;
     }
 
 
+    @Override
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
 
 
+    @Override
     public void setConnectionTimeout(int timeout) {
         connectionTimeout = timeout;
     }
 
 
+    @Override
     public int getDefaultW() {
         return defaultW;
     }
 
 
+    @Override
     public void setDefaultW(int w) {
         defaultW = w;
     }
 
 
+    @Override
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
 
 
+    @Override
     public void setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
     }
@@ -419,40 +414,48 @@ public abstract class DriverBase implements MorphiumDriver {
         return max;
     }
 
+    @Override
     public ReadPreference getDefaultReadPreference() {
         return defaultRP;
     }
 
 
+    @Override
     public void setDefaultReadPreference(ReadPreference rp) {
         defaultRP = rp;
     }
 
+    @Override
     public int getDefaultBatchSize() {
         return batchSize;
     }
 
 
+    @Override
     public void setDefaultBatchSize(int defaultBatchSize) {
         this.batchSize = defaultBatchSize;
     }
 
 
+    @Override
     public boolean isUseSSL() {
         return useSSL;
     }
 
 
+    @Override
     public void setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
     }
 
 
+    @Override
     public boolean isDefaultJ() {
         return defaultJ;
     }
 
 
+    @Override
     public void setDefaultJ(boolean j) {
         defaultJ = j;
     }
@@ -728,5 +731,8 @@ public abstract class DriverBase implements MorphiumDriver {
 
     }
 
+    public abstract OpMsg getReplyFor(int msgid, long timeout);
+
+    public abstract boolean replyForMsgAvailable(int msg);
 
 }

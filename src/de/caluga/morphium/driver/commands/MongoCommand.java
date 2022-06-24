@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.sync.DriverBase;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -20,12 +21,15 @@ public abstract class MongoCommand<T extends MongoCommand> {
     private Map<String, Object> metaData;
     private MorphiumDriver driver;
 
+    public MongoCommand(MorphiumDriver d) {
+        driver = d;
+    }
 
     public MorphiumDriver getDriver() {
         return driver;
     }
 
-    public MongoCommand<T> setDriver(MorphiumDriver driver) {
+    public MongoCommand<T> setDriver(DriverBase driver) {
         this.driver = driver;
         return this;
     }
@@ -138,9 +142,12 @@ public abstract class MongoCommand<T extends MongoCommand> {
             }
         }
     }
-//
-//    public abstract List<Map<String,Object>> executeGetResult() throws MorphiumDriverException;
-//    public abstract MorphiumCursor execute() throws MorphiumDriverException;
-//    public abstract int executeGetID() throws MorphiumDriverException;
+
+    //
+    public abstract List<Map<String, Object>> executeGetResult() throws MorphiumDriverException;
+
+    public abstract MorphiumCursor execute() throws MorphiumDriverException;
+
+    public abstract int executeGetMsgID() throws MorphiumDriverException;
 
 }
