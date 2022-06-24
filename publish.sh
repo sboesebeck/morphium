@@ -20,7 +20,7 @@ version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -
 tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
-mvn release:perform -Dgpg.passphrase='$GPG_PASSPHRASE'
+mvn release:perform 
 mvn nexus-staging:release -Ddescription="Latest release" -DstagingRepositoryId="sonatype-nexus-staging"
 
 git checkout master
