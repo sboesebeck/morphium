@@ -1,24 +1,16 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.sync.DriverBase;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
-public class FindCommand extends MongoCommand<FindCommand> {
+public class FindCommand extends ReadMongoCommand<FindCommand> {
     private Map<String, Object> filter;
     private Map<String, Object> sort;
     private Map<String, Object> projection;
     private Object hint;
     private Integer skip;
     private Integer limit;
-    private Integer batchSize;
     private Boolean singleBatch = false;
     private Integer maxTimeMS;
     private Map<String, Object> max;
@@ -33,6 +25,17 @@ public class FindCommand extends MongoCommand<FindCommand> {
     private Map<String, Object> collation;
     private Boolean allowDiskUse;
     private Map<String, Object> let;
+    private Integer batchSize;
+
+    public Integer getBatchSize() {
+        return batchSize;
+    }
+
+    public FindCommand setBatchSize(Integer batchSize) {
+        this.batchSize = batchSize;
+        return this;
+    }
+
 
     public FindCommand(MorphiumDriver d) {
         super(d);
@@ -94,15 +97,6 @@ public class FindCommand extends MongoCommand<FindCommand> {
 
     public FindCommand setLimit(Integer limit) {
         this.limit = limit;
-        return this;
-    }
-
-    public Integer getBatchSize() {
-        return batchSize;
-    }
-
-    public FindCommand setBatchSize(Integer batchSize) {
-        this.batchSize = batchSize;
         return this;
     }
 

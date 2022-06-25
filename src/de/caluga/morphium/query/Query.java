@@ -251,14 +251,14 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand()
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver())
                     .setQuery(Doc.of(toQueryObject()))
                     .setRemove(true)
                     .setSort(new Doc(getSort()))
                     .setColl(getCollectionName())
                     .setDb(getDB());
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
-            ret = morphium.getDriver().findAndModify(settings);
+            ret = settings.execute();
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
@@ -323,13 +323,13 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand()
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver())
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setQuery(Doc.of(toQueryObject()))
                     .setUpdate(Doc.of(update));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
-            ret = morphium.getDriver().findAndModify(settings);
+            ret = settings.execute();
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         }
@@ -400,7 +400,7 @@ public class Query<T> implements Cloneable {
             settings.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
         }
         try {
-            ret = morphium.getDriver().count(settings);
+            ret = (long) settings.execute().get("n");
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -454,7 +454,7 @@ public class Query<T> implements Cloneable {
                     .setSort(new LinkedHashMap<>(sort))
                     .setLimit(limit);
             if (collation != null) settings.setCollation(getCollation().toQueryObject());
-            obj = morphium.getDriver().find(settings);
+            obj = settings.execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -543,12 +543,12 @@ public class Query<T> implements Cloneable {
 
     public List distinct(String field) {
         try {
-            return morphium.getDriver().distinct(new DistinctMongoCommand()
+            return new DistinctMongoCommand(morphium.getDriver())
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setKey(field)
                     .setQuery(Doc.of(toQueryObject()))
-                    .setCollation(Doc.of(getCollation().toQueryObject())));// morphium.getReadPreferenceForClass(getType()));
+                    .setCollation(Doc.of(getCollation().toQueryObject())).execute();// morphium.getReadPreferenceForClass(getType()));
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);

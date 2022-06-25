@@ -28,22 +28,17 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     }
 
     @Override
-    public MorphiumCursor execute() throws MorphiumDriverException {
+    public Map<String, Object> execute() throws MorphiumDriverException {
         UpdateMongoCommand updateSettings = getUpdateMongoCommand();
         return updateSettings.execute();
     }
 
     @Override
-    public int executeGetMsgID() throws MorphiumDriverException {
+    public int executeAsync() throws MorphiumDriverException {
         UpdateMongoCommand updateSettings = getUpdateMongoCommand();
-        return updateSettings.executeGetMsgID();
+        return updateSettings.executeAsync();
     }
 
-    @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
-        UpdateMongoCommand updateSettings = getUpdateMongoCommand();
-        return updateSettings.executeGetResult();
-    }
 
     private UpdateMongoCommand getUpdateMongoCommand() {
         List<Map<String, Object>> opsLst = new ArrayList<>();
@@ -60,7 +55,7 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             //up.put("c",variablesDocument);
             opsLst.add(up);
         }
-        UpdateMongoCommand updateSettings = new UpdateMongoCommand().setDb(getDb()).setColl(getColl())
+        UpdateMongoCommand updateSettings = new UpdateMongoCommand(getDriver()).setDb(getDb()).setColl(getColl())
                 .setUpdates(opsLst).setWriteConcern(getWriteConcern());
         setMetaData(updateSettings.getMetaData());
         return updateSettings;

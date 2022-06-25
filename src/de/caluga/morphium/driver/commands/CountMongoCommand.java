@@ -2,13 +2,11 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.sync.DriverBase;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
+public class CountMongoCommand extends MongoCommand<CountMongoCommand> implements SingleResultCommand {
     private Doc query;
     private Integer limit;
     private Integer skip;
@@ -16,7 +14,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
     private Doc readConcern;
     private Doc collation;
 
-    public CountMongoCommand(DriverBase d) {
+    public CountMongoCommand(MorphiumDriver d) {
         super(d);
     }
 
@@ -82,7 +80,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
     }
 
     @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
+    public Map<String, Object> execute() throws MorphiumDriverException {
         if (getDriver().isTransactionInProgress()) {
             //log.warn("Cannot count while in transaction, will use IDlist!");
             //TODO: use Aggregation
@@ -93,33 +91,22 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> {
             fs.setFilter(getQuery());
             fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
             fs.setCollation(getCollation());
-            return List.of(Doc.of("n", fs.executeGetResult().size()));
+            return Doc.of("n", fs.execute().size());
         }
-        return super.executeGetResult();
+        int id = executeAsync();
+        return getSingleResultFor(id);
     }
 
-    @Override
-    public MorphiumCursor execute() throws MorphiumDriverException {
-        if (getDriver().isTransactionInProgress()) {
-            //log.warn("Cannot count while in transaction, will use IDlist!");
-            //TODO: use Aggregation
-            FindCommand fs = new FindCommand(getDriver());
-            fs.setMetaData(getMetaData());
-            fs.setDb(getDb());
-            fs.setColl(getColl());
-            fs.setFilter(getQuery());
-            fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
-            fs.setCollation(getCollation());
-            return new SingleElementCursor(Doc.of("n", fs.executeGetResult().size()));
-        }
-        return super.execute();
+    public long getCount() throws MorphiumDriverException {
+        return (long) execute().get("n");
     }
 
+
     @Override
-    public int executeGetMsgID() throws MorphiumDriverException {
+    public int executeAsync() throws MorphiumDriverException {
         if (getDriver().isTransactionInProgress()) {
             throw new MorphiumDriverException("Count during transaction is not allowed");
         }
-        return super.executeGetMsgID();
+        return super.executeAsync();
     }
 }

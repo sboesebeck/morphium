@@ -4,10 +4,11 @@ package de.caluga.morphium.driver;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.WatchSettings;
 
-import java.net.UnknownHostException;
-import java.util.*;
+import java.net.MalformedURLException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Morphium driver interface
@@ -56,13 +57,11 @@ public interface MorphiumDriver {
 
     String[] getCredentials(String db);
 
-    List<String> hostSeed = new ArrayList<>();
+    String[] getHostSeed();
 
-    default void setHostSeed(String... host) {
-        hostSeed.addAll(Arrays.asList(host));
-    }
+    void setHostSeed(String... host);
 
-    void setConnectionUrl(String connectionUrl);
+    void setConnectionUrl(String connectionUrl) throws MalformedURLException;
 
     void connect() throws MorphiumDriverException;
 
@@ -83,33 +82,19 @@ public interface MorphiumDriver {
     void setReplicaSetName(String replicaSetName);
 
     @SuppressWarnings("unused")
-    Map<String, Map<String, String>> getCredentials();
+    Map<String, String[]> getCredentials();
 
-    void setCredentials(Map<String, Map<String, String>> credentials);
+    void setCredentials(Map<String, String[]> credentials);
 
     void setCredentialsFor(String db, String user, String password);
 
-    default int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
-    }
+    int getRetriesOnNetworkError();
 
-    default void setRetriesOnNetworkError(int r) {
-        if (r < 1) {
-            r = 1;
-        }
-        retriesOnNetworkError = r;
-    }
+    void setRetriesOnNetworkError(int r);
 
-    default int getSleepBetweenErrorRetries() {
-        return sleepBetweenRetries;
-    }
+    int getSleepBetweenErrorRetries();
 
-    default void setSleepBetweenErrorRetries(int s) {
-        if (s < 100) {
-            s = 100;
-        }
-        sleepBetweenRetries = s;
-    }
+    void setSleepBetweenErrorRetries(int s);
 
     int getMaxConnections();
 
@@ -139,15 +124,7 @@ public interface MorphiumDriver {
 
     void setMaxConnectionsPerHost(int maxConnectionsPerHost);
 
-    default void setCredentials(String db, String login, String pwd) {
-        if (credentials == null) {
-            credentials = new HashMap<>();
-        }
-        Map<String, String> cred = new HashMap<>();
-        cred.put(login, pwd);
-        credentials.put(db, cred);
-    }
-
+    void setCredentials(String db, String login, String pwd);
 
     ////////////////////////////////////////////////////
     // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
@@ -158,11 +135,11 @@ public interface MorphiumDriver {
     //    |__|     | _| `._____/__/     \__\ |__| \__| |_______/    /__/     \__\ \______|    |__|     |__|  \______/  |__| \__| |_______/
 
 
-    abstract MorphiumTransactionContext startTransaction(boolean autoCommit);
+    MorphiumTransactionContext startTransaction(boolean autoCommit);
 
-    abstract boolean isTransactionInProgress();
+    boolean isTransactionInProgress();
 
-    abstract void commitTransaction() throws MorphiumDriverException;
+    void commitTransaction() throws MorphiumDriverException;
 
     MorphiumTransactionContext getTransactionContext();
 
@@ -195,8 +172,14 @@ public interface MorphiumDriver {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-    //Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
+
+    Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
+
+    Map<String, Object> getDBStats(String db) throws MorphiumDriverException;
+
+    Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
 
     MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
@@ -246,6 +229,8 @@ public interface MorphiumDriver {
 
     void setDefaultJ(boolean j);
 
+    boolean replyAvailableFor(int msgId);
+
 
     //____    __    ____  ___   .___________.  ______  __    __
     //\   \  /  \  /   / /   \  |           | /      ||  |  |  |
@@ -253,7 +238,7 @@ public interface MorphiumDriver {
     //  \            / /  /_\  \    |  |     |  |     |   __   |
     //   \    /\    / /  _____  \   |  |     |  `----.|  |  |  |
     //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
-//    void watch(WatchMongoCommand settings) throws MorphiumDriverException;
+    void watch(WatchSettings settings) throws MorphiumDriverException;
 
     //.______       _______ .______    __       __   _______     _______.
     //|   _  \     |   ____||   _  \  |  |     |  | |   ____|   /       |
@@ -264,7 +249,13 @@ public interface MorphiumDriver {
 
 //    MorphiumCursor waitForReplyIterable(long id);
 
-//
+    Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException;
+
+    List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException;
+
+    MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException;
+
+    //
 //    List<Map<String, Object>> aggregate(AggregateMongoCommand settings) throws MorphiumDriverException;
 //
 //    long count(CountMongoCommand settings) throws MorphiumDriverException;
@@ -299,7 +290,7 @@ public interface MorphiumDriver {
 //
 //    List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 //
-//    BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
+    BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
 //
 //    List<String> listDatabases() throws MorphiumDriverException;
 //

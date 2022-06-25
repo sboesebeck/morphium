@@ -182,35 +182,6 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
     @Override
-    public MorphiumTransactionContext startTransaction(boolean autoCommit) {
-        if (this.transactionContext.get() != null) throw new IllegalArgumentException("Transaction in progress");
-        MorphiumTransactionContextImpl ctx = new MorphiumTransactionContextImpl();
-        ctx.setLsid(UUID.randomUUID());
-        ctx.setTxnNumber((long) getNextId());
-        this.transactionContext.set(ctx);
-        return ctx;
-    }
-
-    @Override
-    public MorphiumTransactionContext getTransactionContext() {
-        return transactionContext.get();
-    }
-
-    @Override
-    public void setTransactionContext(MorphiumTransactionContext ctx) {
-        if (transactionContext.get() != null) throw new IllegalArgumentException("Transaction already in progress!");
-        if (ctx instanceof MorphiumTransactionContextImpl)
-            transactionContext.set((MorphiumTransactionContextImpl) ctx);
-        else
-            throw new IllegalArgumentException("Transaction context of wrong type!");
-    }
-
-    @Override
-    public boolean isTransactionInProgress() {
-        return transactionContext.get() != null;
-    }
-
-    @Override
     public void commitTransaction() throws MorphiumDriverException {
         if (transactionContext.get() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
@@ -232,7 +203,7 @@ public class SynchronousMongoConnection extends DriverBase {
 
 
     @Override
-    public void watch(WatchMongoCommand settings) throws MorphiumDriverException {
+    public void watch(WatchSettings settings) throws MorphiumDriverException {
         int maxWait = 0;
         if (settings.getDb() == null) settings.setDb("1"); //watch all dbs!
         if (settings.getColl() == null) {
@@ -306,128 +277,7 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-
-
-//    @Override
-//    public List<Map<String, Object>> find(FindCommand settings) throws MorphiumDriverException {
-//
-//        //noinspection unchecked
-//        return (List<Map<String, Object>>) new NetworkCallHelper<Map<String,Object>>.doCall(() -> {
-//
-//            List<Map<String, Object>> ret;
-//
-//            OpMsg q = new OpMsg();
-//
-//            q.setFirstDoc(settings.asMap("find"));
-//            q.setMessageId(getNextId());
-//            q.setFlags(0);
-//            synchronized (SynchronousMongoConnection.this) {
-//                settings.setMetaData(Doc.of("server", getHostSeed()[0]));
-//                long start = System.currentTimeMillis();
-//                sendQuery(q);
-//                int waitingfor = q.getMessageId();
-//                ret = readBatches(waitingfor, settings.getDb(), settings.getColl(), settings.getBatchSize() == null ? 100 : settings.getBatchSize());
-//                long dur = System.currentTimeMillis() - start;
-//                settings.getMetaData().put("duration", dur);
-//            }
-//            return Doc.of("values", ret);
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("values");
-//    }
-//
-//    @Override
-//    public Map<String, Object> findAndModify(FindAndModifyMongoCommand settings) throws MorphiumDriverException {
-//        return new NetworkCallHelper<Map<String, Object>>.doCall(() -> {
-//            OpMsg msg = new OpMsg();
-//            msg.setMessageId(getNextId());
-//            msg.setFirstDoc(settings.asMap());
-//            settings.setMetaData("server", getHostSeed()[0]);
-//            long start = System.currentTimeMillis();
-//            sendQuery(msg);
-//            OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), msg.getMessageId());
-//            settings.setMetaData("duration", System.currentTimeMillis() - start);
-//            settings.setMetaData("result", reply.getFirstDoc());
-//            return (Doc) (reply.getFirstDoc().get("value"));
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//    }
-//
-//    @Override
-//    public void insert(InsertCmdSettings settings) throws MorphiumDriverException {
-//        new NetworkCallHelper<Map<String,Object>>.doCall(() -> {
-//            OpMsg msg = new OpMsg();
-//            msg.setMessageId(getNextId());
-//            msg.setFirstDoc(settings.asMap("insert"));
-//            settings.setMetaData("server", getHostSeed()[0]);
-//            long start = System.currentTimeMillis();
-//            sendQuery(msg);
-//            OpMsg reply = waitForReply(settings, msg);
-//            settings.setMetaData("duration", System.currentTimeMillis() - start);
-//            if (reply.getFirstDoc().get("ok").equals(1.0)) {
-//                return null;
-//            } else {
-//                throw new MorphiumDriverException("Error: " + reply.getFirstDoc().get("code") + ": " + reply.getFirstDoc().get("errmsg"));
-//            }
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//    }
-
-//
-//    @Override
-//    public Doc drop(DropMongoCommand settings) throws MorphiumDriverException {
-//        new NetworkCallHelper<Map<String, Object>>.doCall(() -> {
-//            OpMsg op = new OpMsg();
-//            op.setResponseTo(0);
-//            op.setMessageId(getNextId());
-//            settings.setMetaData("server", getHostSeed()[0]);
-//            Doc map = new Doc();
-//            map.put("drop", settings.getColl());
-//            map.put("$db", settings.getDb());
-//            op.setFirstDoc(map);
-//            long start = System.currentTimeMillis();
-//            synchronized (SynchronousMongoConnection.this) {
-//                sendQuery(op);
-//                try {
-//                    waitForReply(settings.getDb(), settings.getColl(), op.getMessageId());
-//                    settings.setMetaData("duration", System.currentTimeMillis() - start);
-//                } catch (Exception e) {
-//                    log.warn("Drop failed! " + e.getMessage());
-//                }
-//            }
-//            return null;
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//        return null;
-//    }
-////
-//    @Override
-//    public Map<String, Object> dropDatabase(DropMongoCommand settings) throws MorphiumDriverException {
-//        return new NetworkCallHelper<Map<String, Object>>.doCall(() -> {
-//            OpMsg op = new OpMsg();
-//            op.setResponseTo(0);
-//            op.setMessageId(getNextId());
-//            if (settings.getColl() != null) {
-//                throw new IllegalArgumentException("Cannot drop collection with dropDatabaseCommand!");
-//            }
-//            settings.setMetaData("server", getHostSeed()[0]);
-//            Doc map = settings.asMap("dropDatabase");
-//            map.put("dropDatabase", 1);
-//            op.setFirstDoc(map);
-//            long start = System.currentTimeMillis();
-//            synchronized (SynchronousMongoConnection.this) {
-//                sendQuery(op);
-//                try {
-//                    OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), op.getMessageId());
-//                    settings.setMetaData("duration", System.currentTimeMillis() - start);
-//                    if (reply.getFirstDoc().get("ok").equals(1.0)) {
-//                        return reply.getFirstDoc();
-//                    } else {
-//                        throw new MorphiumDriverException("Drop Failed! " + reply.getFirstDoc().get("code") + ": " + reply.getFirstDoc().get("errmsg"));
-//                    }
-//                } catch (Exception e) {
-//                    throw new MorphiumDriverException("Drop failed!", e);
-//                }
-//            }
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//    }
-
-
+    @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
             var ret = runCommand("admin", Doc.of("replSetGetStatus", 1)).next();
@@ -442,11 +292,13 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
+    @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
         return runCommand(db, Doc.of("dbstats", 1)).next();
     }
 
 
+    @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         return runCommand(db, Doc.of("collStats", coll, "scale", 1024)).next();
     }
@@ -456,18 +308,10 @@ public class SynchronousMongoConnection extends DriverBase {
         return runCommand("admin", Doc.of("currentOp", 1, "secs_running", Doc.of("$gt", threshold))).next();
     }
 
-
-    public int dataAvailable() {
-        try {
-            return in.available();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
+    @Override
     public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
 
-        return (MorphiumCursor) new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
+        return new NetworkCallHelper<MorphiumCursor>().doCall(() -> {
 
             int id = sendCommand(db, cmd);
 
@@ -479,7 +323,7 @@ public class SynchronousMongoConnection extends DriverBase {
                 return null;
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                return Doc.of("cursor", new SynchronousConnectCursor(this, db, getDefaultBatchSize(), false, rep));
+                return new SynchronousConnectCursor(this, getDefaultBatchSize(), false, rep);
             } else {
                 final var msg = rep;
                 //no cursor returned, create one
@@ -512,32 +356,43 @@ public class SynchronousMongoConnection extends DriverBase {
                         return idx;
                     }
                 };
-                return Doc.of("cursor", ret);
+                return ret;
             }
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries()).get("cursor");
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }
 
-//
-//    public MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException {
-//        OpMsg q = new OpMsg();
-//        q.setMessageId(getNextId());
-//        q.setFirstDoc(settings.asMap());
-//        OpMsg reply;
-//        synchronized (SynchronousMongoConnection.this) {
-//            sendQuery(q);
-//            int waitingfor = q.getMessageId();
-//            reply = getReplyFor(waitingfor, getMaxWaitTime());
-//            if (reply.getResponseTo() != waitingfor) {
-//                throw new MorphiumDriverNetworkException("Got wrong answser. Request: " + waitingfor + " got answer for " + reply.getResponseTo());
-//            }
-//
-//        }
-//        //noinspection unchecked
-//        return new SynchronousConnectCursor(this, settings.getDb(), settings.getBatchSize(), false, reply);
-//
-//
-//    }
+    @Override
+    public Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+
+        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
+
+            int id = sendCommand(db, cmd);
+
+            OpMsg rep = null;
+            rep = waitForReply(db, null, id);
+            if (rep == null || rep.getFirstDoc() == null) {
+                return null;
+            }
+            if (rep.getFirstDoc().containsKey("cursor")) {
+                //should actually not happen!
+                log.warn("Expecting single result, got Cursor instead!");
+
+                Map cursor = (Map) rep.getFirstDoc().get("cursor");
+                Map<String, Object> ret = null;
+                if (cursor.containsKey("firstBatch")) {
+                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
+                } else if (cursor.containsKey("nextBatch")) {
+                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
+                }
+                killCursors(db, ((String) cursor.get("ns")).split("\\.")[1], (Long) cursor.get("id"));
+                return ret;
+            } else {
+                return rep.getFirstDoc();
+            }
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+
+    }
 
 
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
@@ -569,11 +424,64 @@ public class SynchronousMongoConnection extends DriverBase {
         return unsansweredMessageId;
     }
 
+    @Override
+    public boolean replyAvailableFor(int msgId) {
+        return replyForMsgAvailable(msgId);
+    }
 
-    private List<Map<String, Object>> readBatches(int waitingfor, String db, String collection, int batchSize) throws MorphiumDriverException {
+    @Override
+    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+        OpMsg reply = getReplyFor(id, getMaxWaitTime());
+        if (reply.hasCursor()) {
+            return getSingleDocAndKillCursor(reply);
+        }
+        return reply.getFirstDoc();
+    }
+
+    @Override
+    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+        return readBatches(queryId, getDefaultBatchSize());
+    }
+
+    @Override
+    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
+        OpMsg reply = getReplyFor(queryId, getMaxWaitTime());
+        if (reply.hasCursor()) {
+            return new SynchronousConnectCursor(this, getDefaultBatchSize(), true, reply);
+        }
+        return null;
+    }
+
+    private String getDBFromCursor(OpMsg msg) {
+        if (msg.hasCursor()) {
+            var crs = (Map<String, Object>) msg.getFirstDoc().get("cursor");
+            String ns = crs.get("ns").toString();
+            return ns.split("\\.")[0];
+        }
+        return null;
+    }
+
+    private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException {
+        if (!msg.hasCursor()) return null;
+        Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
+        Map<String, Object> ret = null;
+        if (cursor.containsKey("firstBatch")) {
+            ret = (Map<String, Object>) cursor.get("firstBatch");
+        } else {
+            ret = (Map<String, Object>) cursor.get("nextBatch");
+        }
+        String[] namespace = cursor.get("ns").toString().split("\\.");
+        killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
+        return ret;
+    }
+
+
+    private List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException {
         List<Map<String, Object>> ret = new ArrayList<>();
 
         Map<String, Object> doc;
+        String db = null;
+        String coll = null;
         synchronized (SynchronousMongoConnection.this) {
             while (true) {
                 OpMsg reply = getReplyFor(waitingfor, getMaxWaitTime());
@@ -582,6 +490,7 @@ public class SynchronousMongoConnection extends DriverBase {
                     log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
                     continue;
                 }
+
                 //                    replies.remove(i);
                 @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
                 if (cursor == null) {
@@ -594,6 +503,13 @@ public class SynchronousMongoConnection extends DriverBase {
                         return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
                     }
                     throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
+                }
+                if (db == null) {
+                    //getting ns
+                    String[] namespace = cursor.get("ns").toString().split("\\.");
+                    db = namespace[0];
+                    if (namespace.length > 1)
+                        coll = namespace[1];
                 }
                 if (cursor.get("firstBatch") != null) {
                     //noinspection unchecked
@@ -610,9 +526,9 @@ public class SynchronousMongoConnection extends DriverBase {
                     OpMsg q = new OpMsg();
                     q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
                             .add("$db", db)
-                            .add("collection", collection)
                             .add("batchSize", batchSize)
                     );
+                    if (coll != null) q.getFirstDoc().put("collection", coll);
                     q.setMessageId(getNextId());
                     waitingfor = q.getMessageId();
                     sendQuery(q);
@@ -656,70 +572,11 @@ public class SynchronousMongoConnection extends DriverBase {
         }
     }
 
-
     public OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         sendQuery(q);
         return getReplyFor(q.getMessageId(), getMaxWaitTime());
     }
 
-
-    public long estimatedDocumentCount(String db, String collection, ReadPreference rp) {
-
-        return 0;
-    }
-
-//
-//    public void insert(InsertMongoCommand settings) throws MorphiumDriverException {
-//        new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-//            int idx = 0;
-//            settings.getDocuments().forEach(o -> o.putIfAbsent("_id", new MorphiumId()));
-//            settings.setMetaData("server", getHostSeed()[0]);
-//            long start = System.currentTimeMillis();
-//            while (idx < settings.getDocuments().size()) {
-//                OpMsg op = new OpMsg();
-//                op.setResponseTo(0);
-//                op.setMessageId(getNextId());
-//                Doc map = new Doc();
-//                map.put("insert", settings.getColl());
-//
-//                List<Doc> docs = new ArrayList<>();
-//                for (int i = idx; i < idx + getMaxWriteBatchSize() && i < settings.getDocuments().size(); i++) {
-//                    docs.add(settings.getDocuments().get(i));
-//                }
-//                idx += docs.size();
-//                map.put("documents", docs);
-//                map.put("$db", settings.getDb());
-//                map.put("ordered", true);
-//                if (settings.getWriteConcern() != null)
-//                    map.put("writeConcern", settings.getWriteConcern());
-//                op.setFirstDoc(map);
-//
-//                synchronized (SynchronousMongoConnection.this) {
-//                    sendQuery(op);
-//                    OpMsg ret = waitForReply(settings, op);
-//                    if (ret.getFirstDoc().containsKey("writeErrors")) {
-//                        if (((List) ret.getFirstDoc().get("writeErrors")).size() != 0) {
-//                            StringBuilder b = new StringBuilder();
-//                            for (Doc d : ((List<Doc>) ret.getFirstDoc().get("writeErrors"))) {
-//                                b.append("Error: ");
-//                                b.append(d.get("code"));
-//                                b.append(" - ");
-//                                b.append(d.get("errmsg"));
-//                                b.append("\n");
-//                            }
-//                            throw new MorphiumDriverException("Exception while writing: " + b.toString());
-//                        }
-//                    }
-//                }
-//            }
-//            settings.setMetaData("duration", System.currentTimeMillis() - start);
-//            return null;
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//    }
-//
-
-
-    @SuppressWarnings("StatementWithEmptyBody")
     private OpMsg waitForReply(MongoCommand settings, OpMsg query) throws MorphiumDriverException {
         return waitForReply(settings.getDb(), settings.getColl(), query.getMessageId());
     }
@@ -790,7 +647,7 @@ public class SynchronousMongoConnection extends DriverBase {
             List<Map<String, Object>> ret;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-                ret = readBatches(q.getMessageId(), db, null, getMaxWriteBatchSize());
+                ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             }
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
@@ -805,6 +662,7 @@ public class SynchronousMongoConnection extends DriverBase {
     public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
         return getDbStats(db, false);
     }
+
 
     public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
         return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
@@ -842,7 +700,7 @@ public class SynchronousMongoConnection extends DriverBase {
             List<Map<String, Object>> ret;
             synchronized (SynchronousMongoConnection.this) {
                 sendQuery(q);
-                ret = readBatches(q.getMessageId(), db, null, getMaxWriteBatchSize());
+                ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             }
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
@@ -863,6 +721,7 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
+    @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
             private final List<BulkRequest> requests = new ArrayList<>();
@@ -923,29 +782,4 @@ public class SynchronousMongoConnection extends DriverBase {
         };
     }
 
-//    public void createIndex(String db, String collection, Doc index, Doc options) throws MorphiumDriverException {
-//        new NetworkCallHelper<Map<String,Object>>.doCall(() -> {
-//            Doc cmd = new Doc();
-//            cmd.put("createIndexes", collection);
-//            List<Doc> lst = new ArrayList<>();
-//            Doc idx = new Doc();
-//            idx.put("key", index);
-//            StringBuilder stringBuilder = new StringBuilder();
-//            for (String k : index.keySet()) {
-//                stringBuilder.append(k);
-//                stringBuilder.append("-");
-//                stringBuilder.append(index.get(k));
-//            }
-//
-//            idx.put("name", "idx_" + stringBuilder.toString());
-//            if (options != null) {
-//                idx.putAll(options);
-//            }
-//            lst.add(idx);
-//            cmd.put("indexes", lst);
-//            runCommand(db, cmd);
-//            return null;
-//        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-//
-//    }
 }

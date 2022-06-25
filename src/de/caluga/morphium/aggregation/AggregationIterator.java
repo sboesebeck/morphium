@@ -99,8 +99,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         }
         if (currentBatch == null && cursorExternal == 0) {
             try {
-                //noinspection unchecked
-                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(getAggregateCmdSettings());
+                currentBatch = getAggregateCmdSettings().executeIterable();
             } catch (MorphiumDriverException e) {
                 log.error("error during fetching first batch", e);
             }
@@ -110,7 +109,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     }
 
     private AggregateMongoCommand getAggregateCmdSettings() {
-        AggregateMongoCommand settings = new AggregateMongoCommand();
+        AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver());
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
                 .setPipeline(Doc.convertToDocList(aggregator.getPipeline()))
@@ -138,8 +137,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         try {
             if (currentBatch == null && cursorExternal == 0) {
                 //noinspection unchecked
-
-                currentBatch = aggregator.getMorphium().getDriver().initAggregationIteration(getAggregateCmdSettings());
+                currentBatch = getAggregateCmdSettings().executeIterable();
                 cursor = 0;
             } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
                 cursor++;

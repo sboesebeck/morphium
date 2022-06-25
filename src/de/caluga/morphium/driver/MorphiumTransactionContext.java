@@ -1,5 +1,9 @@
 package de.caluga.morphium.driver;
 
+import de.caluga.morphium.driver.sync.MorphiumTransactionContextImpl;
+
+import java.util.UUID;
+
 /**
  * User: Stephan Bösebeck
  * Date: 03.07.18
@@ -7,6 +11,21 @@ package de.caluga.morphium.driver;
  * <p>
  * TODO: Add documentation here
  */
-public abstract class MorphiumTransactionContext {
+public interface MorphiumTransactionContext {
 
+    Long getTxnNumber();
+
+    boolean getAutoCommit();
+
+    MorphiumTransactionContextImpl setAutoCommit(boolean autoCommit);
+
+    boolean isStarted();
+
+    MorphiumTransactionContextImpl setStarted(boolean started);
+
+    UUID getLsid();
+
+    MorphiumTransactionContextImpl setLsid(UUID lsid);
+
+    MorphiumTransactionContextImpl setTxnNumber(Long txnNumber);
 }

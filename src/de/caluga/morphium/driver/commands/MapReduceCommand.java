@@ -3,7 +3,9 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 
-public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
+import java.util.Map;
+
+public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
     private String map;
     private String reduce;
     private String finalize;
@@ -22,7 +24,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     private Doc writeConcern;
     private String comment;
 
-    public MapReduceSettings(MorphiumDriver d) {
+    public MapReduceCommand(MorphiumDriver d) {
         super(d);
     }
 
@@ -31,7 +33,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return map;
     }
 
-    public MapReduceSettings setMap(String map) {
+    public MapReduceCommand setMap(String map) {
         this.map = map;
         return this;
     }
@@ -40,7 +42,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return reduce;
     }
 
-    public MapReduceSettings setReduce(String reduce) {
+    public MapReduceCommand setReduce(String reduce) {
         this.reduce = reduce;
         return this;
     }
@@ -49,7 +51,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return finalize;
     }
 
-    public MapReduceSettings setFinalize(String finalize) {
+    public MapReduceCommand setFinalize(String finalize) {
         this.finalize = finalize;
         return this;
     }
@@ -58,7 +60,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return outColl;
     }
 
-    public MapReduceSettings setOutColl(String outColl) {
+    public MapReduceCommand setOutColl(String outColl) {
         this.outColl = outColl;
         return this;
     }
@@ -67,7 +69,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return outConfig;
     }
 
-    public MapReduceSettings setOutConfig(Doc outConfig) {
+    public MapReduceCommand setOutConfig(Doc outConfig) {
         this.outConfig = outConfig;
         return this;
     }
@@ -76,7 +78,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return query;
     }
 
-    public MapReduceSettings setQuery(Doc query) {
+    public MapReduceCommand setQuery(Doc query) {
         this.query = query;
         return this;
     }
@@ -85,7 +87,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return sort;
     }
 
-    public MapReduceSettings setSort(Doc sort) {
+    public MapReduceCommand setSort(Doc sort) {
         this.sort = sort;
         return this;
     }
@@ -94,7 +96,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return limit;
     }
 
-    public MapReduceSettings setLimit(Integer limit) {
+    public MapReduceCommand setLimit(Integer limit) {
         this.limit = limit;
         return this;
     }
@@ -103,7 +105,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return scope;
     }
 
-    public MapReduceSettings setScope(Doc scope) {
+    public MapReduceCommand setScope(Doc scope) {
         this.scope = scope;
         return this;
     }
@@ -112,7 +114,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return jsMode;
     }
 
-    public MapReduceSettings setJsMode(Boolean jsMode) {
+    public MapReduceCommand setJsMode(Boolean jsMode) {
         this.jsMode = jsMode;
         return this;
     }
@@ -121,7 +123,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return verbose;
     }
 
-    public MapReduceSettings setVerbose(Boolean verbose) {
+    public MapReduceCommand setVerbose(Boolean verbose) {
         this.verbose = verbose;
         return this;
     }
@@ -130,7 +132,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return bypassDocumentValidation;
     }
 
-    public MapReduceSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public MapReduceCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -139,7 +141,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return collation;
     }
 
-    public MapReduceSettings setCollation(Doc collation) {
+    public MapReduceCommand setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }
@@ -148,7 +150,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
         return writeConcern;
     }
 
-    public MapReduceSettings setWriteConcern(Doc writeConcern) {
+    public MapReduceCommand setWriteConcern(Doc writeConcern) {
         this.writeConcern = writeConcern;
         return this;
     }
@@ -159,7 +161,7 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     }
 
     @Override
-    public MapReduceSettings setComment(String comment) {
+    public MapReduceCommand setComment(String comment) {
         this.comment = comment;
         return this;
     }
@@ -170,8 +172,8 @@ public class MapReduceSettings extends MongoCommand<MapReduceSettings> {
     }
 
     @Override
-    public Doc asMap() {
-        Doc m = super.asMap();
+    public Map<String, Object> asMap() {
+        Map<String, Object> m = super.asMap();
         if (m.containsKey("outColl") && m.containsKey("outConfig")) {
             throw new IllegalArgumentException("Cannot specify out coll and out config!");
         }

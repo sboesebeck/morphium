@@ -1,14 +1,10 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.*;
 
 import java.util.List;
-import java.util.Map;
 
-public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
+public class WatchSettings extends MongoCommand<WatchSettings> {
     private DriverTailableIterationCallback cb;
     private Integer batchSize;
     private List<Doc> pipeline;
@@ -25,11 +21,15 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
 
+    public WatchSettings() {
+        super(null);
+    }
+
     public FullDocumentBeforeChangeEnum getFullDocumentBeforeChange() {
         return fullDocumentBeforeChange;
     }
 
-    public WatchMongoCommand setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
+    public WatchSettings setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
         this.fullDocumentBeforeChange = fullDocumentBeforeChange;
         return this;
     }
@@ -38,7 +38,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return fullDocument;
     }
 
-    public WatchMongoCommand setFullDocument(FullDocumentEnum fullDocument) {
+    public WatchSettings setFullDocument(FullDocumentEnum fullDocument) {
         this.fullDocument = fullDocument;
         return this;
     }
@@ -47,7 +47,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return pipeline;
     }
 
-    public WatchMongoCommand setPipeline(List<Doc> pipeline) {
+    public WatchSettings setPipeline(List<Doc> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -56,7 +56,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return explain;
     }
 
-    public WatchMongoCommand setExplain(Boolean explain) {
+    public WatchSettings setExplain(Boolean explain) {
         this.explain = explain;
         return this;
     }
@@ -65,7 +65,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return allowDiskUse;
     }
 
-    public WatchMongoCommand setAllowDiskUse(Boolean allowDiskUse) {
+    public WatchSettings setAllowDiskUse(Boolean allowDiskUse) {
         this.allowDiskUse = allowDiskUse;
         return this;
     }
@@ -74,7 +74,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return maxWaitTime;
     }
 
-    public WatchMongoCommand setMaxWaitTime(Integer maxWaitTime) {
+    public WatchSettings setMaxWaitTime(Integer maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
         return this;
     }
@@ -83,7 +83,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return bypassDocumentValidation;
     }
 
-    public WatchMongoCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public WatchSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -92,7 +92,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return readConvern;
     }
 
-    public WatchMongoCommand setReadConvern(Doc readConvern) {
+    public WatchSettings setReadConvern(Doc readConvern) {
         this.readConvern = readConvern;
         return this;
     }
@@ -101,7 +101,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return collation;
     }
 
-    public WatchMongoCommand setCollation(Doc collation) {
+    public WatchSettings setCollation(Doc collation) {
         this.collation = collation;
         return this;
     }
@@ -110,7 +110,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return hint;
     }
 
-    public WatchMongoCommand setHint(Object hint) {
+    public WatchSettings setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -119,7 +119,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return writeConern;
     }
 
-    public WatchMongoCommand setWriteConern(Doc writeConern) {
+    public WatchSettings setWriteConern(Doc writeConern) {
         this.writeConern = writeConern;
         return this;
     }
@@ -128,7 +128,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return let;
     }
 
-    public WatchMongoCommand setLet(Doc let) {
+    public WatchSettings setLet(Doc let) {
         this.let = let;
         return this;
     }
@@ -137,7 +137,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return cursor;
     }
 
-    public WatchMongoCommand setCursor(Doc cursor) {
+    public WatchSettings setCursor(Doc cursor) {
         this.cursor = cursor;
         return this;
     }
@@ -146,7 +146,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return cb;
     }
 
-    public WatchMongoCommand setCb(DriverTailableIterationCallback cb) {
+    public WatchSettings setCb(DriverTailableIterationCallback cb) {
         this.cb = cb;
         return this;
     }
@@ -155,7 +155,7 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
         return batchSize;
     }
 
-    public WatchMongoCommand setBatchSize(Integer batchSize) {
+    public WatchSettings setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }
@@ -180,17 +180,13 @@ public class WatchMongoCommand extends MongoCommand<WatchMongoCommand> {
     }
 
     @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
-        throw new IllegalArgumentException("Please use DriverBase.watch()");
+    public String getCommandName() {
+        return null;
     }
 
     @Override
-    public MorphiumCursor execute() throws MorphiumDriverException {
+    public int executeAsync() throws MorphiumDriverException {
         throw new IllegalArgumentException("Please use DriverBase.watch()");
     }
 
-    @Override
-    public int executeGetMsgID() throws MorphiumDriverException {
-        throw new IllegalArgumentException("Please use DriverBase.watch()");
-    }
 }

@@ -113,29 +113,14 @@ public class MongoDriver implements MorphiumDriver {
         return null;
     }
 
-    @Override
-    public MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) {
-        return null;
-    }
-
-    @Override
-    public MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException {
-        return null;
-    }
-
 
     public long count(CountMongoCommand settings) {
         return 0;
     }
 
 
-    public void watch(WatchMongoCommand settings) {
+    public void watch(WatchSettings settings) {
 
-    }
-
-    @Override
-    public MorphiumCursor waitForReplyIterable(long id) {
-        return null;
     }
 
 
@@ -144,7 +129,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Map<String, Object>> mapReduce(MapReduceSettings settings) {
+    public List<Map<String, Object>> mapReduce(MapReduceCommand settings) {
         return null;
     }
 
@@ -168,11 +153,6 @@ public class MongoDriver implements MorphiumDriver {
 
     }
 
-    @Override
-    public Doc store(StoreMongoCommand settings) throws MorphiumDriverException {
-        return null;
-    }
-
 
     public Doc update(UpdateMongoCommand settings) {
         return null;
@@ -187,12 +167,6 @@ public class MongoDriver implements MorphiumDriver {
     public Doc dropDatabase(DropMongoCommand settings) {
         return null;
     }
-
-    @Override
-    public int clearCollection(ClearCollectionSettings settings) {
-        return 0;
-    }
-
 
     public String getAtlasUrl() {
         return atlasUrl;
@@ -224,16 +198,6 @@ public class MongoDriver implements MorphiumDriver {
             }
         }
         return ret;
-    }
-
-    @Override
-    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
-        return null;
     }
 
 
@@ -289,6 +253,21 @@ public class MongoDriver implements MorphiumDriver {
         return colNames;
     }
 
+    @Override
+    public String getReplicaSetName() {
+        return null;
+    }
+
+    @Override
+    public void setReplicaSetName(String replicaSetName) {
+
+    }
+
+    @Override
+    public Map<String, String[]> getCredentials() {
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private void addToListFromCursor(String db, List<Doc> data, Doc res) throws MorphiumDriverException {
         boolean valid;
@@ -313,8 +292,14 @@ public class MongoDriver implements MorphiumDriver {
         } while (valid);
     }
 
-    public ReadPreference getDefaultReadPreference() {
-        return defaultReadPreference;
+    @Override
+    public int getDefaultBatchSize() {
+        return 0;
+    }
+
+    @Override
+    public int getMaxBsonObjectSize() {
+        return 0;
     }
 
 
@@ -344,6 +329,51 @@ public class MongoDriver implements MorphiumDriver {
 
 
     public String getName() {
+        return null;
+    }
+
+    @Override
+    public void setMaxBsonObjectSize(int maxBsonObjectSize) {
+
+    }
+
+    @Override
+    public int getMaxMessageSize() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxMessageSize(int maxMessageSize) {
+
+    }
+
+    @Override
+    public int getMaxWriteBatchSize() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxWriteBatchSize(int maxWriteBatchSize) {
+
+    }
+
+    @Override
+    public boolean isReplicaSet() {
+        return false;
+    }
+
+    @Override
+    public void setReplicaSet(boolean replicaSet) {
+
+    }
+
+    @Override
+    public boolean getDefaultJ() {
+        return false;
+    }
+
+    @Override
+    public de.caluga.morphium.driver.ReadPreference getDefaultReadPreference() {
         return null;
     }
 
@@ -452,6 +482,11 @@ public class MongoDriver implements MorphiumDriver {
         this.heartbeatFrequency = heartbeatFrequency;
     }
 
+    @Override
+    public void setDefaultReadPreference(de.caluga.morphium.driver.ReadPreference rp) {
+
+    }
+
 
     public void setDefaultBatchSize(int defaultBatchSize) {
         this.defaultBatchSize = defaultBatchSize;
@@ -460,6 +495,11 @@ public class MongoDriver implements MorphiumDriver {
 
     public void setCredentials(Map<String, String[]> credentials) {
         this.credentials = credentials;
+    }
+
+    @Override
+    public void setCredentialsFor(String db, String user, String password) {
+
     }
 
     @SuppressWarnings("unused")
@@ -517,6 +557,26 @@ public class MongoDriver implements MorphiumDriver {
         defaultJ = j;
     }
 
+    @Override
+    public boolean replyAvailableFor(int msgId) {
+        return false;
+    }
+
+    @Override
+    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public int getLocalThreshold() {
         return localThreshold;
@@ -545,6 +605,26 @@ public class MongoDriver implements MorphiumDriver {
 
     public void setReadTimeout(int readTimeout) {
         this.readTimeout = readTimeout;
+    }
+
+    @Override
+    public int getMinConnectionsPerHost() {
+        return 0;
+    }
+
+    @Override
+    public void setMinConnectionsPerHost(int minConnectionsPerHost) {
+
+    }
+
+    @Override
+    public int getMaxConnectionsPerHost() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxConnectionsPerHost(int maxConnectionsPerHost) {
+
     }
 
     @Override
@@ -1324,6 +1404,11 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
+    @Override
+    public Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public List<Doc> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
@@ -1853,7 +1938,7 @@ public class MongoDriver implements MorphiumDriver {
                 //need to find return-type for distinct otherwise the damn driver will throw exeptions!
                 List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
-                DistinctIterable<? extends Object> lst = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(field, new BasicDBObject(filter), r.get(0).get(field).getClass());
+                DistinctIterable<? extends Object> lst = getCollection(mongo.getDatabase(db), collection, defaultReadPreference, null).distinct(field, new BasicDBObject(filter), r.get(0).get(field).getClass());
                 for (Object o : lst) {
                     ret.add(o);
                 }
@@ -1862,7 +1947,7 @@ public class MongoDriver implements MorphiumDriver {
                 List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
 
-                it = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
+                it = getCollection(mongo.getDatabase(db), collection, defaultReadPreference, null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
                 if (collation != null) {
                     com.mongodb.client.model.Collation col = getCollation(collation);
                     it.collation(col);
@@ -2012,13 +2097,13 @@ public class MongoDriver implements MorphiumDriver {
 
 
         if (explain) {
-//            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDatabase(db), collection, getDefaultReadPreference(), null).explainAggregate(list, null);
+//            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDatabase(db), collection, readPreference, null).explainAggregate(list, null);
 //            List<Doc> o = new ArrayList<>();
 //            o.add(new HashMap<>(ret));
 //            return o;
             throw new IllegalArgumentException("Not implemented yet!");
         } else {
-            MongoCollection<Document> c = getCollection(mongo.getDatabase(db), collection, getDefaultReadPreference(), null);
+            MongoCollection<Document> c = getCollection(mongo.getDatabase(db), collection, readPreference, null);
             AggregateIterable<Document> it;
             if (currentTransaction.get() == null) {
                 //noinspection unchecked,unchecked
@@ -2033,7 +2118,7 @@ public class MongoDriver implements MorphiumDriver {
                 com.mongodb.client.model.Collation col = getCollation(collation);
                 it.collation(col);
             }
-//            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, getDefaultReadPreference(), null).aggregate(list, opts);
+//            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, readPreference, null).aggregate(list, opts);
             List<Doc> result = new ArrayList<>();
 
             for (Document doc : it) {
