@@ -13,6 +13,11 @@ public class SingleElementCursor extends MorphiumCursor {
     }
 
     @Override
+    public List<Map<String, Object>> getBatch() {
+        return Arrays.asList(element);
+    }
+
+    @Override
     public boolean hasNext() throws MorphiumDriverException {
         return idx == 0;
     }
@@ -40,12 +45,12 @@ public class SingleElementCursor extends MorphiumCursor {
 
     @Override
     public void ahead(int skip) throws MorphiumDriverException {
-        throw new MorphiumDriverException("Not possible");
+
     }
 
     @Override
     public void back(int jump) throws MorphiumDriverException {
-        throw new MorphiumDriverException("Not possible");
+
     }
 
     @Override

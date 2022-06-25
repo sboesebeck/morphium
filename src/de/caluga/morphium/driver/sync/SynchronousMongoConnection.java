@@ -328,35 +328,7 @@ public class SynchronousMongoConnection extends DriverBase {
             } else {
                 final var msg = rep;
                 //no cursor returned, create one
-                MorphiumCursor ret = new MorphiumCursorAdapter() {
-                    private int idx = 0;
-
-                    @Override
-                    public boolean hasNext() throws MorphiumDriverException {
-                        return idx == 0;
-                    }
-
-                    @Override
-                    public Map<String, Object> next() throws MorphiumDriverException {
-                        idx++;
-                        return msg.getFirstDoc();
-                    }
-
-                    @Override
-                    public int available() {
-                        return 1 - idx;
-                    }
-
-                    @Override
-                    public List<Map<String, Object>> getAll() throws MorphiumDriverException {
-                        return List.of(msg.getFirstDoc());
-                    }
-
-                    @Override
-                    public int getCursor() {
-                        return idx;
-                    }
-                };
+                MorphiumCursor ret = new SingleElementCursor(msg.getFirstDoc());
                 return ret;
             }
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
