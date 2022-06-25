@@ -44,7 +44,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
             MorphiumCursor crs = driver.runCommand(getDb(), asMap());
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
-            return crs.getBatch();
+            return crs.next();
         }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
     }
 }
