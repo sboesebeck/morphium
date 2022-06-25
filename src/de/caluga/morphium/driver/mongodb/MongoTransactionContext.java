@@ -2,6 +2,9 @@ package de.caluga.morphium.driver.mongodb;
 
 import com.mongodb.client.ClientSession;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
+import de.caluga.morphium.driver.sync.MorphiumTransactionContextImpl;
+
+import java.util.UUID;
 
 /**
  * User: Stephan Bösebeck
@@ -10,7 +13,7 @@ import de.caluga.morphium.driver.MorphiumTransactionContext;
  * <p>
  * TODO: Add documentation here
  */
-public class MongoTransactionContext extends MorphiumTransactionContext {
+public class MongoTransactionContext implements MorphiumTransactionContext {
     ClientSession session;
 
     public ClientSession getSession() {
@@ -19,5 +22,45 @@ public class MongoTransactionContext extends MorphiumTransactionContext {
 
     public void setSession(ClientSession session) {
         this.session = session;
+    }
+
+    @Override
+    public Long getTxnNumber() {
+        return null;
+    }
+
+    @Override
+    public boolean getAutoCommit() {
+        return false;
+    }
+
+    @Override
+    public MorphiumTransactionContextImpl setAutoCommit(boolean autoCommit) {
+        return null;
+    }
+
+    @Override
+    public boolean isStarted() {
+        return false;
+    }
+
+    @Override
+    public MorphiumTransactionContextImpl setStarted(boolean started) {
+        return null;
+    }
+
+    @Override
+    public UUID getLsid() {
+        return null;
+    }
+
+    @Override
+    public MorphiumTransactionContextImpl setLsid(UUID lsid) {
+        return null;
+    }
+
+    @Override
+    public MorphiumTransactionContextImpl setTxnNumber(Long txnNumber) {
+        return null;
     }
 }

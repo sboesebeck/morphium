@@ -20,11 +20,6 @@ public class ClearCollectionSettings extends WriteMongoCommand<ClearCollectionSe
         return null;
     }
 
-    @Override
-    public List<Map<String, Object>> executeGetResult() throws MorphiumDriverException {
-        return getDelCmd().executeGetResult();
-
-    }
 
     private DeleteMongoCommand getDelCmd() throws MorphiumDriverException {
         DeleteMongoCommand del = new DeleteMongoCommand(getDriver());
@@ -37,13 +32,12 @@ public class ClearCollectionSettings extends WriteMongoCommand<ClearCollectionSe
     }
 
     @Override
-    public MorphiumCursor execute() throws MorphiumDriverException {
-
+    public Map<String, Object> execute() throws MorphiumDriverException {
         return getDelCmd().execute();
     }
 
     @Override
-    public int executeGetMsgID() throws MorphiumDriverException {
-        return getDelCmd().executeGetMsgID();
+    public int executeAsync() throws MorphiumDriverException {
+        return getDelCmd().executeAsync();
     }
 }

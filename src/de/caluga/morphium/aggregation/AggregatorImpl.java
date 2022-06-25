@@ -282,9 +282,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         pipeline.add(Doc.of("$count", "num"));
         List<Map<String, Object>> res = null;
         try {
-            AggregateMongoCommand settings = getAggregateCmdSettings();
-            settings.setPipeline(pipeline);
-            res = getMorphium().getDriver().aggregate(settings);
+            AggregateMongoCommand cmd = getAggregateCmdSettings();
+            cmd.setPipeline(pipeline);
+            res = cmd.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -306,8 +306,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
             try {
-                AggregateMongoCommand settings = getAggregateCmdSettings();
-                morphium.getDriver().aggregate(settings);
+                log.warn("Async operation but callback is null!");
+                AggregateMongoCommand cmd = getAggregateCmdSettings();
+                cmd.executeAsync();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
@@ -327,8 +328,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     private List<R> deserializeList() throws MorphiumDriverException {
-        AggregateMongoCommand settings = getAggregateCmdSettings();
-        List<Map<String, Object>> r = morphium.getDriver().aggregate(settings);
+        AggregateMongoCommand cmd = getAggregateCmdSettings();
+        List<Map<String, Object>> r = cmd.execute();
         List<R> result = new ArrayList<>();
         if (getResultType().equals(Map.class)) {
             //noinspection unchecked
@@ -345,10 +346,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public List<Map<String, Object>> aggregateMap() {
         try {
-            AggregateMongoCommand settings = getAggregateCmdSettings();
+            AggregateMongoCommand cmd = getAggregateCmdSettings();
             var rc = Entity.ReadConcernLevel.majority;
-            if (collation != null) settings.setCollation(Doc.of(getCollation().toQueryObject()));
-            return morphium.getDriver().aggregate(settings);
+            if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
+            return cmd.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -358,8 +359,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         if (callback == null) {
             try {
-                AggregateMongoCommand settings = getAggregateCmdSettings();
-                morphium.getDriver().aggregate(settings);
+                AggregateMongoCommand cmd = getAggregateCmdSettings();
+                cmd.executeAsync();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
@@ -369,8 +370,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             morphium.queueTask(() -> {
                 try {
                     long start = System.currentTimeMillis();
-                    AggregateMongoCommand settings = getAggregateCmdSettings();
-                    List<Map<String, Object>> ret = morphium.getDriver().aggregate(settings);
+                    AggregateMongoCommand cmd = getAggregateCmdSettings();
+                    List<Map<String, Object>> ret = cmd.execute();
                     callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, ret, null, AggregatorImpl.this);
                 } catch (MorphiumDriverException e) {
                     LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
@@ -380,8 +381,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     private AggregateMongoCommand getAggregateCmdSettings() {
-        AggregateMongoCommand settings = new AggregateMongoCommand();
-        settings.setDb(morphium.getDatabase())
+        AggregateMongoCommand cmd = new AggregateMongoCommand(morphium.getDriver());
+        cmd.setDb(morphium.getDatabase())
                 .setColl(getCollectionName())
                 .setPipeline(Doc.convertToDocList(getPipeline()))
                 .setExplain(isExplain())
@@ -390,8 +391,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
         //TODO .setReadConcern(morphium.getReadPreferenceForC)
 
-        if (collation != null) settings.setCollation(Doc.of(getCollation().toQueryObject()));
-        return settings;
+        if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
+        return cmd;
     }
 
     @Override

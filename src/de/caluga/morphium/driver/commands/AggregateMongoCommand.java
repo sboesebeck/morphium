@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.sync.DriverBase;
 import de.caluga.morphium.driver.sync.NetworkCallHelper;
@@ -13,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
+public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoCommand> {
     private List<Doc> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
@@ -27,7 +28,7 @@ public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
     private Integer batchSize;
     private Doc cursor;
 
-    public AggregateMongoCommand(DriverBase d) {
+    public AggregateMongoCommand(MorphiumDriver d) {
         super(d);
     }
 
@@ -142,7 +143,7 @@ public class AggregateMongoCommand extends MongoCommand<AggregateMongoCommand> {
 
 
     @Override
-    public Doc asMap() {
+    public Map<String, Object> asMap() {
         var doc = super.asMap();
         doc.putIfAbsent("cursor", new Doc());
         if (getBatchSize() != null) {

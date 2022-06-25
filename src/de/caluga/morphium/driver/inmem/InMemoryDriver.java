@@ -213,7 +213,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void watch(WatchMongoCommand settings) {
+    public void watch(WatchSettings settings) {
 
     }
 
@@ -228,7 +228,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(MapReduceSettings settings) {
+    public List<Map<String, Object>> mapReduce(MapReduceCommand settings) {
         return null;
     }
 

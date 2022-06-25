@@ -141,9 +141,9 @@ public class RSMonitor {
 
                 if (full) {
 
-                    FindCommand settings = new FindCommand()
+                    FindCommand settings = new FindCommand(morphium.getDriver())
                             .setDb("local").setColl("system.replset").setBatchSize(10).setLimit(10);
-                    List<Map<String, Object>> stats = morphium.getDriver().find(settings);
+                    List<Map<String, Object>> stats = settings.execute();
                     if (stats == null || stats.isEmpty()) {
                         logger.debug("could not get replicaset status");
                     } else {

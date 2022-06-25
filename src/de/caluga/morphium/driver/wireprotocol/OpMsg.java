@@ -154,4 +154,8 @@ public class OpMsg extends WireProtocolMessage {
         return OpCode.OP_MSG.opCode;
     }
 
+    public boolean hasCursor() {
+        return firstDoc != null && firstDoc.containsKey("cursor");
+    }
+
 }

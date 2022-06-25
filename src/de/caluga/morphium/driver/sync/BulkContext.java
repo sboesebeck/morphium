@@ -5,7 +5,6 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.*;
-import org.graalvm.shadowed.org.jcodings.util.Hash;
 
 import java.util.ArrayList;
 import java.util.HashMap;

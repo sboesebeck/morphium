@@ -28,7 +28,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
     private int internalIndex = 0;
     private int index = 0;
 
-    public SynchronousConnectCursor(DriverBase drv, String db, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
+    public SynchronousConnectCursor(DriverBase drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
         this.driver = drv;
         this.multithreaddedAccess = multithreaddedAccess;
         Long cursorId = null;
@@ -40,7 +40,9 @@ public class SynchronousConnectCursor extends MorphiumCursor {
             cursorId = (Long) cursor.get("id");
         }
         setCursorId(cursorId);
-        setCollection(((String) cursor.get("ns")).split("\\.")[1]); //collection name
+        String[] ns = ((String) cursor.get("ns")).split("\\.");
+        setDb(ns[0]); //collection name
+        if (ns.length > 1) setCollection(ns[1]); //collection name
         List<Map<String, Object>> firstBatch;
         if (cursor.get("firstBatch") != null) {
             //noinspection unchecked
@@ -55,7 +57,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
         }
 
         setBatchSize(batchSize);
-        setDb(db);
+
     }
 //    public SynchronousConnectCursor(DriverBase drv, long id,String db, String collection, int batchSize,List<Map<String,Object>> firstBatch , boolean multithreadded) {
 //        this.driver = drv;

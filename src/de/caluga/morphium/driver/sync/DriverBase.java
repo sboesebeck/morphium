@@ -2,13 +2,16 @@ package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.commands.WatchMongoCommand;
+import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.morphium.driver.commands.WatchSettings;
 import de.caluga.morphium.driver.mongodb.Maximums;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,7 +32,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxWait = 1000;
     private boolean keepAlive = true;
     private int soTimeout = 1000;
-    private Map<String, Map<String, String>> credentials;
     private int maxBsonObjectSize;
     private int maxMessageSize = 16 * 1024 * 1024;
     private int maxWriteBatchSize = 1000;
@@ -58,36 +60,53 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
+    private ThreadLocal<MorphiumTransactionContextImpl> transactionContext = new ThreadLocal<>();
+
+
+    private Map<String, String[]> credentials = new HashMap<>();
 
 
     @Override
-    public void setConnectionUrl(String connectionUrl) {
+    public void setConnectionUrl(String connectionUrl) throws MalformedURLException {
+        URL u = new URL(connectionUrl);
 
+        if (!u.getProtocol().equals("mongodb")) {
+            throw new MalformedURLException("unsupported protocol: " + u.getProtocol());
+        }
+
+    }
+
+    @Override
+    public void setHostSeed(String... hosts) {
+        hostSeed = new ArrayList<>();
+        for (String h : hosts) {
+            hostSeed.add(h);
+        }
     }
 
     @Override
     public int getRetriesOnNetworkError() {
-        return MorphiumDriver.super.getRetriesOnNetworkError();
+        return retriesOnNetworkError;
     }
 
     @Override
     public void setRetriesOnNetworkError(int r) {
-        MorphiumDriver.super.setRetriesOnNetworkError(r);
+        retriesOnNetworkError = r;
     }
 
     @Override
     public int getSleepBetweenErrorRetries() {
-        return MorphiumDriver.super.getSleepBetweenErrorRetries();
+        return sleepBetweenRetries;
     }
 
     @Override
     public void setSleepBetweenErrorRetries(int s) {
-        MorphiumDriver.super.setSleepBetweenErrorRetries(s);
+        sleepBetweenRetries = s;
     }
 
     @Override
     public void setCredentials(String db, String login, String pwd) {
-        MorphiumDriver.super.setCredentials(db, login, pwd);
+        credentials.put(db, new String[]{login, pwd});
     }
 
     @Override
@@ -140,7 +159,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     public String getUuidRepresentation() {
-        return null;
+        return BsonEncoder.UUIDRepresentation.STANDARD.name();
     }
 
 
@@ -268,19 +287,18 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     @SuppressWarnings("unused")
-    public Map<String, Map<String, String>> getCredentials() {
+    public Map<String, String[]> getCredentials() {
         return credentials;
     }
 
     @Override
-    public void setCredentials(Map<String, Map<String, String>> credentials) {
+    public void setCredentials(Map<String, String[]> credentials) {
         this.credentials = credentials;
     }
 
     @Override
     public void setCredentialsFor(String db, String user, String password) {
-        credentials.putIfAbsent(db, new HashMap<>());
-        credentials.get(db).put(user, password);
+        credentials.putIfAbsent(db, new String[]{user, password});
     }
 
 
@@ -524,65 +542,37 @@ public abstract class DriverBase implements MorphiumDriver {
         return in.getHostAddress() + ":" + port;
     }
 
-//
-//    
-//    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
-//        return mapReduce(db, collection, mapping, reducing, query, null);
-//    }
-//
-//    
-//    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
-//        return mapReduce(db, collection, mapping, reducing, null, null);
-//    }
+    @Override
+    public MorphiumTransactionContext startTransaction(boolean autoCommit) {
+        if (this.transactionContext.get() != null) throw new IllegalArgumentException("Transaction in progress");
+        MorphiumTransactionContextImpl ctx = new MorphiumTransactionContextImpl();
+        ctx.setLsid(UUID.randomUUID());
+        ctx.setTxnNumber((long) getNextId());
+        this.transactionContext.set(ctx);
+        return ctx;
+    }
 
-//    
-//    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting) throws MorphiumDriverException {
-//        Map<String, Object> cmd = new LinkedHashMap<>();
-//        /*
-//         mapReduce: <collection>,
-//                 map: <function>,
-//                 reduce: <function>,
-//                 finalize: <function>,
-//                 out: <output>,
-//                 query: <document>,
-//                 sort: <document>,
-//                 limit: <number>,
-//                 scope: <document>,
-//                 jsMode: <boolean>,
-//                 verbose: <boolean>,
-//                 bypassDocumentValidation: <boolean>
-//         */
-//
-//        cmd.put("mapReduce", collection);
-//        cmd.put("map", new MongoJSScript(mapping));
-//        cmd.put("reduce", new MongoJSScript(reducing));
-//        cmd.put("out", UtilsMap.of("inline", 1));
-//        if (query != null) {
-//            cmd.put("query", query);
-//        }
-//        if (sorting != null) {
-//            cmd.put("sort", sorting);
-//        }
-//        Map<String, Object> result = runCommand(db, cmd);
-//        if (result == null) {
-//            throw new MorphiumDriverException("Could not get proper result");
-//        }
-//        @SuppressWarnings("unchecked") List<Map<String, Object>> results = (List<Map<String, Object>>) result.get("results");
-//        if (results == null) {
-//            return new ArrayList<>();
-//        }
-//
-//
-//        ArrayList<Map<String, Object>> ret = new ArrayList<>();
-//        for (Map<String, Object> d : results) {
-//            @SuppressWarnings("unchecked") Map<String, Object> value = (Map) d.get("value");
-//            ret.add(value);
-//        }
-//
-//        return ret;
-//    }
+    @Override
+    public MorphiumTransactionContext getTransactionContext() {
+        return transactionContext.get();
+    }
 
-    public abstract void watch(WatchMongoCommand settings) throws MorphiumDriverException;
+    @Override
+    public void setTransactionContext(MorphiumTransactionContext ctx) {
+        if (transactionContext.get() != null) throw new IllegalArgumentException("Transaction already in progress!");
+        if (ctx instanceof MorphiumTransactionContextImpl)
+            transactionContext.set((MorphiumTransactionContextImpl) ctx);
+        else
+            throw new IllegalArgumentException("Transaction context of wrong type!");
+    }
+
+    @Override
+    public boolean isTransactionInProgress() {
+        return transactionContext.get() != null;
+    }
+
+
+    public abstract void watch(WatchSettings settings) throws MorphiumDriverException;
 
     public abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
 
@@ -763,6 +753,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     }
+
 
     public abstract OpMsg getReplyFor(int msgid, long timeout);
 
