@@ -2265,7 +2265,7 @@ public class Morphium implements AutoCloseable {
                     .setQuery(Doc.of(q.toQueryObject()))
                     .setKey(key);
             if (q.getCollation() != null) settings.setCollation(Doc.of(q.getCollation().toQueryObject()));
-            return (List<Object>) settings.execute().get("values");
+            return settings.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -2282,7 +2282,7 @@ public class Morphium implements AutoCloseable {
                     .setDb(config.getDatabase())
                     .setKey(getARHelper().getMongoFieldName(cls, key));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
-            return (List<Object>) settings.execute().get("values");
+            return settings.execute();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

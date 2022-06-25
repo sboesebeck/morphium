@@ -151,16 +151,6 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         return null;
     }
@@ -182,6 +172,31 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
+    @Override
+    public String getReplicaSetName() {
+        return null;
+    }
+
+    @Override
+    public void setReplicaSetName(String replicaSetName) {
+
+    }
+
+    @Override
+    public Map<String, String[]> getCredentials() {
+        return null;
+    }
+
+    @Override
+    public void setCredentials(Map<String, String[]> credentials) {
+
+    }
+
+    @Override
+    public void setCredentialsFor(String db, String user, String password) {
+
+    }
+
     public void resetData() {
         database.clear();
         currentTransaction.remove();
@@ -192,25 +207,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
-    @Override
-    public List<Map<String, Object>> aggregate(AggregateMongoCommand settings) {
-        return null;
-    }
 
-    @Override
-    public MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public long count(CountMongoCommand settings) {
-        return 0;
-    }
 
     @Override
     public void watch(WatchSettings settings) {
@@ -218,69 +215,79 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public MorphiumCursor waitForReplyIterable(long id) {
+    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public List<Object> distinct(DistinctMongoCommand settings) {
+    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public List<Map<String, Object>> mapReduce(MapReduceCommand settings) {
+    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
         return null;
-    }
-
-    @Override
-    public int delete(DeleteMongoCommand settings) {
-        return 0;
-    }
-
-    @Override
-    public List<Map<String, Object>> find(FindCommand settings) {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> findAndModify(FindAndModifyMongoCommand settings) {
-        return null;
-    }
-
-    @Override
-    public void insert(InsertMongoCommand settings) {
-
-    }
-
-    @Override
-    public Doc store(StoreMongoCommand settings) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public Doc update(UpdateMongoCommand settings) {
-        return null;
-    }
-
-    @Override
-    public Doc drop(DropMongoCommand settings) {
-        return null;
-    }
-
-    @Override
-    public Doc dropDatabase(DropMongoCommand settings) {
-        return null;
-    }
-
-    @Override
-    public int clearCollection(ClearCollectionSettings settings) {
-        return 0;
     }
 
 
     @Override
     public String getName() {
         return null;
+    }
+
+    @Override
+    public int getMaxBsonObjectSize() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxBsonObjectSize(int maxBsonObjectSize) {
+
+    }
+
+    @Override
+    public int getMaxMessageSize() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxMessageSize(int maxMessageSize) {
+
+    }
+
+    @Override
+    public int getMaxWriteBatchSize() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxWriteBatchSize(int maxWriteBatchSize) {
+
+    }
+
+    @Override
+    public boolean isReplicaSet() {
+        return false;
+    }
+
+    @Override
+    public void setReplicaSet(boolean replicaSet) {
+
+    }
+
+    @Override
+    public boolean getDefaultJ() {
+        return false;
+    }
+
+    @Override
+    public int getDefaultWriteTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setDefaultWriteTimeout(int wt) {
+
     }
 
 
@@ -346,6 +353,76 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public int getMaxConnections() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxConnections(int maxConnections) {
+
+    }
+
+    @Override
+    public int getMinConnections() {
+        return 0;
+    }
+
+    @Override
+    public void setMinConnections(int minConnections) {
+
+    }
+
+    @Override
+    public boolean isRetryReads() {
+        return false;
+    }
+
+    @Override
+    public void setRetryReads(boolean retryReads) {
+
+    }
+
+    @Override
+    public boolean isRetryWrites() {
+        return false;
+    }
+
+    @Override
+    public void setRetryWrites(boolean retryWrites) {
+
+    }
+
+    @Override
+    public int getReadTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setReadTimeout(int readTimeout) {
+
+    }
+
+    @Override
+    public int getMinConnectionsPerHost() {
+        return 0;
+    }
+
+    @Override
+    public void setMinConnectionsPerHost(int minConnectionsPerHost) {
+
+    }
+
+    @Override
+    public int getMaxConnectionsPerHost() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxConnectionsPerHost(int maxConnectionsPerHost) {
+
+    }
+
+    @Override
     public void setCredentials(String db, String login, String pwd) {
 
     }
@@ -370,10 +447,20 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         database.clear();
     }
+
+    @Override
+    public boolean isReplicaset() {
+        return false;
+    }
 //
 
     public Map<String, Object> getReplsetStatus() {
         return new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
+        return null;
     }
 
 //    
@@ -978,6 +1065,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
+    @Override
+    public Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
+    }
+
     @SuppressWarnings("ConstantConditions")
 
     public Doc update(String db, String collection, Doc query, Map<String, Integer> sort, Doc op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
@@ -1294,6 +1386,101 @@ public class InMemoryDriver implements MorphiumDriver {
         return 0;
     }
 
+    @Override
+    public int getMaxConnectionLifetime() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxConnectionLifetime(int timeout) {
+
+    }
+
+    @Override
+    public int getMaxConnectionIdleTime() {
+        return 0;
+    }
+
+    @Override
+    public void setMaxConnectionIdleTime(int time) {
+
+    }
+
+    @Override
+    public int getConnectionTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setConnectionTimeout(int timeout) {
+
+    }
+
+    @Override
+    public int getDefaultW() {
+        return 0;
+    }
+
+    @Override
+    public void setDefaultW(int w) {
+
+    }
+
+    @Override
+    public int getHeartbeatFrequency() {
+        return 0;
+    }
+
+    @Override
+    public void setHeartbeatFrequency(int heartbeatFrequency) {
+
+    }
+
+    @Override
+    public ReadPreference getDefaultReadPreference() {
+        return null;
+    }
+
+    @Override
+    public void setDefaultReadPreference(ReadPreference rp) {
+
+    }
+
+    @Override
+    public int getDefaultBatchSize() {
+        return 0;
+    }
+
+    @Override
+    public void setDefaultBatchSize(int defaultBatchSize) {
+
+    }
+
+    @Override
+    public boolean isUseSSL() {
+        return false;
+    }
+
+    @Override
+    public void setUseSSL(boolean useSSL) {
+
+    }
+
+    @Override
+    public boolean isDefaultJ() {
+        return false;
+    }
+
+    @Override
+    public void setDefaultJ(boolean j) {
+
+    }
+
+    @Override
+    public boolean replyAvailableFor(int msgId) {
+        return false;
+    }
+
 
     public List<Object> distinct(String db, String collection, String field, Doc filter, Collation collation, ReadPreference rp) {
         List<Doc> list = getDB(db).get(collection);
@@ -1385,6 +1572,16 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public void setMaxWaitTime(int maxWaitTime) {
 
+    }
+
+    @Override
+    public String[] getCredentials(String db) {
+        return new String[0];
+    }
+
+    @Override
+    public String[] getHostSeed() {
+        return new String[0];
     }
 
 

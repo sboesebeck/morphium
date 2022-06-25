@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> implements SingleResultCommand {
+public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
     private String key;
     private Doc query;
     private Doc readConcern;
@@ -62,18 +62,18 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> imp
         return this;
     }
 
-    @Override
-    public Map<String, Object> execute() throws MorphiumDriverException {
+
+    public List<Object> execute() throws MorphiumDriverException {
         MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
+        return new NetworkCallHelper<List<Object>>().doCall(() -> {
             setMetaData(Doc.of("server", driver.getHostSeed()[0]));
             long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+            var res = driver.runCommandSingleResult(getDb(), asMap());
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
-            return crs.getBatch();
+            return (List<Object>) res.get("values");
         }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
     }
 }
