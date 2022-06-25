@@ -183,9 +183,9 @@ public class MorphiumTestBase {
         try {
             if (!morphium.getConfig().isAtlas()) {
                 log.info("Dropping database: " + morphium.getConfig().getDatabase());
-                DropMongoCommand settings = new DropMongoCommand();
+                DropMongoCommand settings = new DropMongoCommand(morphium.getDriver());
                 settings.setDb(morphium.getConfig().getDatabase());
-                morphium.getDriver().dropDatabase(settings);
+                settings.execute();
             }
         } catch (MorphiumDriverException e) {
             e.printStackTrace();

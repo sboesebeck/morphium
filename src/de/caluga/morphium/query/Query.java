@@ -400,7 +400,7 @@ public class Query<T> implements Cloneable {
             settings.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
         }
         try {
-            ret = (long) settings.execute().get("n");
+            ret = settings.getCount();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -548,7 +548,7 @@ public class Query<T> implements Cloneable {
                     .setColl(getCollectionName())
                     .setKey(field)
                     .setQuery(Doc.of(toQueryObject()))
-                    .setCollation(Doc.of(getCollation().toQueryObject())).execute();// morphium.getReadPreferenceForClass(getType()));
+                    .setCollation(Doc.of(getCollation().toQueryObject())).execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -849,13 +849,13 @@ public class Query<T> implements Cloneable {
         }
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             try {
-                CountMongoCommand settings = new CountMongoCommand().setDb(getDB())
+                CountMongoCommand settings = new CountMongoCommand(getMorphium().getDriver()).setDb(getDB())
                         .setColl(getCollectionName())
                         //.setQuery(Doc.of(this.toQueryObject()))
                         ;
                 if (getCollation() != null)
                     settings.setCollation(Doc.of(getCollation().toQueryObject()));
-                ret = morphium.getDriver().count(settings);
+                ret = settings.getCount();
 //                            .setReadConcern(getRP().);
             } catch (MorphiumDriverException e) {
                 log.error("Error counting", e);
@@ -863,7 +863,7 @@ public class Query<T> implements Cloneable {
             }
         } else {
             try {
-                ret = morphium.getDriver().count(new CountMongoCommand().setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())));
+                ret = new CountMongoCommand(getMorphium().getDriver()).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).getCount();
             } catch (MorphiumDriverException e) {
                 // TODO: Implement Handling
                 throw new RuntimeException(e);
@@ -1060,7 +1060,7 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                ret = morphium.getDriver().find(getFindCmdSettings());
+                ret = getFindCmdSettings().execute();
 
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1090,7 +1090,7 @@ public class Query<T> implements Cloneable {
             try {
 
                 FindCommand settings = getFindCmdSettings();
-                ret = morphium.getDriver().find(settings);
+                ret = settings.execute();
                 srv = (String) settings.getMetaData().get("server");
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1141,7 +1141,7 @@ public class Query<T> implements Cloneable {
             if (queryObject != null) settings.setFilter(Doc.of(queryObject));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
             if (sort != null) settings.setSort(new Doc(sort));
-            var query = morphium.getDriver().find(settings);
+            var query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
 
 
@@ -1233,11 +1233,11 @@ public class Query<T> implements Cloneable {
                         }
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        UpdateMongoCommand settings = new UpdateMongoCommand()
+                        UpdateMongoCommand settings = new UpdateMongoCommand(getMorphium().getDriver())
                                 .setDb(getDB())
                                 .setColl(getCollectionName())
                                 .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
-                        morphium.getDriver().update(settings);
+                        settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
@@ -1336,7 +1336,7 @@ public class Query<T> implements Cloneable {
         limit(1);
         try {
             FindCommand settings = getFindCmdSettings();
-            srch = morphium.getDriver().find(settings);
+            srch = settings.execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1426,7 +1426,7 @@ public class Query<T> implements Cloneable {
 
             FindCommand settings = getFindCmdSettings();
             settings.setProjection(Doc.of("_id", 1));
-            query = morphium.getDriver().find(settings);
+            query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
@@ -2205,7 +2205,7 @@ public class Query<T> implements Cloneable {
     }
 
     public FindCommand getFindCmdSettings() {
-        FindCommand settings = new FindCommand()
+        FindCommand settings = new FindCommand(getMorphium().getDriver())
                 .setDb(getMorphium().getConfig().getDatabase())
                 .setColl(getCollectionName())
                 .setFilter(toQueryObject())

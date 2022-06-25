@@ -121,7 +121,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
         try {
             for (WriteBufferEntry entry : localQueue) {
-                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
+                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
                     createCappedColl(entry.getEntityType(), entry.getCollectionName());
                     //noinspection unchecked,unchecked
                     morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb(), directWriter);
