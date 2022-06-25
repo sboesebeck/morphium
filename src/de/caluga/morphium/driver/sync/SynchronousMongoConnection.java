@@ -74,29 +74,6 @@ public class SynchronousMongoConnection extends DriverBase {
             out = s.getOutputStream();
             in = s.getInputStream();
 
-
-            var result = runCommand("local", Doc.of("hello", true, "helloOk", true,
-                    "client", Doc.of("application", Doc.of("name", "Morphium"),
-                            "driver", Doc.of("name", "MorphiumDriver", "version", "1.0"),
-                            "os", Doc.of("type", "MacOs"))
-
-            )).next();
-            //log.info("Got result");
-            if (!result.get("secondary").equals(false)) {
-                //TODO: search for master!
-                disconnect();
-                throw new RuntimeException("Cannot run with secondary connection only!");
-            }
-            if (replSet != null) {
-                setReplicaSetName((String) result.get("setName"));
-                if (replSet != null && !replSet.equals(getReplicaSetName())) {
-                    throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
-                }
-            }
-            setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
-            setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
-            setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
-
             readerThread = new Thread(() -> {
                 while (running) {
                     try {
@@ -124,6 +101,30 @@ public class SynchronousMongoConnection extends DriverBase {
                     Thread.yield();
                 }
             });
+            readerThread.start();
+
+            var result = runCommand("local", Doc.of("hello", true, "helloOk", true,
+                    "client", Doc.of("application", Doc.of("name", "Morphium"),
+                            "driver", Doc.of("name", "MorphiumDriver", "version", "1.0"),
+                            "os", Doc.of("type", "MacOs"))
+
+            )).next();
+            //log.info("Got result");
+            if (!result.get("secondary").equals(false)) {
+                //TODO: search for master!
+                disconnect();
+                throw new RuntimeException("Cannot run with secondary connection only!");
+            }
+            if (replSet != null) {
+                setReplicaSetName((String) result.get("setName"));
+                if (replSet != null && !replSet.equals(getReplicaSetName())) {
+                    throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
+                }
+            }
+            setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
+            setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
+            setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
+
 
         } catch (IOException e) {
             throw new MorphiumDriverException("connection failed", e);
