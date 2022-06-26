@@ -12,4 +12,6 @@ public class DropMongoCommand extends WriteMongoCommand<DropMongoCommand> {
     public String getCommandName() {
         return "drop";
     }
+
+
 }

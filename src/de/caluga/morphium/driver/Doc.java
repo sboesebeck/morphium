@@ -77,7 +77,7 @@ public class Doc extends LinkedHashMap<String, Object> {
 
     public static List<Map<String, Object>> convertToMapList(List<Doc> lst) {
         var ret = new ArrayList<Map<String, Object>>();
-        for (Doc m : lst) {
+        for (Map<String, Object> m : lst) {
             Map<String, Object> map = new LinkedHashMap<>(m);
             ret.add(map);
         }

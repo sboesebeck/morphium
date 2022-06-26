@@ -1,10 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
 import java.util.ArrayList;
@@ -12,10 +9,19 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand {
-
+    private ReadPreference readPreference;
 
     public ReadMongoCommand(MorphiumDriver d) {
         super(d);
+    }
+
+    public ReadPreference getReadPreference() {
+        return readPreference;
+    }
+
+    public T setReadPreference(ReadPreference readPreference) {
+        this.readPreference = readPreference;
+        return (T) this;
     }
 
     public List<Map<String, Object>> execute() throws MorphiumDriverException {

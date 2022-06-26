@@ -4,9 +4,10 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 
 import java.util.List;
+import java.util.Map;
 
 public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
-    private List<Doc> documents;
+    private List<Map<String, Object>> documents;
     private Boolean ordered;
     private Boolean bypassDocumentValidation;
     private String comment;
@@ -15,11 +16,11 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
         super(d);
     }
 
-    public List<Doc> getDocuments() {
+    public List<Map<String, Object>> getDocuments() {
         return documents;
     }
 
-    public InsertMongoCommand setDocuments(List<Doc> documents) {
+    public InsertMongoCommand setDocuments(List<Map<String, Object>> documents) {
         this.documents = documents;
         return this;
     }

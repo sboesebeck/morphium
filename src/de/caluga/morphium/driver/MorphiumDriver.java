@@ -181,6 +181,7 @@ public interface MorphiumDriver {
 
     Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
 
+
     MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     /**

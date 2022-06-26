@@ -188,8 +188,8 @@ public class MongoDriver implements MorphiumDriver {
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             //noinspection unchecked
-            List<Doc> lst = (List<Doc>) res.get("databases");
-            for (Doc db : lst) {
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+            for (Map<String, Object> db : lst) {
                 if (db.get("name") != null) {
                     ret.add(db.get("name").toString());
                 } else {
@@ -243,11 +243,11 @@ public class MongoDriver implements MorphiumDriver {
             command.put("filter", query);
         }
         Doc res = runCommand(db, command);
-        List<Doc> colList = new ArrayList<>();
+        List<Map<String, Object>> colList = new ArrayList<>();
         List<String> colNames = new ArrayList<>();
         addToListFromCursor(db, colList, res);
 
-        for (Doc col : colList) {
+        for (Map<String, Object> col : colList) {
             colNames.add(col.get("name").toString());
         }
         return colNames;
@@ -269,15 +269,15 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @SuppressWarnings("unchecked")
-    private void addToListFromCursor(String db, List<Doc> data, Doc res) throws MorphiumDriverException {
+    private void addToListFromCursor(String db, List<Map<String, Object>> data, Doc res) throws MorphiumDriverException {
         boolean valid;
         Doc crs = (Doc) res.get("cursor");
         do {
             if (crs.get("firstBatch") != null) {
                 //noinspection unchecked
-                data.addAll((List<Doc>) crs.get("firstBatch"));
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             } else if (crs.get("nextBatch") != null) {
-                data.addAll((List<Doc>) crs.get("firstBatch"));
+                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
             }
             //next iteration.
             Doc doc = Doc.of();
@@ -1007,7 +1007,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Doc findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(aggregationPipeline);
         return DriverHelper.doCall(() -> {
 
@@ -1209,7 +1209,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watch(db, null, maxWaitTime, fullDocumentOnUpdate, pipeline, cb);
     }
 
@@ -1249,14 +1249,14 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, String collection, int maxWaitTime, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         DriverHelper.doCall(() -> {
             List<Bson> p;
             if (pipeline == null) {
                 p = Collections.emptyList();
             } else {
                 p = new ArrayList<>();
-                for (Doc o : pipeline) {
+                for (Map<String, Object> o : pipeline) {
                     p.add(new BasicDBObject(o));
                 }
             }
@@ -1410,7 +1410,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
+    public List<Map<String, Object>> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         //noinspection unused
         return DriverHelper.doCall(() -> {
@@ -1445,7 +1445,7 @@ public class MongoDriver implements MorphiumDriver {
             MongoCursor<Document> ret = it.iterator();
             handleMetaData(findMetaData, ret);
 
-            List<Doc> values = new ArrayList<>();
+            List<Map<String, Object>> values = new ArrayList<>();
             while (ret.hasNext()) {
                 Document d = ret.next();
                 Doc obj = convertBSON(d);
@@ -1520,7 +1520,7 @@ public class MongoDriver implements MorphiumDriver {
                         || value instanceof Document
                         || value instanceof BSONObject) {
                     //noinspection unchecked
-                    value = convertBSON((Doc) value);
+                    value = convertBSON((Map<String, Object>) value);
                 } else if (value instanceof Binary) {
                     Binary b = (Binary) value;
                     value = b.getData();
@@ -1534,7 +1534,7 @@ public class MongoDriver implements MorphiumDriver {
                         //noinspection unchecked
                         {
                             //noinspection unchecked
-                            v.add(convertBSON((Doc) o));
+                            v.add(convertBSON((Map<String, Object>) o));
                         } else if (o instanceof ObjectId) {
                             //noinspection unchecked
                             v.add(new MorphiumId(((ObjectId) o).toString()));
@@ -1556,7 +1556,7 @@ public class MongoDriver implements MorphiumDriver {
                         } else //noinspection ConstantConditions,DuplicateCondition
                             if (value instanceof BSONObject) {
                                 //noinspection unchecked
-                                value = convertBSON((Doc) value);
+                                value = convertBSON((Map<String, Object>) value);
                             }
             obj.put(entry.getKey(), value);
         }
@@ -1636,7 +1636,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public long count(String db, String collection, Doc query, Collation collation, ReadPreference rp) {
+    public long count(String db, String collection, Map<String, Object> query, Collation collation, ReadPreference rp) {
         DriverHelper.replaceMorphiumIdByObjectId(query);
         MongoDatabase database = mongo.getDatabase(db);
         MongoCollection<Document> coll = getCollection(database, collection, rp, null);
@@ -1667,7 +1667,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public Map<String, Integer> store(String db, String collection, List<Doc> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
 
         return DriverHelper.doCall(() -> {
             DriverHelper.replaceMorphiumIdByObjectId(objs);
@@ -1676,7 +1676,7 @@ public class MongoDriver implements MorphiumDriver {
             //                mongo.getDB(db).getCollection(collection).save()
             int total = objs.size();
             int updated = 0;
-            for (Doc toUpdate : objs) {
+            for (Map<String, Object> toUpdate : objs) {
 
                 Document filter = new Document();
                 Object id = toUpdate.get("_id");
@@ -1739,7 +1739,7 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public void insert(String db, String collection, List<Doc> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
+    public void insert(String db, String collection, List<Map<String, Object>> objs, de.caluga.morphium.driver.WriteConcern wc) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(objs);
         if (objs == null || objs.isEmpty()) {
             return;
@@ -1936,7 +1936,7 @@ public class MongoDriver implements MorphiumDriver {
             DistinctIterable<?> it;
             if (currentTransaction.get() == null) {
                 //need to find return-type for distinct otherwise the damn driver will throw exeptions!
-                List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
+                List<Map<String, Object>> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
                 DistinctIterable<? extends Object> lst = getCollection(mongo.getDatabase(db), collection, defaultReadPreference, null).distinct(field, new BasicDBObject(filter), r.get(0).get(field).getClass());
                 for (Object o : lst) {
@@ -1944,7 +1944,7 @@ public class MongoDriver implements MorphiumDriver {
                 }
             } else {
 
-                List<Doc> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
+                List<Map<String, Object>> r = find(db, collection, filter, null, Doc.of(field, 1), 0, 1, 1, defaultReadPreference, collation, null);
                 if (r == null || r.size() == 0) return null;
 
                 it = getCollection(mongo.getDatabase(db), collection, defaultReadPreference, null).distinct(currentTransaction.get().getSession(), field, new BasicDBObject(filter), r.get(0).get(field).getClass());
@@ -1987,10 +1987,10 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> getIndexes(String db, String collection) throws MorphiumDriverException {
+    public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked,ConstantConditions
         return DriverHelper.doCall(() -> {
-            List<Doc> values = new ArrayList<>();
+            List<Map<String, Object>> values = new ArrayList<>();
 
             ListIndexesIterable<Document> indexes;
             if (currentTransaction.get() != null) {
@@ -2089,8 +2089,8 @@ public class MongoDriver implements MorphiumDriver {
 
     @SuppressWarnings("CommentedOutCode")
 
-    public List<Doc> aggregate(String db, String collection, List<Doc> pipeline,
-                               boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
+    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline,
+                                               boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) {
         DriverHelper.replaceMorphiumIdByObjectId(pipeline);
         //noinspection unchecked
         List<BasicDBObject> list = pipeline.stream().map(BasicDBObject::new).collect(Collectors.toList());
@@ -2098,7 +2098,7 @@ public class MongoDriver implements MorphiumDriver {
 
         if (explain) {
 //            @SuppressWarnings({"unchecked", "ConstantConditions"}) CommandResult ret = getColl(mongo.getDatabase(db), collection, readPreference, null).explainAggregate(list, null);
-//            List<Doc> o = new ArrayList<>();
+//            List<Map<String,Object>> o = new ArrayList<>();
 //            o.add(new HashMap<>(ret));
 //            return o;
             throw new IllegalArgumentException("Not implemented yet!");
@@ -2119,7 +2119,7 @@ public class MongoDriver implements MorphiumDriver {
                 it.collation(col);
             }
 //            @SuppressWarnings("unchecked") Cursor ret = getColl(mongo.getDB(db), collection, readPreference, null).aggregate(list, opts);
-            List<Doc> result = new ArrayList<>();
+            List<Map<String, Object>> result = new ArrayList<>();
 
             for (Document doc : it) {
                 //noinspection unchecked
@@ -2262,17 +2262,17 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing) {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) {
         return mapReduce(db, collection, mapping, reducing, null, null, null);
     }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query) {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query) {
         return mapReduce(db, collection, mapping, reducing, query, null, null);
     }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) {
         MapReduceIterable<Document> res;
         if (currentTransaction.get() == null) {
             res = mongo.getDatabase(db).getCollection(collection).mapReduce(mapping, reducing);
@@ -2290,7 +2290,7 @@ public class MongoDriver implements MorphiumDriver {
         if (sorting != null) {
             res.sort(new BasicDBObject(sorting));
         }
-        ArrayList<Doc> ret = new ArrayList<>();
+        ArrayList<Map<String, Object>> ret = new ArrayList<>();
         for (Document d : res) {
             //noinspection unchecked
             Doc value = (Doc) d.get("value");

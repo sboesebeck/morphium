@@ -86,7 +86,8 @@ public class SynchronousMongoConnection extends DriverBase {
                                     log.error("Received wrong answer - expected " + unsansweredMessageId + " but got " + msg.getResponseTo());
                                 }
                                 unsansweredMessageId = 0;
-                                for (var k : incomingTimes.keySet()) {
+                                var s = new HashSet(incomingTimes.keySet());
+                                for (var k : s) {
                                     if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
                                         log.warn("Discarding unused answer " + k);
                                         incoming.remove(k);
@@ -325,6 +326,8 @@ public class SynchronousMongoConnection extends DriverBase {
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
                 return new SynchronousConnectCursor(this, getDefaultBatchSize(), false, rep);
+            } else if (rep.getFirstDoc().containsKey("results")) {
+                return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results"));
             } else {
                 final var msg = rep;
                 //no cursor returned, create one
@@ -740,7 +743,7 @@ public class SynchronousMongoConnection extends DriverBase {
             }
 
 
-            public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
+            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
@@ -754,5 +757,6 @@ public class SynchronousMongoConnection extends DriverBase {
             }
         };
     }
+
 
 }

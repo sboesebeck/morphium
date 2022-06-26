@@ -19,7 +19,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
     private String coll;
 
     private String comment;
-    private ReadPreference readPreference;
+
     private Map<String, Object> metaData;
     private MorphiumDriver driver;
 
@@ -86,14 +86,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return (T) this;
     }
 
-    public ReadPreference getReadPreference() {
-        return readPreference;
-    }
-
-    public T setReadPreference(ReadPreference readPreference) {
-        this.readPreference = readPreference;
-        return (T) this;
-    }
 
     public Map<String, Object> asMap() {
         Object o;

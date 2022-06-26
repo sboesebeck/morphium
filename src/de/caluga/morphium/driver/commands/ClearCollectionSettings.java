@@ -36,6 +36,11 @@ public class ClearCollectionSettings extends WriteMongoCommand<ClearCollectionSe
         return getDelCmd().execute();
     }
 
+    public int doClear() throws MorphiumDriverException {
+        var ret = getDelCmd().execute();
+        return (Integer) ret.get("n");
+    }
+
     @Override
     public int executeAsync() throws MorphiumDriverException {
         return getDelCmd().executeAsync();

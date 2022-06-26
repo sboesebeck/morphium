@@ -12,7 +12,7 @@ public class InMemDumpContainer {
     @Id
     private Long created;
     private String db;
-    private Map<String, List<Doc>> data;
+    private Map<String, List<Map<String, Object>>> data;
 
     public String getDb() {
         return db;
@@ -30,11 +30,11 @@ public class InMemDumpContainer {
         this.created = created;
     }
 
-    public Map<String, List<Doc>> getData() {
+    public Map<String, List<Map<String, Object>>> getData() {
         return data;
     }
 
-    public void setData(Map<String, List<Doc>> data) {
+    public void setData(Map<String, List<Map<String, Object>>> data) {
         this.data = data;
     }
 }

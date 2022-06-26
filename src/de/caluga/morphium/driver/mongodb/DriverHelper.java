@@ -88,7 +88,7 @@ public class DriverHelper {
         if (in == null || in.isEmpty()) {
             return;
         }
-        for (Doc map : in) {
+        for (Map<String, Object> map : in) {
             replaceMorphiumIdByObjectId(map);
         }
     }
@@ -190,16 +190,16 @@ public class DriverHelper {
     }
 
 
-    public static void replaceMorphiumIdByObjectId(List<Doc> in) {
+    public static void replaceMorphiumIdByObjectId(List<Map<String, Object>> in) {
         if (in == null || in.isEmpty()) {
             return;
         }
-        for (Doc map : in) {
+        for (Map<String, Object> map : in) {
             replaceMorphiumIdByObjectId(map);
         }
     }
 
-    public static void replaceMorphiumIdByObjectId(Doc m) {
+    public static void replaceMorphiumIdByObjectId(Map<String, Object> m) {
         if (m == null || m.isEmpty()) {
             return;
         }

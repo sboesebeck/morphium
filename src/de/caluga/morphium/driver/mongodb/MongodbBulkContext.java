@@ -57,7 +57,7 @@ public class MongodbBulkContext extends BulkRequestContext {
     }
 
     @Override
-    public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
+    public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
         InsertBulkRequest in = new InsertBulkRequest(toInsert);
         addRequest(in);
         return in;

@@ -196,12 +196,12 @@ public class SynchronousConnectCursor extends MorphiumCursor {
     public void ahead(int jump) throws MorphiumDriverException {
         internalIndex += jump;
         index += jump;
-        while (internalIndex >= getBatch().size()) {
+        while (getBatch() != null && internalIndex >= getBatch().size()) {
             int diff = internalIndex - getBatch().size();
-            internalIndex = getBatch().size() - 1;
+            getNextIteration();
+            internalIndex = diff;
 
-            next();
-            internalIndex += diff;
+
         }
     }
 

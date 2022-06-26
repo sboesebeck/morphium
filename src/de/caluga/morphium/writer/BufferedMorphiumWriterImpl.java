@@ -283,7 +283,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         addToWriteQueue(o.getClass(), collection, ctx -> {
             //do nothing
             morphium.firePreStore(o, true);
-            ArrayList<Doc> objToInsert = new ArrayList<>();
+            ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
             try {
                 setIdIfNull(o);
             } catch (IllegalAccessException e) {
@@ -339,7 +339,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         final AsyncOperationCallback<T> finalC = c;
         addToWriteQueue(lst.get(0).getClass(), collectionName, ctx -> {
             Map<Object, Boolean> map = new HashMap<>();
-            List<Doc> marshalled = new ArrayList<>();
+            List<Map<String, Object>> marshalled = new ArrayList<>();
             for (T o : lst) {
                 map.put(o, true);
                 try {
@@ -371,7 +371,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
             morphium.firePreStore(o, isNew);
             if (isNew) {
-                ArrayList<Doc> objToInsert = new ArrayList<>();
+                ArrayList<Map<String, Object>> objToInsert = new ArrayList<>();
                 try {
                     setIdIfNull(o);
                 } catch (IllegalAccessException e) {
@@ -462,7 +462,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 map.put(o, morphium.getARHelper().getId(o) == null);
             }
             morphium.firePreStore(map);
-            List<Doc> toInsert = new ArrayList<>();
+            List<Map<String, Object>> toInsert = new ArrayList<>();
             for (Map.Entry<Object, Boolean> entry : map.entrySet()) {
                 if (entry.getValue()) {
                     try {

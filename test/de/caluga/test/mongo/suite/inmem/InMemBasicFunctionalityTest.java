@@ -706,8 +706,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         UncachedObject uc = new UncachedObject("String", 42);
         morphium.insert(uc);
 
-        Map<String, List<Doc>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
-        List<Doc> collection = database.get("uncached_object");
+        Map<String, List<Map<String, Object>>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
+        List<Map<String, Object>> collection = database.get("uncached_object");
         assertThat(collection.size()).isEqualTo(1);
         assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
         UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());

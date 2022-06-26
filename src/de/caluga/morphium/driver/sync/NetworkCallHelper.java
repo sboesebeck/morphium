@@ -48,6 +48,8 @@ public class NetworkCallHelper<T> {
                 logger.info("no retries left - re-throwing exception");
                 throw (new MorphiumDriverNetworkException("Network error error", e));
             }
+        } else if (e instanceof MorphiumDriverException) {
+            throw ((MorphiumDriverException) e);
         } else {
             throw (new MorphiumDriverException("internal error", e));
         }
