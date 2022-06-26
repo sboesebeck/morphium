@@ -152,7 +152,7 @@ public class MorphiumBulkContext<T> {
 
     public void addInsertRequest(List<T> toInsert) {
         Map<Object, Boolean> isNew = new HashMap<>();
-        List<Doc> ins = new ArrayList<>();
+        List<Map<String, Object>> ins = new ArrayList<>();
         for (Object o : toInsert) {
             Map<String, Object> marshall = ctx.getMorphium().getMapper().serialize(o);
             ins.add(Doc.of(marshall));

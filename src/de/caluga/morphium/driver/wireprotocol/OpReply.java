@@ -45,7 +45,7 @@ public class OpReply extends WireProtocolMessage {
         writeLong(cursorId, out);
         writeInt(startFrom, out);
         writeInt(numReturned, out);
-        for (Doc doc : documents) {
+        for (Map<String, Object> doc : documents) {
             out.write(BsonEncoder.encodeDocument(doc));
         }
         return out.toByteArray();

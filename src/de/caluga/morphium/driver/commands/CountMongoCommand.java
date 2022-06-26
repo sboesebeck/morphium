@@ -97,8 +97,8 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         return getSingleResultFor(id);
     }
 
-    public long getCount() throws MorphiumDriverException {
-        return (long) execute().get("n");
+    public int getCount() throws MorphiumDriverException {
+        return (int) execute().get("n");
     }
 
 

@@ -239,14 +239,15 @@ public abstract class DriverBase implements MorphiumDriver {
             query.put("name", Pattern.compile(pattern));
             command.put("filter", query);
         }
-        Map<String, Object> res = runCommand(db, command).next();
-        List<Map<String, Object>> colList = new ArrayList<>();
+        var crs = runCommand(db, command);
         List<String> colNames = new ArrayList<>();
-        addToListFromCursor(db, colList, res);
 
-        for (Map<String, Object> col : colList) {
-            colNames.add(col.get("name").toString());
+        while (crs.hasNext()) {
+            var doc = crs.next();
+            colNames.add(doc.get("name").toString());
         }
+
+
         return colNames;
     }
 

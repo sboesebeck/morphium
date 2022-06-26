@@ -70,7 +70,7 @@ public class OpInsert extends WireProtocolMessage {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(flags, out);
         writeString(fullConnectionName, out);
-        for (Doc doc : documents) {
+        for (Map<String, Object> doc : documents) {
             out.write(BsonEncoder.encodeDocument(doc));
         }
         return out.toByteArray();

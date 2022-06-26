@@ -26,11 +26,11 @@ public abstract class BulkRequestContext {
 
 
     @SuppressWarnings("RedundantThrows")
-    public abstract Doc execute() throws MorphiumDriverException;
+    public abstract Map<String, Object> execute() throws MorphiumDriverException;
 
     public abstract UpdateBulkRequest addUpdateBulkRequest();
 
-    public abstract InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert);
+    public abstract InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert);
 
     public abstract DeleteBulkRequest addDeleteBulkRequest();
 

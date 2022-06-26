@@ -11,13 +11,13 @@ import java.util.Map;
  * insert bulk request entry
  **/
 public class InsertBulkRequest extends BulkRequest {
-    private final List<Doc> toInsert;
+    private final List<Map<String, Object>> toInsert;
 
-    public InsertBulkRequest(List<Doc> objToInsert) {
+    public InsertBulkRequest(List<Map<String, Object>> objToInsert) {
         toInsert = objToInsert;
     }
 
-    public List<Doc> getToInsert() {
+    public List<Map<String, Object>> getToInsert() {
         return toInsert;
     }
 

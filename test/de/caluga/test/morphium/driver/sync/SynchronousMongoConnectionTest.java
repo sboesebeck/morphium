@@ -29,7 +29,7 @@ public class SynchronousMongoConnectionTest {
     public void testSyncConnection() throws Exception {
         SynchronousMongoConnection con = getSynchronousMongoConnection();
         log.info("Connected");
-        int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).execute().get("deleted");
+        int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
         log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
@@ -109,6 +109,7 @@ public class SynchronousMongoConnectionTest {
         log.info("running find...");
         FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = fnd.execute();
+        log.info("got result");
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");

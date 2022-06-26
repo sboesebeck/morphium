@@ -773,7 +773,7 @@ public class BasicFunctionalityTest extends MorphiumTestBase {
         morphium.insert(lst);
         Thread.sleep(1000);
         long c = morphium.createQueryFor(UncachedObject.class).countAll();
-        System.err.println("Found " + c);
+        log.info("Found " + c);
         assert (c == 100);
         List<UncachedObject> lst2 = new ArrayList<>();
         for (int i = 0; i < 10; i++) {

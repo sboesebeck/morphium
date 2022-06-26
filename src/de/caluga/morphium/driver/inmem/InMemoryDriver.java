@@ -36,19 +36,19 @@ import java.util.zip.GZIPOutputStream;
 public class InMemoryDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     // DBName => Collection => List of documents
-    private final Map<String, Map<String, List<Doc>>> database = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
      */
-    private final Map<String, Map<String, List<Doc>>> indicesByDbCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
 
     /**
      * Map DB->Collection->FieldNames->Keys....
      */
-//    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Doc>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Map<String, Map<Integer, List<Doc>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+//    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Map<String,Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
@@ -56,11 +56,11 @@ public class InMemoryDriver implements MorphiumDriver {
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
     private List<Runnable> eventQueue = new CopyOnWriteArrayList<>();
 
-    public Map<String, List<Doc>> getDatabase(String dbn) {
+    public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
     }
 
-    public void setDatabase(String dbn, Map<String, List<Doc>> db) {
+    public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
         if (db != null) database.put(dbn, db);
     }
 
@@ -492,7 +492,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings("RedundantThrows")
 
-    public MorphiumCursor initAggregationIteration(String db, String collection, List<Doc> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Doc findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initAggregationIteration(String db, String collection, List<Map<String, Object>> aggregationPipeline, ReadPreference readPreference, Collation collation, int batchSize, Doc findMetaData) throws MorphiumDriverException {
         log.warn("aggregation not possible in mem");
         return new MorphiumCursor() {
             @Override
@@ -603,7 +603,7 @@ public class InMemoryDriver implements MorphiumDriver {
 //        if (limit != 0 && limit < batchSize) {
 //            l = limit;
 //        }
-//        List<Doc> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
+//        List<Map<String,Object>> res = find(db, collection, query, sort, projection, skip, l, batchSize, readPreference, coll, findMetaData);
 //        crs.setBatch(new CopyOnWriteArrayList<>(res));
 //
 //        if (res.size() < batchSize) {
@@ -617,13 +617,13 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings("RedundantThrows")
 
-    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         watch(db, null, timeout, fullDocumentOnUpdate, pipeline, cb);
     }
 
     @SuppressWarnings({"RedundantThrows", "CatchMayIgnoreException"})
 
-    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Doc> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
 
         Object monitor = new Object();
         monitors.add(monitor);
@@ -737,7 +737,7 @@ public class InMemoryDriver implements MorphiumDriver {
 //                limit = oldCrs.getLimit() - oldCrs.getDataRead();
 //            }
 //        }
-//        List<Doc> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
+//        List<Map<String,Object>> res = find(inCrs.getDb(), inCrs.getCollection(), inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(), limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(), inCrs.getFindMetaData());
 //        next.setBatch(new CopyOnWriteArrayList<>(res));
 //        if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() + oldCrs.getDataRead() > oldCrs.limit)) {
 //            //finished!
@@ -752,21 +752,21 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public List<Doc> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference rp, Collation col, Doc findMetaData) throws MorphiumDriverException {
+    public List<Map<String, Object>> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference rp, Collation col, Doc findMetaData) throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, skip, limit, false);
     }
 
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
-    private List<Doc> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
-        List<Doc> partialHitData = new ArrayList<>();
+    private List<Map<String, Object>> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
+        List<Map<String, Object>> partialHitData = new ArrayList<>();
         if (query.containsKey("$and")) {
             //and complex query handling ?!?!?
-            List<Doc> m = (List<Doc>) query.get("$and");
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$and");
 
             if (m != null && !m.isEmpty()) {
-                for (Doc subquery : m) {
-                    List<Doc> dataFromIndex = getDataFromIndex(db, collection, subquery);
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
                     //one and-query result is enough to find candidates!
                     if (dataFromIndex != null) {
                         partialHitData = dataFromIndex;
@@ -776,11 +776,11 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
         } else if (query.containsKey("$or")) {
-            List<Doc> m = (List<Doc>) query.get("$or");
+            List<Map<String, Object>> m = (List<Map<String, Object>>) query.get("$or");
 
             if (m != null) {
-                for (Doc subquery : m) {
-                    List<Doc> dataFromIndex = getDataFromIndex(db, collection, subquery);
+                for (Map<String, Object> subquery : m) {
+                    List<Map<String, Object>> dataFromIndex = getDataFromIndex(db, collection, subquery);
                     if (dataFromIndex != null) {
                         partialHitData.addAll(dataFromIndex);
                     }
@@ -792,14 +792,14 @@ public class InMemoryDriver implements MorphiumDriver {
             partialHitData = getDataFromIndex(db, collection, query);
         }
 
-        List<Doc> data;
+        List<Map<String, Object>> data;
 
         if (partialHitData == null || partialHitData.isEmpty()) {
             data = new ArrayList<>(getCollection(db, collection));
         } else {
             data = partialHitData;
         }
-        List<Doc> ret = new ArrayList<>();
+        List<Map<String, Object>> ret = new ArrayList<>();
         int count = 0;
 
         if (sort != null) {
@@ -816,7 +816,7 @@ public class InMemoryDriver implements MorphiumDriver {
         }
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < data.size(); i++) {
-            Doc o = data.get(i);
+            Map<String, Object> o = data.get(i);
             count++;
             if (count < skip) {
                 continue;
@@ -850,11 +850,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return new ArrayList<>(ret);
     }
 
-    private List<Doc> getDataFromIndex(String db, String collection, Doc query) {
-        List<Doc> ret = null;
+    private List<Map<String, Object>> getDataFromIndex(String db, String collection, Map<String, Object> query) {
+        List<Map<String, Object>> ret = null;
         int bucketId = 0;
         StringBuilder fieldList = new StringBuilder();
-        for (Doc idx : getIndexes(db, collection)) {
+        for (Map<String, Object> idx : getIndexes(db, collection)) {
             if (idx.size() > query.size()) continue; //index has more fields
 
             boolean found = true;
@@ -874,7 +874,7 @@ public class InMemoryDriver implements MorphiumDriver {
                 //all keys in this index are found in query
                 //log.debug("Index hit");
                 String fields = fieldList.toString();
-                Map<Integer, List<Doc>> indexDataForCollection = getIndexDataForCollection(db, collection, fields);
+                Map<Integer, List<Map<String, Object>>> indexDataForCollection = getIndexDataForCollection(db, collection, fields);
                 ret = indexDataForCollection.get(bucketId);
                 if (ret == null || ret.size() == 0) {
                     //no direkt hit, need to use index data
@@ -882,9 +882,9 @@ public class InMemoryDriver implements MorphiumDriver {
 //                    log.debug("indirect Index hit - fields: "+fields+" Index size: "+indexDataForCollection.size());
                     ret = new ArrayList<>();
 ////                    long start = System.currentTimeMillis();
-                    for (Map.Entry<Integer, List<Doc>> k : indexDataForCollection.entrySet()) {
+                    for (Map.Entry<Integer, List<Map<String, Object>>> k : indexDataForCollection.entrySet()) {
 
-                        for (Doc o : k.getValue()) {
+                        for (Map<String, Object> o : k.getValue()) {
                             if (QueryHelper.matchesQuery(query, o)) {
                                 ret.add(o);
                             }
@@ -907,14 +907,14 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     public long count(String db, String collection, Doc query, Collation collation, ReadPreference rp) {
-        List<Doc> d = getCollection(db, collection);
-        List<Doc> data = new CopyOnWriteArrayList<>(d);
+        List<Map<String, Object>> d = getCollection(db, collection);
+        List<Map<String, Object>> data = new CopyOnWriteArrayList<>(d);
         if (query.isEmpty()) {
             return data.size();
         }
         long cnt = 0;
 
-        for (Doc o : data) {
+        for (Map<String, Object> o : data) {
             if (QueryHelper.matchesQuery(query, o)) {
                 cnt++;
             }
@@ -927,11 +927,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return getCollection(db, collection).size();
     }
 
-    public List<Doc> findByFieldValue(String db, String coll, String field, Object value) {
-        List<Doc> ret = new ArrayList<>();
+    public List<Map<String, Object>> findByFieldValue(String db, String coll, String field, Object value) {
+        List<Map<String, Object>> ret = new ArrayList<>();
 
-        List<Doc> data = new CopyOnWriteArrayList<>(getCollection(db, coll));
-        for (Doc obj : data) {
+        List<Map<String, Object>> data = new CopyOnWriteArrayList<>(getCollection(db, coll));
+        for (Map<String, Object> obj : data) {
             if (obj.get(field) == null && value != null) {
                 continue;
             }
@@ -947,8 +947,8 @@ public class InMemoryDriver implements MorphiumDriver {
         return ret;
     }
 
-    //    public Map<IndexKey, List<Doc>> getIndexDataForCollection(String db, String collection, String fields) {
-    public Map<Integer, List<Doc>> getIndexDataForCollection(String db, String collection, String fields) {
+    //    public Map<IndexKey, List<Map<String,Object>>> getIndexDataForCollection(String db, String collection, String fields) {
+    public Map<Integer, List<Map<String, Object>>> getIndexDataForCollection(String db, String collection, String fields) {
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new ConcurrentHashMap<>());
@@ -956,11 +956,11 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public void insert(String db, String collection, List<Doc> objs, WriteConcern wc) throws MorphiumDriverException {
-        for (Doc o : objs) {
+    public void insert(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) throws MorphiumDriverException {
+        for (Map<String, Object> o : objs) {
             if (o.get("_id") != null) {
-                Map<Integer, List<Doc>> id = getIndexDataForCollection(db, collection, "_id");
-//                Map<IndexKey, List<Doc>> id = getIndexDataForCollection(db, collection, "_id");
+                Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, "_id");
+//                Map<IndexKey, List<Map<String,Object>>> id = getIndexDataForCollection(db, collection, "_id");
                 if (id != null && id.containsKey(Integer.valueOf(o.get("_id").hashCode()))) {
                     throw new MorphiumDriverException("Duplicate _id! " + o.get("_id"), null);
                 }
@@ -970,10 +970,10 @@ public class InMemoryDriver implements MorphiumDriver {
 
         getCollection(db, collection).addAll(objs);
         for (int i = 0; i < objs.size(); i++) {
-            Doc o = objs.get(i);
+            Map<String, Object> o = objs.get(i);
 
-            List<Doc> idx = getIndexes(db, collection);
-            for (Doc ix : idx) {
+            List<Map<String, Object>> idx = getIndexes(db, collection);
+            for (Map<String, Object> ix : idx) {
 //                Doc indexValues = new HashMap<>();
                 int bucketId = 0;
                 StringBuilder fieldNames = new StringBuilder();
@@ -984,8 +984,8 @@ public class InMemoryDriver implements MorphiumDriver {
                 }
 //                IndexKey key = new IndexKey(indexValues);
                 String fn = fieldNames.toString();
-//                Map<String, Map<IndexKey, List<Doc>>> indexData = indexDataByDBCollection.get(db).get(collection);
-                Map<String, Map<Integer, List<Doc>>> indexData = indexDataByDBCollection.get(db).get(collection);
+//                Map<String, Map<IndexKey, List<Map<String,Object>>>> indexData = indexDataByDBCollection.get(db).get(collection);
+                Map<String, Map<Integer, List<Map<String, Object>>>> indexData = indexDataByDBCollection.get(db).get(collection);
                 indexData.putIfAbsent(fn, new HashMap<>());
                 indexData.get(fn).putIfAbsent(bucketId, new ArrayList<>());
                 indexData.get(fn).get(bucketId).add(o);
@@ -1004,18 +1004,18 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public Map<String, Integer> store(String db, String collection, List<Doc> objs, WriteConcern wc) {
+    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, WriteConcern wc) {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
         int upd = 0;
         int total = objs.size();
-        for (Doc o : objs) {
+        for (Map<String, Object> o : objs) {
 
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
                 getCollection(db, collection).add(o);
                 continue;
             }
-            List<Doc> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
+            List<Map<String, Object>> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
 
             if (!srch.isEmpty()) {
                 getCollection(db, collection).remove(srch.get(0));
@@ -1025,11 +1025,11 @@ public class InMemoryDriver implements MorphiumDriver {
                 notifyWatchers(db, collection, "insert", o);
             }
             getCollection(db, collection).add(o);
-            List<Doc> idx = getIndexes(db, collection);
+            List<Map<String, Object>> idx = getIndexes(db, collection);
 //            Doc indexValues = new HashMap<>();
             int bucketId = 0;
             StringBuilder fields = new StringBuilder();
-            for (Doc i : idx) {
+            for (Map<String, Object> i : idx) {
                 for (String k : i.keySet()) {
 //                    indexValues.put(k, o.get(k));
                     bucketId = iterateBucketId(bucketId, o.get(k));
@@ -1047,7 +1047,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    private Map<String, List<Doc>> getDB(String db) {
+    private Map<String, List<Map<String, Object>>> getDB(String db) {
         if (currentTransaction.get() == null) {
 
             database.putIfAbsent(db, new ConcurrentHashMap<>());
@@ -1056,7 +1056,7 @@ public class InMemoryDriver implements MorphiumDriver {
             //noinspection unchecked
             currentTransaction.get().getDatabase().putIfAbsent(db, new ConcurrentHashMap<>());
             //noinspection unchecked
-            return (Map<String, List<Doc>>) currentTransaction.get().getDatabase().get(db);
+            return (Map<String, List<Map<String, Object>>>) currentTransaction.get().getDatabase().get(db);
         }
     }
 
@@ -1073,7 +1073,7 @@ public class InMemoryDriver implements MorphiumDriver {
     @SuppressWarnings("ConstantConditions")
 
     public Doc update(String db, String collection, Doc query, Map<String, Integer> sort, Doc op, boolean multiple, boolean upsert, Collation collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Doc> lst = find(db, collection, query, sort, null, 0, multiple ? 0 : 1, true);
+        List<Map<String, Object>> lst = find(db, collection, query, sort, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         int count = 0;
         if (lst == null) lst = new ArrayList<>();
@@ -1089,7 +1089,7 @@ public class InMemoryDriver implements MorphiumDriver {
             insert = true;
         }
         Set<Object> modified = new HashSet<>();
-        for (Doc obj : lst) {
+        for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked") Doc cmd = (Doc) op.get(operand);
                 switch (operand) {
@@ -1332,9 +1332,9 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     public Doc delete(String db, String collection, Doc query, Map<String, Integer> sort, boolean multiple, Collation collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Doc> toDel = find(db, collection, query, null, Doc.of("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
-        for (Doc o : toDel) {
-            for (Doc dat : getCollection(db, collection)) {
+        List<Map<String, Object>> toDel = find(db, collection, query, null, Doc.of("_id", 1), 0, multiple ? 0 : 1, 10000, null, collation, null);
+        for (Map<String, Object> o : toDel) {
+            for (Map<String, Object> dat : getCollection(db, collection)) {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
                     if (dat.get("_id").toString().equals(o.get("_id").toString())) {
                         getCollection(db, collection).remove(dat);
@@ -1350,7 +1350,7 @@ public class InMemoryDriver implements MorphiumDriver {
         return new Doc();
     }
 
-    private List<Doc> getCollection(String db, String collection) {
+    private List<Map<String, Object>> getCollection(String db, String collection) {
         if (!getDB(db).containsKey(collection)) {
             getDB(db).put(collection, new CopyOnWriteArrayList<>());
             createIndex(db, collection, Doc.of("_id", 1), Doc.of());
@@ -1483,11 +1483,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     public List<Object> distinct(String db, String collection, String field, Doc filter, Collation collation, ReadPreference rp) {
-        List<Doc> list = getDB(db).get(collection);
+        List<Map<String, Object>> list = getDB(db).get(collection);
         Set<Object> distinctValues = new HashSet<>();
 
         if (list != null && !list.isEmpty()) {
-            for (Doc doc : list) {
+            for (Map<String, Object> doc : list) {
                 if (doc != null && !doc.isEmpty() && doc.get(field) != null) {
                     distinctValues.add(doc.get(field));
                 }
@@ -1502,16 +1502,16 @@ public class InMemoryDriver implements MorphiumDriver {
         return getDB(db) != null && getDB(db).containsKey(collection);
     }
 
-    private Map<String, List<Doc>> getIndexesForDB(String db) {
+    private Map<String, List<Map<String, Object>>> getIndexesForDB(String db) {
         indicesByDbCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         return indicesByDbCollection.get(db);
     }
 
 
-    public List<Doc> getIndexes(String db, String collection) {
+    public List<Map<String, Object>> getIndexes(String db, String collection) {
         if (!getIndexesForDB(db).containsKey(collection)) {
             //new collection, create default index for _id
-            ArrayList<Doc> value = new ArrayList<>();
+            ArrayList<Map<String, Object>> value = new ArrayList<>();
             getIndexesForDB(db).put(collection, value);
             value.add(Doc.of("_id", 1));
         }
@@ -1524,8 +1524,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public Doc findAndOneAndDelete(String db, String col, Doc query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        List<Doc> r = find(db, col, query, sort, null, 0, 1, 1000, null, collation, null);
+    public Map<String, Object> findAndOneAndDelete(String db, String col, Doc query, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
+        List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1, 1000, null, collation, null);
         if (r.size() == 0) {
             return null;
         }
@@ -1534,15 +1534,15 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public Doc findAndOneAndUpdate(String db, String col, Doc query, Doc update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        List<Doc> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new Doc());
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Doc query, Doc update, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
+        List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new Doc());
         update(db, col, query, null, update, false, false, collation, null);
         return ret.get(0);
     }
 
 
     public Doc findAndOneAndReplace(String db, String col, Doc query, Doc replacement, Map<String, Integer> sort, Collation collation) throws MorphiumDriverException {
-        List<Doc> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new Doc());
+        List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1, 1, null, collation, new Doc());
         if (ret.get(0).get("_id") != null)
             replacement.put("_id", ret.get(0).get("_id"));
         else
@@ -1554,7 +1554,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @SuppressWarnings("RedundantThrows")
 
-    public List<Doc> aggregate(String db, String collection, List<Doc> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
+    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
         log.warn("Aggregate not possible yet in memory!");
         return new CopyOnWriteArrayList<>();
     }
@@ -1604,7 +1604,7 @@ public class InMemoryDriver implements MorphiumDriver {
             private final List<BulkRequest> requests = new ArrayList<>();
 
 
-            public Doc execute() {
+            public Map<String, Object> execute() {
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
@@ -1633,7 +1633,7 @@ public class InMemoryDriver implements MorphiumDriver {
             }
 
 
-            public InsertBulkRequest addInsertBulkRequest(List<Doc> toInsert) {
+            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
@@ -1651,7 +1651,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public void createIndex(String db, String collection, Doc index, Doc options) {
 
-        List<Doc> indexes = getIndexes(db, collection);
+        List<Map<String, Object>> indexes = getIndexes(db, collection);
         if (!indexes.contains(index)) {
             indexes.add(index);
         }
@@ -1663,9 +1663,9 @@ public class InMemoryDriver implements MorphiumDriver {
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).get(collection).clear();
-        for (Doc doc : getCollection(db, collection)) {
+        for (Map<String, Object> doc : getCollection(db, collection)) {
 
-            for (Doc idx : getIndexes(db, collection)) {
+            for (Map<String, Object> idx : getIndexes(db, collection)) {
 //                Doc indexValues = new HashMap<>();
                 b.setLength(0);
                 int bucketId = 0;
@@ -1675,8 +1675,8 @@ public class InMemoryDriver implements MorphiumDriver {
                     b.append(k);
                 }
 //                IndexKey key = new IndexKey(indexValues);
-                Map<Integer, List<Doc>> index = getIndexDataForCollection(db, collection, b.toString());
-//                Map<IndexKey, List<Doc>> index = getIndexDataForCollection(db, collection, b.toString());
+                Map<Integer, List<Map<String, Object>>> index = getIndexDataForCollection(db, collection, b.toString());
+//                Map<IndexKey, List<Map<String,Object>>> index = getIndexDataForCollection(db, collection, b.toString());
                 index.putIfAbsent(bucketId, new CopyOnWriteArrayList<>());
                 index.get(bucketId).add(doc);
             }
@@ -1738,17 +1738,17 @@ public class InMemoryDriver implements MorphiumDriver {
 //    }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
 
-    public List<Doc> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 

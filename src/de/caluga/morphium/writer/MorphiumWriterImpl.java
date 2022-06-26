@@ -167,7 +167,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     try {
                         for (Map.Entry<Class, List<Object>> es : sorted.entrySet()) {
                             Class c = es.getKey();
-                            List<Doc> dbLst = new ArrayList<>();
+                            List<Map<String, Object>> dbLst = new ArrayList<>();
                             //bulk insert... check if something already exists
                             WriteConcern wc = morphium.getWriteConcernForClass(c);
                             String coll = morphium.getMapper().getCollectionName(c);
@@ -267,7 +267,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         if (collectionName == null) {
                             collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
                         }
-                        List<Doc> dbLst = new ArrayList<>();
+                        List<Map<String, Object>> dbLst = new ArrayList<>();
                         //        DBCollection collection = morphium.getDbName().getCollection(collectionName);
                         WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
 
@@ -369,7 +369,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     checkIndexAndCaps(type, coll, callback);
 
                     WriteConcern wc = morphium.getWriteConcernForClass(type);
-                    List<Doc> objs = new ArrayList<>();
+                    List<Map<String, Object>> objs = new ArrayList<>();
                     objs.add(Doc.of(marshall));
                     try {
                         InsertMongoCommand settings = new InsertMongoCommand(morphium.getDriver()).setDb(getDbName()).setColl(coll)
@@ -1955,8 +1955,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 .setDb(getDbName());
                         settings.execute();
                     } catch (MorphiumDriverException e) {
-                        //TODO: Implement Handling
-                        throw new RuntimeException(e);
+                        if (e.getMessage().endsWith("error: 26 - ns not found")) {
+                            LoggerFactory.getLogger(MorphiumWriterImpl.class).warn("NS not found: " + morphium.getMapper().getCollectionName(cls));
+                        } else {
+                            throw new RuntimeException(e);
+                        }
                     }
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(cls, null, dur, false, WriteAccessType.DROP);
