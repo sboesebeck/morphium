@@ -6,7 +6,7 @@ import de.caluga.morphium.driver.MorphiumDriver;
 import java.util.List;
 import java.util.Map;
 
-public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoCommand> {
+public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoCommand> implements MultiResultCommand {
     private List<Doc> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;

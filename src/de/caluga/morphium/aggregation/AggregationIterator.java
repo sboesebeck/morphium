@@ -19,96 +19,96 @@ import java.util.*;
 public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T, R> {
 
     private final Logger log = LoggerFactory.getLogger(AggregationIterator.class);
-    private MorphiumCursor currentBatch;
-
-    private int cursor = 0;
-    private int cursorExternal = 0;
     private boolean multithreadded;
     private Aggregator<T, R> aggregator;
 
+    private MorphiumCursor cursor = null;
+
+
+    public void ahead(int jump) {
+        try {
+            getMongoCursor().ahead(jump);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public void back(int jump) {
+        try {
+            getMongoCursor().back(jump);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     public int available() {
-        if (currentBatch == null || currentBatch.getBatch() == null) return 0;
-        return currentBatch.getBatch().size();
+        return getMongoCursor().available();
     }
 
-    @Override
-    public List<R> getCurrentBuffer() {
-        return null;
-    }
-
-
-
-    @Override
-    public int getCursor() {
-        return cursorExternal;
-    }
-
-    @Override
-    public void ahead(int jump) {
-        cursor += jump;
-        cursorExternal += jump;
-        while (cursor >= currentBatch.getBatch().size()) {
-            int diff = cursor - currentBatch.getBatch().size();
-            cursor = currentBatch.getBatch().size() - 1;
-
-            next();
-            cursor += diff;
-        }
-    }
-
-    @Override
-    public void back(int jump) {
-        cursor -= jump;
-        cursorExternal -= jump;
-        if (cursor < 0) {
-            throw new IllegalArgumentException("cannot jumb back over batch boundaries!");
-        }
-    }
-
-    @Override
-    public void close() {
-
-    }
-
-    @Override
-    public Map<String, Object> nextMap() {
-        return null;
-    }
-
-
-    @Override
     public Iterator<R> iterator() {
         return this;
     }
 
     @Override
     public boolean hasNext() {
-        if (multithreadded) {
-            synchronized (this) {
-                return doHasNext();
-            }
+        try {
+            return getMongoCursor().hasNext();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
-        return doHasNext();
     }
 
-    private boolean doHasNext() {
-        if (currentBatch != null && currentBatch.getBatch() != null && currentBatch.getBatch().size() > cursor) {
-            return true;
+    @Override
+    public Map<String, Object> nextMap() {
+        try {
+            return getMongoCursor().next();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
         }
-        if (currentBatch == null && cursorExternal == 0) {
-            try {
-                currentBatch = getAggregateCmdSettings().executeIterable();
-            } catch (MorphiumDriverException e) {
-                log.error("error during fetching first batch", e);
-            }
-            return doHasNext();
-        }
-        return false;
     }
 
-    private AggregateMongoCommand getAggregateCmdSettings() {
+    @Override
+    public R next() {
+        try {
+            if (Map.class.isAssignableFrom(aggregator.getResultType())) {
+                return (R) getMongoCursor().next();
+            }
+            return aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), getMongoCursor().next());
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public List<R> getCurrentBuffer() {
+        List<R> ret = new ArrayList<>();
+        for (Map<String, Object> o : getMongoCursor().getBatch()) {
+            if (Map.class.isAssignableFrom(aggregator.getResultType())) {
+                ret.add((R) o);
+            } else {
+                ret.add(aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), o));
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public void close() {
+        try {
+            getMongoCursor().close();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public int getCursor() {
+        return getMongoCursor().getCursor();
+    }
+
+    private AggregateMongoCommand getAggregateCmd() {
         AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver());
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
@@ -121,44 +121,6 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         return settings;
     }
 
-    @Override
-    public R next() {
-        if (currentBatch == null && !hasNext()) {
-            return null;
-        }
-        R unmarshall = null;
-        if (aggregator.getResultType().equals(Map.class)) {
-            //noinspection unchecked
-            unmarshall = (R) currentBatch.getBatch().get(cursor);
-        } else {
-            unmarshall = aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), currentBatch.getBatch().get(cursor));
-        }
-        aggregator.getMorphium().firePostLoadEvent(unmarshall);
-        try {
-            if (currentBatch == null && cursorExternal == 0) {
-                //noinspection unchecked
-                currentBatch = getAggregateCmdSettings().executeIterable();
-                cursor = 0;
-            } else if (currentBatch != null && cursor + 1 < currentBatch.getBatch().size()) {
-                cursor++;
-            } else if (currentBatch != null && cursor + 1 == currentBatch.getBatch().size()) {
-                //noinspection unchecked
-                //currentBatch = aggregator.getMorphium().getDriver().nextIteration(currentBatch);
-                cursor = 0;
-            } else {
-                cursor++;
-            }
-            if (multithreadded && currentBatch != null && currentBatch.getBatch() != null) {
-                currentBatch.setBatch(Collections.synchronizedList(currentBatch.getBatch()));
-            }
-
-        } catch (Exception e) {
-            log.error("Got error during iteration...", e);
-        }
-        cursorExternal++;
-
-        return unmarshall;
-    }
 
     @Override
     public Aggregator<T, R> getAggregator() {
@@ -168,5 +130,16 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     @Override
     public void setAggregator(Aggregator<T, R> aggregator) {
         this.aggregator = aggregator;
+    }
+
+    private MorphiumCursor getMongoCursor() {
+        if (cursor == null) {
+            try {
+                cursor = aggregator.getAggregateCmd().executeIterable();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return cursor;
     }
 }

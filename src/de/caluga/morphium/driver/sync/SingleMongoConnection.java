@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +40,7 @@ public class SingleMongoConnection extends DriverBase {
     //    private List<OpMsg> replies = Collections.synchronizedList(new ArrayList<>());
     private Thread readerThread = null;
     private Map<Integer, OpMsg> incoming = new HashMap<>();
-    private Map<Integer, Long> incomingTimes = new HashMap<>();
+    private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
     private boolean running = true;
 
     //private int unsansweredMessageId = 0;
@@ -81,30 +82,26 @@ public class SingleMongoConnection extends DriverBase {
                 while (running) {
                     try {
                         if (in.available() > 0) {
-                            synchronized (incoming) {
-                                OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
-                                synchronized (incoming) {
-                                    incoming.put(msg.getResponseTo(), msg);
-                                    incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
-                                }
-//                                if (unsansweredMessageId != msg.getResponseTo()) {
-//                                    log.error("Received wrong answer - expected " + unsansweredMessageId + " but got " + msg.getResponseTo());
-//                                }
-                                //unsansweredMessageId = 0;
-                                synchronized (incoming) {
-                                    var s = new HashSet(incomingTimes.keySet());
-                                    for (var k : s) {
-                                        if (incomingTimes.get(k) == null) continue;
-                                        if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
-                                            log.warn("Discarding unused answer " + k);
-                                            incoming.remove(k);
-                                            incomingTimes.remove(k);
-                                        }
+                            OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
+                            incoming.put(msg.getResponseTo(), msg);
+                            synchronized (incomingTimes) {
+                                incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
+                            }
+
+                            var s = new HashSet(incomingTimes.keySet());
+                            for (var k : s) {
+                                synchronized (incomingTimes) {
+                                    if (incomingTimes.get(k) == null) continue;
+                                    if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
+                                        log.warn("Discarding unused answer " + k);
+                                        incoming.remove(k);
+                                        incomingTimes.remove(k);
                                     }
                                 }
                             }
                         }
-                    } catch (IOException e) {
+
+                    } catch (Exception e) {
                         log.error("Reader-Thread error", e);
                     }
                     Thread.yield();
@@ -140,30 +137,24 @@ public class SingleMongoConnection extends DriverBase {
         }
     }
 
-    public boolean isBusy() {
-        return false; //unsansweredMessageId != 0;
-    }
-
     @Override
     public boolean replyForMsgAvailable(int msg) {
-        synchronized (incoming) {
-            return incoming.containsKey(msg);
-        }
+        return incoming.containsKey(msg);
     }
 
     @Override
     public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
         long start = System.currentTimeMillis();
-        synchronized (incoming) {
-            while (!incoming.containsKey(msgid)) {
-                if (System.currentTimeMillis() - start > timeout) {
-                    throw new MorphiumDriverException("Timeout!");
-                }
-                Thread.yield();
+        while (!incoming.containsKey(msgid)) {
+            if (System.currentTimeMillis() - start > timeout) {
+                throw new MorphiumDriverException("Timeout!");
             }
-            incomingTimes.remove(msgid);
-            return incoming.remove(msgid);
+            Thread.yield();
         }
+        synchronized (incomingTimes) {
+            incomingTimes.remove(msgid);
+        }
+        return incoming.remove(msgid);
     }
 
 
@@ -333,14 +324,12 @@ public class SingleMongoConnection extends DriverBase {
             int id = sendCommand(db, cmd);
 
             OpMsg rep = null;
-            synchronized (SingleMongoConnection.this) {
-                rep = getReplyFor(id, getMaxWaitTime());
-            }
+            rep = getReplyFor(id, getMaxWaitTime());
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                return new SynchronousConnectCursor(this, getDefaultBatchSize(), false, rep);
+                return new SingleMongoConnectionCursor(this, getDefaultBatchSize(), false, rep);
             } else if (rep.getFirstDoc().containsKey("results")) {
                 return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results"));
             } else {
@@ -408,9 +397,7 @@ public class SingleMongoConnection extends DriverBase {
         q.setFirstDoc(Doc.of(cmd));
 
         OpMsg rep = null;
-        synchronized (SingleMongoConnection.this) {
-            sendQuery(q);
-        }
+        sendQuery(q);
 //        unsansweredMessageId = q.getMessageId();
         return q.getMessageId();//unsansweredMessageId;
     }
@@ -438,7 +425,7 @@ public class SingleMongoConnection extends DriverBase {
     public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, getMaxWaitTime());
         if (reply.hasCursor()) {
-            return new SynchronousConnectCursor(this, getDefaultBatchSize(), true, reply);
+            return new SingleMongoConnectionCursor(this, getDefaultBatchSize(), true, reply);
         }
         return null;
     }
@@ -473,60 +460,59 @@ public class SingleMongoConnection extends DriverBase {
         Map<String, Object> doc;
         String db = null;
         String coll = null;
-        synchronized (SingleMongoConnection.this) {
-            while (true) {
-                OpMsg reply = getReplyFor(waitingfor, getMaxWaitTime());
-                if (reply.getResponseTo() != waitingfor) {
-                    log.error("Wrong answer - waiting for " + waitingfor + " but got " + reply.getResponseTo());
-                    log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
-                    continue;
-                }
-
-                //                    replies.remove(i);
-                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-                if (cursor == null) {
-                    //trying result
-                    if (reply.getFirstDoc().get("result") != null) {
-                        //noinspection unchecked
-                        return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
-                    }
-                    if (reply.getFirstDoc().containsKey("results")) {
-                        return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
-                    }
-                    throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
-                }
-                if (db == null) {
-                    //getting ns
-                    String[] namespace = cursor.get("ns").toString().split("\\.");
-                    db = namespace[0];
-                    if (namespace.length > 1)
-                        coll = namespace[1];
-                }
-                if (cursor.get("firstBatch") != null) {
-                    //noinspection unchecked
-                    ret.addAll((List) cursor.get("firstBatch"));
-                } else if (cursor.get("nextBatch") != null) {
-                    //noinspection unchecked
-                    ret.addAll((List) cursor.get("nextBatch"));
-                }
-                if (((Long) cursor.get("id")) != 0) {
-                    //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                    //there is more! Sending getMore!
-
-                    //there is more! Sending getMore!
-                    OpMsg q = new OpMsg();
-                    q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
-                            .add("$db", db)
-                            .add("batchSize", batchSize)
-                    );
-                    if (coll != null) q.getFirstDoc().put("collection", coll);
-                    q.setMessageId(getNextId());
-                    waitingfor = q.getMessageId();
-                    sendQuery(q);
-                } else {
-                    break;
-                }
+        while (true) {
+            OpMsg reply = getReplyFor(waitingfor, getMaxWaitTime());
+            if (reply.getResponseTo() != waitingfor) {
+                log.error("Wrong answer - waiting for " + waitingfor + " but got " + reply.getResponseTo());
+                log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
+                continue;
             }
+
+            //                    replies.remove(i);
+            @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
+            if (cursor == null) {
+                //trying result
+                if (reply.getFirstDoc().get("result") != null) {
+                    //noinspection unchecked
+                    return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
+                }
+                if (reply.getFirstDoc().containsKey("results")) {
+                    return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
+                }
+                throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
+            }
+            if (db == null) {
+                //getting ns
+                String[] namespace = cursor.get("ns").toString().split("\\.");
+                db = namespace[0];
+                if (namespace.length > 1)
+                    coll = namespace[1];
+            }
+            if (cursor.get("firstBatch") != null) {
+                //noinspection unchecked
+                ret.addAll((List) cursor.get("firstBatch"));
+            } else if (cursor.get("nextBatch") != null) {
+                //noinspection unchecked
+                ret.addAll((List) cursor.get("nextBatch"));
+            }
+            if (((Long) cursor.get("id")) != 0) {
+                //                        log.info("getting next batch for cursor " + cursor.get("id"));
+                //there is more! Sending getMore!
+
+                //there is more! Sending getMore!
+                OpMsg q = new OpMsg();
+                q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
+                        .add("$db", db)
+                        .add("batchSize", batchSize)
+                );
+                if (coll != null) q.getFirstDoc().put("collection", coll);
+                q.setMessageId(getNextId());
+                waitingfor = q.getMessageId();
+                sendQuery(q);
+            } else {
+                break;
+            }
+
         }
         return ret;
     }
@@ -636,10 +622,8 @@ public class SingleMongoConnection extends DriverBase {
             q.setResponseTo(0);
 
             List<Map<String, Object>> ret;
-            synchronized (SingleMongoConnection.this) {
-                sendQuery(q);
-                ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
-            }
+            sendQuery(q);
+            ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
@@ -689,10 +673,8 @@ public class SingleMongoConnection extends DriverBase {
             q.setResponseTo(0);
 
             List<Map<String, Object>> ret;
-            synchronized (SingleMongoConnection.this) {
-                sendQuery(q);
-                ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
-            }
+            sendQuery(q);
+            ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }

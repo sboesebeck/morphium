@@ -23,6 +23,16 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     private Query<T> query;
     private MorphiumCursor cursor = null;
 
+    private int windowSize = 0;
+
+    public int getWindowSize() {
+        return windowSize;
+    }
+
+    public QueryIterator<T> setWindowSize(int windowSize) {
+        this.windowSize = windowSize;
+        return this;
+    }
 
     public Query<T> getQuery() {
         return query;
@@ -41,7 +51,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     public void ahead(int jump) {
         try {
-            cursor.ahead(jump);
+            getMongoCursor().ahead(jump);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -50,7 +60,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     public void back(int jump) {
         try {
-            cursor.back(jump);
+            getMongoCursor().back(jump);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -58,7 +68,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public int available() {
-        return cursor.available();
+        return getMongoCursor().available();
     }
 
     public Iterator<T> iterator() {
@@ -68,7 +78,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     @Override
     public boolean hasNext() {
         try {
-            return cursor.hasNext();
+            return getMongoCursor().hasNext();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -77,7 +87,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     @Override
     public Map<String, Object> nextMap() {
         try {
-            return cursor.next();
+            return getMongoCursor().next();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -87,7 +97,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     public T next() {
 
         try {
-            return query.getMorphium().getMapper().deserialize(query.getType(), cursor.next());
+            return query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -96,7 +106,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     @Override
     public List<T> getCurrentBuffer() {
         List<T> ret = new ArrayList<>();
-        for (Map<String, Object> o : cursor.getBatch()) {
+        for (Map<String, Object> o : getMongoCursor().getBatch()) {
             ret.add(query.getMorphium().getMapper().deserialize(query.getType(), o));
         }
         return ret;
@@ -105,7 +115,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     @Override
     public void close() {
         try {
-            cursor.close();
+            getMongoCursor().close();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -113,6 +123,21 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public int getCursor() {
-        return cursor.getCursor();
+        return getMongoCursor().getCursor();
+    }
+
+    private MorphiumCursor getMongoCursor() {
+        if (cursor == null) {
+            try {
+                var cmd = query.getFindCmd();
+                if (windowSize != 0) {
+                    cmd.setBatchSize(windowSize);
+                }
+                cursor = cmd.executeIterable();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return cursor;
     }
 }
