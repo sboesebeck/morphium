@@ -194,6 +194,8 @@ public class SingleMongoConnectionTest {
         SingleMongoConnection con = new SingleMongoConnection();
         con.setHostSeed("localhost:27017");
         con.setDefaultBatchSize(5);
+        con.setMaxWaitTime(100000);
+        con.setConnectionTimeout(1000);
         con.connect();
         log.info("Connected");
         return con;

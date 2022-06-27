@@ -15,6 +15,8 @@ import org.junit.Test;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 23.11.12
@@ -246,30 +248,30 @@ public class IteratorTest extends MorphiumTestBase {
         Query<UncachedObject> qu = getUncachedObjectQuery();
         long start = System.currentTimeMillis();
         MorphiumIterator<UncachedObject> it = qu.asIterable(2);
-        assert (it.hasNext());
+        assertThat(it.hasNext());
         UncachedObject u = it.next();
-        assert (u.getCounter() == 1);
+        assertThat(u.getCounter()).isEqualTo(1);
         log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
         log.info("Current Buffersize: " + it.available());
-        assert (it.available() == 2);
+        assertThat(it.available()).isEqualTo(1);
 
         u = it.next();
-        assert (u.getCounter() == 2);
+        assertThat(u.getCounter()).isEqualTo(2);
         u = it.next();
-        assert (u.getCounter() == 3);
-        assert (it.getCursor() == 3);
+        assertThat(u.getCounter()).isEqualTo(3);
+        assertThat(it.getCursor()).isEqualTo(3);
 
         u = it.next();
-        assert (u.getCounter() == 4);
+        assertThat(u.getCounter()).isEqualTo(4);
         u = it.next();
-        assert (u.getCounter() == 5);
+        assertThat(u.getCounter()).isEqualTo(5);
 
         while (it.hasNext()) {
             u = it.next();
             log.info("Object: " + u.getCounter());
         }
 
-        assert (u.getCounter() == 1000);
+        assertThat(u.getCounter()).isEqualTo(1000);
         log.info("Took " + (System.currentTimeMillis() - start) + " ms");
 
         for (UncachedObject uc : qu.asIterable(100)) {
@@ -459,13 +461,27 @@ public class IteratorTest extends MorphiumTestBase {
             int cnt = 0;
             for (UncachedObject u : it) {
                 cnt++;
-                assert (u.getCounter() == cnt);
+                assertThat(u.getCounter()).isEqualTo(cnt);
             }
-            assert (cnt == 20);
+            assertThat(cnt).isEqualTo(20);
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
         }
     }
 
+    @Test
+    public void iteratorFunctionalityTest() throws Exception {
+        createUncachedObjects(1000);
+        Thread.sleep(500);
+        Query<UncachedObject> qu = getUncachedObjectQuery();
+
+        var it = qu.asIterable();
+        int cnt = 0;
+        while (it.hasNext()) {
+            cnt++;
+            var u = it.next();
+            assertThat(u.getCounter()).isEqualTo(cnt);
+        }
+    }
 
     @Test
     public void iterableSkipsTest() {

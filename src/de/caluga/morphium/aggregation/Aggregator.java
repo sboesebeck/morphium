@@ -3,6 +3,7 @@ package de.caluga.morphium.aggregation;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -280,6 +281,8 @@ public interface Aggregator<T, R> {
 
 
     }
+
+    public AggregateMongoCommand getAggregateCmd();
 
     enum MergeActionWhenMatched {
         replace, keepExisting, merge, fail,

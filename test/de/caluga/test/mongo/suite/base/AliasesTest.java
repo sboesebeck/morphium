@@ -40,7 +40,7 @@ public class AliasesTest extends MorphiumTestBase {
                 "einText", "A little text")
         );
         assertThat(stats).isNotNull();
-        assertThat(stats.get("total")).isEqualTo(1);
+        assertThat(stats.get("n")).isEqualTo(1);
 
         List<ComplexObject> lst = morphium.createQueryFor(ComplexObject.class).asList();
         assertThat(lst.size()).isEqualTo(1);

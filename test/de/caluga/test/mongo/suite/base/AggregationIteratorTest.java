@@ -10,6 +10,8 @@ import org.junit.Test;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class AggregationIteratorTest extends MorphiumTestBase {
 
     @Test
@@ -28,16 +30,18 @@ public class AggregationIteratorTest extends MorphiumTestBase {
         agg.sort("-number");
 
         MorphiumAggregationIterator<UncachedObject, Map> maps = agg.aggregateIterable();
+        int count = 0;
         for (Map m : maps) {
+            count++;
             log.info(m.toString());
-            assert (m.get("number") != null);
-            assert (((Integer) m.get("number")).intValue() > 0);
+            assertThat(m.get("number")).isNotNull();
+            assertThat(((Integer) m.get("number")).intValue()).isGreaterThan(0);
+            assertThat(count).isLessThanOrEqualTo(1000);
         }
 
         //checking other methods
 
-        assert (maps.getCurrentBuffer() == null);
-        assert (maps.available() == 0);
+        assertThat(maps.available()).isEqualTo(0);
 
 
         Aggregator<UncachedObject, AggRes> agg2 = morphium.createAggregator(UncachedObject.class, AggRes.class);

@@ -20,15 +20,15 @@ import java.util.Map;
  * Cursor implementation for the singleconnect drivers
  */
 
-public class SynchronousConnectCursor extends MorphiumCursor {
+public class SingleMongoConnectionCursor extends MorphiumCursor {
 
     private final boolean multithreaddedAccess;
     private final DriverBase driver;
-    private Logger log = LoggerFactory.getLogger(SynchronousConnectCursor.class);
+    private Logger log = LoggerFactory.getLogger(SingleMongoConnectionCursor.class);
     private int internalIndex = 0;
     private int index = 0;
 
-    public SynchronousConnectCursor(DriverBase drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
+    public SingleMongoConnectionCursor(DriverBase drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
         this.driver = drv;
         this.multithreaddedAccess = multithreaddedAccess;
         Long cursorId = null;
@@ -136,7 +136,7 @@ public class SynchronousConnectCursor extends MorphiumCursor {
             return null;
         }
         OpMsg reply;
-        synchronized (SynchronousConnectCursor.this) {
+        synchronized (SingleMongoConnectionCursor.this) {
             OpMsg q = new OpMsg();
 
             q.setFirstDoc(Doc.of("getMore", (Object) getCursorId())

@@ -448,7 +448,7 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> obj = null;
         Map<String, Object> findMetaData = new HashMap<>();
         try {
-            FindCommand settings = getFindCmdSettings();
+            FindCommand settings = getFindCmd();
             settings.setFilter(query)
                     .setSkip(skip)
                     .setSort(new LinkedHashMap<>(sort))
@@ -1060,7 +1060,7 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                ret = getFindCmdSettings().execute();
+                ret = getFindCmd().execute();
 
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1089,7 +1089,7 @@ public class Query<T> implements Cloneable {
             List<Map<String, Object>> ret = new ArrayList<>();
             try {
 
-                FindCommand settings = getFindCmdSettings();
+                FindCommand settings = getFindCmd();
                 ret = settings.execute();
                 srv = (String) settings.getMetaData().get("server");
             } catch (Exception e) {
@@ -1136,7 +1136,7 @@ public class Query<T> implements Cloneable {
         List<T> ret = new ArrayList<>();
         ret.clear();
         try {
-            FindCommand settings = getFindCmdSettings();
+            FindCommand settings = getFindCmd();
             Map<String, Object> queryObject = toQueryObject();
             if (queryObject != null) settings.setFilter(Doc.of(queryObject));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -1179,7 +1179,7 @@ public class Query<T> implements Cloneable {
 
     public QueryIterator<T> asIterable(int windowSize) {
         QueryIterator<T> it = new QueryIterator<>();
-//        it.setWindowSize(windowSize);
+        it.setWindowSize(windowSize);
         it.setQuery(this);
         return it;
     }
@@ -1335,7 +1335,7 @@ public class Query<T> implements Cloneable {
         int lim = getLimit();
         limit(1);
         try {
-            FindCommand settings = getFindCmdSettings();
+            FindCommand settings = getFindCmd();
             srch = settings.execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
@@ -1424,7 +1424,7 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> query;
         try {
 
-            FindCommand settings = getFindCmdSettings();
+            FindCommand settings = getFindCmd();
             settings.setProjection(Doc.of("_id", 1));
             query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
@@ -2204,7 +2204,7 @@ public class Query<T> implements Cloneable {
         return ret;
     }
 
-    public FindCommand getFindCmdSettings() {
+    public FindCommand getFindCmd() {
         FindCommand settings = new FindCommand(getMorphium().getDriver())
                 .setDb(getMorphium().getConfig().getDatabase())
                 .setColl(getCollectionName())
