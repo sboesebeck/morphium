@@ -297,7 +297,7 @@ public class MorphiumTestBase {
             uc.setStrValue("v");
             lst.add(uc);
             if (i % 1000 == 999) {
-                morphium.storeList(lst);
+                morphium.insert(lst);
                 lst.clear();
             }
         }

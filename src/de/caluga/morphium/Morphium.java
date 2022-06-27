@@ -221,20 +221,20 @@ public class Morphium implements AutoCloseable {
             }
 
             //TODO: add Settings
-//            morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
-//            morphiumDriver.setMaxConnections(config.getMaxConnections());
-//            morphiumDriver.setMinConnections(config.getMinConnectionsHost());
-//            morphiumDriver.setReadTimeout(config.getReadTimeout());
-//            morphiumDriver.setRetryReads(config.isRetryReads());
-//            morphiumDriver.setRetryWrites(config.isRetryWrites());
-//            morphiumDriver.setHeartbeatFrequency(config.getHeartbeatFrequency());
-//            morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
-//            morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
-//            morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
+            morphiumDriver.setConnectionTimeout(config.getConnectionTimeout());
+            morphiumDriver.setMaxConnections(config.getMaxConnections());
+            morphiumDriver.setMinConnections(config.getMinConnectionsHost());
+            morphiumDriver.setReadTimeout(config.getReadTimeout());
+            morphiumDriver.setRetryReads(config.isRetryReads());
+            morphiumDriver.setRetryWrites(config.isRetryWrites());
+            morphiumDriver.setHeartbeatFrequency(config.getHeartbeatFrequency());
+            morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
+            morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
+            morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
 //            morphiumDriver.setServerSelectionTimeout(config.getServerSelectionTimeout());
 //            morphiumDriver.setUuidRepresentation(config.getUuidRepresentation());
 //
-//            morphiumDriver.setUseSSL(config.isUseSSL());
+            morphiumDriver.setUseSSL(config.isUseSSL());
 //            morphiumDriver.setSslContext(config.getSslContext());
 //            morphiumDriver.setSslInvalidHostNameAllowed(config.isSslInvalidHostNameAllowed());
 

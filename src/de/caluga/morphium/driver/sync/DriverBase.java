@@ -756,7 +756,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
-    public abstract OpMsg getReplyFor(int msgid, long timeout);
+    public abstract OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException;
 
     public abstract boolean replyForMsgAvailable(int msg);
 

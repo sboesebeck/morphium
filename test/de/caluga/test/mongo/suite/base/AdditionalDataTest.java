@@ -46,7 +46,7 @@ public class AdditionalDataTest extends MorphiumTestBase {
     }
 
     @Test
-    public void additionalDateCompex() throws Exception {
+    public void additionalDataCompex() throws Exception {
         morphium.dropCollection(AdditionalDataEntity.class);
         WriteConcern w = morphium.getWriteConcernForClass(AdditionalDataEntity.class);
         System.out.println("W: " + w);

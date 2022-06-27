@@ -2,8 +2,10 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
+import java.util.Map;
 
 public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMongoCommand> {
     private Doc query;
@@ -134,5 +136,16 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     @Override
     public String getCommandName() {
         return "findAndModify";
+    }
+
+    @Override
+    public Map<String, Object> execute() throws MorphiumDriverException {
+        var writeResult = super.execute();
+        if (writeResult.containsKey("writeErrors")) {
+            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+            int success = (int) writeResult.get("n");
+            throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+        }
+        return ((Map<String, Object>) writeResult.get("value"));
     }
 }

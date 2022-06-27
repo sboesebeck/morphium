@@ -295,7 +295,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 .setDb(morphium.getDatabase())
                                 .setColl(collectionName).setDocuments(dbLst);
                         if (wc != null) settings.setWriteConcern(wc.asMap());
-                        settings.execute();
+                        var writeResult = settings.execute();
+                        if (writeResult.containsKey("writeErrors")) {
+                            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+                            int success = (int) writeResult.get("n");
+                            throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+                        }
                         dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
                         for (Object o : lst) {
@@ -375,7 +380,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         InsertMongoCommand settings = new InsertMongoCommand(morphium.getDriver()).setDb(getDbName()).setColl(coll)
                                 .setDocuments(objs);
                         if (wc != null) settings.setWriteConcern(wc.asMap());
-                        settings.execute();
+                        var writeResult = settings.execute();
+                        if (writeResult.containsKey("writeErrors")) {
+                            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+                            int success = (int) writeResult.get("n");
+                            throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+                        }
                     } catch (Throwable t) {
                         throw new RuntimeException(t);
                     }

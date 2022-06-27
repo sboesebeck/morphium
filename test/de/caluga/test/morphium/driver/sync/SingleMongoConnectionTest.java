@@ -5,7 +5,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.sync.SynchronousMongoConnection;
+import de.caluga.morphium.driver.sync.SingleMongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -20,14 +20,14 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SynchronousMongoConnectionTest {
+public class SingleMongoConnectionTest {
     private final static String coll = "uncached_object";
     private final static String db = "testdb";
-    private Logger log = LoggerFactory.getLogger(SynchronousMongoConnectionTest.class);
+    private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
 
     @Test
     public void testSyncConnection() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         log.info("Connected");
         int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
         log.info("Deleted old data: " + deleted);
@@ -94,7 +94,7 @@ public class SynchronousMongoConnectionTest {
 
     @Test
     public void testUpdateSyncConnection() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
 
@@ -134,7 +134,7 @@ public class SynchronousMongoConnectionTest {
 
     @Test
     public void testWatch() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
         UncachedObject o = new UncachedObject("value", 123);
@@ -147,7 +147,7 @@ public class SynchronousMongoConnectionTest {
             public void run() {
                 try {
                     log.info("Thread is connecting...");
-                    SynchronousMongoConnection con = new SynchronousMongoConnection();
+                    SingleMongoConnection con = new SingleMongoConnection();
                     con.setHostSeed("localhost:27017");
 
                     con.setDefaultBatchSize(5);
@@ -190,8 +190,8 @@ public class SynchronousMongoConnectionTest {
         con.disconnect();
     }
 
-    private SynchronousMongoConnection getSynchronousMongoConnection() throws MorphiumDriverException {
-        SynchronousMongoConnection con = new SynchronousMongoConnection();
+    private SingleMongoConnection getSynchronousMongoConnection() throws MorphiumDriverException {
+        SingleMongoConnection con = new SingleMongoConnection();
         con.setHostSeed("localhost:27017");
         con.setDefaultBatchSize(5);
         con.connect();
@@ -202,7 +202,7 @@ public class SynchronousMongoConnectionTest {
 
     @Test
     public void testMapReduce() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
@@ -236,7 +236,7 @@ public class SynchronousMongoConnectionTest {
 
     @Test
     public void testRunCommand() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
@@ -258,7 +258,7 @@ public class SynchronousMongoConnectionTest {
 
     @Test
     public void iteratorTest() throws Exception {
-        SynchronousMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getSynchronousMongoConnection();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
