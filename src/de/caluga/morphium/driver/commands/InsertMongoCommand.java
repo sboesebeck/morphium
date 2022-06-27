@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 import java.util.List;
 import java.util.Map;
@@ -57,5 +58,17 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
     @Override
     public String getCommandName() {
         return "insert";
+    }
+
+
+    @Override
+    public Map<String, Object> execute() throws MorphiumDriverException {
+        Map<String, Object> writeResult = super.execute();
+        if (writeResult.containsKey("writeErrors")) {
+            int failedWrites = ((List) writeResult.get("writeErrors")).size();
+            int success = (int) writeResult.get("n");
+            throw new MorphiumDriverException("Failed to write: " + failedWrites + " - succeeded: " + success);
+        }
+        return writeResult;
     }
 }

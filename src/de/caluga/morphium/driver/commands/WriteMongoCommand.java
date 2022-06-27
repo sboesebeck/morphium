@@ -4,7 +4,6 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
 import java.util.Map;
 
@@ -38,13 +37,12 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
         MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
-            long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
-            long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
-            return crs.next();
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+
+        setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+        long start = System.currentTimeMillis();
+        MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+        long dur = System.currentTimeMillis() - start;
+        getMetaData().put("duration", dur);
+        return crs.next();
     }
 }

@@ -4,7 +4,10 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.DeleteMongoCommand;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WatchSettings;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.slf4j.Logger;
@@ -24,9 +27,9 @@ import java.util.stream.Collectors;
  * <p>
  * connects to one node only!
  */
-public class SynchronousMongoConnection extends DriverBase {
+public class SingleMongoConnection extends DriverBase {
 
-    private final Logger log = LoggerFactory.getLogger(SynchronousMongoConnection.class);
+    private final Logger log = LoggerFactory.getLogger(SingleMongoConnection.class);
     private Socket s;
     private OutputStream out;
     private InputStream in;
@@ -39,7 +42,7 @@ public class SynchronousMongoConnection extends DriverBase {
     private Map<Integer, Long> incomingTimes = new HashMap<>();
     private boolean running = true;
 
-    private int unsansweredMessageId = 0;
+    //private int unsansweredMessageId = 0;
 
     private void reconnect() {
         try {
@@ -80,18 +83,23 @@ public class SynchronousMongoConnection extends DriverBase {
                         if (in.available() > 0) {
                             synchronized (incoming) {
                                 OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
-                                incoming.put(msg.getResponseTo(), msg);
-                                incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
-                                if (unsansweredMessageId != msg.getResponseTo()) {
-                                    log.error("Received wrong answer - expected " + unsansweredMessageId + " but got " + msg.getResponseTo());
+                                synchronized (incoming) {
+                                    incoming.put(msg.getResponseTo(), msg);
+                                    incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
                                 }
-                                unsansweredMessageId = 0;
-                                var s = new HashSet(incomingTimes.keySet());
-                                for (var k : s) {
-                                    if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
-                                        log.warn("Discarding unused answer " + k);
-                                        incoming.remove(k);
-                                        incomingTimes.remove(k);
+//                                if (unsansweredMessageId != msg.getResponseTo()) {
+//                                    log.error("Received wrong answer - expected " + unsansweredMessageId + " but got " + msg.getResponseTo());
+//                                }
+                                //unsansweredMessageId = 0;
+                                synchronized (incoming) {
+                                    var s = new HashSet(incomingTimes.keySet());
+                                    for (var k : s) {
+                                        if (incomingTimes.get(k) == null) continue;
+                                        if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
+                                            log.warn("Discarding unused answer " + k);
+                                            incoming.remove(k);
+                                            incomingTimes.remove(k);
+                                        }
                                     }
                                 }
                             }
@@ -133,20 +141,29 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
     public boolean isBusy() {
-        return unsansweredMessageId != 0;
+        return false; //unsansweredMessageId != 0;
     }
 
     @Override
     public boolean replyForMsgAvailable(int msg) {
-        return incoming.containsKey(msg);
+        synchronized (incoming) {
+            return incoming.containsKey(msg);
+        }
     }
 
     @Override
-    public OpMsg getReplyFor(int msgid, long timeout) {
-        while (!incoming.containsKey(msgid)) {
-            Thread.yield();
+    public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
+        long start = System.currentTimeMillis();
+        synchronized (incoming) {
+            while (!incoming.containsKey(msgid)) {
+                if (System.currentTimeMillis() - start > timeout) {
+                    throw new MorphiumDriverException("Timeout!");
+                }
+                Thread.yield();
+            }
+            incomingTimes.remove(msgid);
+            return incoming.remove(msgid);
         }
-        return incoming.remove(msgid);
     }
 
 
@@ -202,8 +219,6 @@ public class SynchronousMongoConnection extends DriverBase {
     }
 
 
-
-
     @Override
     public void watch(WatchSettings settings) throws MorphiumDriverException {
         int maxWait = 0;
@@ -231,7 +246,7 @@ public class SynchronousMongoConnection extends DriverBase {
         settings.setMetaData("server", getHostSeed()[0]);
         long docsProcessed = 0;
         while (true) {
-            OpMsg reply = waitForReply(settings.getDb(), settings.getColl(), msg.getMessageId());
+            OpMsg reply = getReplyFor(msg.getMessageId(), getMaxWaitTime());
             log.info("got answer for watch!");
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
             if (cursor == null) throw new MorphiumDriverException("Could not watch - cursor is null");
@@ -318,8 +333,8 @@ public class SynchronousMongoConnection extends DriverBase {
             int id = sendCommand(db, cmd);
 
             OpMsg rep = null;
-            synchronized (SynchronousMongoConnection.this) {
-                rep = waitForReply(db, null, id);
+            synchronized (SingleMongoConnection.this) {
+                rep = getReplyFor(id, getMaxWaitTime());
             }
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
@@ -346,7 +361,7 @@ public class SynchronousMongoConnection extends DriverBase {
             int id = sendCommand(db, cmd);
 
             OpMsg rep = null;
-            rep = waitForReply(db, null, id);
+            rep = getReplyFor(id, getMaxWaitTime());
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
             }
@@ -393,11 +408,11 @@ public class SynchronousMongoConnection extends DriverBase {
         q.setFirstDoc(Doc.of(cmd));
 
         OpMsg rep = null;
-        synchronized (SynchronousMongoConnection.this) {
+        synchronized (SingleMongoConnection.this) {
             sendQuery(q);
         }
-        unsansweredMessageId = q.getMessageId();
-        return unsansweredMessageId;
+//        unsansweredMessageId = q.getMessageId();
+        return q.getMessageId();//unsansweredMessageId;
     }
 
     @Override
@@ -458,7 +473,7 @@ public class SynchronousMongoConnection extends DriverBase {
         Map<String, Object> doc;
         String db = null;
         String coll = null;
-        synchronized (SynchronousMongoConnection.this) {
+        synchronized (SingleMongoConnection.this) {
             while (true) {
                 OpMsg reply = getReplyFor(waitingfor, getMaxWaitTime());
                 if (reply.getResponseTo() != waitingfor) {
@@ -552,36 +567,36 @@ public class SynchronousMongoConnection extends DriverBase {
         sendQuery(q);
         return getReplyFor(q.getMessageId(), getMaxWaitTime());
     }
-
-    private OpMsg waitForReply(MongoCommand settings, OpMsg query) throws MorphiumDriverException {
-        return waitForReply(settings.getDb(), settings.getColl(), query.getMessageId());
-    }
-
-    private OpMsg waitForReply(String db, String collection, int waitingfor) throws MorphiumDriverException {
-        OpMsg reply;
-        reply = getReplyFor(waitingfor, getMaxWaitTime());
-        //                replies.remove(i);
-        if (reply.getResponseTo() == waitingfor) {
-            if (!reply.getFirstDoc().get("ok").equals(1) && !reply.getFirstDoc().get("ok").equals(1.0)) {
-                Object code = reply.getFirstDoc().get("code");
-                Object errmsg = reply.getFirstDoc().get("errmsg");
-                //                throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
-                MorphiumDriverException mde = new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, null);
-                mde.setMongoCode(code);
-                mde.setMongoReason(errmsg);
-
-                throw mde;
-
-            } else {
-                //got OK message
-                //                        log.info("ok");
-            }
-        } else {
-            throw new MorphiumDriverException("Did receive wrong answer!");
-        }
-
-        return reply;
-    }
+//
+//    private OpMsg waitForReply(MongoCommand settings, OpMsg query) throws MorphiumDriverException {
+//        return waitForReply(settings.getDb(), settings.getColl(), query.getMessageId());
+//    }
+//
+//    private OpMsg waitForReply(String db, String collection, int waitingfor) throws MorphiumDriverException {
+//        OpMsg reply;
+//        reply = getReplyFor(waitingfor, getMaxWaitTime());
+//        //                replies.remove(i);
+//        if (reply.getResponseTo() == waitingfor) {
+//            if (!reply.getFirstDoc().get("ok").equals(1) && !reply.getFirstDoc().get("ok").equals(1.0)) {
+//                Object code = reply.getFirstDoc().get("code");
+//                Object errmsg = reply.getFirstDoc().get("errmsg");
+//                //                throw new MorphiumDriverException("Operation failed - error: " + code + " - " + errmsg, null, collection, db, query);
+//                MorphiumDriverException mde = new MorphiumDriverException("Operation failed on " + getHostSeed()[0] + " - error: " + code + " - " + errmsg, null, collection, db, null);
+//                mde.setMongoCode(code);
+//                mde.setMongoReason(errmsg);
+//
+//                throw mde;
+//
+//            } else {
+//                //got OK message
+//                //                        log.info("ok");
+//            }
+//        } else {
+//            throw new MorphiumDriverException("Did receive wrong answer!");
+//        }
+//
+//        return reply;
+//    }
 
 
     public boolean exists(String db) throws MorphiumDriverException {
@@ -621,7 +636,7 @@ public class SynchronousMongoConnection extends DriverBase {
             q.setResponseTo(0);
 
             List<Map<String, Object>> ret;
-            synchronized (SynchronousMongoConnection.this) {
+            synchronized (SingleMongoConnection.this) {
                 sendQuery(q);
                 ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             }
@@ -651,7 +666,7 @@ public class SynchronousMongoConnection extends DriverBase {
             }
             msg.setFirstDoc(v);
             sendQuery(msg);
-            OpMsg reply = waitForReply(db, null, msg.getMessageId());
+            OpMsg reply = getReplyFor(msg.getMessageId(), getMaxWaitTime());
             return reply.getFirstDoc();
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
@@ -674,7 +689,7 @@ public class SynchronousMongoConnection extends DriverBase {
             q.setResponseTo(0);
 
             List<Map<String, Object>> ret;
-            synchronized (SynchronousMongoConnection.this) {
+            synchronized (SingleMongoConnection.this) {
                 sendQuery(q);
                 ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
             }
@@ -707,20 +722,20 @@ public class SynchronousMongoConnection extends DriverBase {
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
-                            InsertMongoCommand settings = new InsertMongoCommand(SynchronousMongoConnection.this);
+                            InsertMongoCommand settings = new InsertMongoCommand(SingleMongoConnection.this);
                             settings.setDb(db).setColl(collection)
                                     .setComment("Bulk insert")
                                     .setDocuments(((InsertBulkRequest) r).getToInsert());
                             settings.execute();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            UpdateMongoCommand upCmd = new UpdateMongoCommand(SynchronousMongoConnection.this);
+                            UpdateMongoCommand upCmd = new UpdateMongoCommand(SingleMongoConnection.this);
                             upCmd.setColl(collection).setDb(db)
                                     .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
                             upCmd.execute();
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                            DeleteMongoCommand del = new DeleteMongoCommand(SynchronousMongoConnection.this);
+                            DeleteMongoCommand del = new DeleteMongoCommand(SingleMongoConnection.this);
                             del.setColl(collection).setDb(db)
                                     .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
                             del.execute();
