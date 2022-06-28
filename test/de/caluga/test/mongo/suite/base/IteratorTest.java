@@ -474,13 +474,14 @@ public class IteratorTest extends MorphiumTestBase {
         Thread.sleep(500);
         Query<UncachedObject> qu = getUncachedObjectQuery();
 
-        var it = qu.asIterable();
+        var it = qu.asIterable(100);
         int cnt = 0;
         while (it.hasNext()) {
             cnt++;
             var u = it.next();
             assertThat(u.getCounter()).isEqualTo(cnt);
         }
+        it.close();
     }
 
     @Test
@@ -530,7 +531,8 @@ public class IteratorTest extends MorphiumTestBase {
             uc.setStrValue("expected WRONG!");
             morphium.store(uc);
             waitForWrites();
-            //Will write out some Wrong!-Values... this is expected and GOOD!
+            //Will write out some Wrong!-Values... depending on Driver: singleconnection, no "WRONG" is shown,
+            // multithreadded it is - this is expected and GOOD!
             log.info("Current Counter: " + u.getCounter() + " and Value: " + u.getStrValue());
         }
 

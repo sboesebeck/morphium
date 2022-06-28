@@ -65,33 +65,6 @@ public class SingleMongoConnectionTest {
         con.disconnect();
     }
 
-
-//
-//    public void pseudoCode(){
-//        FindCommand fnd=FindCommand.builder(driver).setQuery().setDB().set...();
-//        List(Map<String,Object>) fnd.exec();
-//        //Builder
-//        static Vector<FindCommand> commands=new Vector<FindCommand>();
-//        runner={
-//                while (commands.size()<10){
-//                    commands.add(new FindCommand(drvier));
-//                }
-//        };
-//        scheduler.schedule(runner,10sek);
-//
-//
-//        builder{
-//            return commands.remove(0);
-//        }
-//        purge(){
-//            clear();
-//            commands.add(this);
-//        }
-//        fnd.purge();
-//
-//    }
-
-
     @Test
     public void testUpdateSyncConnection() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
@@ -169,7 +142,7 @@ public class SingleMongoConnectionTest {
                 }
             }
         }.start();
-        con.watch(new WatchSettings().setCb(new DriverTailableIterationCallback() {
+        con.watch(new WatchSettings(con).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
             @Override

@@ -8,6 +8,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
 import org.json.simple.parser.ContainerFactory;
@@ -56,6 +57,7 @@ public class Query<T> implements Cloneable {
 
     private String overrideDB;
     private Collation collation;
+    private int batchSize = 0;
 
     public Query() {
 
@@ -74,6 +76,18 @@ public class Query<T> implements Cloneable {
 
     public Query(Morphium m) {
         setMorphium(m);
+    }
+
+    public int getBatchSize() {
+        if (batchSize == 0) {
+            return morphium.getDriver().getDefaultBatchSize();
+        }
+        return batchSize;
+    }
+
+    public Query<T> setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+        return this;
     }
 
     public Collation getCollation() {
@@ -1136,13 +1150,13 @@ public class Query<T> implements Cloneable {
         List<T> ret = new ArrayList<>();
         ret.clear();
         try {
-            FindCommand settings = getFindCmd();
+            FindCommand cmd = getFindCmd();
             Map<String, Object> queryObject = toQueryObject();
-            if (queryObject != null) settings.setFilter(Doc.of(queryObject));
-            if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
-            if (sort != null) settings.setSort(new Doc(sort));
-            var query = settings.execute();
-            srv = (String) settings.getMetaData().get("server");
+            if (queryObject != null) cmd.setFilter(Doc.of(queryObject));
+            if (collation != null) cmd.setCollation(Doc.of(collation.toQueryObject()));
+            if (sort != null) cmd.setSort(new Doc(sort));
+            var query = cmd.execute();
+            srv = (String) cmd.getMetaData().get("server");
 
 
             for (Map<String, Object> o : query) {
@@ -1192,6 +1206,10 @@ public class Query<T> implements Cloneable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public MorphiumCursor getCursor() throws MorphiumDriverException {
+        return getFindCmd().executeIterable();
     }
 
 
@@ -2214,7 +2232,7 @@ public class Query<T> implements Cloneable {
                 .setSkip(getSkip())
                 .setLimit(getLimit())
                 .setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
-        settings.setBatchSize(morphium.getConfig().getCursorBatchSize());
+        settings.setBatchSize(getBatchSize());
         return settings;
     }
 }

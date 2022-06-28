@@ -1044,20 +1044,25 @@ public class MongoDriver implements MorphiumDriver {
                 }
             }
             MorphiumCursor crs = new MorphiumCursor() {
+                @Override
+                public Iterator<Map<String, Object>> iterator() {
+                    return this;
+                }
+
                 private MongoCursor<Document> cursor = ret;
 
                 @Override
-                public boolean hasNext() throws MorphiumDriverException {
+                public boolean hasNext() {
                     return ret.hasNext();
                 }
 
                 @Override
-                public Map<String, Object> next() throws MorphiumDriverException {
+                public Map<String, Object> next() {
                     return ret.next();
                 }
 
                 @Override
-                public void close() throws MorphiumDriverException {
+                public void close() {
                     ret.close();
                 }
 
@@ -1067,19 +1072,24 @@ public class MongoDriver implements MorphiumDriver {
                 }
 
                 @Override
-                public List<Map<String, Object>> getAll() throws MorphiumDriverException {
-                    //TODO: read all
-                    return null;
+                public List<Map<String, Object>> getAll() {
+                    List<Map<String, Object>> lst = new ArrayList<>();
+                    while (ret.hasNext()) {
+                        lst.add(ret.next());
+                    }
+                    return lst;
                 }
 
                 @Override
                 public void ahead(int skip) throws MorphiumDriverException {
-
+                    for (int i = 0; i < skip; i++) {
+                        ret.next();
+                    }
                 }
 
                 @Override
                 public void back(int jump) throws MorphiumDriverException {
-
+                    throw new MorphiumDriverException("No possible");
                 }
 
                 @Override
@@ -1152,20 +1162,25 @@ public class MongoDriver implements MorphiumDriver {
             }
 
             MorphiumCursor crs = new MorphiumCursor() {
+                @Override
+                public Iterator<Map<String, Object>> iterator() {
+                    return this;
+                }
+
                 private MongoCursor<Document> cursor = ret;
 
                 @Override
-                public boolean hasNext() throws MorphiumDriverException {
+                public boolean hasNext() {
                     return ret.hasNext();
                 }
 
                 @Override
-                public Map<String, Object> next() throws MorphiumDriverException {
+                public Map<String, Object> next() {
                     return ret.next();
                 }
 
                 @Override
-                public void close() throws MorphiumDriverException {
+                public void close() {
                     ret.close();
                 }
 
@@ -1176,8 +1191,11 @@ public class MongoDriver implements MorphiumDriver {
 
                 @Override
                 public List<Map<String, Object>> getAll() throws MorphiumDriverException {
-                    //TODO: implement
-                    return null;
+                    List<Map<String, Object>> lst = new ArrayList<>();
+                    while (ret.hasNext()) {
+                        lst.add(ret.next());
+                    }
+                    return lst;
                 }
 
                 @Override

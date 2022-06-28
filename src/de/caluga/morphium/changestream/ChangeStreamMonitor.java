@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.WatchSettings;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import org.slf4j.Logger;
@@ -179,12 +180,16 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-
-//                if (dbOnly) {
+                WatchSettings watchSettings = new WatchSettings(morphium.getDriver());
+                watchSettings.setCb(callback);
+                watchSettings.setMaxWaitTime(10000);
+                watchSettings.setFullDocument(fullDocument ? WatchSettings.FullDocumentEnum.required : WatchSettings.FullDocumentEnum.defaultValue);
+                watchSettings.setPipeline(pipeline);
+                if (!dbOnly) {
+                    watchSettings.setColl(collectionName);
 //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
-//                } else {
-//                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), collectionName, maxWait, fullDocument, pipeline, callback);
-//                }
+                }
+                watchSettings.watch();
             } catch (Exception e) {
                 if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");

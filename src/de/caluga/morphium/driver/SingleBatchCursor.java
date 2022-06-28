@@ -14,18 +14,18 @@ public class SingleBatchCursor extends MorphiumCursor {
     }
 
     @Override
-    public boolean hasNext() throws MorphiumDriverException {
+    public boolean hasNext() {
         return iterator.hasNext();
     }
 
     @Override
-    public Map<String, Object> next() throws MorphiumDriverException {
+    public Map<String, Object> next() {
         idx++;
         return iterator.next();
     }
 
     @Override
-    public void close() throws MorphiumDriverException {
+    public void close() {
 
     }
 
@@ -56,5 +56,10 @@ public class SingleBatchCursor extends MorphiumCursor {
     @Override
     public int getCursor() {
         return idx;
+    }
+
+    @Override
+    public Iterator<Map<String, Object>> iterator() {
+        return this;
     }
 }

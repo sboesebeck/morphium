@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -18,18 +19,18 @@ public class SingleElementCursor extends MorphiumCursor {
     }
 
     @Override
-    public boolean hasNext() throws MorphiumDriverException {
+    public boolean hasNext() {
         return idx == 0;
     }
 
     @Override
-    public Map<String, Object> next() throws MorphiumDriverException {
+    public Map<String, Object> next() {
         idx++;
         return element;
     }
 
     @Override
-    public void close() throws MorphiumDriverException {
+    public void close() {
 
     }
 
@@ -56,5 +57,10 @@ public class SingleElementCursor extends MorphiumCursor {
     @Override
     public int getCursor() {
         return idx;
+    }
+
+    @Override
+    public Iterator<Map<String, Object>> iterator() {
+        return this;
     }
 }

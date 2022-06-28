@@ -87,7 +87,9 @@ public class SingleMongoConnection extends DriverBase {
                             synchronized (incomingTimes) {
                                 incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
                             }
-
+                            synchronized (incoming) {
+                                incoming.notifyAll();
+                            }
                             var s = new HashSet(incomingTimes.keySet());
                             for (var k : s) {
                                 synchronized (incomingTimes) {
@@ -146,10 +148,13 @@ public class SingleMongoConnection extends DriverBase {
     public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
         long start = System.currentTimeMillis();
         while (!incoming.containsKey(msgid)) {
-            if (System.currentTimeMillis() - start > timeout) {
-                throw new MorphiumDriverException("Timeout!");
+            try {
+                synchronized (incoming) {
+                    incoming.wait(timeout);
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
-            Thread.yield();
         }
         synchronized (incomingTimes) {
             incomingTimes.remove(msgid);
@@ -222,7 +227,7 @@ public class SingleMongoConnection extends DriverBase {
         OpMsg startMsg = new OpMsg();
         int batchSize = settings.getBatchSize() == null ? getDefaultBatchSize() : settings.getBatchSize();
         startMsg.setMessageId(getNextId());
-        ArrayList<Doc> localPipeline = new ArrayList<>();
+        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
         localPipeline.add(Doc.of("$changeStream", new HashMap<>()));
         if (settings.getPipeline() != null && !settings.getPipeline().isEmpty())
             localPipeline.addAll(settings.getPipeline());
@@ -254,6 +259,8 @@ public class SingleMongoConnection extends DriverBase {
                     settings.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
+            } else {
+                log.info("No/empty result");
             }
             if (!settings.getCb().isContinued()) {
                 killCursors(settings.getDb(), settings.getColl(), cursorId);
@@ -273,7 +280,7 @@ public class SingleMongoConnection extends DriverBase {
                 doc.put("$db", settings.getDb());
                 msg.setFirstDoc(doc);
                 sendQuery(msg);
-                log.debug("sent getmore....");
+                //log.debug("sent getmore....");
             } else {
                 log.debug("Cursor exhausted, restarting");
                 msg = startMsg;
@@ -322,14 +329,17 @@ public class SingleMongoConnection extends DriverBase {
         return new NetworkCallHelper<MorphiumCursor>().doCall(() -> {
 
             int id = sendCommand(db, cmd);
-
+            int batchSize = getDefaultBatchSize();
+            if (cmd.containsKey("batchSize")) {
+                batchSize = (int) cmd.get("batchSize");
+            }
             OpMsg rep = null;
             rep = getReplyFor(id, getMaxWaitTime());
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                return new SingleMongoConnectionCursor(this, getDefaultBatchSize(), false, rep);
+                return new SingleMongoConnectionCursor(this, batchSize, false, rep);
             } else if (rep.getFirstDoc().containsKey("results")) {
                 return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results"));
             } else {
@@ -380,11 +390,7 @@ public class SingleMongoConnection extends DriverBase {
             return;
         }
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
-        @SuppressWarnings("MismatchedQ ueryAndUpdateOfCollection") Doc m = new Doc();
-        m.put("killCursors", crs.getCollection());
-        List<Long> cursors = new ArrayList<>();
-        cursors.add(crs.getCursorId());
-        m.put("cursors", cursors);
+
 
     }
 

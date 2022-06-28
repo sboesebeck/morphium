@@ -3,17 +3,18 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.*;
 
 import java.util.List;
+import java.util.Map;
 
 public class WatchSettings extends MongoCommand<WatchSettings> {
     private DriverTailableIterationCallback cb;
     private Integer batchSize;
-    private List<Doc> pipeline;
+    private List<Map<String, Object>> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
     private Integer maxWaitTime;
     private Boolean bypassDocumentValidation;
-    private Doc readConvern;
-    private Doc collation;
+    private Map<String, Object> readConcern;
+    private Map<String, Object> collation;
     private Object hint;
     private Doc writeConern;
     private Doc let;
@@ -21,9 +22,10 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
 
-    public WatchSettings() {
-        super(null);
+    public WatchSettings(MorphiumDriver d) {
+        super(d);
     }
+
 
     public FullDocumentBeforeChangeEnum getFullDocumentBeforeChange() {
         return fullDocumentBeforeChange;
@@ -43,11 +45,11 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return this;
     }
 
-    public List<Doc> getPipeline() {
+    public List<Map<String, Object>> getPipeline() {
         return pipeline;
     }
 
-    public WatchSettings setPipeline(List<Doc> pipeline) {
+    public WatchSettings setPipeline(List<Map<String, Object>> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -88,20 +90,20 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return this;
     }
 
-    public Doc getReadConvern() {
-        return readConvern;
+    public Map<String, Object> getReadConcern() {
+        return readConcern;
     }
 
-    public WatchSettings setReadConvern(Doc readConvern) {
-        this.readConvern = readConvern;
+    public WatchSettings setReadConcern(Map<String, Object> readConcern) {
+        this.readConcern = readConcern;
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public WatchSettings setCollation(Doc collation) {
+    public WatchSettings setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -186,7 +188,25 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
 
     @Override
     public int executeAsync() throws MorphiumDriverException {
-        throw new IllegalArgumentException("Please use DriverBase.watch()");
+        throw new IllegalArgumentException("Please use watch()");
     }
 
+    @Override
+    public boolean hasReplyFor(int cmdId) {
+        throw new IllegalArgumentException("Please use watch()");
+    }
+
+    @Override
+    public Map<String, Object> getSingleResultFor(int cmdId) throws MorphiumDriverException {
+        throw new IllegalArgumentException("Please use watch()");
+    }
+
+    @Override
+    public MorphiumCursor getAnswerFor(int cmdId) throws MorphiumDriverException {
+        throw new IllegalArgumentException("Please use watch()");
+    }
+
+    public void watch() throws MorphiumDriverException {
+        getDriver().watch(this);
+    }
 }

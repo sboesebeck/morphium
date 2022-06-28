@@ -77,30 +77,23 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public boolean hasNext() {
-        try {
+
             return getMongoCursor().hasNext();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+
     }
 
     @Override
     public Map<String, Object> nextMap() {
-        try {
-            return getMongoCursor().next();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+
+        return getMongoCursor().next();
+
     }
 
     @Override
     public T next() {
 
-        try {
             return query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+
     }
 
     @Override
@@ -114,11 +107,9 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public void close() {
-        try {
-            getMongoCursor().close();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+
+        getMongoCursor().close();
+
     }
 
     @Override
@@ -126,7 +117,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
         return getMongoCursor().getCursor();
     }
 
-    private MorphiumCursor getMongoCursor() {
+    public MorphiumCursor getMongoCursor() {
         if (cursor == null) {
             try {
                 var cmd = query.getFindCmd();
