@@ -1,21 +1,22 @@
 package de.caluga.morphium.driver;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 public abstract class MorphiumCursorAdapter extends MorphiumCursor {
     @Override
-    public boolean hasNext() throws MorphiumDriverException {
+    public boolean hasNext() {
         return false;
     }
 
     @Override
-    public Map<String, Object> next() throws MorphiumDriverException {
+    public Map<String, Object> next() {
         return null;
     }
 
     @Override
-    public void close() throws MorphiumDriverException {
+    public void close() {
 
     }
 
@@ -42,5 +43,10 @@ public abstract class MorphiumCursorAdapter extends MorphiumCursor {
     @Override
     public int getCursor() {
         return 0;
+    }
+
+    @Override
+    public Iterator<Map<String, Object>> iterator() {
+        return this;
     }
 }

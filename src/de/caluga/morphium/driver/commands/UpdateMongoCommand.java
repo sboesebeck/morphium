@@ -50,7 +50,7 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
         return this;
     }
 
-    public UpdateMongoCommand addUpdate(Doc query, Doc update, Doc context, boolean upsert, boolean multi, Collation collation, List<Doc> arrayFilters, String hint) {
+    public UpdateMongoCommand addUpdate(Map<String, Object> query, Map<String, Object> update, Map<String, Object> context, boolean upsert, boolean multi, Collation collation, List<Map<String, Object>> arrayFilters, String hint) {
         if (updates == null) updates = new ArrayList<>();
 
         Doc upd = Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);

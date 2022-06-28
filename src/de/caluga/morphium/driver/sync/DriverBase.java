@@ -599,7 +599,8 @@ public abstract class DriverBase implements MorphiumDriver {
                 .add("$db", db)
         );
         sendQuery(q);
-
+        var reply = getReplyFor(q.getMessageId(), 1000);
+        log.info("killed cursor");
     }
 
 
@@ -610,8 +611,6 @@ public abstract class DriverBase implements MorphiumDriver {
         final Map<String, Integer> sort = s;
         //noinspection unchecked
         new NetworkCallHelper().doCall(() -> {
-
-
             Doc doc = new Doc();
             doc.put("find", collection);
             doc.put("$db", db);

@@ -458,15 +458,6 @@ public class Morphium implements AutoCloseable {
         morphiumDriver = drv;
     }
 
-
-    public <T> Query<T> createQueryByTemplate(T template, Enum... fields) {
-        String[] flds = new String[fields.length];
-        for (int i = 0; i < fields.length; i++) {
-            flds[i] = fields[i].name();
-        }
-        return createQueryByTemplate(template, flds);
-    }
-
     public Query<Map<String, Object>> createMapQuery(String collection) {
         Class qImpl = config.getQueryFact().getQueryImpl();
         try {
@@ -502,25 +493,7 @@ public class Morphium implements AutoCloseable {
         return q;
     }
 
-    public <T> List<T> findByTemplate(T template, Enum... fields) {
-        return createQueryByTemplate(template, fields).asList();
-    }
 
-    /**
-     * search for objects similar to template concerning all given fields.
-     * If no fields are specified, all NON Null-Fields are taken into account
-     * if specified, field might also be null
-     *
-     * @param template - what to search for
-     * @param fields   - fields to use for searching
-     * @param <T>      - type
-     * @return result of search
-     */
-    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public <T> List<T> findByTemplate(T template, String... fields) {
-
-        return createQueryByTemplate(template, fields).asList();
-    }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public <T> void unset(T toSet, Enum field) {
@@ -3357,13 +3330,11 @@ public class Morphium implements AutoCloseable {
 
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
-            List<Doc> pipe = new ArrayList<>();
-            for (Map<String, Object> p : pipeline) pipe.add(Doc.of(p));
-            WatchSettings settings = new WatchSettings()
+            WatchSettings settings = new WatchSettings(getDriver())
                     .setDb(config.getDatabase())
                     .setColl(collectionName)
                     .setMaxWaitTime(maxWaitTime)
-                    .setPipeline(pipe)
+                    .setPipeline(pipeline)
                     .setFullDocument(updateFull ? WatchSettings.FullDocumentEnum.updateLookup : WatchSettings.FullDocumentEnum.defaultValue)
                     .setCb(new DriverTailableIterationCallback() {
                         boolean b = true;
@@ -3426,15 +3397,12 @@ public class Morphium implements AutoCloseable {
 
     public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
-            List<Doc> pipe = new ArrayList<>();
-            for (Map<String, Object> p : pipeline) {
-                pipe.add(Doc.of(p));
-            }
-            WatchSettings settings = new WatchSettings()
+
+            WatchSettings settings = new WatchSettings(getDriver())
                     .setDb(dbName)
                     .setMaxWaitTime(maxWaitTime)
                     .setFullDocument(updateFull ? WatchSettings.FullDocumentEnum.updateLookup : WatchSettings.FullDocumentEnum.defaultValue)
-                    .setPipeline(pipe)
+                    .setPipeline(pipeline)
                     .setCb(new DriverTailableIterationCallback() {
                         private boolean b = true;
 

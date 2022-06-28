@@ -496,17 +496,22 @@ public class InMemoryDriver implements MorphiumDriver {
         log.warn("aggregation not possible in mem");
         return new MorphiumCursor() {
             @Override
-            public boolean hasNext() throws MorphiumDriverException {
+            public Iterator<Map<String, Object>> iterator() {
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
                 return false;
             }
 
             @Override
-            public Map<String, Object> next() throws MorphiumDriverException {
+            public Map<String, Object> next() {
                 return null;
             }
 
             @Override
-            public void close() throws MorphiumDriverException {
+            public void close() {
 
             }
 
@@ -541,17 +546,22 @@ public class InMemoryDriver implements MorphiumDriver {
     public MorphiumCursor initIteration(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Doc findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor() {
             @Override
-            public boolean hasNext() throws MorphiumDriverException {
+            public Iterator<Map<String, Object>> iterator() {
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
                 return false;
             }
 
             @Override
-            public Map<String, Object> next() throws MorphiumDriverException {
+            public Map<String, Object> next() {
                 return null;
             }
 
             @Override
-            public void close() throws MorphiumDriverException {
+            public void close() {
 
             }
 
@@ -671,17 +681,22 @@ public class InMemoryDriver implements MorphiumDriver {
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         MorphiumCursor next = new MorphiumCursor() {
             @Override
-            public boolean hasNext() throws MorphiumDriverException {
+            public Iterator<Map<String, Object>> iterator() {
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
                 return false;
             }
 
             @Override
-            public Map<String, Object> next() throws MorphiumDriverException {
+            public Map<String, Object> next() {
                 return null;
             }
 
             @Override
-            public void close() throws MorphiumDriverException {
+            public void close() {
 
             }
 

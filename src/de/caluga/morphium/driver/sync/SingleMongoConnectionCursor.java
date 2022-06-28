@@ -7,10 +7,7 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: Stephan Bösebeck
@@ -71,12 +68,17 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
 
     @Override
+    public Iterator<Map<String, Object>> iterator() {
+        return this;
+    }
+
+    @Override
     public int getCursor() {
         return index;
     }
 
     @Override
-    public boolean hasNext() throws MorphiumDriverException {
+    public boolean hasNext() {
         //end of stream
         if (getBatch() == null || getBatch().isEmpty()) {
             return false;
@@ -87,7 +89,11 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         }
         if (getCursorId() != 0) {
             // next batch
-            getNextIteration();
+            try {
+                getNextIteration();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
 
             if (getBatch() == null || getBatch().isEmpty()) return false;
             return true;
@@ -105,10 +111,14 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public Map<String, Object> next() throws MorphiumDriverException {
+    public Map<String, Object> next() {
         if (getBatch() == null || getBatch().isEmpty()) return null;
         if (getBatch().size() <= internalIndex) {
-            getNextIteration();
+            try {
+                getNextIteration();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            }
             if (getBatch() == null || getBatch().isEmpty()) return null;
         }
         index++;
@@ -116,8 +126,12 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public void close() throws MorphiumDriverException {
-        getDriver().closeIteration(this);
+    public void close() {
+        try {
+            getDriver().closeIteration(this);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -207,8 +221,8 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
     @Override
     public void back(int jump) throws MorphiumDriverException {
-        internalIndex -= jump;
-        index -= jump;
+        internalIndex -= (jump);
+        index -= (jump);
         if (internalIndex < 0) {
             throw new IllegalArgumentException("cannot jump back over batch boundaries!");
         }

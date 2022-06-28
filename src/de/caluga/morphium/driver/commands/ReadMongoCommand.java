@@ -48,7 +48,6 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
-        return new NetworkCallHelper<MorphiumCursor>().doCall(() -> {
             List<Map<String, Object>> ret = new ArrayList<>();
             setMetaData(Doc.of("server", driver.getHostSeed()[0]));
             long start = System.currentTimeMillis();
@@ -56,7 +55,6 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
             return crs;
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
     }
 
 }

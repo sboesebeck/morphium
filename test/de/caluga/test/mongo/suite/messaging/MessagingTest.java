@@ -203,7 +203,7 @@ public class MessagingTest extends MorphiumTestBase {
 
         Thread.sleep(1000);
         assert (!gotMessage) : "Message recieved from self?!?!?!";
-        log.info("Dig not get own message - cool!");
+        log.info("Did not get own message - cool!");
 
         Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
         m.setMsgId(new MorphiumId());

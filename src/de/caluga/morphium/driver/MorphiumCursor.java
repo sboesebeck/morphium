@@ -2,13 +2,14 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 22.03.16.
  */
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Morphiums representation of the mongodb getMongoCursor()
  **/
-public abstract class MorphiumCursor {
+public abstract class MorphiumCursor implements Iterable<Map<String, Object>>, Iterator<Map<String, Object>> {
     private long cursorId;
     private int batchSize;
     private List<Map<String, Object>> batch;
@@ -55,11 +56,11 @@ public abstract class MorphiumCursor {
         this.batch = batch;
     }
 
-    public abstract boolean hasNext() throws MorphiumDriverException;
+    public abstract boolean hasNext();
 
-    public abstract Map<String, Object> next() throws MorphiumDriverException;
+    public abstract Map<String, Object> next();
 
-    public abstract void close() throws MorphiumDriverException;
+    public abstract void close();
 
     public abstract int available();
 

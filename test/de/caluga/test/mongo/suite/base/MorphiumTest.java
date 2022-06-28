@@ -151,25 +151,7 @@ public class MorphiumTest extends MorphiumTestBase {
 
 
     @Test
-    public void testFindByTemplate() throws Exception {
-        createUncachedObjects(20);
-        Thread.sleep(250);
-        List<UncachedObject> uc = morphium.findByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter, UncachedObject.Fields.strValue);
-        assert (uc.size() == 1);
-    }
-
-    @Test
     public void testUnset() throws Exception {
-        createUncachedObjects(20);
-        Thread.sleep(150);
-        Query<UncachedObject> q = morphium.createQueryByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter);
-        morphium.unsetQ(q, UncachedObject.Fields.strValue);
-        Thread.sleep(120);
-        assert (q.get().getStrValue() == null);
-    }
-
-    @Test
-    public void testTestUnset() throws Exception {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
@@ -190,14 +172,5 @@ public class MorphiumTest extends MorphiumTestBase {
         assert (uc.getStrValue().equals("other"));
     }
 
-    @Test
-    public void testTestSet() throws Exception {
-        createUncachedObjects(20);
-        Thread.sleep(150);
-        Query<UncachedObject> q = morphium.createQueryByTemplate(new UncachedObject("v", 12), UncachedObject.Fields.counter);
-        morphium.set(q, UncachedObject.Fields.strValue, "other");
-        Thread.sleep(20);
-        assert (q.get().getStrValue().equals("other"));
-    }
 
 }

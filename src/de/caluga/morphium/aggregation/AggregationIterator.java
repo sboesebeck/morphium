@@ -7,7 +7,10 @@ import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -53,32 +56,20 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
     @Override
     public boolean hasNext() {
-        try {
-            return getMongoCursor().hasNext();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return getMongoCursor().hasNext();
     }
 
     @Override
     public Map<String, Object> nextMap() {
-        try {
-            return getMongoCursor().next();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        return getMongoCursor().next();
     }
 
     @Override
     public R next() {
-        try {
-            if (Map.class.isAssignableFrom(aggregator.getResultType())) {
-                return (R) getMongoCursor().next();
-            }
-            return aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), getMongoCursor().next());
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
+        if (Map.class.isAssignableFrom(aggregator.getResultType())) {
+            return (R) getMongoCursor().next();
         }
+        return aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), getMongoCursor().next());
     }
 
     @Override
@@ -96,11 +87,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
 
     @Override
     public void close() {
-        try {
-            getMongoCursor().close();
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        getMongoCursor().close();
     }
 
     @Override
