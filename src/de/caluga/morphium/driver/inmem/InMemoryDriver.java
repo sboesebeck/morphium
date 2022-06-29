@@ -229,6 +229,11 @@ public class InMemoryDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
 
     @Override
     public String getName() {

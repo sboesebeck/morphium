@@ -1,4 +1,4 @@
-package de.caluga.test.morphium.driver.sync;
+package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
@@ -20,9 +20,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SingleMongoConnectionTest {
-    private final static String coll = "uncached_object";
-    private final static String db = "testdb";
+public class SingleMongoConnectionTest extends DriverTestBase {
+
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
 
     @Test
@@ -163,16 +162,6 @@ public class SingleMongoConnectionTest {
         con.disconnect();
     }
 
-    private SingleMongoConnection getSynchronousMongoConnection() throws MorphiumDriverException {
-        SingleMongoConnection con = new SingleMongoConnection();
-        con.setHostSeed("localhost:27017");
-        con.setDefaultBatchSize(5);
-        con.setMaxWaitTime(100000);
-        con.setConnectionTimeout(1000);
-        con.connect();
-        log.info("Connected");
-        return con;
-    }
 
 
     @Test

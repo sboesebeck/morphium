@@ -13,9 +13,9 @@ import java.util.Map;
 
 public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
     private String key;
-    private Doc query;
-    private Doc readConcern;
-    private Doc collation;
+    private Map<String, Object> query;
+    private Map<String, Object> readConcern;
+    private Map<String, Object> collation;
 
     public DistinctMongoCommand(MorphiumDriver d) {
         super(d);
@@ -35,29 +35,29 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         return this;
     }
 
-    public Doc getQuery() {
+    public Map<String, Object> getQuery() {
         return query;
     }
 
-    public DistinctMongoCommand setQuery(Doc query) {
+    public DistinctMongoCommand setQuery(Map<String, Object> query) {
         this.query = query;
         return this;
     }
 
-    public Doc getReadConcern() {
+    public Map<String, Object> getReadConcern() {
         return readConcern;
     }
 
-    public DistinctMongoCommand setReadConcern(Doc readConcern) {
+    public DistinctMongoCommand setReadConcern(Map<String, Object> readConcern) {
         this.readConcern = readConcern;
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public DistinctMongoCommand setCollation(Doc collation) {
+    public DistinctMongoCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }

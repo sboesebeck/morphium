@@ -436,6 +436,17 @@ public class SingleMongoConnection extends DriverBase {
         return null;
     }
 
+    @Override
+    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        List<Map<String, Object>> ret = new ArrayList<>();
+        while (crs.hasNext()) {
+            ret.addAll(crs.getBatch());
+            crs.ahead(crs.getBatch().size());
+        }
+
+        return ret;
+    }
+
     private String getDBFromCursor(OpMsg msg) {
         if (msg.hasCursor()) {
             var crs = (Map<String, Object>) msg.getFirstDoc().get("cursor");
@@ -613,27 +624,6 @@ public class SingleMongoConnection extends DriverBase {
     }
 
 
-    public List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException {
-        //noinspection unchecked
-        return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
-            Doc cmd = new Doc();
-            cmd.put("listIndexes", 1);
-            cmd.put("$db", db);
-            cmd.put("collection", collection);
-            OpMsg q = new OpMsg();
-            q.setMessageId(getNextId());
-
-            q.setFirstDoc(cmd);
-            q.setFlags(0);
-            q.setResponseTo(0);
-
-            List<Map<String, Object>> ret;
-            sendQuery(q);
-            ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
-            return ret;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-    }
-
 
     public List<String> getCollectionNames(String db) throws MorphiumDriverException {
         List<Map<String, Object>> ret = getCollectionInfo(db, null);
@@ -686,6 +676,7 @@ public class SingleMongoConnection extends DriverBase {
     }
 
 
+    @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         List<Map<String, Object>> lst = getCollectionInfo(db, coll);
         try {
