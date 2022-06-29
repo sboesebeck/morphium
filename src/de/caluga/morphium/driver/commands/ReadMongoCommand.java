@@ -5,10 +5,11 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.sync.NetworkCallHelper;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand {
+public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand, Iterable<Map<String, Object>> {
     private ReadPreference readPreference;
 
     public ReadMongoCommand(MorphiumDriver d) {
@@ -22,6 +23,15 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
     public T setReadPreference(ReadPreference readPreference) {
         this.readPreference = readPreference;
         return (T) this;
+    }
+
+    @Override
+    public Iterator<Map<String, Object>> iterator() {
+        try {
+            return executeIterable();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public List<Map<String, Object>> execute() throws MorphiumDriverException {

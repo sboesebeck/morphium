@@ -577,6 +577,11 @@ public class MongoDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
 
     public int getLocalThreshold() {
         return localThreshold;

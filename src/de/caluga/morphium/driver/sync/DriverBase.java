@@ -759,4 +759,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     public abstract boolean replyForMsgAvailable(int msg);
 
+//    public abstract List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException;
+
+    public abstract boolean isCapped(String db, String coll) throws MorphiumDriverException;
 }

@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -14,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * User: Stephan Bösebeck
  * Date: 20.06.12
@@ -21,9 +24,11 @@ import java.util.Map;
  * <p/>
  */
 public class IndexTest extends MorphiumTestBase {
+
+
     @Test
     public void createIndexMapFromTest() {
-        List<Map<String, Object>> idx = morphium.createIndexMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
+        List<Map<String, Object>> idx = morphium.createIndexKeyMapFrom(new String[]{"-timer , -namne", "bla, fasel, blub"});
         assert (idx.size() == 2) : "Created indexes: " + idx.size();
         assert (idx.get(0).get("timer").equals(-1));
         assert (idx.get(0).get("namne").equals(-1));
@@ -46,28 +51,19 @@ public class IndexTest extends MorphiumTestBase {
         morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
         morphium.store(new IndexedObject("name", 123));
 
-        Map<Class<?>, List<Map<String, Object>>> missing = morphium.checkIndices();
-        assert (missing.size() != 0);
-        assert (missing.get(UncachedObject.class) != null);
-        assert (missing.get(IndexedObject.class) == null);
-        assert (missing.get(CappedCol.class) != null);
-        morphium.ensureIndex(UncachedObject.class, missing.get(UncachedObject.class).get(0));
+        Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices();
+        assertThat(missing.size()).isNotEqualTo(0);
+        assertThat(missing.get(UncachedObject.class)).isNotNull();
+        assertThat(missing.get(IndexedObject.class)).isNull();
+        assertThat(missing.get(CappedCol.class)).isNull();
+        morphium.ensureIndex(UncachedObject.class, morphium.getMapper().getCollectionName(UncachedObject.class), missing.get(UncachedObject.class).get(0), null);
         Thread.sleep(100);
-        List<Map<String, Object>> missingForCached = morphium.getMissingIndicesFor(UncachedObject.class);
-        assert (missingForCached.size() < missing.get(UncachedObject.class).size());
+        List<IndexDescription> newMissingIndexLists = morphium.getMissingIndicesFor(UncachedObject.class);
+        assertThat(newMissingIndexLists.size()).isLessThan(missing.get(UncachedObject.class).size());
         //look for capping info
-        boolean found = false;
-        for (Map<String, Object> info : missing.get(CappedCol.class)) {
-            if (info.containsKey("__capped_size") && info.containsKey("__capped_entries")) {
-                found = true;
-                break;
-            }
-        }
-        assert (found);
-
         morphium.ensureIndicesFor(UncachedObject.class);
         Thread.sleep(1600); //waiting for writebuffer and mongodb
-        assert (morphium.getMissingIndicesFor(UncachedObject.class).isEmpty());
+        assertThat(morphium.getMissingIndicesFor(UncachedObject.class)).isEmpty();
 
     }
 

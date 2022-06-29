@@ -126,6 +126,9 @@ public interface MorphiumDriver {
 
     void setCredentials(String db, String login, String pwd);
 
+    boolean isCapped(String db, String coll) throws MorphiumDriverException;
+
+
     ////////////////////////////////////////////////////
     // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
     //|           ||   _  \        /   \     |  \ |  |     /       |    /   \     /      ||           ||  |  /  __  \  |  \ |  |     /       |
@@ -256,6 +259,9 @@ public interface MorphiumDriver {
 
     MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException;
 
+    List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
+
+
     //
 //    List<Map<String, Object>> aggregate(AggregateMongoCommand settings) throws MorphiumDriverException;
 //
@@ -285,10 +291,12 @@ public interface MorphiumDriver {
 //
 //    int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
 //
-//    boolean exists(String db, String coll) throws MorphiumDriverException;
-//
-//    boolean exists(String db) throws MorphiumDriverException;
-//
+    boolean exists(String db, String coll) throws MorphiumDriverException;
+
+    //
+    boolean exists(String db) throws MorphiumDriverException;
+
+    //
 //    List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
 //
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);

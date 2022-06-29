@@ -417,24 +417,24 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private <T> void checkIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
         if (coll == null) coll = morphium.getMapper().getCollectionName(type);
-//        if (!morphium.getDriver().exists(getDbName(), coll)) {
-//            switch (morphium.getConfig().getIndexCappedCheck()) {
-//                case CREATE_ON_WRITE_NEW_COL:
-//                    if (logger.isDebugEnabled()) {
-//                        logger.debug("Collection " + coll + " does not exist - ensuring indices");
-//                    }
-//                    createCappedCollection(type, coll);
-//                    morphium.ensureIndicesFor(type, coll, callback);
-//                    break;
-//                case CREATE_ON_STARTUP:
-//                case WARN_ON_STARTUP:
-//                case NO_CHECK:
-//                default:
-//                    //nothing
-//            }
+        if (!morphium.getDriver().exists(getDbName(), coll)) {
+            switch (morphium.getConfig().getIndexCappedCheck()) {
+                case CREATE_ON_WRITE_NEW_COL:
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Collection " + coll + " does not exist - ensuring indices");
+                    }
+                    createCappedCollection(type, coll);
+                    morphium.ensureIndicesFor(type, coll, callback);
+                    break;
+                case CREATE_ON_STARTUP:
+                case WARN_ON_STARTUP:
+                case NO_CHECK:
+                default:
+                    //nothing
+            }
 //
 //
-//        }
+        }
     }
 
 
@@ -2009,12 +2009,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 if (coll == null) {
                     coll = morphium.getMapper().getCollectionName(cls);
                 }
-//                try {
-//                    morphium.getDriver().createIndex(getDbName(), coll, keys, options);
-//                } catch (MorphiumDriverException e) {
-//                    //TODO: Implement Handling
-//                    throw new RuntimeException(e);
-//                }
+                try {
+                    CreateIndexesCommand cmd = new CreateIndexesCommand(morphium.getDriver());
+                    cmd.setDb(getDbName()).setColl(coll);
+                    cmd.addIndex(keys, options);
+                    var res = cmd.execute();
+                    if (res.containsKey("ok") && res.get("ok").equals(0.0)) {
+                        throw new MorphiumDriverException((String) res.get("errmsg"));
+                    }
+                } catch (MorphiumDriverException e) {
+                    throw new RuntimeException(e);
+                }
                 long dur = System.currentTimeMillis() - start;
                 morphium.fireProfilingWriteEvent(cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
