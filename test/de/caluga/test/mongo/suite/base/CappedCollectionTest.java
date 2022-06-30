@@ -24,7 +24,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
         morphium.store(cc);
 
 
-       // assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
+        assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
         //storing more than max entries
         for (int i = 0; i < 1000; i++) {
             cc = new CappedCol();
@@ -70,7 +70,7 @@ public class CappedCollectionTest extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(1000);
 
-        morphium.convertToCapped(UncachedObject.class, 100, null);
+        morphium.convertToCapped(UncachedObject.class, 100, 10, null);
 
         // assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "uncached_object"));
         assert (morphium.createQueryFor(UncachedObject.class).countAll() <= 100);

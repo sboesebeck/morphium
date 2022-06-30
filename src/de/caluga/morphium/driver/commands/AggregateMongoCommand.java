@@ -7,18 +7,18 @@ import java.util.List;
 import java.util.Map;
 
 public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoCommand> implements MultiResultCommand {
-    private List<Doc> pipeline;
+    private List<Map<String, Object>> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
     private Integer maxWaitTime;
     private Boolean bypassDocumentValidation;
-    private Doc readConcern;
-    private Doc collation;
+    private Map<String, Object> readConcern;
+    private Map<String, Object> collation;
     private Object hint;
-    private Doc writeConern;
-    private Doc let;
+    private Map<String, Object> writeConern;
+    private Map<String, Object> let;
     private Integer batchSize;
-    private Doc cursor;
+    private Map<String, Object> cursor;
 
     public AggregateMongoCommand(MorphiumDriver d) {
         super(d);
@@ -34,11 +34,11 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         return this;
     }
 
-    public List<Doc> getPipeline() {
+    public List<Map<String, Object>> getPipeline() {
         return pipeline;
     }
 
-    public AggregateMongoCommand setPipeline(List<Doc> pipeline) {
+    public AggregateMongoCommand setPipeline(List<Map<String, Object>> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -79,20 +79,20 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         return this;
     }
 
-    public Doc getReadConcern() {
+    public Map<String, Object> getReadConcern() {
         return readConcern;
     }
 
-    public AggregateMongoCommand setReadConcern(Doc readConcern) {
+    public AggregateMongoCommand setReadConcern(Map<String, Object> readConcern) {
         this.readConcern = readConcern;
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public AggregateMongoCommand setCollation(Doc collation) {
+    public AggregateMongoCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -106,29 +106,29 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         return this;
     }
 
-    public Doc getWriteConern() {
+    public Map<String, Object> getWriteConern() {
         return writeConern;
     }
 
-    public AggregateMongoCommand setWriteConern(Doc writeConern) {
+    public AggregateMongoCommand setWriteConern(Map<String, Object> writeConern) {
         this.writeConern = writeConern;
         return this;
     }
 
-    public Doc getLet() {
+    public Map<String, Object> getLet() {
         return let;
     }
 
-    public AggregateMongoCommand setLet(Doc let) {
+    public AggregateMongoCommand setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }
 
-    public Doc getCursor() {
+    public Map<String, Object> getCursor() {
         return cursor;
     }
 
-    public AggregateMongoCommand setCursor(Doc cursor) {
+    public AggregateMongoCommand setCursor(Map<String, Object> cursor) {
         this.cursor = cursor;
         return this;
     }

@@ -1,5 +1,6 @@
 package de.caluga.morphium.writer;
 
+import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
@@ -126,7 +127,7 @@ public interface MorphiumWriter {
 
     <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback);
 
-    <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback);
+    <T> void createIndex(Class<T> cls, String collection, IndexDescription idx, AsyncOperationCallback<T> callback);
 
     int writeBufferCount();
 

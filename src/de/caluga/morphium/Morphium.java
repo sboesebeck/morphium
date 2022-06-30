@@ -309,27 +309,20 @@ public class Morphium implements AutoCloseable {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
-        if (!config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.NO_CHECK) &&
-                config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
+        if (!config.getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) &&
+                config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
             Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo -> !classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
                         try {
-                            if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP)) {
+                            if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
                                 logger.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
-                                if (cappedMissing(missing.get(cls))) {
-                                    logger.warn("No capped settings missing for " + cls.getName());
-                                }
-                            } else if (config.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.CREATE_ON_STARTUP)) {
+
+                            } else if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
                                 logger.warn("Creating missing indices for entity " + cls.getName());
                                 //noinspection unchecked
                                 ensureIndicesFor(cls);
-                                if (cappedMissing(missing.get(cls))) {
-                                    logger.warn("applying capped settings for entity " + cls.getName());
-                                    //noinspection unchecked
-                                    ensureCapped(cls);
-                                }
                             }
                         } catch (Exception e) {
                             logger.error("Could not process indices for entity " + cls.getName(), e);
@@ -337,19 +330,48 @@ public class Morphium implements AutoCloseable {
                     }
                 }
             }
+            logger.info("Checking for capped collections...");
+            //checking capped
+            var capped = checkCapped();
+            if (capped != null && !capped.isEmpty()) {
+                for (Class cls : capped.keySet()) {
+                    switch (config.getCappedCheck()) {
+                        case WARN_ON_STARTUP:
+                            logger.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
+                            break;
+                        case CONVERT_EXISTING_ON_STARTUP:
+                            try {
+                                if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                                    logger.info("Existing collection is not capped - converting");
+                                    convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
+                                }
+                            } catch (MorphiumDriverException e) {
+                                throw new RuntimeException(e);
+                            }
+                            break;
+                        case CREATE_ON_STARTUP:
+                            CreateCommand cmd = new CreateCommand(morphiumDriver);
+                            cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls))
+                                    .setCapped(true)
+                                    .setMax(capped.get(cls).get("max"))
+                                    .setSize(capped.get(cls).get("size"));
+                            try {
+                                var ret = cmd.execute();
+                                //TODO: check for errors
+                            } catch (MorphiumDriverException e) {
+                                throw new RuntimeException(e);
+                            }
+                        case CREATE_ON_WRITE_NEW_COL:
+                        case NO_CHECK:
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
+                    }
+                }
+            }
         }
 
         //logger.info("Initialization successful...");
-    }
-
-    private boolean cappedMissing(List<IndexDescription> lst) {
-        for (IndexDescription idx : lst) {
-//            if (idx.containsKey("__capped_size")) {
-//                return true;
-//            }
-        }
-        return false;
-
     }
 
 
@@ -561,29 +583,6 @@ public class Morphium implements AutoCloseable {
     }
 
 
-    /**
-     * can be called for autmatic index ensurance. Attention: might cause heavy load on mongo
-     * will be called automatically if a new collection is created
-     *
-     * @param type type to ensure indices for
-     */
-    public <T> void ensureIndicesFor(Class<T> type) {
-        ensureIndicesFor(type, getMapper().getCollectionName(type), null);
-    }
-
-    public <T> void ensureIndicesFor(Class<T> type, String onCollection) {
-        ensureIndicesFor(type, onCollection, null);
-    }
-
-
-    public <T> void ensureIndicesFor(Class<T> type, AsyncOperationCallback<T> callback) {
-        ensureIndicesFor(type, getMapper().getCollectionName(type), callback);
-    }
-
-    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
-        ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
-    }
-
     public void addReplicasetStatusListener(ReplicasetStatusListener lst) {
         if (rsMonitor != null) {
             rsMonitor.addListener(lst);
@@ -593,66 +592,6 @@ public class Morphium implements AutoCloseable {
     public void removeReplicasetStatusListener(ReplicasetStatusListener lst) {
         if (rsMonitor != null) {
             rsMonitor.removeListener(lst);
-        }
-    }
-
-    @SuppressWarnings("ConstantConditions")
-    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
-        if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
-            // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
-
-            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
-            for (Annotation a : lst) {
-                Index i = (Index) a;
-                if (i.value().length > 0) {
-                    List<Map<String, Object>> options = null;
-
-                    if (i.options().length > 0) {
-                        //options set
-                        options = createIndexKeyMapFrom(i.options());
-                    }
-                    if (!i.locale().equals("")) {
-                        Map<String, Object> collation = UtilsMap.of("locale", i.locale());
-                        collation.put("alternate", i.alternate().mongoText);
-                        collation.put("backwards", i.backwards());
-                        collation.put("caseFirst", i.caseFirst().mongoText);
-                        collation.put("caseLevel", i.caseLevel());
-                        collation.put("maxVariable", i.maxVariable().mongoText);
-                        collation.put("strength", i.strength().mongoValue);
-                        options.add(UtilsMap.of("collation", collation));
-                    }
-                    List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
-                    int cnt = 0;
-                    for (Map<String, Object> m : idx) {
-                        Map<String, Object> optionsMap = null;
-                        if (options != null && options.size() > cnt) {
-                            optionsMap = options.get(cnt);
-                        }
-                        if (optionsMap.containsKey("")) optionsMap = null;
-                        wr.ensureIndex(type, onCollection, m, optionsMap, callback);
-                        cnt++;
-                    }
-                }
-            }
-        }
-
-        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
-        if (flds != null && !flds.isEmpty()) {
-
-            for (String f : flds) {
-                Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
-                Map<String, Object> idx = new LinkedHashMap<>();
-                if (i.decrement()) {
-                    idx.put(f, -1);
-                } else {
-                    idx.put(f, 1);
-                }
-                Map<String, Object> optionsMap = null;
-                if (createIndexKeyMapFrom(i.options()) != null) {
-                    optionsMap = createIndexKeyMapFrom(i.options()).get(0);
-                }
-                wr.ensureIndex(type, onCollection, idx, optionsMap, callback);
-            }
         }
     }
 
@@ -666,20 +605,55 @@ public class Morphium implements AutoCloseable {
      * @param cb   callback
      * @param <T>  type
      */
-    public <T> void convertToCapped(Class<T> c, int size, AsyncOperationCallback<T> cb) {
-        convertToCapped(getMapper().getCollectionName(c), size, cb);
-        //Indexes are not available after converting - recreate them
-        ensureIndicesFor(c, cb);
+    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) {
+        convertToCapped(getMapper().getCollectionName(c), size, max, cb);
+
     }
 
     @SuppressWarnings("UnusedParameters")
-    public <T> void convertToCapped(String coll, int size, AsyncOperationCallback<T> cb) {
-        Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("convertToCapped", coll);
-        cmd.put("size", size);
-        //        cmd.put("max", max);
+    public <T> void convertToCapped(String collectionName, int size, int max, AsyncOperationCallback<T> cb) {
         try {
-            morphiumDriver.runCommand(config.getDatabase(), cmd);
+            if (!exists(getDatabase(), collectionName)) return;
+
+            logger.warn("Existing coll " + collectionName + " is not capped - converting");
+            logger.warn("Creating new collection with index settings");
+            String tmpColl = collectionName + "_tmp";
+            CreateCommand createCommand = new CreateCommand(morphiumDriver)
+                    .setCapped(true).setColl(tmpColl)
+                    .setDb(getDatabase())
+                    .setMax(max)
+                    .setSize(size);
+            createCommand.execute();
+            logger.info("temp-collection created - creating indexes");
+            var idx = getIndexesFromMongo(collectionName);
+            var idxMaps = new ArrayList<Map<String, Object>>();
+            for (IndexDescription i : idx) idxMaps.add(i.asMap());
+            if (idx != null && !idx.isEmpty()) {
+                CreateIndexesCommand idxCmd = new CreateIndexesCommand(morphiumDriver)
+                        .setDb(getDatabase()).setColl(tmpColl)
+                        .setIndexes(idxMaps)
+                        .setComment("created by morphium");
+                idxCmd.execute();
+            }
+            logger.info("indexes created... copying data");
+            AggregateMongoCommand aggCmd = new AggregateMongoCommand(morphiumDriver);
+            aggCmd.setPipeline(Arrays.asList(Doc.of("$match", Doc.of()), Doc.of("$out", tmpColl)));
+            aggCmd.setDb(getDatabase()).setColl(collectionName).setComment("copy by morphium init");
+            var ret = aggCmd.execute();
+            //TODO: check for error!
+            logger.info("dropping old collection");
+            DropMongoCommand dropCmd = new DropMongoCommand(morphiumDriver)
+                    .setColl(collectionName)
+                    .setDb(getDatabase());
+            dropCmd.execute();
+            logger.info("Renaming tmp collection");
+            RenameCollectionCommand ren = new RenameCollectionCommand(morphiumDriver);
+            ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
+            var r = ren.execute();
+            //TODO check for error
+            logger.info("conversion to capped complete!");
+
+
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -747,8 +721,7 @@ public class Morphium implements AutoCloseable {
                 } else {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
-
-                        convertToCapped(c, capped.maxSize(), null);
+                        convertToCapped(c, capped.maxSize(), capped.maxEntries(), null);
                     }
                 }
             } catch (Throwable t) {
@@ -2210,6 +2183,14 @@ public class Morphium implements AutoCloseable {
         return q;
     }
 
+    /**
+     * use query.asList() instead
+     *
+     * @param q
+     * @param <T>
+     * @return
+     */
+    @Deprecated
     public <T> List<T> find(Query<T> q) {
         return q.asList();
     }
@@ -2481,6 +2462,7 @@ public class Morphium implements AutoCloseable {
         config.getBufferedWriter().store(lst, collection, callback);
     }
 
+
     @SuppressWarnings("unused")
     public void flush() {
         config.getBufferedWriter().flush();
@@ -2509,25 +2491,265 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(cls).dropCollection(cls, getMapper().getCollectionName(cls), null);
     }
 
+
+    ////////////////////////////////////////////////////////////////////////
+    // __  .__   __.  _______   __________   ___  _______     _______.
+    //|  | |  \ |  | |       \ |   ____\  \ /  / |   ____|   /       |
+    //|  | |   \|  | |  .--.  ||  |__   \  V  /  |  |__     |   (----`
+    //|  | |  . `  | |  |  |  ||   __|   >   <   |   __|     \   \
+    //|  | |  |\   | |  '--'  ||  |____ /  .  \  |  |____.----)   |
+    //|__| |__| \__| |_______/ |_______/__/ \__\ |_______|_______/
+
+    /**
+     * can be called for autmatic index ensurance. Attention: might cause heavy load on mongo
+     *
+     * @param type type to ensure indices for
+     */
+    public <T> void ensureIndicesFor(Class<T> type) {
+        ensureIndicesFor(type, getMapper().getCollectionName(type), null);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection) {
+        ensureIndicesFor(type, onCollection, null);
+    }
+
+
+    public <T> void ensureIndicesFor(Class<T> type, AsyncOperationCallback<T> callback) {
+        ensureIndicesFor(type, getMapper().getCollectionName(type), callback);
+    }
+
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
+        ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
+        if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
+            // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
+
+            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
+            for (Annotation a : lst) {
+                Index i = (Index) a;
+                if (i.value().length > 0) {
+                    List<Map<String, Object>> options = null;
+
+                    if (i.options().length > 0) {
+                        //options set
+                        options = createIndexKeyMapFrom(i.options());
+                    }
+                    if (!i.locale().equals("")) {
+                        Map<String, Object> collation = UtilsMap.of("locale", i.locale());
+                        collation.put("alternate", i.alternate().mongoText);
+                        collation.put("backwards", i.backwards());
+                        collation.put("caseFirst", i.caseFirst().mongoText);
+                        collation.put("caseLevel", i.caseLevel());
+                        collation.put("maxVariable", i.maxVariable().mongoText);
+                        collation.put("strength", i.strength().mongoValue);
+                        options.add(UtilsMap.of("collation", collation));
+                    }
+                    List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
+                    int cnt = 0;
+                    for (Map<String, Object> m : idx) {
+                        Map<String, Object> optionsMap = null;
+                        if (options != null && options.size() > cnt) {
+                            optionsMap = options.get(cnt);
+                        }
+                        if (optionsMap != null && optionsMap.containsKey("")) optionsMap = null;
+                        wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
+                        cnt++;
+                    }
+                }
+            }
+        }
+
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
+        if (flds != null && !flds.isEmpty()) {
+
+            for (String f : flds) {
+                Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
+                Map<String, Object> idx = new LinkedHashMap<>();
+                if (i.decrement()) {
+                    idx.put(f, -1);
+                } else {
+                    idx.put(f, 1);
+                }
+                Map<String, Object> optionsMap = null;
+                if (createIndexKeyMapFrom(i.options()) != null) {
+                    optionsMap = createIndexKeyMapFrom(i.options()).get(0);
+                }
+                wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
+            }
+        }
+    }
+
+    @Deprecated
+    public void ensureIndex(Class<?> cls, Map<String, Object> index) {
+        getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls), IndexDescription.fromMaps(index, null), null);
+    }
+
+    @Deprecated
     @SuppressWarnings("unused")
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
+        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
+    }
+
+    @Deprecated
+    @SuppressWarnings("unused")
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
+        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
+    }
+
+
+    /**
+     * ensureIndex(CachedObject.class,"counter","-value");
+     * ensureIndex(CachedObject.class,"counter:2d","-value);
+     * Similar to sorting
+     *
+     * @param cls    - class
+     * @param fldStr - fields
+     */
+    @Deprecated
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
+    }
+
+    @Deprecated
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        for (Enum e : fldStr) {
+            String f = e.name();
+            m.put(f, 1);
+        }
+        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
+    }
+
+    @Deprecated
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
+        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
+    }
+
+    @Deprecated
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
+        List<Map<String, Object>> m = createIndexKeyMapFrom(fldStr);
+        for (Map<String, Object> idx : m) {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
+        }
+    }
+
+    @Deprecated
     public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
         ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
     }
 
-    @SuppressWarnings("unused")
+    @Deprecated
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, options, callback);
+        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
     }
 
-    public <T> void ensureIndex(Class<T> cls, String collection, IndexDescription index, AsyncOperationCallback<T> callback) {
-        var m = index.asMap();
-        m.remove("key");
-        getWriterForClass(cls).ensureIndex(cls, collection, index.getKey(), m, callback);
-    }
-
+    @Deprecated
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, null, callback);
+        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
     }
+
+    public <T> void createIndex(Class<T> cls, String collection, IndexDescription index, AsyncOperationCallback<T> callback) {
+        getWriterForClass(cls).createIndex(cls, collection, index, callback);
+    }
+
+
+    public List<IndexDescription> getIndexesFromMongo(Class cls) {
+        return getIndexesFromMongo(getMapper().getCollectionName(cls));
+    }
+
+    public List<IndexDescription> getIndexesFromMongo(String collection) {
+        ListIndexesCommand cmd = new ListIndexesCommand(morphiumDriver);
+        cmd.setDb(getDatabase()).setColl(collection);
+        try {
+            return cmd.execute();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public <T> List<IndexDescription> getIndexesFromEntity(Class<T> type) {
+        List<IndexDescription> ret = new ArrayList<>();
+        if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
+            // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type, de.caluga.morphium.annotations.Collation.class);
+
+
+            //Indexes on class level, usually combined ones
+            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
+            for (Annotation a : lst) {
+                Index i = (Index) a;
+                if (i.value().length > 0) {
+                    List<Map<String, Object>> options = null;
+
+                    if (i.options().length > 0) {
+                        //options set
+                        options = createIndexKeyMapFrom(i.options());
+                    }
+                    if (!i.locale().equals("")) {
+                        Map<String, Object> collation = UtilsMap.of("locale", i.locale());
+                        collation.put("alternate", i.alternate().mongoText);
+                        collation.put("backwards", i.backwards());
+                        collation.put("caseFirst", i.caseFirst().mongoText);
+                        collation.put("caseLevel", i.caseLevel());
+                        collation.put("maxVariable", i.maxVariable().mongoText);
+                        collation.put("strength", i.strength().mongoValue);
+                        options.add(UtilsMap.of("collation", collation));
+                    }
+                    List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
+                    int cnt = 0;
+                    for (Map<String, Object> m : idx) {
+                        Map<String, Object> optionsMap = null;
+                        if (options != null && options.size() > cnt) {
+                            optionsMap = options.get(cnt);
+                        }
+                        if (optionsMap != null && optionsMap.containsKey("")) optionsMap = null;
+                        if (optionsMap == null || !optionsMap.containsKey("weights")) {
+                            if (m.containsValue("text")) {
+                                if (optionsMap == null) {
+                                    optionsMap = new HashMap<>();
+                                }
+                                var weights = Doc.of();
+                                for (var k : m.keySet()) {
+                                    weights.put(k, 1);
+                                }
+                                optionsMap.put("weights", weights);
+                                optionsMap.put("textIndexVersion", 3);
+                            }
+                        }
+                        ret.add(IndexDescription.fromMaps(m, optionsMap));
+                        cnt++;
+                    }
+                }
+            }
+        }
+
+        //Indexes on Field
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
+        if (flds != null && !flds.isEmpty()) {
+
+            for (String f : flds) {
+                Index i = annotationHelper.getField(type, f).getAnnotation(Index.class);
+                Map<String, Object> idx = new LinkedHashMap<>();
+                if (i.decrement()) {
+                    idx.put(f, -1);
+                } else {
+                    idx.put(f, 1);
+                }
+                Map<String, Object> optionsMap = null;
+                if (createIndexKeyMapFrom(i.options()) != null) {
+                    optionsMap = createIndexKeyMapFrom(i.options()).get(0);
+                }
+
+                ret.add(IndexDescription.fromMaps(idx, optionsMap));
+            }
+        }
+        return ret;
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////
+
 
     @SuppressWarnings("unused")
     public int writeBufferCount() {
@@ -2540,53 +2762,6 @@ public class Morphium implements AutoCloseable {
             return;
         }
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
-    }
-
-
-    public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, getMapper().getCollectionName(cls), index, null, null);
-    }
-
-    @SuppressWarnings("unused")
-    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, options, null);
-    }
-
-    @SuppressWarnings("unused")
-    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
-        getWriterForClass(cls).ensureIndex(cls, collection, index, null, null);
-    }
-
-    /**
-     * ensureIndex(CachedObject.class,"counter","-value");
-     * ensureIndex(CachedObject.class,"counter:2d","-value);
-     * Similar to sorting
-     *
-     * @param cls    - class
-     * @param fldStr - fields
-     */
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
-    }
-
-    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        for (Enum e : fldStr) {
-            String f = e.name();
-            m.put(f, 1);
-        }
-        getWriterForClass(cls).ensureIndex(cls, collection, m, null, callback);
-    }
-
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
-        ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
-    }
-
-    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
-        List<Map<String, Object>> m = createIndexKeyMapFrom(fldStr);
-        for (Map<String, Object> idx : m) {
-            getWriterForClass(cls).ensureIndex(cls, collection, idx, null, callback);
-        }
     }
 
     public List<Map<String, Object>> createIndexKeyMapFrom(String[] fldStr) {
@@ -2618,7 +2793,11 @@ public class Morphium implements AutoCloseable {
                                     double d = Double.parseDouble(value);
                                     m.put(key, d);
                                 } catch (NumberFormatException e1) {
-                                    m.put(key, value);
+                                    if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
+                                        m.put(key, Boolean.parseBoolean(value));
+                                    } else {
+                                        m.put(key, value);
+                                    }
                                 }
                             }
                         }
@@ -3453,119 +3632,129 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("ConstantConditions")
     public List<IndexDescription> getMissingIndicesFor(Class<?> entity, String collection) throws MorphiumDriverException {
         List<IndexDescription> missingIndexDef = new ArrayList<>();
-        Index i = annotationHelper.getAnnotationFromClass(entity, Index.class);
-        ListIndexesCommand cmd = new ListIndexesCommand(morphiumDriver).setColl(collection).setDb(getConfig().getDatabase());
-        List<IndexDescription> ind = cmd.execute();
-        List<Map<String, Object>> indices = new ArrayList<>();
-        for (IndexDescription m : ind) {
-            @SuppressWarnings("unchecked") Map<String, Object> indexKey = m.getKey();
-            indices.add(indexKey);
-        }
-        if (indices.size() > 0 && indices.get(0) == null) {
-            logger.error("Something is wrong! Index[0]==null");
-        }
-        if (i != null) {
-            if (i.value().length > 0) {
-                List<Map<String, Object>> options = null;
-
-                if (i.options().length > 0) {
-                    //options se
-                    options = createIndexKeyMapFrom(i.options());
-                }
-                if (!i.locale().equals("")) {
-                    Map<String, Object> collation = UtilsMap.of("locale", i.locale());
-                    collation.put("alternate", i.alternate().mongoText);
-                    collation.put("backwards", i.backwards());
-                    collation.put("caseFirst", i.caseFirst().mongoText);
-                    collation.put("caseLevel", i.caseLevel());
-                    collation.put("maxVariable", i.maxVariable().mongoText);
-                    collation.put("strength", i.strength().mongoValue);
-                    options.add(UtilsMap.of("collation", collation));
-                }
-                List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
-                if (!exists(config.getDatabase(), collection) || indices.size() == 0) {
-                    logger.info("Collection '" + collection + "' for entity '" + entity.getName() + "' does not exist.");
-                    return null;
-                }
-                int cnt = 0;
-                for (Map<String, Object> m : idx) {
-                    Map<String, Object> optionsMap = null;
-                    if (options != null && options.size() > cnt) {
-                        optionsMap = options.get(cnt);
-                        if (optionsMap.containsKey("")) {//empty placeholder
-                            optionsMap = null;
-                        }
-                        //TODO: check options
-                        if (!indices.contains(m)) {
-                            if (m.values().toArray()[0].equals("text")) {
-                                //special text handling
-                                logger.info("Handling text index");
-                                boolean found = false;
-                                for (IndexDescription indexDef : ind) {
-                                    if (indexDef.getTextIndexVersion() != null) {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if (!found) {
-                                    //assuming text index is missing
-                                    var ix = Doc.of("key", m);
-                                    if (optionsMap != null)
-                                        ix.putAll(optionsMap);
-                                    missingIndexDef.add(IndexDescription.fromMap(ix));
-                                }
-                            } else {
-                                var ix = Doc.of("key", m);
-                                if (optionsMap != null)
-                                    ix.putAll(optionsMap);
-                                missingIndexDef.add(IndexDescription.fromMap(ix));
-                                //missingIndexDef.add(IndexDescription.fromMap(m));
-                            }
-                        }
-                    }
-
-                    cnt++;
-                }
-            }
-        }
-
-        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(entity, Index.class);
-        if (flds != null && !flds.isEmpty()) {
-
-            for (String f : flds) {
-                i = annotationHelper.getField(entity, f).getAnnotation(Index.class);
-                Map<String, Object> key = new LinkedHashMap<>();
-                if (i.decrement()) {
-                    key.put(f, -1);
-                } else {
-                    key.put(f, 1);
-                }
-                Map<String, Object> optionsMap = null;
-                if (createIndexKeyMapFrom(i.options()) != null) {
-                    optionsMap = createIndexKeyMapFrom(i.options()).get(0);
-
-                }
-                if (!indices.contains(key)) {
-                    //special handling for text indices
-                    if (key.values().toArray()[0].equals("text")) {
-                        logger.info("checking for text index...");
-                        for (IndexDescription indexDef : ind) {
-                            if (indexDef.getTextIndexVersion() != null) {
-                                //assuming text index is missing
-                                var idxMap = Doc.of("key", key);
-                                if (optionsMap != null) idxMap.putAll(optionsMap);
-                                missingIndexDef.add(IndexDescription.fromMap(idxMap));
-                            }
-                        }
-                    } else {
-                        missingIndexDef.add(new IndexDescription().setKey(key));
-                    }
-                }
-
+        var fromMongo = getIndexesFromMongo(collection);
+        var fromJava = getIndexesFromEntity(entity);
+        for (IndexDescription idx : fromJava) {
+            if (!fromMongo.contains(idx)) {
+                missingIndexDef.add(idx);
             }
         }
         return missingIndexDef;
     }
+//
+//        Index i = annotationHelper.getAnnotationFromClass(entity, Index.class);
+//        ListIndexesCommand cmd = new ListIndexesCommand(morphiumDriver).setColl(collection).setDb(getConfig().getDatabase());
+//        List<IndexDescription> ind = cmd.execute();
+//        List<Map<String, Object>> indices = new ArrayList<>();
+//        for (IndexDescription m : ind) {
+//            @SuppressWarnings("unchecked") Map<String, Object> indexKey = m.getKey();
+//            indices.add(indexKey);
+//        }
+//        if (indices.size() > 0 && indices.get(0) == null) {
+//            logger.error("Something is wrong! Index[0]==null");
+//        }
+//        if (i != null) {
+//            if (i.value().length > 0) {
+//                List<Map<String, Object>> options = null;
+//
+//                if (i.options().length > 0) {
+//                    //options se
+//                    options = createIndexKeyMapFrom(i.options());
+//                }
+//                if (!i.locale().equals("")) {
+//                    Map<String, Object> collation = UtilsMap.of("locale", i.locale());
+//                    collation.put("alternate", i.alternate().mongoText);
+//                    collation.put("backwards", i.backwards());
+//                    collation.put("caseFirst", i.caseFirst().mongoText);
+//                    collation.put("caseLevel", i.caseLevel());
+//                    collation.put("maxVariable", i.maxVariable().mongoText);
+//                    collation.put("strength", i.strength().mongoValue);
+//                    options.add(UtilsMap.of("collation", collation));
+//                }
+//                List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
+//                if (!exists(config.getDatabase(), collection) || indices.size() == 0) {
+//                    logger.info("Collection '" + collection + "' for entity '" + entity.getName() + "' does not exist.");
+//                    return null;
+//                }
+//                int cnt = 0;
+//                for (Map<String, Object> m : idx) {
+//                    Map<String, Object> optionsMap = null;
+//                    if (options != null && options.size() > cnt) {
+//                        optionsMap = options.get(cnt);
+//                        if (optionsMap.containsKey("")) {//empty placeholder
+//                            optionsMap = null;
+//                        }
+//                        //TODO: check options
+//                        if (!indices.contains(m)) {
+//                            if (m.values().toArray()[0].equals("text")) {
+//                                //special text handling
+//                                logger.info("Handling text index");
+//                                boolean found = false;
+//                                for (IndexDescription indexDef : ind) {
+//                                    if (indexDef.getTextIndexVersion() != null) {
+//                                        found = true;
+//                                        break;
+//                                    }
+//                                }
+//                                if (!found) {
+//                                    //assuming text index is missing
+//                                    var ix = Doc.of("key", m);
+//                                    if (optionsMap != null)
+//                                        ix.putAll(optionsMap);
+//                                    missingIndexDef.add(IndexDescription.fromMap(ix));
+//                                }
+//                            } else {
+//                                var ix = Doc.of("key", m);
+//                                if (optionsMap != null)
+//                                    ix.putAll(optionsMap);
+//                                missingIndexDef.add(IndexDescription.fromMap(ix));
+//                                //missingIndexDef.add(IndexDescription.fromMap(m));
+//                            }
+//                        }
+//                    }
+//
+//                    cnt++;
+//                }
+//            }
+//        }
+//
+//        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(entity, Index.class);
+//        if (flds != null && !flds.isEmpty()) {
+//
+//            for (String f : flds) {
+//                i = annotationHelper.getField(entity, f).getAnnotation(Index.class);
+//                Map<String, Object> key = new LinkedHashMap<>();
+//                if (i.decrement()) {
+//                    key.put(f, -1);
+//                } else {
+//                    key.put(f, 1);
+//                }
+//                Map<String, Object> optionsMap = null;
+//                if (createIndexKeyMapFrom(i.options()) != null) {
+//                    optionsMap = createIndexKeyMapFrom(i.options()).get(0);
+//
+//                }
+//                if (!indices.contains(key)) {
+//                    //special handling for text indices
+//                    if (key.values().toArray()[0].equals("text")) {
+//                        logger.info("checking for text index...");
+//                        for (IndexDescription indexDef : ind) {
+//                            if (indexDef.getTextIndexVersion() != null) {
+//                                //assuming text index is missing
+//                                var idxMap = Doc.of("key", key);
+//                                if (optionsMap != null) idxMap.putAll(optionsMap);
+//                                missingIndexDef.add(IndexDescription.fromMap(idxMap));
+//                            }
+//                        }
+//                    } else {
+//                        missingIndexDef.add(IndexDescription.fromMaps(key,optionsMap));
+//                    }
+//                }
+//
+//            }
+//        }
+//        return missingIndexDef;
+//    }
 
 
     /**
@@ -3574,6 +3763,43 @@ public class Morphium implements AutoCloseable {
      */
     public Map<Class<?>, List<IndexDescription>> checkIndices() {
         return checkIndices(null);
+    }
+
+
+    public Map<Class<?>, Map<String, Integer>> checkCapped() {
+        Map<Class<?>, Map<String, Integer>> uncappedCollections = new HashMap<>();
+        try (ScanResult scanResult =
+                     new ClassGraph()
+                             .enableAnnotationInfo()
+                             .enableClassInfo()
+                             .scan()) {
+            ClassInfoList entities =
+                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+            for (String cn : entities.getNames()) {
+                //ClassInfo ci = scanResult.getClassInfo(cn);
+                try {
+                    if (cn.startsWith("sun.")) continue;
+                    if (cn.startsWith("com.sun.")) continue;
+                    if (cn.startsWith("org.assertj.")) continue;
+                    if (cn.startsWith("javax.")) continue;
+                    //logger.info("Checking "+cn);
+                    Class<?> entity = Class.forName(cn);
+                    if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
+                        continue;
+                    }
+                    if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
+                        if (!morphiumDriver.isCapped(getConfig().getDatabase(), getMapper().getCollectionName(entity))) {
+                            Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
+                            uncappedCollections.put(entity, UtilsMap.of("max", capped.maxEntries(), "size", capped.maxSize()));
+                        }
+                    }
+                } catch (Exception e) {
+
+                }
+
+            }
+        }
+        return uncappedCollections;
     }
 
     @SuppressWarnings("CommentedOutCode")
@@ -3590,14 +3816,12 @@ public class Morphium implements AutoCloseable {
                              .scan()) {
             ClassInfoList entities =
                     scanResult.getClassesWithAnnotation(Entity.class.getName());
-
             if (filter != null) {
                 entities = entities.filter(filter);
             }
 
             for (String cn : entities.getNames()) {
                 //ClassInfo ci = scanResult.getClassInfo(cn);
-
                 try {
                     //if (param.getName().equals("index"))
                     //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
@@ -3615,15 +3839,7 @@ public class Morphium implements AutoCloseable {
                     if (missing != null && !missing.isEmpty()) {
                         missingIndicesByClass.put(entity, missing);
                     }
-                    if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
-                        if (!morphiumDriver.isCapped(getConfig().getDatabase(), getMapper().getCollectionName(entity))) {
-                            missingIndicesByClass.putIfAbsent(entity, new ArrayList<>());
-                            Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
-                            missingIndicesByClass.get(entity).add(
-                                    IndexDescription.fromMap(UtilsMap.of("__capped_entries", (Object) capped.maxEntries(), "__capped_size", capped.maxSize()))
-                            );
-                        }
-                    }
+
                 } catch (Throwable e) {
                     //swallow
                     logger.error("Could not check indices for " + cn, e);
