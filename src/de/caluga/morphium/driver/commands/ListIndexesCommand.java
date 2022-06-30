@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.IndexDescription;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 
@@ -26,7 +27,18 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
         while (crs.hasNext()) {
             Map<String, Object> next = crs.next();
             if (next.get("ok") != null && next.get("ok").equals(0.0)) continue;
-            lst.add(IndexDescription.fromMap(next));
+            var idx = IndexDescription.fromMap(next);
+            if (idx.getKey().containsKey("_ftsx") && idx.getKey().get("_fts").equals("text")) {
+                //text index
+                Map<String, Object> weights = idx.getWeights();
+                var m = Doc.of();
+                for (var k : weights.keySet()) {
+                    m.put(k, "text");
+                }
+                idx.setKey(m);
+
+            }
+            lst.add(idx);
         }
         return lst;
     }

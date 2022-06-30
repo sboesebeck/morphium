@@ -53,7 +53,7 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         Properties p = new Properties();
         p.setProperty("morphium.indexCappedCheck", "WARN_ON_STARTUP");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
-        assert (cfg.getIndexCappedCheck().equals(MorphiumConfig.IndexCappedCheck.WARN_ON_STARTUP));
+        assert (cfg.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP));
         assert (cfg.isAutoValuesEnabled());
         assert (cfg.getHostSeed().size() == 0);
     }

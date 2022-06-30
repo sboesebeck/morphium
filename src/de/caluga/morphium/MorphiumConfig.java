@@ -146,7 +146,8 @@ public class MorphiumConfig {
     private boolean retryReads = false;
     private boolean retryWrites = false;
     private String uuidRepresentation;
-    private IndexCappedCheck indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;
+    private IndexCheck indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
+    private CappedCheck cappedCheck = CappedCheck.CREATE_ON_WRITE_NEW_COL;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -344,14 +345,14 @@ public class MorphiumConfig {
     }
 
     public boolean isAutoIndexAndCappedCreationOnWrite() {
-        return indexCappedCheck.equals(IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
+        return indexCheck.equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
     }
 
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
-            indexCappedCheck = IndexCappedCheck.CREATE_ON_WRITE_NEW_COL;
+            indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
         } else {
-            indexCappedCheck = IndexCappedCheck.NO_CHECK;
+            indexCheck = IndexCheck.NO_CHECK;
         }
         return this;
     }
@@ -1341,18 +1342,35 @@ public class MorphiumConfig {
         this.uuidRepresentation = uuidRepresentation;
     }
 
-    public IndexCappedCheck getIndexCappedCheck() {
-        return indexCappedCheck;
+    public IndexCheck getIndexCheck() {
+        return indexCheck;
     }
 
-    public void setIndexCappedCheck(IndexCappedCheck indexCappedCheck) {
-        this.indexCappedCheck = indexCappedCheck;
+    public void setIndexCheck(IndexCheck indexCheck) {
+        this.indexCheck = indexCheck;
     }
 
-    public enum IndexCappedCheck {
+    public CappedCheck getCappedCheck() {
+        return cappedCheck;
+    }
+
+    public MorphiumConfig setCappedCheck(CappedCheck cappedCheck) {
+        this.cappedCheck = cappedCheck;
+        return this;
+    }
+
+    public enum IndexCheck {
         NO_CHECK,
         WARN_ON_STARTUP,
         CREATE_ON_WRITE_NEW_COL,
         CREATE_ON_STARTUP,
+    }
+
+    public enum CappedCheck {
+        NO_CHECK,
+        WARN_ON_STARTUP,
+        CREATE_ON_STARTUP,
+        CREATE_ON_WRITE_NEW_COL,
+        CONVERT_EXISTING_ON_STARTUP,
     }
 }

@@ -45,18 +45,19 @@ public class IndexTest extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
         morphium.dropCollection(IndexedObject.class);
         morphium.dropCollection(CappedCol.class);
-        morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.NO_CHECK);
+        morphium.getConfig().setIndexCheck(MorphiumConfig.IndexCheck.NO_CHECK);
         morphium.storeNoCache(new UncachedObject("value", 12));
         Thread.sleep(100);
-        morphium.getConfig().setIndexCappedCheck(MorphiumConfig.IndexCappedCheck.CREATE_ON_WRITE_NEW_COL);
+        morphium.getConfig().setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_WRITE_NEW_COL);
         morphium.store(new IndexedObject("name", 123));
 
         Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices();
         assertThat(missing.size()).isNotEqualTo(0);
         assertThat(missing.get(UncachedObject.class)).isNotNull();
         assertThat(missing.get(IndexedObject.class)).isNull();
-        assertThat(missing.get(CappedCol.class)).isNull();
-        morphium.ensureIndex(UncachedObject.class, morphium.getMapper().getCollectionName(UncachedObject.class), missing.get(UncachedObject.class).get(0), null);
+        assertThat(missing.get(CappedCol.class)).isNull(); //all indices created
+        String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
+        morphium.createIndex(UncachedObject.class, collectionName, missing.get(UncachedObject.class).get(0), null);
         Thread.sleep(100);
         List<IndexDescription> newMissingIndexLists = morphium.getMissingIndicesFor(UncachedObject.class);
         assertThat(newMissingIndexLists.size()).isLessThan(missing.get(UncachedObject.class).size());
@@ -65,22 +66,26 @@ public class IndexTest extends MorphiumTestBase {
         Thread.sleep(1600); //waiting for writebuffer and mongodb
         assertThat(morphium.getMissingIndicesFor(UncachedObject.class)).isEmpty();
 
+        var lst = morphium.getIndexesFromMongo(UncachedObject.class);
+        var lst2 = morphium.getIndexesFromEntity(UncachedObject.class);
+        assertThat(lst.size()).isEqualTo(lst2.size() + 1);
+
     }
 
     @Test
     public void indexOnNewCollTest() throws Exception {
         morphium.dropCollection(IndexedObject.class);
-//        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
-//            log.info("Collection still exists... waiting");
-//            Thread.sleep(100);
-//        }
+        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
+            log.info("Collection still exists... waiting");
+            Thread.sleep(100);
+        }
         IndexedObject obj = new IndexedObject("test", 101);
         morphium.store(obj);
         //waiting for indices to be created
         Thread.sleep(1000);
 
         //index should now be available
-        List<Map<String, Object>> idx = null;//morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_object");
+        var idx = morphium.getIndexesFromMongo(IndexedObject.class);
         boolean foundId = false;
         boolean foundTimerName = false;
         boolean foundTimerName2 = false;
@@ -89,27 +94,27 @@ public class IndexTest extends MorphiumTestBase {
         boolean foundLst = false;
 
         //        assert (false);
-        for (Map<String, Object> i : idx) {
+        for (var i : idx) {
             System.out.println(i.toString());
-            Map<String, Object> key = (Map<String, Object>) i.get("key");
+            Map<String, Object> key = (Map<String, Object>) i.getKey();
             if (key.get("_id") != null && key.get("_id").equals(1)) {
                 foundId = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("name") != null && key.get("name").equals(1) && key.get("timer") == null) {
                 foundName = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("lst") != null) {
                 foundLst = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName2 = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName = true;
-                assert ((Boolean) i.get("unique"));
+                assert ((Boolean) i.getUnique());
 
             }
         }
@@ -124,7 +129,7 @@ public class IndexTest extends MorphiumTestBase {
         morphium.dropCollection(IndexedSubObject.class);
         Thread.sleep(250);
         morphium.ensureIndicesFor(IndexedSubObject.class);
-        List<Map<String, Object>> idx = null; //morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), "indexed_sub_object");
+        var idx = morphium.getIndexesFromMongo(IndexedSubObject.class);
         boolean foundnew1 = false;
         boolean foundnew2 = false;
 
@@ -134,26 +139,26 @@ public class IndexTest extends MorphiumTestBase {
         boolean foundTimer = false;
         boolean foundName = false;
         boolean foundLst = false;
-        for (Map<String, Object> i : idx) {
-            Map<String, Object> key = (Map<String, Object>) i.get("key");
+        for (IndexDescription i : idx) {
+            Map<String, Object> key = (Map<String, Object>) i.getKey();
             if (key.get("_id") != null && key.get("_id").equals(1)) {
                 foundId = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("name") != null && key.get("something") == null && key.get("name").equals(1) && key.get("timer") == null) {
                 foundName = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") == null) {
                 foundTimer = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("lst") != null) {
                 foundLst = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(-1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName2 = true;
-                assert (i.get("unique") == null || !(Boolean) i.get("unique"));
+                assert (i.getUnique() == null || !(Boolean) i.getUnique());
             } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                 foundTimerName = true;
-                assert ((Boolean) i.get("unique"));
+                assert ((Boolean) i.getUnique());
             } else if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
                 foundnew1 = true;
             } else if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
@@ -190,6 +195,7 @@ public class IndexTest extends MorphiumTestBase {
         private int timer;
         @Index
         private String name;
+        @Index(options = {"unique:true"})
         private String someOther;
         //Index defined up
         private List<Integer> lst;

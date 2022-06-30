@@ -30,7 +30,26 @@ public class IndexDescription {
     private Map<String, Object> collation;
     private Map<String, Object> wildcardProjection;
 
+    public static IndexDescription fromMaps(Map<String, Object> key, Map<String, Object> options) {
+        var idx = Doc.of("key", key);
+        if (options != null) {
+            idx.putAll(options);
+        }
+        return fromMap(idx);
+    }
+
     public static IndexDescription fromMap(Map<String, Object> incoming) {
+        if (incoming.get("name") == null || incoming.get("name").equals("")) {
+            StringBuilder sb = new StringBuilder();
+            Map<String, Object> keymap = (Map<String, Object>) incoming.get("key");
+            for (var k : keymap.keySet()) {
+                sb.append(k);
+                sb.append("_");
+                sb.append(keymap.get(k).toString());
+                sb.append("_");
+            }
+            incoming.put("name", sb.toString());
+        }
         IndexDescription idx = new IndexDescription();
         for (String n : incoming.keySet()) {
             var fld = an.getField(IndexDescription.class, n);
@@ -256,7 +275,7 @@ public class IndexDescription {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexDescription that = (IndexDescription) o;
-        return Objects.equals(key, that.key) && Objects.equals(name, that.name)
+        return Objects.equals(key, that.key)
                 && Objects.equals(background, that.background)
                 && Objects.equals(unique, that.unique)
                 && Objects.equals(partialFilterExpression, that.partialFilterExpression)
@@ -271,7 +290,7 @@ public class IndexDescription {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, name, background, unique, partialFilterExpression, sparse, expireAfterSeconds,
+        return Objects.hash(key, background, unique, partialFilterExpression, sparse, expireAfterSeconds,
                 hidden, storageEngine, weights, defaultLanguage, languageOverride, textIndexVersion, _2dsphereIndexVersion,
                 bits, min, max, collation, wildcardProjection);
     }

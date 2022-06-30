@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
@@ -961,18 +960,18 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @SuppressWarnings("unused")
-    public <T> void ensureIndex(final Class<T> cls, final String collection, final Doc index, AsyncOperationCallback<T> c) {
-        ensureIndex(cls, collection, index, null, c);
+    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, AsyncOperationCallback<T> c) {
+        createIndex(cls, collection, IndexDescription.fromMaps(index, null), c);
     }
 
     @Override
-    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> c) {
+    public <T> void createIndex(final Class<T> cls, final String collection, final IndexDescription index, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
         final AsyncOperationCallback<T> callback = c;
         morphium.inc(StatisticKeys.WRITES_CACHED);
-        addToWriteQueue(cls, collection, ctx -> directWriter.ensureIndex(cls, collection, index, options, callback), c, AsyncOperationType.ENSURE_INDICES);
+        addToWriteQueue(cls, collection, ctx -> directWriter.createIndex(cls, collection, index, callback), c, AsyncOperationType.ENSURE_INDICES);
     }
 
 

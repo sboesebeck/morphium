@@ -418,7 +418,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private <T> void checkIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
         if (coll == null) coll = morphium.getMapper().getCollectionName(type);
         if (!morphium.getDriver().exists(getDbName(), coll)) {
-            switch (morphium.getConfig().getIndexCappedCheck()) {
+            switch (morphium.getConfig().getIndexCheck()) {
                 case CREATE_ON_WRITE_NEW_COL:
                     if (logger.isDebugEnabled()) {
                         logger.debug("Collection " + coll + " does not exist - ensuring indices");
@@ -1983,7 +1983,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void ensureIndex(final Class<T> cls, final String collection, final Map<String, Object> index, final Map<String, Object> options, AsyncOperationCallback<T> callback) {
+    public <T> void createIndex(final Class<T> cls, final String collection, final IndexDescription idesc, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
 
             @Override
@@ -1994,8 +1994,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void run() {
                 List<String> fields = morphium.getARHelper().getFields(cls);
 
+                //replace keys with matching fieldnames
                 Map<String, Object> idx = new LinkedHashMap<>();
-                for (Map.Entry<String, Object> es : index.entrySet()) {
+                for (Map.Entry<String, Object> es : idesc.getKey().entrySet()) {
                     String k = es.getKey();
                     if (!k.contains(".") && !fields.contains(k) && !fields.contains(morphium.getARHelper().convertCamelCase(k))) {
                         throw new IllegalArgumentException("Field unknown for type " + cls.getSimpleName() + ": " + k);
@@ -2012,7 +2013,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 try {
                     CreateIndexesCommand cmd = new CreateIndexesCommand(morphium.getDriver());
                     cmd.setDb(getDbName()).setColl(coll);
-                    cmd.addIndex(keys, options);
+                    idesc.setKey(keys);
+                    cmd.addIndex(idesc);
                     var res = cmd.execute();
                     if (res.containsKey("ok") && res.get("ok").equals(0.0)) {
                         throw new MorphiumDriverException((String) res.get("errmsg"));

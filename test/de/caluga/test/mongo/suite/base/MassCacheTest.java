@@ -86,7 +86,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 //                o.setValue("Writing thread " + i + " " + j);
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                 q.f("counter").eq(j + 1).f("value").eq("Writing thread " + i + " " + j);
-                List<CachedObject> lst = morphium.find(q);
+                List<CachedObject> lst = q.asList();
 
                 assert (lst != null && !lst.isEmpty()) : "List is null - Thread " + i + " Element " + (j + 1) + " not found";
 
@@ -149,7 +149,7 @@ public class MassCacheTest extends MorphiumTestBase {
                         o.setValue("Writing thread " + trnd + " " + rnd);
                         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                         q.f("counter").eq(rnd + 1).f("value").eq("Writing thread " + trnd + " " + rnd);
-                        List<CachedObject> lst = morphium.find(q);
+                        List<CachedObject> lst = q.asList();
                         if (lst == null || lst.isEmpty()) {
                             log.info("Not written yet: " + (rnd + 1) + " Thread: " + trnd);
                         } else {
