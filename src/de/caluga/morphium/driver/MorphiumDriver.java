@@ -61,6 +61,12 @@ public interface MorphiumDriver {
 
     void setHostSeed(String... host);
 
+    MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache);
+
+    int getCollectionNameCacheLivetime();
+
+    MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime);
+
     void setConnectionUrl(String connectionUrl) throws MalformedURLException;
 
     void connect() throws MorphiumDriverException;
@@ -90,27 +96,27 @@ public interface MorphiumDriver {
 
     int getRetriesOnNetworkError();
 
-    void setRetriesOnNetworkError(int r);
+    MorphiumDriver setRetriesOnNetworkError(int r);
 
     int getSleepBetweenErrorRetries();
 
-    void setSleepBetweenErrorRetries(int s);
+    MorphiumDriver setSleepBetweenErrorRetries(int s);
 
     int getMaxConnections();
 
-    void setMaxConnections(int maxConnections);
+    MorphiumDriver setMaxConnections(int maxConnections);
 
     int getMinConnections();
 
-    void setMinConnections(int minConnections);
+    MorphiumDriver setMinConnections(int minConnections);
 
     boolean isRetryReads();
 
-    void setRetryReads(boolean retryReads);
+    MorphiumDriver setRetryReads(boolean retryReads);
 
     boolean isRetryWrites();
 
-    void setRetryWrites(boolean retryWrites);
+    MorphiumDriver setRetryWrites(boolean retryWrites);
 
     int getReadTimeout();
 
@@ -124,7 +130,7 @@ public interface MorphiumDriver {
 
     void setMaxConnectionsPerHost(int maxConnectionsPerHost);
 
-    void setCredentials(String db, String login, String pwd);
+    MorphiumDriver setCredentials(String db, String login, String pwd);
 
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 

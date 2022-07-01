@@ -99,7 +99,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver());
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
-                .setPipeline(Doc.convertToDocList(aggregator.getPipeline()))
+                .setPipeline(aggregator.getPipeline())
                 .setExplain(aggregator.isExplain())
                 .setReadPreference(aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()))
                 .setAllowDiskUse(aggregator.isUseDisk());

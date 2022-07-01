@@ -18,6 +18,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.sync.SingleMongoConnection;
 import org.bson.*;
 import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
@@ -91,11 +92,12 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setCredentials(String db, String login, String pwd) {
+    public MorphiumDriver setCredentials(String db, String login, String pwd) {
         String[] cred = new String[2];
         cred[0] = login;
         cred[1] = pwd;
         credentials.put(db, cred);
+        return this;
     }
 
     @Override
@@ -407,6 +409,21 @@ public class MongoDriver implements MorphiumDriver {
         hostSeed = host;
     }
 
+    @Override
+    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
+        return null;
+    }
+
+    @Override
+    public int getCollectionNameCacheLivetime() {
+        return 0;
+    }
+
+    @Override
+    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
+        return null;
+    }
+
 
     public void setConnectionUrl(String connectionUrl) {
 
@@ -418,8 +435,9 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setMaxConnections(int maxConnections) {
+    public MorphiumDriver setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+        return this;
     }
 
 
@@ -428,8 +446,9 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setMinConnections(int minConnections) {
+    public MorphiumDriver setMinConnections(int minConnections) {
         this.minConnections = minConnections;
+        return this;
     }
 
 
@@ -513,8 +532,9 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setRetryReads(boolean retryReads) {
+    public MorphiumDriver setRetryReads(boolean retryReads) {
         this.retryReads = retryReads;
+        return this;
     }
 
 
@@ -523,8 +543,9 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setRetryWrites(boolean retryWrites) {
+    public MorphiumDriver setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
+        return this;
     }
 
 
@@ -2191,16 +2212,18 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void setRetriesOnNetworkError(int retriesOnNetworkError) {
+    public MorphiumDriver setRetriesOnNetworkError(int retriesOnNetworkError) {
         this.retriesOnNetworkError = retriesOnNetworkError;
+        return this;
     }
 
     public int getSleepBetweenErrorRetries() {
         return sleepBetweenErrorRetries;
     }
 
-    public void setSleepBetweenErrorRetries(int sleepBetweenErrorRetries) {
+    public MorphiumDriver setSleepBetweenErrorRetries(int sleepBetweenErrorRetries) {
         this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
+        return this;
     }
 
     public Doc getCollectionStats(String db, String coll, int scale, boolean verbose) throws MorphiumDriverException {

@@ -1029,8 +1029,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     UpdateMongoCommand up = new UpdateMongoCommand(morphium.getDriver())
                             .setDb(getDbName())
                             .setColl(collectionName)
-                            .setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)))
-                            .setWriteConcern(wc.asMap());
+                            .setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)));
+                    if (wc != null)
+                        up.setWriteConcern(wc.asMap());
 
                     up.execute();
 
@@ -1184,8 +1185,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             .setDb(getDbName())
                             .setColl(collection)
                             .setWriteConcern(wc.asMap())
-                            .setDeletes(Arrays.asList(Doc.of("q", db, "mutli", false, "limit", 1)));
-                    settings.execute();
+                            .setDeletes(Arrays.asList(Doc.of("q", db, "limit", 1)));
+                    var res = settings.execute();
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
                     morphium.clearCachefor(o.getClass());
@@ -2016,7 +2017,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     idesc.setKey(keys);
                     cmd.addIndex(idesc);
                     var res = cmd.execute();
-                    if (res.containsKey("ok") && res.get("ok").equals(0.0)) {
+                    if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         throw new MorphiumDriverException((String) res.get("errmsg"));
                     }
                 } catch (MorphiumDriverException e) {

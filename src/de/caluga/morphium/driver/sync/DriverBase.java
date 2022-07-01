@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.sync;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.driver.commands.WatchSettings;
 import de.caluga.morphium.driver.mongodb.Maximums;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -14,6 +15,10 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
@@ -60,10 +65,77 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
+    protected ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(2, r -> {
+        Thread thr = new Thread(r);
+        thr.setName("McHouskeeping" + thr.getId());
+        thr.setDaemon(true);
+        return thr;
+    });
     private ThreadLocal<MorphiumTransactionContextImpl> transactionContext = new ThreadLocal<>();
-
-
+    private boolean useCollectionNameCache = true;
     private Map<String, String[]> credentials = new HashMap<>();
+    private ScheduledFuture<?> housekeeping;
+    private List<String> collectionListCache = new ArrayList<>();
+
+    private int collectionNameCacheTTL = 15000;
+
+    public DriverBase() {
+        startHousekeeping();
+    }
+
+    @Override
+    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
+        if (housekeeping == null && useCollectionNameCache) {
+            startHousekeeping();
+        }
+        if (housekeeping != null && !useCollectionNameCache) {
+            housekeeping.cancel(true);
+            housekeeping = null;
+        }
+        this.useCollectionNameCache = useCollectionNameCache;
+        return this;
+    }
+
+    protected void startHousekeeping() {
+        log.info("Starting housekeeping - ttl " + collectionNameCacheTTL);
+        housekeeping = executor.scheduleAtFixedRate(() -> {
+            if (useCollectionNameCache) {
+                collectionListCache = new ArrayList<>();
+            }
+        }, collectionNameCacheTTL, collectionNameCacheTTL, TimeUnit.MILLISECONDS);
+    }
+
+    protected void stopHousekeeping() {
+        if (housekeeping != null) {
+            housekeeping.cancel(true);
+            housekeeping = null;
+        }
+    }
+
+    @Override
+    public int getCollectionNameCacheLivetime() {
+        return collectionNameCacheTTL;
+    }
+
+    @Override
+    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
+        if (collectionNameCacheTTL != this.collectionNameCacheTTL && housekeeping != null) {
+            this.collectionNameCacheTTL = collectionCacheLiveTime;
+            housekeeping.cancel(true);
+            startHousekeeping();
+        } else {
+            this.collectionNameCacheTTL = collectionCacheLiveTime;
+        }
+
+        return this;
+    }
+
+
+    public boolean isUseCollectionNameCache() {
+        return useCollectionNameCache;
+    }
+
+    ;
 
 
     @Override
@@ -90,8 +162,9 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public void setRetriesOnNetworkError(int r) {
+    public MorphiumDriver setRetriesOnNetworkError(int r) {
         retriesOnNetworkError = r;
+        return this;
     }
 
     @Override
@@ -100,13 +173,15 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public void setSleepBetweenErrorRetries(int s) {
+    public MorphiumDriver setSleepBetweenErrorRetries(int s) {
         sleepBetweenRetries = s;
+        return this;
     }
 
     @Override
-    public void setCredentials(String db, String login, String pwd) {
+    public MorphiumDriver setCredentials(String db, String login, String pwd) {
         credentials.put(db, new String[]{login, pwd});
+        return this;
     }
 
     @Override
@@ -116,8 +191,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     @Override
-    public void setMaxConnections(int maxConnections) {
+    public MorphiumDriver setMaxConnections(int maxConnections) {
         maxConnectionsPerHost = maxConnections;
+        return this;
     }
 
 
@@ -128,8 +204,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     @Override
-    public void setMinConnections(int minConnections) {
+    public MorphiumDriver setMinConnections(int minConnections) {
         minConnectionsPerHost = minConnections;
+        return this;
 
     }
 
@@ -141,8 +218,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     @Override
-    public void setRetryReads(boolean retryReads) {
+    public MorphiumDriver setRetryReads(boolean retryReads) {
         this.retryReads = retryReads;
+        return this;
     }
 
 
@@ -153,8 +231,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     @Override
-    public void setRetryWrites(boolean retryWrites) {
+    public MorphiumDriver setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
+        return this;
     }
 
 
@@ -228,27 +307,45 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
+    public boolean exists(String db, String collection) throws MorphiumDriverException {
+        var ret = listCollections(db, null);
+        for (var c : ret) {
+            if (c.equals(collection)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
     @Override
-    public List<String> listCollections(String db, String pattern) throws MorphiumDriverException {
+    public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
         if (!isConnected()) {
             return null;
         }
-        Doc command = Doc.of("listCollections", 1);
-        if (pattern != null) {
-            Map<String, Object> query = new HashMap<>();
-            query.put("name", Pattern.compile(pattern));
-            command.put("filter", query);
+        if (collectionListCache == null || collectionListCache.isEmpty()) {
+            ListCollectionsCommand cmd = new ListCollectionsCommand(this);
+            cmd.setDb(db).setNameOnly(true);
+            var lst = cmd.execute();
+            List<String> colNames = new ArrayList<>();
+
+            for (Map<String, Object> doc : lst) {
+                String name = doc.get("name").toString();
+                colNames.add(name);
+            }
+            collectionListCache = colNames;
         }
-        var crs = runCommand(db, command);
-        List<String> colNames = new ArrayList<>();
-
-        while (crs.hasNext()) {
-            var doc = crs.next();
-            colNames.add(doc.get("name").toString());
+        if (regex != null) {
+            ArrayList<String> ret = new ArrayList<>();
+            var p = Pattern.compile(regex);
+            for (String l : new ArrayList<>(collectionListCache)) {
+                if (p.matcher(l).matches()) {
+                    ret.add(l);
+                }
+            }
+            return ret;
         }
-
-
-        return colNames;
+        return new ArrayList<>(collectionListCache);
     }
 
     private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {

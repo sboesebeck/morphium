@@ -2488,7 +2488,13 @@ public class Morphium implements AutoCloseable {
     }
 
     public void dropCollection(Class<?> cls) {
-        getWriterForClass(cls).dropCollection(cls, getMapper().getCollectionName(cls), null);
+        try {
+            getWriterForClass(cls).dropCollection(cls, getMapper().getCollectionName(cls), null);
+        } catch (Exception e) {
+            if (!e.getMessage().endsWith("Error: 26: ns not found")) {
+                throw e;
+            }
+        }
     }
 
 

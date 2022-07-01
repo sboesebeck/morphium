@@ -302,6 +302,21 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
+    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
+        return this;
+    }
+
+    @Override
+    public int getCollectionNameCacheLivetime() {
+        return 0;
+    }
+
+    @Override
+    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
+        return null;
+    }
+
+    @Override
     public void setConnectionUrl(String connectionUrl) {
 
     }
@@ -343,8 +358,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public void setRetriesOnNetworkError(int r) {
-
+    public MorphiumDriver setRetriesOnNetworkError(int r) {
+        return this;
     }
 
 
@@ -353,7 +368,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public void setSleepBetweenErrorRetries(int s) {
+    public MorphiumDriver setSleepBetweenErrorRetries(int s) {
+        return this;
 
     }
 
@@ -363,7 +379,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setMaxConnections(int maxConnections) {
+    public MorphiumDriver setMaxConnections(int maxConnections) {
+        return this;
 
     }
 
@@ -373,7 +390,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setMinConnections(int minConnections) {
+    public MorphiumDriver setMinConnections(int minConnections) {
+        return this;
 
     }
 
@@ -383,7 +401,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setRetryReads(boolean retryReads) {
+    public MorphiumDriver setRetryReads(boolean retryReads) {
+        return this;
 
     }
 
@@ -393,7 +412,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setRetryWrites(boolean retryWrites) {
+    public MorphiumDriver setRetryWrites(boolean retryWrites) {
+        return this;
 
     }
 
@@ -428,7 +448,8 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public void setCredentials(String db, String login, String pwd) {
+    public MorphiumDriver setCredentials(String db, String login, String pwd) {
+        return this;
 
     }
 

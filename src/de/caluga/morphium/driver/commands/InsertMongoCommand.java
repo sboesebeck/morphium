@@ -63,6 +63,7 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
 
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
+        if (!getDriver().isConnected()) throw new RuntimeException("Not connected");
         Map<String, Object> writeResult = super.execute();
         if (writeResult.containsKey("writeErrors")) {
             int failedWrites = ((List) writeResult.get("writeErrors")).size();

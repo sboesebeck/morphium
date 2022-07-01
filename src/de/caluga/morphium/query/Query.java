@@ -22,6 +22,7 @@ import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 /**
  * User: Stpehan Bösebeck
@@ -557,12 +558,15 @@ public class Query<T> implements Cloneable {
 
     public List distinct(String field) {
         try {
-            return new DistinctMongoCommand(morphium.getDriver())
+            var cmd = new DistinctMongoCommand(morphium.getDriver())
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setKey(field)
-                    .setQuery(Doc.of(toQueryObject()))
-                    .setCollation(Doc.of(getCollation().toQueryObject())).execute();
+                    .setQuery(Doc.of(toQueryObject()));
+            if (getCollation() != null) {
+                cmd.setCollation(getCollation().toQueryObject());
+            }
+            return cmd.execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
@@ -1452,7 +1456,7 @@ public class Query<T> implements Cloneable {
         }
 
         //noinspection unchecked
-        List<R> ret = new ArrayList<>(); //query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
+        List<R> ret = query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
         long dur = System.currentTimeMillis() - start;
         morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
