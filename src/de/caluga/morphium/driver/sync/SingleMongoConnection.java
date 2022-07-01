@@ -18,8 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.concurrent.*;
 
 /**
  * User: Stephan Bösebeck
@@ -41,7 +40,9 @@ public class SingleMongoConnection extends DriverBase {
     private Thread readerThread = null;
     private Map<Integer, OpMsg> incoming = new HashMap<>();
     private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
+    private int heartbeatPause = 1000;
     private boolean running = true;
+
 
     //private int unsansweredMessageId = 0;
 
@@ -81,6 +82,7 @@ public class SingleMongoConnection extends DriverBase {
             readerThread = new Thread(() -> {
                 while (running) {
                     try {
+                        //reading in data
                         if (in.available() > 0) {
                             OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
                             incoming.put(msg.getResponseTo(), msg);
@@ -111,6 +113,11 @@ public class SingleMongoConnection extends DriverBase {
             });
             readerThread.start();
 
+            if (isUseCollectionNameCache()) {
+                //Clear collection name cache
+                startHousekeeping();
+            }
+
             var result = runCommand("local", Doc.of("hello", true, "helloOk", true,
                     "client", Doc.of("application", Doc.of("name", "Morphium"),
                             "driver", Doc.of("name", "MorphiumDriver", "version", "1.0"),
@@ -138,6 +145,7 @@ public class SingleMongoConnection extends DriverBase {
             throw new MorphiumDriverException("connection failed", e);
         }
     }
+
 
     @Override
     public boolean replyForMsgAvailable(int msg) {
@@ -188,6 +196,7 @@ public class SingleMongoConnection extends DriverBase {
     public void disconnect() {
         try {
             running = false;
+            executor.shutdownNow();
             in.close();
             out.close();
             s.close();
@@ -337,6 +346,9 @@ public class SingleMongoConnection extends DriverBase {
             rep = getReplyFor(id, getMaxWaitTime());
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
+            }
+            if (rep.getFirstDoc().containsKey("ok") && rep.getFirstDoc().get("ok").equals(Double.valueOf(0.0))) {
+                throw new MorphiumDriverException("Error: " + rep.getFirstDoc().get("code") + ": " + rep.getFirstDoc().get("errmsg"));
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
                 return new SingleMongoConnectionCursor(this, batchSize, false, rep);
@@ -613,22 +625,6 @@ public class SingleMongoConnection extends DriverBase {
     }
 
 
-    public boolean exists(String db, String collection) throws MorphiumDriverException {
-        List<Map<String, Object>> ret = getCollectionInfo(db, collection);
-        for (Map<String, Object> c : ret) {
-            if (c.get("name").equals(collection)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-
-    public List<String> getCollectionNames(String db) throws MorphiumDriverException {
-        List<Map<String, Object>> ret = getCollectionInfo(db, null);
-        return ret.stream().map(c -> (String) c.get("name")).collect(Collectors.toList());
-    }
 
     public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
         return getDbStats(db, false);
@@ -653,6 +649,7 @@ public class SingleMongoConnection extends DriverBase {
 
 
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
+
         //noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
             Map<String, Object> cmd = new Doc();

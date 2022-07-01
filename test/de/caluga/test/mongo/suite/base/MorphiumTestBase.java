@@ -7,7 +7,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
-import de.caluga.morphium.driver.commands.DropMongoCommand;
+import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -252,19 +252,28 @@ public class MorphiumTestBase {
         for (ShutdownListener t : toRemove) {
             morphium.removeShutdownListener(t);
         }
-        for (String coll : morphium.listCollections()) {
-            log.info("Dropping collection " + coll);
-            try {
-                morphium.clearCollection(UncachedObject.class, coll); //faking it
-            } catch (Exception e) {
-                //e.printStackTrace();
+        ListCollectionsCommand cmd = new ListCollectionsCommand(morphium.getDriver()).setDb(morphium.getDatabase());
+        try {
+            for (var collMap : cmd.execute()) {
+                String coll = (String) collMap.get("name");
+                log.info("Dropping collection " + coll);
+                try {
+                    morphium.clearCollection(UncachedObject.class, coll); //faking it
+                } catch (Exception e) {
+                    //e.printStackTrace();
+                }
+                morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
             }
-            morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
-        }
 
-        while (morphium.listCollections().size() > 0) {
-            Thread.sleep(100);
-            log.info("Collections still there...");
+
+            while (cmd.execute().size() > 0) {
+                Thread.sleep(100);
+                for (var k : cmd.execute()) {
+                    log.info("Collections still there..." + k.get("name"));
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
         Thread.sleep(150);

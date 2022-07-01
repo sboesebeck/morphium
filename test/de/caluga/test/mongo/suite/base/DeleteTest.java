@@ -22,7 +22,7 @@ public class DeleteTest extends MorphiumTestBase {
         assert (c == 10);
         UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
         morphium.delete(u);
-        Thread.sleep(100);
+        Thread.sleep(500);
         c = morphium.createQueryFor(UncachedObject.class).countAll();
         assert (c == 9) : "Count is " + c;
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();

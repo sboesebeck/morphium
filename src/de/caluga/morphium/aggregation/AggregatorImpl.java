@@ -278,7 +278,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public long getCount() {
-        List<Doc> pipeline = new ArrayList<>(Doc.convertToDocList(getPipeline()));
+        List<Map<String, Object>> pipeline = getPipeline();
         pipeline.add(Doc.of("$count", "num"));
         List<Map<String, Object>> res = null;
         try {
@@ -384,7 +384,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         AggregateMongoCommand cmd = new AggregateMongoCommand(morphium.getDriver());
         cmd.setDb(morphium.getDatabase())
                 .setColl(getCollectionName())
-                .setPipeline(Doc.convertToDocList(getPipeline()))
+                .setPipeline(getPipeline())
                 .setExplain(isExplain())
                 .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
                 .setAllowDiskUse(isUseDisk());

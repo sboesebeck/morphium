@@ -26,7 +26,7 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
         List<IndexDescription> lst = new ArrayList<>();
         while (crs.hasNext()) {
             Map<String, Object> next = crs.next();
-            if (next.get("ok") != null && next.get("ok").equals(0.0)) continue;
+            if (next.get("ok") != null && next.get("ok").equals(Double.valueOf(0))) continue;
             var idx = IndexDescription.fromMap(next);
             if (idx.getKey().containsKey("_ftsx") && idx.getKey().get("_fts").equals("text")) {
                 //text index

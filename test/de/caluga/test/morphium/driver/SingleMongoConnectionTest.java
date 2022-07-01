@@ -27,6 +27,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void testSyncConnection() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         log.info("Connected");
         int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
         log.info("Deleted old data: " + deleted);
@@ -67,6 +68,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void testUpdateSyncConnection() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
 
@@ -107,6 +109,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void testWatch() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
         UncachedObject o = new UncachedObject("value", 123);
@@ -167,6 +170,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void testMapReduce() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
@@ -201,6 +205,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void testRunCommand() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
@@ -223,6 +228,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     @Test
     public void iteratorTest() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
+        con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();

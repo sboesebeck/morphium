@@ -44,8 +44,12 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             long start = System.currentTimeMillis();
             MorphiumCursor crs = driver.runCommand(getDb(), asMap());
             while (crs.hasNext()) {
-                ret.addAll(crs.getBatch());
-                crs.ahead(crs.getBatch().size());
+                List<Map<String, Object>> batch = crs.getBatch();
+                if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals(Double.valueOf(0))) {
+                    throw new MorphiumDriverException("Error: " + batch.get(0).get("code") + ": " + batch.get(0).get("errmsg"));
+                }
+                ret.addAll(batch);
+                crs.ahead(batch.size());
             }
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
