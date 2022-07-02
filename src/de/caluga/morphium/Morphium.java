@@ -483,8 +483,6 @@ public class Morphium implements AutoCloseable {
             Query<Map<String, Object>> q = (Query<Map<String, Object>>) qImpl.getDeclaredConstructor().newInstance();
             q.setMorphium(this);
             q.setCollectionName(collection);
-
-            //q.setMorphium(this);
             return q;
         } catch (Exception e) {
             e.printStackTrace();
@@ -636,10 +634,17 @@ public class Morphium implements AutoCloseable {
                 idxCmd.execute();
             }
             logger.info("indexes created... copying data");
-            AggregateMongoCommand aggCmd = new AggregateMongoCommand(morphiumDriver);
-            aggCmd.setPipeline(Arrays.asList(Doc.of("$match", Doc.of()), Doc.of("$out", tmpColl)));
-            aggCmd.setDb(getDatabase()).setColl(collectionName).setComment("copy by morphium init");
-            var ret = aggCmd.execute();
+            logger.warn("copying might take some time, as data is read and written ☹️");
+
+            FindCommand fnd = new FindCommand(morphiumDriver).setColl(collectionName).setDb(getDatabase());
+            var crs = fnd.executeIterable();
+            while (crs.hasNext()) {
+                InsertMongoCommand insert = new InsertMongoCommand(morphiumDriver);
+                insert.setDocuments(crs.getBatch());
+                insert.setColl(tmpColl).setDb(getDatabase());
+                crs.ahead(crs.getBatch().size());
+            }
+
             //TODO: check for error!
             logger.info("dropping old collection");
             DropMongoCommand dropCmd = new DropMongoCommand(morphiumDriver)
@@ -650,7 +655,6 @@ public class Morphium implements AutoCloseable {
             RenameCollectionCommand ren = new RenameCollectionCommand(morphiumDriver);
             ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
             var r = ren.execute();
-            //TODO check for error
             logger.info("conversion to capped complete!");
 
 
@@ -2010,23 +2014,15 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
-//        if (logger.isDebugEnabled()) {
-//            logger.debug("returning write concern for " + cls.getSimpleName());
-//        }
+
         WriteSafety safety = annotationHelper.getAnnotationFromHierarchy(cls, WriteSafety.class);  // cls.getAnnotation(WriteSafety.class);
         if (safety == null) {
             return null;
         }
-        @SuppressWarnings("deprecation") boolean fsync = safety.waitForSync();
         boolean j = safety.waitForJournalCommit();
 
-        if (j && fsync) {
-            fsync = false;
-        }
         int w = safety.level().getValue();
-        if (!isReplicaSet() && w > 1) {
-            w = 1;
-        }
+
         long timeout = safety.timeout();
         if (isReplicaSet() && w > 2) {
             de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
@@ -2039,7 +2035,7 @@ public class Morphium implements AutoCloseable {
                 logger.debug("Active nodes now: " + s.getActiveNodes());
             }
             int activeNodes = s.getActiveNodes();
-
+            if (activeNodes > 50) activeNodes = 50;
             long masterOpTime = 0;
             long maxReplLag = 0;
             for (ReplicaSetNode node : s.getMembers()) {
@@ -2484,7 +2480,18 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).dropCollection(cls, collection, callback);
+        try {
+            getWriterForClass(cls).dropCollection(cls, collection, callback);
+        } catch (Exception e) {
+            if (!e.getMessage().endsWith("Error: 26: ns not found")) {
+                if (callback != null)
+                    callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
+            } else {
+                if (callback != null)
+                    callback.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, null, null, cls);
+            }
+
+        }
     }
 
     public void dropCollection(Class<?> cls) {
@@ -3326,11 +3333,14 @@ public class Morphium implements AutoCloseable {
     /////
 
     public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce) throws MorphiumDriverException {
-        List<Map<String, Object>> result = new ArrayList<>();// getDriver().mapReduce(getConfig().getDatabase(), getMapper().getCollectionName(type), map, reduce);
+        MapReduceCommand mr = new MapReduceCommand(morphiumDriver).setDb(getDatabase())
+                .setColl(getMapper().getCollectionName(type))
+                .setMap(map).setReduce(reduce);
+        List<Map<String, Object>> result = mr.execute();
         List<T> ret = new ArrayList<>();
 
         for (Map<String, Object> o : result) {
-            ret.add(getMapper().deserialize(type, o));
+            ret.add(getMapper().deserialize(type, (Map<String, Object>) o.get("value")));
         }
         return ret;
 
@@ -3840,15 +3850,19 @@ public class Morphium implements AutoCloseable {
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
                         continue;
                     }
-                    List<IndexDescription> missing = getMissingIndicesFor(entity);
+                    if (exists(getDatabase(), getMapper().getCollectionName(entity))) {
+                        List<IndexDescription> missing = getMissingIndicesFor(entity);
 
-                    if (missing != null && !missing.isEmpty()) {
-                        missingIndicesByClass.put(entity, missing);
+                        if (missing != null && !missing.isEmpty()) {
+                            missingIndicesByClass.put(entity, missing);
+                        }
                     }
 
                 } catch (Throwable e) {
                     //swallow
-                    logger.error("Could not check indices for " + cn, e);
+                    if (!e.getMessage().contains("Error: 26: ns does not exist:")) {
+                        logger.error("Could not check indices for " + cn, e);
+                    }
                 }
             }
         } catch (Exception e) {

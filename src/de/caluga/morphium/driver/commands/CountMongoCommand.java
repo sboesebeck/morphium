@@ -1,29 +1,29 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.sync.DriverBase;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
-import java.util.List;
 import java.util.Map;
 
 public class CountMongoCommand extends MongoCommand<CountMongoCommand> implements SingleResultCommand {
-    private Doc query;
+    private Map<String, Object> query;
     private Integer limit;
     private Integer skip;
     private Object hint;
-    private Doc readConcern;
-    private Doc collation;
+    private Map<String, Object> readConcern;
+    private Map<String, Object> collation;
 
     public CountMongoCommand(MorphiumDriver d) {
         super(d);
     }
 
 
-    public Doc getQuery() {
+    public Map<String, Object> getQuery() {
         return query;
     }
 
-    public CountMongoCommand setQuery(Doc query) {
+    public CountMongoCommand setQuery(Map<String, Object> query) {
         this.query = query;
         return this;
     }
@@ -55,20 +55,20 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         return this;
     }
 
-    public Doc getReadConcern() {
+    public Map<String, Object> getReadConcern() {
         return readConcern;
     }
 
-    public CountMongoCommand setReadConcern(Doc readConcern) {
+    public CountMongoCommand setReadConcern(Map<String, Object> readConcern) {
         this.readConcern = readConcern;
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public CountMongoCommand setCollation(Doc collation) {
+    public CountMongoCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }

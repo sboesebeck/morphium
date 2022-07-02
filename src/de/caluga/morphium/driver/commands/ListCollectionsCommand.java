@@ -56,7 +56,7 @@ public class ListCollectionsCommand extends ReadMongoCommand<ListCollectionsComm
 
     @Override
     public ListCollectionsCommand setColl(String coll) {
-        LoggerFactory.getLogger(ListCollectionsCommand.class).warn("Cannot set collection on listCollectionCommand!");
+        //LoggerFactory.getLogger(ListCollectionsCommand.class).warn("Cannot set collection on listCollectionCommand!");
         return this;
     }
 

@@ -58,7 +58,11 @@ public class WriteConcern {
     }
 
     public Map<String, Object> asMap() {
-        return Doc.of("w", w, "j", j, "wtimeout", wtimeout);
+        Doc wc = Doc.of("j", j, "wtimeout", wtimeout);
+        if (w < 0) {
+            wc.put("w", "majority");
+        }
+        return wc;
     }
 
 }

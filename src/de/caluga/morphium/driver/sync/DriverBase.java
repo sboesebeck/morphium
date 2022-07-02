@@ -71,7 +71,7 @@ public abstract class DriverBase implements MorphiumDriver {
         thr.setDaemon(true);
         return thr;
     });
-    private ThreadLocal<MorphiumTransactionContextImpl> transactionContext = new ThreadLocal<>();
+    private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
     private boolean useCollectionNameCache = true;
     private Map<String, String[]> credentials = new HashMap<>();
     private ScheduledFuture<?> housekeeping;
@@ -82,6 +82,7 @@ public abstract class DriverBase implements MorphiumDriver {
     public DriverBase() {
         startHousekeeping();
     }
+
 
     @Override
     public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
@@ -669,6 +670,9 @@ public abstract class DriverBase implements MorphiumDriver {
         return transactionContext.get() != null;
     }
 
+    protected void clearTransactionContext() {
+        transactionContext.remove();
+    }
 
     public abstract void watch(WatchSettings settings) throws MorphiumDriverException;
 

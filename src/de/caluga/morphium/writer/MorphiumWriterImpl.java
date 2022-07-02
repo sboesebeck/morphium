@@ -730,6 +730,17 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (logger.isDebugEnabled()) {
             logger.debug("Collection does not exist - ensuring indices / capped status / Schema validation");
         }
+        //checking if collection exists
+        ListCollectionsCommand lcmd = new ListCollectionsCommand(morphium.getDriver()).setDb(getDbName()).setFilter(Doc.of("name", collectionName));
+        try {
+            var result = lcmd.execute();
+            if (result.size() > 0) {
+                logger.info("collection already exists");
+                return;
+            }
+        } catch (MorphiumDriverException e) {
+
+        }
 
 
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
@@ -1184,8 +1195,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     DeleteMongoCommand settings = new DeleteMongoCommand(morphium.getDriver())
                             .setDb(getDbName())
                             .setColl(collection)
-                            .setWriteConcern(wc.asMap())
                             .setDeletes(Arrays.asList(Doc.of("q", db, "limit", 1)));
+                    if (wc != null)
+                        settings.setWriteConcern(wc.asMap());
+
                     var res = settings.execute();
                     long dur = System.currentTimeMillis() - start;
                     morphium.fireProfilingWriteEvent(o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
@@ -2065,8 +2078,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 UpdateMongoCommand settings = new UpdateMongoCommand(morphium.getDriver())
                         .setColl(coll)
                         .setDb(getDbName())
-                        .setWriteConcern(wc.asMap())
                         .addUpdate(Doc.of(query), Doc.of(update), null, false, false, null, null, null);
+                if (wc != null)
+                    settings.setWriteConcern(wc.asMap());
                 settings.execute();
                 morphium.inc(StatisticKeys.WRITES);
                 handleLastChange(cls, update);

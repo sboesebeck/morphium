@@ -51,7 +51,7 @@ public class MorphiumConfigTest extends MorphiumTestBase {
     @Test
     public void testEnum() {
         Properties p = new Properties();
-        p.setProperty("morphium.indexCappedCheck", "WARN_ON_STARTUP");
+        p.setProperty("morphium.indexCheck", "WARN_ON_STARTUP");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
         assert (cfg.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP));
         assert (cfg.isAutoValuesEnabled());

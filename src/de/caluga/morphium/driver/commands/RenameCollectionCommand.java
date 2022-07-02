@@ -1,6 +1,11 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+
+import java.util.Map;
 
 public class RenameCollectionCommand extends WriteMongoCommand<RenameCollectionCommand> {
     private String to;
@@ -31,5 +36,28 @@ public class RenameCollectionCommand extends WriteMongoCommand<RenameCollectionC
     @Override
     public String getCommandName() {
         return "renameCollection";
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        var m = super.asMap();
+        m.put(getCommandName(), getDb() + "." + getColl());
+        m.put("to", getDb() + "." + to);
+        return m;
+    }
+
+    @Override
+    public Map<String, Object> execute() throws MorphiumDriverException {
+        if (!getDriver().isConnected()) throw new RuntimeException("Not connected");
+        MorphiumDriver driver = getDriver();
+        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        //noinspection unchecked
+
+        setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+        long start = System.currentTimeMillis();
+        MorphiumCursor crs = driver.runCommand("admin", asMap());
+        long dur = System.currentTimeMillis() - start;
+        getMetaData().put("duration", dur);
+        return crs.next();
     }
 }

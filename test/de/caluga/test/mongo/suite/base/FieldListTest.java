@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.annotations.ReadOnly;
+import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.query.Query;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -56,7 +57,9 @@ public class FieldListTest extends MorphiumTestBase {
         marshall.put("read_only_value", "stored in db");
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);
-        //morphium.getDriver().store(morphium.getConfig().getDatabase(), "read_only_object", lst, null);
+        StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver());
+        cmd.setDb(morphium.getDatabase()).setColl("read_only_object").setDocs(lst);
+        cmd.execute();
         Thread.sleep(100);
         morphium.reread(ro);
         assert (ro.readOnlyValue.equals("stored in db"));

@@ -83,7 +83,7 @@ public class DeleteTest extends MorphiumTestBase {
         CachedObject co = morphium.createQueryFor(CachedObject.class).get();
         morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
         waitForWrites();
-        Thread.sleep(1000);
+        Thread.sleep(100);
         cnt = morphium.createQueryFor(CachedObject.class).countAll();
         assert (cnt == 9);
         List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();

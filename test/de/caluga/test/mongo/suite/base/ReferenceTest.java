@@ -246,7 +246,7 @@ public class ReferenceTest extends MorphiumTestBase {
 
 
     @Entity
-    @WriteSafety(waitForSync = true, waitForJournalCommit = false, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
+    @WriteSafety(waitForJournalCommit = false, level = SafetyLevel.WAIT_FOR_ALL_SLAVES)
     @NoCache
     public static class ReferenceContainer {
         @Reference

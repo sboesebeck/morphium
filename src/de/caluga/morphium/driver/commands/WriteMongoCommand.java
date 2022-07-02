@@ -36,7 +36,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
     public Map<String, Object> execute() throws MorphiumDriverException {
         if (!getDriver().isConnected()) throw new RuntimeException("Not connected");
         MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+
         //noinspection unchecked
 
         setMetaData(Doc.of("server", driver.getHostSeed()[0]));

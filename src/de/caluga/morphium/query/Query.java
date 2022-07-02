@@ -872,7 +872,7 @@ public class Query<T> implements Cloneable {
                         //.setQuery(Doc.of(this.toQueryObject()))
                         ;
                 if (getCollation() != null)
-                    settings.setCollation(Doc.of(getCollation().toQueryObject()));
+                    settings.setCollation(getCollation().toQueryObject());
                 ret = settings.getCount();
 //                            .setReadConcern(getRP().);
             } catch (MorphiumDriverException e) {
@@ -881,7 +881,13 @@ public class Query<T> implements Cloneable {
             }
         } else {
             try {
-                ret = new CountMongoCommand(getMorphium().getDriver()).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).getCount();
+                var cmd = new CountMongoCommand(getMorphium().getDriver())
+                        .setDb(getDB())
+                        .setColl(getCollectionName())
+                        .setQuery(Doc.of(toQueryObject()));
+                if (getCollation() != null)
+                    cmd.setCollation(getCollation().toQueryObject());
+                ret = cmd.getCount();
             } catch (MorphiumDriverException e) {
                 // TODO: Implement Handling
                 throw new RuntimeException(e);

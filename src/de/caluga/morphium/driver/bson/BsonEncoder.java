@@ -1,11 +1,13 @@
 package de.caluga.morphium.driver.bson;
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -108,7 +110,7 @@ public class BsonEncoder {
         if (v == null) {
             writeByte(10).cString(n);
 
-        } else if (v instanceof Float) {
+        } else if (v instanceof Float || v.getClass().equals(float.class)) {
             writeByte(1).cString(n);
             long lng = Double.doubleToLongBits(((Float) v).doubleValue());
 
@@ -164,27 +166,29 @@ public class BsonEncoder {
 
             writeBytes(data);
 
-        } else if (v instanceof List || List.class.isAssignableFrom(v.getClass()) || Collection.class.isAssignableFrom(v.getClass())) {
+        } else if (Collection.class.isAssignableFrom(v.getClass())) {
             writeByte(4);
             cString(n);
 
             Doc doc = Doc.of();
             int cnt = 0;
-            if (Collection.class.isAssignableFrom(v.getClass())) {
-                List l = new ArrayList();
-                //noinspection unchecked
-                l.addAll((Collection) v);
-                v = l;
-
-            }
             //noinspection ConstantConditions
-            for (Object o : (List) v) {
+            for (Object o : (Collection) v) {
                 //cString(""+(cnt++));
                 //                encodeObject("" + (cnt++), o);
                 doc.put("" + (cnt++), o);
             }
 
             writeBytes(BsonEncoder.encodeDocument(doc));
+        } else if (v.getClass().isArray()) {
+            writeByte(4);
+            cString(n);
+            Doc doc = Doc.of();
+            int arrayLength = Array.getLength(v);
+            List lst = new ArrayList(arrayLength);
+            for (int i = 0; i < arrayLength; i++) {
+                doc.put("" + i, Array.get(v, i));
+            }
 
         } else if (v instanceof Map || Map.class.isAssignableFrom(v.getClass())) {
 
@@ -284,6 +288,27 @@ public class BsonEncoder {
         } else if (v.getClass().isAssignableFrom(MongoMinKey.class)) {
             writeByte(0xff);
             cString(n);
+        } else if (v instanceof Collation.CaseFirst) {
+            writeByte(2);
+            cString(n);
+            string(((Collation.CaseFirst) v).getMongoText());
+        } else if (v instanceof Collation.MaxVariable) {
+            writeByte(2);
+            cString(n);
+            string(((Collation.MaxVariable) v).getMongoText());
+        } else if (v instanceof Collation.Strength) {
+            writeByte(0x10);
+            cString(n);
+            int val = ((Collation.Strength) v).getMongoValue();
+            writeInt(val);
+        } else if (v instanceof Collation.Alternate) {
+            writeByte(2);
+            cString(n);
+            string(((Collation.Alternate) v).getMongoText());
+        } else if (v.getClass().isEnum()) {
+            writeByte(2);
+            cString(n);
+            string(v.toString());
         } else {
             throw new RuntimeException("Unhandled Data type: " + v.getClass().getName());
         }
