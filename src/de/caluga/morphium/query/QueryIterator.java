@@ -91,8 +91,10 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public T next() {
-
-            return query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
+        if (query.getType() == null) {
+            return (T) getMongoCursor().next();
+        }
+        return query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
 
     }
 

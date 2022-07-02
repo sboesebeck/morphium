@@ -11,6 +11,8 @@ import org.junit.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class CollationTest extends MorphiumTestBase {
 
 
@@ -79,8 +81,7 @@ public class CollationTest extends MorphiumTestBase {
         morphium.store(new UncachedObject("c", 1));
         Thread.sleep(1000);
         long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll();
-        assert (count == 2);
-
+        assertThat(count).isEqualTo(2);
     }
 
     @Test

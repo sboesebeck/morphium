@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.query.MorphiumIterator;
+import de.caluga.test.mongo.suite.data.EnumEntity;
 import de.caluga.test.mongo.suite.data.TestEnum;
 import org.junit.Test;
 

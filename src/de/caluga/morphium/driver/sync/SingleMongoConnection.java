@@ -34,7 +34,6 @@ public class SingleMongoConnection extends DriverBase {
     private OutputStream out;
     private InputStream in;
 
-    private ThreadLocal<MorphiumTransactionContextImpl> transactionContext = new ThreadLocal<>();
 
     //    private List<OpMsg> replies = Collections.synchronizedList(new ArrayList<>());
     private Thread readerThread = null;
@@ -161,7 +160,7 @@ public class SingleMongoConnection extends DriverBase {
                     incoming.wait(timeout);
                 }
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+               //Swallow
             }
         }
         synchronized (incomingTimes) {
@@ -173,7 +172,7 @@ public class SingleMongoConnection extends DriverBase {
 
     @Override
     public String getName() {
-        return "SingleSyncConnection";
+        return "SingleMongoConnection";
     }
 
 
@@ -207,20 +206,20 @@ public class SingleMongoConnection extends DriverBase {
 
     @Override
     public void commitTransaction() throws MorphiumDriverException {
-        if (transactionContext.get() == null)
+        if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
-        MorphiumTransactionContextImpl ctx = transactionContext.get();
+        MorphiumTransactionContext ctx = getTransactionContext();
         runCommand("admin", Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
-        transactionContext.remove();
+        clearTransactionContext();
     }
 
     @Override
     public void abortTransaction() throws MorphiumDriverException {
-        if (transactionContext.get() == null)
+        if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
-        MorphiumTransactionContextImpl ctx = transactionContext.get();
+        MorphiumTransactionContext ctx = getTransactionContext();
         runCommand("admin", Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
-        transactionContext.remove();
+        clearTransactionContext();
     }
 
 
@@ -548,14 +547,14 @@ public class SingleMongoConnection extends DriverBase {
 
 
     public void sendQuery(OpMsg q) throws MorphiumDriverException {
-        if (transactionContext.get() != null) {
-            q.getFirstDoc().put("lsid", Doc.of("id", transactionContext.get().getLsid()));
-            q.getFirstDoc().put("txnNumber", transactionContext.get().getTxnNumber());
-            if (!transactionContext.get().isStarted()) {
+        if (getTransactionContext() != null) {
+            q.getFirstDoc().put("lsid", Doc.of("id", getTransactionContext().getLsid()));
+            q.getFirstDoc().put("txnNumber", getTransactionContext().getTxnNumber());
+            if (!getTransactionContext().isStarted()) {
                 q.getFirstDoc().put("startTransaction", true);
-                transactionContext.get().setStarted(true);
+                getTransactionContext().setStarted(true);
             }
-            q.getFirstDoc().putIfAbsent("autocommit", transactionContext.get().getAutoCommit());
+            q.getFirstDoc().putIfAbsent("autocommit", getTransactionContext().getAutoCommit());
             q.getFirstDoc().remove("writeConcern");
         }
 

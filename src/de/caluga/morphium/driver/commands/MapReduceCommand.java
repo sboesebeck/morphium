@@ -181,7 +181,11 @@ public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
         if (m.containsKey("outConfig")) {
             k = "outConfig";
         }
-        m.put("out", m.remove(k));
+        if (m.containsKey(k))
+            m.put("out", m.remove(k));
+        if (!m.containsKey("out")) {
+            m.put("out", Doc.of("inline", 1));
+        }
         return m;
     }
 }

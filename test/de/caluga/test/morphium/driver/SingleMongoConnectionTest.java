@@ -65,6 +65,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         con.disconnect();
     }
 
+
     @Test
     public void testUpdateSyncConnection() throws Exception {
         SingleMongoConnection con = getSynchronousMongoConnection();
