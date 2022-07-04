@@ -12,7 +12,7 @@ public class DriverTestBase {
     protected final static String db = "testdb";
     private Logger log = LoggerFactory.getLogger(DriverTestBase.class);
 
-    protected SingleMongoConnection getSynchronousMongoConnection() throws MorphiumDriverException {
+    protected SingleMongoConnection getConnection() throws MorphiumDriverException {
         SingleMongoConnection con = new SingleMongoConnection();
         con.setHostSeed("localhost:27017");
         con.setDefaultBatchSize(5);
@@ -27,7 +27,7 @@ public class DriverTestBase {
     public void prepare() throws Exception {
         try {
             log.info("Dropping database...");
-            var con = getSynchronousMongoConnection();
+            var con = getConnection();
             con.connect();
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
             cmd.setDb(db).execute();

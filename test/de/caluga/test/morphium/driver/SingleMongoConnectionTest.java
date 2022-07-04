@@ -3,7 +3,6 @@ package de.caluga.test.morphium.driver;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.sync.SingleMongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -24,9 +23,31 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
 
+
+    @Test
+    public void testHeartbeat() throws Exception {
+        SingleMongoConnection con = getConnection();
+        con.connect();
+        log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
+        var h = con.getHostSeed()[0];
+        StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(10).setForce(Boolean.TRUE);
+        var res = cmd.execute();
+        log.info("result: " + Utils.toJsonString(res));
+        Thread.sleep(5000);
+        assertThat(con.isConnected());
+        assertThat(con.getHostSeed()[0]).isNotEqualTo(h);
+        log.info("Connection changed from " + h + " to " + con.getHostSeed()[0]);
+        log.info("---> " + con.getHostSeed()[0]);
+        log.info("---> " + con.getHostSeed()[1]);
+        log.info("---> " + con.getHostSeed()[2]);
+        con.disconnect();
+
+
+    }
+
     @Test
     public void testSyncConnection() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         log.info("Connected");
         int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
@@ -68,7 +89,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testUpdateSyncConnection() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
@@ -109,7 +130,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testWatch() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
@@ -170,7 +191,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testMapReduce() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
@@ -205,7 +226,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testRunCommand() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
@@ -228,7 +249,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void iteratorTest() throws Exception {
-        SingleMongoConnection con = getSynchronousMongoConnection();
+        SingleMongoConnection con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);

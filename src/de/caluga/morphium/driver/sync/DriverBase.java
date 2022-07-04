@@ -65,7 +65,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
-    protected ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(2, r -> {
+    private ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(2, r -> {
         Thread thr = new Thread(r);
         thr.setName("McHouskeeping" + thr.getId());
         thr.setDaemon(true);
@@ -78,9 +78,93 @@ public abstract class DriverBase implements MorphiumDriver {
     private List<String> collectionListCache = new ArrayList<>();
 
     private int collectionNameCacheTTL = 15000;
+    private ScheduledFuture<?> heartbeat;
+
+
+    private ConnectionType connectionType = ConnectionType.PRIMARY;
 
     public DriverBase() {
-        startHousekeeping();
+        //startHousekeeping();
+    }
+
+    public ConnectionType getConnectionType() {
+        return connectionType;
+    }
+
+    public DriverBase setConnectionType(ConnectionType connectionType) {
+        this.connectionType = connectionType;
+        return this;
+    }
+
+    protected void startHousekeeping() {
+        log.info("Starting housekeeping - ttl " + collectionNameCacheTTL);
+        housekeeping = executor.scheduleAtFixedRate(() -> {
+            if (useCollectionNameCache) {
+                collectionListCache = new ArrayList<>();
+            }
+        }, collectionNameCacheTTL, collectionNameCacheTTL, TimeUnit.MILLISECONDS);
+
+        heartbeat = executor.scheduleAtFixedRate(() -> {
+            if (isConnected()) {
+                Map<String, Object> result = null;
+                String replSet = null;
+                String host = null;
+                try {
+                    result = runCommand("local", Doc.of("hello", true, "helloOk", true
+
+                    )).next();
+
+                    //log.info("Got result");
+                    if (replSet != null) {
+                        if (replSet != null && !replSet.equals(getReplicaSetName())) {
+                            throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
+                        }
+                        setReplicaSetName((String) result.get("setName"));
+                    }
+                    if (!result.get("secondary").equals(false) && connectionType.equals(SingleMongoConnection.ConnectionType.PRIMARY)) {
+                        log.warn("Lost connection to primary - reconnecting");
+                        disconnect();
+
+                        host = (String) result.get("primary");
+                        List<String> hostSeed = new ArrayList<>();
+                        if (host != null) {
+                            hostSeed.add(host);
+                        }
+                        List<String> hosts = (List<String>) result.get("hosts");
+                        Collections.shuffle(hosts);
+                        for (String hst : hosts) {
+                            if (hst.equals(host) || hst.equals(getHostSeed()[0])) continue;
+                            hostSeed.add(hst);
+                        }
+                        if (host == null) hostSeed.add(getHostSeed()[0]);
+                        setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
+                        connect(getReplicaSetName());
+                        return;
+                    } else if (result.get("secondary").equals(false) && connectionType.equals(SingleMongoConnection.ConnectionType.SECONDARY)) {
+                        log.info("Connected host is not secondary anymore - reconnecting");
+                        disconnect();
+                        host = (String) result.get("primary");
+                        List<String> hostSeed = new ArrayList<>();
+
+                        for (String hst : ((List<String>) result.get("hosts"))) {
+                            if (hst.equals(host)) continue;
+                            hostSeed.add(hst);
+                        }
+                        hostSeed.add(host);
+                        setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
+                        connect(getReplicaSetName());
+                        return;
+
+                    }
+
+                    setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
+                    setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
+                    setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
+                } catch (MorphiumDriverException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }, heartbeatFrequency, heartbeatFrequency, TimeUnit.MILLISECONDS);
     }
 
 
@@ -97,20 +181,17 @@ public abstract class DriverBase implements MorphiumDriver {
         return this;
     }
 
-    protected void startHousekeeping() {
-        log.info("Starting housekeeping - ttl " + collectionNameCacheTTL);
-        housekeeping = executor.scheduleAtFixedRate(() -> {
-            if (useCollectionNameCache) {
-                collectionListCache = new ArrayList<>();
-            }
-        }, collectionNameCacheTTL, collectionNameCacheTTL, TimeUnit.MILLISECONDS);
-    }
-
     protected void stopHousekeeping() {
         if (housekeeping != null) {
             housekeeping.cancel(true);
             housekeeping = null;
+            heartbeat.cancel(true);
+            heartbeat = null;
         }
+    }
+
+    enum ConnectionType {
+        PRIMARY, SECONDARY, ANY,
     }
 
     @Override

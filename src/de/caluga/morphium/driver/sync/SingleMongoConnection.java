@@ -18,7 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * User: Stephan Bösebeck
@@ -42,20 +42,13 @@ public class SingleMongoConnection extends DriverBase {
     private int heartbeatPause = 1000;
     private boolean running = true;
 
-
     //private int unsansweredMessageId = 0;
 
     private void reconnect() {
         try {
-            if (out != null) {
-                out.close();
-            }
-            if (in != null) {
-                in.close();
-            }
-            if (s != null) {
-                s.close();
-            }
+            stopHousekeeping();
+            running = false;
+            disconnect();
             connect();
         } catch (Exception e) {
             s = null;
@@ -68,12 +61,14 @@ public class SingleMongoConnection extends DriverBase {
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
         try {
+            running = true;
             String host = getHostSeed()[0];
             String h[] = host.split(":");
             int port = 27017;
             if (h.length > 1) {
                 port = Integer.parseInt(h[1]);
             }
+            log.info("Connecting to " + h[0] + ":" + port);
             s = new Socket(h[0], port);
             out = s.getOutputStream();
             in = s.getInputStream();
@@ -109,6 +104,10 @@ public class SingleMongoConnection extends DriverBase {
                     }
                     Thread.yield();
                 }
+                log.info("Reader Thread terminated");
+                synchronized (incoming) {
+                    incoming.notifyAll();
+                }
             });
             readerThread.start();
 
@@ -124,17 +123,46 @@ public class SingleMongoConnection extends DriverBase {
 
             )).next();
             //log.info("Got result");
-            if (!result.get("secondary").equals(false)) {
-                //TODO: search for master!
-                disconnect();
-                throw new RuntimeException("Cannot run with secondary connection only!");
-            }
             if (replSet != null) {
-                setReplicaSetName((String) result.get("setName"));
                 if (replSet != null && !replSet.equals(getReplicaSetName())) {
                     throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
                 }
+                setReplicaSetName((String) result.get("setName"));
             }
+            if (!result.get("secondary").equals(false) && getConnectionType().equals(ConnectionType.PRIMARY)) {
+                disconnect();
+                host = (String) result.get("primary");
+                List<String> hostSeed = new ArrayList<>();
+                if (host != null)
+                    hostSeed.add(host);
+                List<String> hosts = (List<String>) result.get("hosts");
+                Collections.shuffle(hosts);
+                for (String hst : hosts) {
+                    if (hst.equals(host)) continue;
+                    hostSeed.add(hst);
+                }
+                setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
+                running = true;
+                connect(getReplicaSetName());
+                return;
+            } else if (result.get("secondary").equals(false) && getConnectionType().equals(ConnectionType.SECONDARY)) {
+                log.info("Connect to different host because connection type secondary");
+                disconnect();
+                host = (String) result.get("primary");
+                List<String> hostSeed = new ArrayList<>();
+
+                for (String hst : ((List<String>) result.get("hosts"))) {
+                    if (hst.equals(host)) continue;
+                    hostSeed.add(hst);
+                }
+                hostSeed.add(host);
+                setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
+                running = true;
+                connect(getReplicaSetName());
+                return;
+
+            }
+
             setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
             setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
             setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
@@ -160,7 +188,7 @@ public class SingleMongoConnection extends DriverBase {
                     incoming.wait(timeout);
                 }
             } catch (InterruptedException e) {
-               //Swallow
+                //Swallow
             }
         }
         synchronized (incomingTimes) {
@@ -195,10 +223,15 @@ public class SingleMongoConnection extends DriverBase {
     public void disconnect() {
         try {
             running = false;
-            executor.shutdownNow();
             in.close();
             out.close();
             s.close();
+            while (readerThread.isAlive()) {
+                Thread.yield();
+            }
+            stopHousekeeping();
+            //executor.shutdownNow();
+
         } catch (IOException e) {
             //throw new RuntimeException(e);
         }
@@ -622,7 +655,6 @@ public class SingleMongoConnection extends DriverBase {
         }
         return false;
     }
-
 
 
     public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
