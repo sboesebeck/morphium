@@ -21,7 +21,7 @@ public class DriverIndexTest extends DriverTestBase {
 
     @Test
     public void listIndexTests() throws Exception {
-        var con = getSynchronousMongoConnection();
+        var con = getConnection();
         con.connect();
         DropMongoCommand dc = new DropMongoCommand(con).setDb(db).setColl(coll);
         var drp = dc.execute();

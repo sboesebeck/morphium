@@ -1,7 +1,6 @@
 package de.caluga.test.morphium.driver.command;
 
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.test.morphium.driver.DriverTestBase;
 import org.junit.Test;
@@ -18,7 +17,7 @@ public class ListCollectionsCommandTest extends DriverTestBase {
 
     @Test
     public void testListCollections() throws Exception {
-        var con = getSynchronousMongoConnection();
+        var con = getConnection();
         con.setCollectionNameCacheTTL(1000);
         con.setUseCollectionNameCache(true);
         con.connect();
