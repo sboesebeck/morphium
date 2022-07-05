@@ -18,7 +18,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.sync.SingleMongoConnection;
 import org.bson.*;
 import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
@@ -325,7 +324,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public String[] getHostSeed() {
+    public List<String> getHostSeed() {
         return hostSeed;
     }
 

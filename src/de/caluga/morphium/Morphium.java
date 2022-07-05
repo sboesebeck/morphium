@@ -370,7 +370,7 @@ public class Morphium implements AutoCloseable {
                 }
             }
         }
-
+        getCache().setValidCacheTime(CollectionInfo.class, 15000); //TODO: settings for collectionCache
         //logger.info("Initialization successful...");
     }
 
@@ -441,8 +441,23 @@ public class Morphium implements AutoCloseable {
     }
 
     public List<String> listCollections(String pattern) {
+        if (getCache().isCached(CollectionInfo.class, pattern)) {
+            var lst = getCache().getFromCache(CollectionInfo.class, pattern);
+            List<String> ret = new ArrayList<>();
+            for (var n : lst) {
+                ret.add(n.getName());
+            }
+            return ret;
+        }
+
         try {
-            return getDriver().listCollections(getConfig().getDatabase(), pattern);
+            var result = getDriver().listCollections(getConfig().getDatabase(), pattern);
+            var lst = new ArrayList<CollectionInfo>();
+            for (var r : result) {
+                lst.add(new CollectionInfo().setName(r));
+            }
+            getCache().addToCache(pattern, CollectionInfo.class, lst);
+            return result;
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

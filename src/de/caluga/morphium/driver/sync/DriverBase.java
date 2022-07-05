@@ -15,10 +15,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
@@ -65,159 +61,16 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
-    private ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(2, r -> {
-        Thread thr = new Thread(r);
-        thr.setName("McHouskeeping" + thr.getId());
-        thr.setDaemon(true);
-        return thr;
-    });
+
     private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
-    private boolean useCollectionNameCache = true;
+
+
     private Map<String, String[]> credentials = new HashMap<>();
-    private ScheduledFuture<?> housekeeping;
-    private List<String> collectionListCache = new ArrayList<>();
 
-    private int collectionNameCacheTTL = 15000;
-    private ScheduledFuture<?> heartbeat;
-
-
-    private ConnectionType connectionType = ConnectionType.PRIMARY;
 
     public DriverBase() {
         //startHousekeeping();
     }
-
-    public ConnectionType getConnectionType() {
-        return connectionType;
-    }
-
-    public DriverBase setConnectionType(ConnectionType connectionType) {
-        this.connectionType = connectionType;
-        return this;
-    }
-
-    protected void startHousekeeping() {
-        log.info("Starting housekeeping - ttl " + collectionNameCacheTTL);
-        housekeeping = executor.scheduleAtFixedRate(() -> {
-            if (useCollectionNameCache) {
-                collectionListCache = new ArrayList<>();
-            }
-        }, collectionNameCacheTTL, collectionNameCacheTTL, TimeUnit.MILLISECONDS);
-
-        heartbeat = executor.scheduleAtFixedRate(() -> {
-            if (isConnected()) {
-                Map<String, Object> result = null;
-                String replSet = null;
-                String host = null;
-                try {
-                    result = runCommand("local", Doc.of("hello", true, "helloOk", true
-
-                    )).next();
-
-                    //log.info("Got result");
-                    if (replSet != null) {
-                        if (replSet != null && !replSet.equals(getReplicaSetName())) {
-                            throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
-                        }
-                        setReplicaSetName((String) result.get("setName"));
-                    }
-                    if (!result.get("secondary").equals(false) && connectionType.equals(SingleMongoConnection.ConnectionType.PRIMARY)) {
-                        log.warn("Lost connection to primary - reconnecting");
-                        disconnect();
-
-                        host = (String) result.get("primary");
-                        List<String> hostSeed = new ArrayList<>();
-                        if (host != null) {
-                            hostSeed.add(host);
-                        }
-                        List<String> hosts = (List<String>) result.get("hosts");
-                        Collections.shuffle(hosts);
-                        for (String hst : hosts) {
-                            if (hst.equals(host) || hst.equals(getHostSeed()[0])) continue;
-                            hostSeed.add(hst);
-                        }
-                        if (host == null) hostSeed.add(getHostSeed()[0]);
-                        setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
-                        connect(getReplicaSetName());
-                        return;
-                    } else if (result.get("secondary").equals(false) && connectionType.equals(SingleMongoConnection.ConnectionType.SECONDARY)) {
-                        log.info("Connected host is not secondary anymore - reconnecting");
-                        disconnect();
-                        host = (String) result.get("primary");
-                        List<String> hostSeed = new ArrayList<>();
-
-                        for (String hst : ((List<String>) result.get("hosts"))) {
-                            if (hst.equals(host)) continue;
-                            hostSeed.add(hst);
-                        }
-                        hostSeed.add(host);
-                        setHostSeed(hostSeed.toArray(new String[hostSeed.size()]));
-                        connect(getReplicaSetName());
-                        return;
-
-                    }
-
-                    setMaxBsonObjectSize((Integer) result.get("maxBsonObjectSize"));
-                    setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
-                    setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
-                } catch (MorphiumDriverException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }, heartbeatFrequency, heartbeatFrequency, TimeUnit.MILLISECONDS);
-    }
-
-
-    @Override
-    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
-        if (housekeeping == null && useCollectionNameCache) {
-            startHousekeeping();
-        }
-        if (housekeeping != null && !useCollectionNameCache) {
-            housekeeping.cancel(true);
-            housekeeping = null;
-        }
-        this.useCollectionNameCache = useCollectionNameCache;
-        return this;
-    }
-
-    protected void stopHousekeeping() {
-        if (housekeeping != null) {
-            housekeeping.cancel(true);
-            housekeeping = null;
-            heartbeat.cancel(true);
-            heartbeat = null;
-        }
-    }
-
-    enum ConnectionType {
-        PRIMARY, SECONDARY, ANY,
-    }
-
-    @Override
-    public int getCollectionNameCacheLivetime() {
-        return collectionNameCacheTTL;
-    }
-
-    @Override
-    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
-        if (collectionNameCacheTTL != this.collectionNameCacheTTL && housekeeping != null) {
-            this.collectionNameCacheTTL = collectionCacheLiveTime;
-            housekeeping.cancel(true);
-            startHousekeeping();
-        } else {
-            this.collectionNameCacheTTL = collectionCacheLiveTime;
-        }
-
-        return this;
-    }
-
-
-    public boolean isUseCollectionNameCache() {
-        return useCollectionNameCache;
-    }
-
-    ;
 
 
     @Override
@@ -228,6 +81,21 @@ public abstract class DriverBase implements MorphiumDriver {
             throw new MalformedURLException("unsupported protocol: " + u.getProtocol());
         }
 
+    }
+
+    @Override
+    public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
+        ListCollectionsCommand cmd = new ListCollectionsCommand(this);
+        cmd.setDb(db).setNameOnly(true);
+        cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
+        var lst = cmd.execute();
+        List<String> colNames = new ArrayList<>();
+
+        for (Map<String, Object> doc : lst) {
+            String name = doc.get("name").toString();
+            colNames.add(name);
+        }
+        return colNames;
     }
 
     @Override
@@ -399,35 +267,12 @@ public abstract class DriverBase implements MorphiumDriver {
         return false;
     }
 
-
     @Override
-    public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
-        if (!isConnected()) {
+    public List<String> getHostSeed() {
+        if (hostSeed == null) {
             return null;
         }
-        if (collectionListCache == null || collectionListCache.isEmpty()) {
-            ListCollectionsCommand cmd = new ListCollectionsCommand(this);
-            cmd.setDb(db).setNameOnly(true);
-            var lst = cmd.execute();
-            List<String> colNames = new ArrayList<>();
-
-            for (Map<String, Object> doc : lst) {
-                String name = doc.get("name").toString();
-                colNames.add(name);
-            }
-            collectionListCache = colNames;
-        }
-        if (regex != null) {
-            ArrayList<String> ret = new ArrayList<>();
-            var p = Pattern.compile(regex);
-            for (String l : new ArrayList<>(collectionListCache)) {
-                if (p.matcher(l).matches()) {
-                    ret.add(l);
-                }
-            }
-            return ret;
-        }
-        return new ArrayList<>(collectionListCache);
+        return hostSeed;
     }
 
     private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
@@ -565,13 +410,9 @@ public abstract class DriverBase implements MorphiumDriver {
         return new String[0];
     }
 
-
     @Override
-    public String[] getHostSeed() {
-        if (hostSeed == null) {
-            return null;
-        }
-        return hostSeed.toArray(new String[hostSeed.size()]);
+    public void setHostSeed(List<String> hosts) {
+        hostSeed = hosts;
     }
 
 

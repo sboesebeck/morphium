@@ -57,15 +57,11 @@ public interface MorphiumDriver {
 
     String[] getCredentials(String db);
 
-    String[] getHostSeed();
+    List<String> getHostSeed();
+
+    void setHostSeed(List<String> hosts);
 
     void setHostSeed(String... host);
-
-    MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache);
-
-    int getCollectionNameCacheLivetime();
-
-    MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime);
 
     void setConnectionUrl(String connectionUrl) throws MalformedURLException;
 
