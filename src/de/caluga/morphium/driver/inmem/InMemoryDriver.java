@@ -1621,7 +1621,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public String[] getHostSeed() {
+    public List<String> getHostSeed() {
         return new String[0];
     }
 
