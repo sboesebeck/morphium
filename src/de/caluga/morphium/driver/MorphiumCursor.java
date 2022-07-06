@@ -15,6 +15,16 @@ public abstract class MorphiumCursor implements Iterable<Map<String, Object>>, I
     private List<Map<String, Object>> batch;
     private String db;
     private String collection;
+    private String server;
+
+    public String getServer() {
+        return server;
+    }
+
+    public MorphiumCursor setServer(String server) {
+        this.server = server;
+        return this;
+    }
 
     public String getDb() {
         return db;
