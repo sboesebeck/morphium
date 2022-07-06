@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.sync;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.DeleteMongoCommand;
@@ -619,15 +620,6 @@ public class SingleMongoConnection extends DriverBase {
         return ret;
     }
 
-    private String getDBFromCursor(OpMsg msg) {
-        if (msg.hasCursor()) {
-            var crs = (Map<String, Object>) msg.getFirstDoc().get("cursor");
-            String ns = crs.get("ns").toString();
-            return ns.split("\\.")[0];
-        }
-        return null;
-    }
-
     private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException {
         if (!msg.hasCursor()) return null;
         Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
@@ -732,6 +724,7 @@ public class SingleMongoConnection extends DriverBase {
                 retry = false;
             } catch (IOException e) {
                 log.error("Error sending request - reconnecting", e);
+
                 reconnect();
 
             }
@@ -844,6 +837,11 @@ public class SingleMongoConnection extends DriverBase {
             log.error("Error", e);
         }
         return false;
+    }
+
+    @Override
+    public Map<String, Integer> getNumConnectionsByHost() {
+        return UtilsMap.of(connectedTo, 1);
     }
 
 

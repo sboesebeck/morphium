@@ -146,7 +146,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return new NetworkCallHelper<Integer>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             //long start = System.currentTimeMillis();
             int id = driver.sendCommand(getDb(), asMap());
             // long dur = System.currentTimeMillis() - start;
