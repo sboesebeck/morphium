@@ -60,10 +60,12 @@ public class SingleMongoConnection extends DriverBase {
         thr.setDaemon(true);
         return thr;
     });
+
     //private int unsansweredMessageId = 0;
-    public String getConnectedTo(){
+    public String getConnectedTo() {
         return connectedTo;
     }
+
     public ConnectionType getConnectionType() {
         return connectionType;
     }
@@ -511,22 +513,24 @@ public class SingleMongoConnection extends DriverBase {
             if (rep == null || rep.getFirstDoc() == null) {
                 return null;
             }
+            MorphiumCursor crs = null;
             if (rep.getFirstDoc().containsKey("ok") && rep.getFirstDoc().get("ok").equals(Double.valueOf(0.0))) {
                 throw new MorphiumDriverException("Error: " + rep.getFirstDoc().get("code") + ": " + rep.getFirstDoc().get("errmsg"));
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                return new SingleMongoConnectionCursor(this, batchSize, false, rep).setServer(connectedTo);
+                crs = new SingleMongoConnectionCursor(this, batchSize, false, rep).setServer(connectedTo);
             } else if (rep.getFirstDoc().containsKey("results")) {
-                return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results")).setServer(connectedTo);
+                crs = new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results")).setServer(connectedTo);
             } else {
                 final var msg = rep;
                 //no cursor returned, create one
-                MorphiumCursor ret = new SingleElementCursor(msg.getFirstDoc()).setServer(connectedTo);
-                CursorResult result = new CursorResult()
-                        .setCursor(ret)
-                        .setDuration(System.currentTimeMillis() - start);
-                return result;
+                crs = new SingleElementCursor(msg.getFirstDoc()).setServer(connectedTo);
             }
+            CursorResult result = new CursorResult()
+                    .setCursor(crs)
+                    .setDuration(System.currentTimeMillis() - start);
+            return result;
+
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
 
     }
