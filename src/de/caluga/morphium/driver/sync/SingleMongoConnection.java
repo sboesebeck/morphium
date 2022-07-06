@@ -57,7 +57,9 @@ public class SingleMongoConnection extends DriverBase {
         return thr;
     });
     //private int unsansweredMessageId = 0;
-
+    public String getConnectedTo(){
+        return connectedTo;
+    }
     public ConnectionType getConnectionType() {
         return connectionType;
     }

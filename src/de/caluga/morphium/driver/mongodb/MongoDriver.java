@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"WeakerAccess", "deprecation", "MagicConstant", "BusyWait", "CommentedOutCode"})
 public class MongoDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
-    private String[] hostSeed;
+    private List<String> hostSeed;
 
     private int maxConnections = 100;
     private int minConnections = 10;
@@ -89,6 +89,7 @@ public class MongoDriver implements MorphiumDriver {
     public boolean isReplicaset() {
         return replicaset;
     }
+
 
 
     public MorphiumDriver setCredentials(String db, String login, String pwd) {
@@ -405,23 +406,13 @@ public class MongoDriver implements MorphiumDriver {
 
 
     public void setHostSeed(String... host) {
-        hostSeed = host;
+        hostSeed = Arrays.asList(host);
     }
 
-    @Override
-    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
-        return null;
+    public void setHostSeed(List<String> seed){
+        hostSeed=seed;
     }
 
-    @Override
-    public int getCollectionNameCacheLivetime() {
-        return 0;
-    }
-
-    @Override
-    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
-        return null;
-    }
 
 
     public void setConnectionUrl(String connectionUrl) {
@@ -804,7 +795,7 @@ public class MongoDriver implements MorphiumDriver {
             o.applyToClusterSettings(clusterSettings -> {
                 clusterSettings.serverSelectionTimeout(getConnectionTimeout(), TimeUnit.MILLISECONDS);
                 if (atlasUrl == null) {
-                    if (hostSeed.length > 1) {
+                    if (hostSeed.size() > 1) {
                         clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
                     } else {
                         clusterSettings.mode(ClusterConnectionMode.SINGLE);
@@ -897,7 +888,7 @@ public class MongoDriver implements MorphiumDriver {
                 Document res = mongo.getDatabase("local").runCommand(new BasicDBObject("isMaster", true));
                 if (res.get("setName") != null) {
                     replicaset = true;
-                    if (hostSeed.length == 1) {
+                    if (hostSeed.size() == 1) {
                         log.warn("have to reconnect to cluster... only one host specified, but its a replicaset");
                         o.applyToClusterSettings(builder -> builder.mode(ClusterConnectionMode.MULTIPLE));
                         mongo.close();
