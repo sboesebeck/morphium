@@ -27,7 +27,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
 
         setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand("admin", asMap());
+        MorphiumCursor crs = driver.runCommand("admin", asMap()).getCursor();
         long dur = System.currentTimeMillis() - start;
         getMetaData().put("duration", dur);
         return crs.next();
@@ -41,7 +41,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         return new NetworkCallHelper<Integer>().doCall(() -> {
             setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             //long start = System.currentTimeMillis();
-            int id = driver.sendCommand("admin", asMap());
+            int id = driver.sendCommand("admin", asMap()).getMessageId();
             // long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", 0); //not waiting!
             return id;

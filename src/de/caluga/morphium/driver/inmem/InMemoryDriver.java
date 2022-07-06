@@ -5,6 +5,9 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.RunCommandResult;
+import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -299,21 +302,6 @@ public class InMemoryDriver implements MorphiumDriver {
     @Override
     public void setHostSeed(String... host) {
 
-    }
-
-    @Override
-    public MorphiumDriver setUseCollectionNameCache(boolean useCollectionNameCache) {
-        return this;
-    }
-
-    @Override
-    public int getCollectionNameCacheLivetime() {
-        return 0;
-    }
-
-    @Override
-    public MorphiumDriver setCollectionNameCacheTTL(int collectionCacheLiveTime) {
-        return null;
     }
 
     @Override
@@ -1107,7 +1095,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
     }
 
@@ -1418,13 +1406,13 @@ public class InMemoryDriver implements MorphiumDriver {
 
 
     @Override
-    public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return 0;
+    public RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
     @Override
@@ -1622,7 +1610,12 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<String> getHostSeed() {
-        return new String[0];
+        return new ArrayList<>();
+    }
+
+    @Override
+    public void setHostSeed(List<String> hosts) {
+
     }
 
 
@@ -1637,6 +1630,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public boolean isCapped(String db, String coll) {
         return false;
+    }
+
+    @Override
+    public Map<String, Integer> getNumConnectionsByHost() {
+        return null;
     }
 
 

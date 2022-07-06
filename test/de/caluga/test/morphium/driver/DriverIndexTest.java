@@ -30,7 +30,7 @@ public class DriverIndexTest extends DriverTestBase {
                 .setDocuments(Arrays.asList(Doc.of("counter", 123, "str_val", "This is a test")));
         cmd.execute();
         //Created collection
-        var res = con.runCommand(db, Doc.of("createIndexes", coll, "indexes", Arrays.asList(Doc.of("key", Doc.of("counter", 1), "name", "tst1", "sparse", true))));
+        var res = con.runCommand(db, Doc.of("createIndexes", coll, "indexes", Arrays.asList(Doc.of("key", Doc.of("counter", 1), "name", "tst1", "sparse", true)))).getCursor();
         log.info(Utils.toJsonString(res.next()));
         ListIndexesCommand lcmd = new ListIndexesCommand(con).setDb(db).setColl(coll);
         List<IndexDescription> lst = lcmd.execute();

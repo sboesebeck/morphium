@@ -55,7 +55,7 @@ public class RenameCollectionCommand extends WriteMongoCommand<RenameCollectionC
 
         setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand("admin", asMap());
+        MorphiumCursor crs = driver.runCommand("admin", asMap()).getCursor();
         long dur = System.currentTimeMillis() - start;
         getMetaData().put("duration", dur);
         return crs.next();

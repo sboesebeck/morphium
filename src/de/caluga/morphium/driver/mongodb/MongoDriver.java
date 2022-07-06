@@ -18,6 +18,9 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.RunCommandResult;
+import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import org.bson.*;
 import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
@@ -1439,7 +1442,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
     @Override
-    public Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
     }
 
@@ -1953,13 +1956,13 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @Override
-    public MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+    public CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return 0;
+    public RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
 
@@ -2233,6 +2236,11 @@ public class MongoDriver implements MorphiumDriver {
             return capped.equals("true");
         }
         return capped.equals(Boolean.TRUE) || capped.equals(1) || capped.equals(true);
+    }
+
+    @Override
+    public Map<String, Integer> getNumConnectionsByHost() {
+        return null;
     }
 
 
