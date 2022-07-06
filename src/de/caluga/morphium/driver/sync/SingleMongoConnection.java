@@ -515,13 +515,13 @@ public class SingleMongoConnection extends DriverBase {
                 throw new MorphiumDriverException("Error: " + rep.getFirstDoc().get("code") + ": " + rep.getFirstDoc().get("errmsg"));
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                return new SingleMongoConnectionCursor(this, batchSize, false, rep);
+                return new SingleMongoConnectionCursor(this, batchSize, false, rep).setServer(connectedTo);
             } else if (rep.getFirstDoc().containsKey("results")) {
-                return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results"));
+                return new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results")).setServer(connectedTo);
             } else {
                 final var msg = rep;
                 //no cursor returned, create one
-                MorphiumCursor ret = new SingleElementCursor(msg.getFirstDoc());
+                MorphiumCursor ret = new SingleElementCursor(msg.getFirstDoc()).setServer(connectedTo);
                 CursorResult result = new CursorResult()
                         .setCursor(ret)
                         .setDuration(System.currentTimeMillis() - start);
@@ -614,7 +614,7 @@ public class SingleMongoConnection extends DriverBase {
     public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, getMaxWaitTime());
         if (reply.hasCursor()) {
-            return new SingleMongoConnectionCursor(this, getDefaultBatchSize(), true, reply);
+            return new SingleMongoConnectionCursor(this, getDefaultBatchSize(), true, reply).setServer(connectedTo);
         }
         return null;
     }
