@@ -18,8 +18,6 @@ public class ListCollectionsCommandTest extends DriverTestBase {
     @Test
     public void testListCollections() throws Exception {
         var con = getConnection();
-        con.setCollectionNameCacheTTL(1000);
-        con.setUseCollectionNameCache(true);
         con.connect();
 
         new InsertMongoCommand(con)
@@ -41,20 +39,6 @@ public class ListCollectionsCommandTest extends DriverTestBase {
         var lst = con.listCollections(db, null);
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(3);
-
-        new InsertMongoCommand(con)
-                .setDb(db)
-                .setColl(coll + "_4")
-                .setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123)))
-                .execute();
-
-        //cache working?
-        lst = con.listCollections(db, null);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(3);
-        Thread.sleep(2 * con.getCollectionNameCacheLivetime());
-        lst = con.listCollections(db, null);
-        assertThat(lst.size()).isEqualTo(4);
 
         con.disconnect();
     }

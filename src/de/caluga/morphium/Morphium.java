@@ -688,7 +688,7 @@ public class Morphium implements AutoCloseable {
     public Map<String, Object> execCommandSingleResult(Map<String, Object> command) {
         Map<String, Object> ret = null;
         try {
-            ret = morphiumDriver.runCommandSingleResult(config.getDatabase(), command);
+            ret = morphiumDriver.runCommandSingleResult(config.getDatabase(), command).getResult();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -697,7 +697,7 @@ public class Morphium implements AutoCloseable {
 
     public List<Map<String, Object>> execCommand(Map<String, Object> command) {
         try {
-            return morphiumDriver.readAnswerFor(morphiumDriver.runCommand(config.getDatabase(), command));
+            return morphiumDriver.readAnswerFor(morphiumDriver.runCommand(config.getDatabase(), command).getCursor());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -3243,7 +3243,7 @@ public class Morphium implements AutoCloseable {
 
 
     public boolean exists(String db) throws MorphiumDriverException {
-        var ret = getDriver().runCommandSingleResult("admin", Doc.of("listDatabasess", 1));
+        var ret = getDriver().runCommandSingleResult("admin", Doc.of("listDatabasess", 1)).getResult();
         List<Map<String, Object>> dbs = (List<Map<String, Object>>) ret.get("databases");
         for (Map<String, Object> l : dbs) {
             if (l.get("name").equals(db)) return true;

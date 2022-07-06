@@ -148,7 +148,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return new NetworkCallHelper<Integer>().doCall(() -> {
             setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             //long start = System.currentTimeMillis();
-            int id = driver.sendCommand(getDb(), asMap());
+            int id = driver.sendCommand(getDb(), asMap()).getMessageId();
             // long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", 0); //not waiting!
             return id;

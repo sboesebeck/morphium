@@ -5,6 +5,9 @@ package de.caluga.morphium.driver;/**
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.RunCommandResult;
+import de.caluga.morphium.driver.commands.result.SingleElementResult;
 
 import java.net.MalformedURLException;
 import java.util.List;
@@ -179,7 +182,7 @@ public interface MorphiumDriver {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-    Map<String, Object> runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
 
     Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
@@ -189,7 +192,7 @@ public interface MorphiumDriver {
     Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
 
 
-    MorphiumCursor runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     /**
      * sends runcommand message, but only returns ID for later check for replies
@@ -199,7 +202,7 @@ public interface MorphiumDriver {
      * @return
      * @throws MorphiumDriverException
      */
-    int sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     int getMaxConnectionLifetime();
 

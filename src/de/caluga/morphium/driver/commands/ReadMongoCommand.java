@@ -42,7 +42,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             List<Map<String, Object>> ret = new ArrayList<>();
             setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
                 if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals(Double.valueOf(0))) {
@@ -64,9 +64,9 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         //noinspection unchecked
             List<Map<String, Object>> ret = new ArrayList<>();
         setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
-            long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
-            long dur = System.currentTimeMillis() - start;
+        long start = System.currentTimeMillis();
+        MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
+        long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
             return crs;
     }

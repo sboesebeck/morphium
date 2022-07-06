@@ -73,7 +73,7 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
             var res = driver.runCommandSingleResult(getDb(), asMap());
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
-            return (List<Object>) res.get("values");
+            return (List<Object>) res.getResult().get("values");
         }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
     }
 }

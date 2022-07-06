@@ -239,7 +239,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        var result = con.runCommand(db, Doc.of("hello", 1)).next();
+        var result = con.runCommand(db, Doc.of("hello", 1)).getCursor().next();
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
@@ -263,7 +263,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         cmd.execute();
 
         FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);
-        var crs = con.runCommand(db, fnd.asMap());
+        var crs = con.runCommand(db, fnd.asMap()).getCursor();
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;
@@ -274,7 +274,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        crs = con.runCommand(db, fnd.asMap());
+        crs = con.runCommand(db, fnd.asMap()).getCursor();
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(1000);

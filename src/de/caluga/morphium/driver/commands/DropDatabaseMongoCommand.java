@@ -42,7 +42,7 @@ public class DropDatabaseMongoCommand extends MongoCommand<DropDatabaseMongoComm
         return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
             setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap());
+            MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
             return crs.next();
