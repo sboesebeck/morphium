@@ -131,6 +131,8 @@ public interface MorphiumDriver {
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
 
+   Map<String,Integer> getNumConnectionsByHost();
+
     ////////////////////////////////////////////////////
     // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
     //|           ||   _  \        /   \     |  \ |  |     /       |    /   \     /      ||           ||  |  /  __  \  |  \ |  |     /       |

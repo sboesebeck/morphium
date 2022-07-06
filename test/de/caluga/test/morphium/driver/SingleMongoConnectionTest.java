@@ -29,17 +29,17 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         SingleMongoConnection con = getConnection();
         con.connect();
         log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
-        var h = con.getHostSeed()[0];
+        var h = con.getConnectedTo();
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(10).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
         Thread.sleep(5000);
         assertThat(con.isConnected());
-        assertThat(con.getHostSeed()[0]).isNotEqualTo(h);
-        log.info("Connection changed from " + h + " to " + con.getHostSeed()[0]);
-        log.info("---> " + con.getHostSeed()[0]);
-        log.info("---> " + con.getHostSeed()[1]);
-        log.info("---> " + con.getHostSeed()[2]);
+        assertThat(con.getConnectedTo()).isNotEqualTo(h);
+        log.info("Connection changed from " + h + " to " + con.getConnectedTo());
+        for (var c:con.getHostSeed()) {
+            log.info("---> " + c);
+        }
         con.disconnect();
 
 
