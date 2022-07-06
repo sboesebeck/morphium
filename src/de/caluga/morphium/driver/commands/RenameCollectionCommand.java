@@ -53,7 +53,7 @@ public class RenameCollectionCommand extends WriteMongoCommand<RenameCollectionC
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
         long start = System.currentTimeMillis();
         MorphiumCursor crs = driver.runCommand("admin", asMap());
         long dur = System.currentTimeMillis() - start;

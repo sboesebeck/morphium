@@ -25,7 +25,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         MorphiumDriver driver = getDriver();
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
         long start = System.currentTimeMillis();
         MorphiumCursor crs = driver.runCommand("admin", asMap());
         long dur = System.currentTimeMillis() - start;
@@ -39,7 +39,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return new NetworkCallHelper<Integer>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             //long start = System.currentTimeMillis();
             int id = driver.sendCommand("admin", asMap());
             // long dur = System.currentTimeMillis() - start;

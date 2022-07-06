@@ -40,7 +40,7 @@ public class DropDatabaseMongoCommand extends MongoCommand<DropDatabaseMongoComm
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             long start = System.currentTimeMillis();
             MorphiumCursor crs = driver.runCommand(getDb(), asMap());
             long dur = System.currentTimeMillis() - start;

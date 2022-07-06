@@ -39,7 +39,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
         long start = System.currentTimeMillis();
         MorphiumCursor crs = driver.runCommand(getDb(), asMap());
         long dur = System.currentTimeMillis() - start;

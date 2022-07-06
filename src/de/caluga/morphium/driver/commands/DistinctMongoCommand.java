@@ -68,7 +68,7 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         //noinspection unchecked
         return new NetworkCallHelper<List<Object>>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed()[0]));
+            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             long start = System.currentTimeMillis();
             var res = driver.runCommandSingleResult(getDb(), asMap());
             long dur = System.currentTimeMillis() - start;
