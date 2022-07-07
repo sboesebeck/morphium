@@ -79,6 +79,8 @@ public class SingleMongoConnection extends DriverBase {
         if (housekeeping != null) {
             housekeeping.cancel(true);
             housekeeping = null;
+        }
+        if (heartbeat != null) {
             heartbeat.cancel(true);
             heartbeat = null;
         }
@@ -93,12 +95,13 @@ public class SingleMongoConnection extends DriverBase {
             int port = 27017;
             if (h.length > 1) {
                 port = Integer.parseInt(h[1]);
+                log.debug("Port=" + port);
             }
             log.info("Connecting to " + h[0] + ":" + port);
             s = new Socket(h[0], port);
             out = s.getOutputStream();
             in = s.getInputStream();
-            connectedTo = h[0];
+            connectedTo = host;
             readerThread = new Thread(() -> {
                 while (running) {
                     try {
@@ -140,11 +143,11 @@ public class SingleMongoConnection extends DriverBase {
 
             var result = runCommand("local", Doc.of("hello", true, "helloOk", true,
                     "client", Doc.of("application", Doc.of("name", "Morphium"),
-                            "driver", Doc.of("name", "MorphiumDriver", "version", "1.0"),
-                            "os", Doc.of("type", "MacOs"))
+                            "driver", Doc.of("name", getName(), "version", "1.0"),
+                            "os", Doc.of("type", System.getProperty("os.name")))
 
             )).getCursor().next();
-            //log.info("Got result");
+            log.info("Got result: " + Utils.toJsonString(result));
             if (replSet != null) {
                 if (replSet != null && !replSet.equals(getReplicaSetName())) {
                     throw new MorphiumDriverException("Replicaset name is wrong - connected to " + getReplicaSetName() + " should be " + replSet);
@@ -152,10 +155,13 @@ public class SingleMongoConnection extends DriverBase {
                 setReplicaSetName((String) result.get("setName"));
             }
             if (!result.get("secondary").equals(false) && getConnectionType().equals(ConnectionType.PRIMARY)) {
+                log.debug("Want Primary connection, but connected to secondary... reconnecting");
                 disconnect();
+                Thread.sleep(1000);
                 host = (String) result.get("primary");
                 List<String> hostSeed = new ArrayList<>();
                 if (host != null) {
+                    log.debug("Got primary via hello-result - connecting....");
                     hostSeed.add(host);
                     setHostSeed(hostSeed);
                     connectedToIndex = 0;
@@ -164,15 +170,18 @@ public class SingleMongoConnection extends DriverBase {
                     return;
                 }
                 //connect to next host in line
+                log.debug("Connecting to next host in line");
                 List<String> hosts = (List<String>) result.get("hosts");
                 //check for new hosts
                 for (String hst : hosts) {
                     if (!getHostSeed().contains(hst))
                         hostSeed.add(hst);
                 }
-                setHostSeed(hostSeed);
+                if (!hostSeed.isEmpty())
+                    setHostSeed(hostSeed);
                 connectedToIndex++;
-                if (connectedToIndex > getHostSeed().size()) {
+                if (connectedToIndex >= getHostSeed().size()) {
+                    log.error("Connection failed - tried all hostseed - restart from 0!");
                     connectedToIndex = 0;
                 }
                 running = true;
@@ -182,7 +191,7 @@ public class SingleMongoConnection extends DriverBase {
                 log.info("Connect to different host because connection type secondary");
                 disconnect();
                 connectedToIndex++;
-                if (connectedToIndex > getHostSeed().size()) connectedToIndex = 0;
+                if (connectedToIndex >= getHostSeed().size()) connectedToIndex = 0;
                 List<String> hostSeed = new ArrayList<>();
 
                 if (result.containsKey("hosts")) {
@@ -191,7 +200,8 @@ public class SingleMongoConnection extends DriverBase {
                         hostSeed.add(hst);
                     }
                 }
-                setHostSeed(hostSeed);
+                if (!hostSeed.isEmpty())
+                    setHostSeed(hostSeed);
                 running = true;
                 connect(getReplicaSetName());
                 return;
@@ -207,12 +217,12 @@ public class SingleMongoConnection extends DriverBase {
             setMaxMessageSize((Integer) result.get("maxMessageSizeBytes"));
             setMaxWriteBatchSize((Integer) result.get("maxWriteBatchSize"));
 
-
+            log.info("connection established - starting heartbeat");
             startHeartbeat();
 
 
-        } catch (IOException e) {
-            throw new MorphiumDriverException("connection failed", e);
+        } catch (Exception e) {
+            log.error("connection failed", e);
         }
     }
 
@@ -241,6 +251,7 @@ public class SingleMongoConnection extends DriverBase {
 
         heartbeat = executor.scheduleAtFixedRate(() -> {
             if (isConnected()) {
+                log.info("connected - checking connection");
                 Map<String, Object> result = null;
                 String replSet = null;
                 String host = null;
@@ -257,6 +268,7 @@ public class SingleMongoConnection extends DriverBase {
                     }
                     if (!result.get("secondary").equals(false) && getConnectionType().equals(SingleMongoConnection.ConnectionType.PRIMARY)) {
                         log.warn("Lost connection to primary - reconnecting");
+                        String conto = connectedTo;
                         disconnect();
 
                         host = (String) result.get("primary");
@@ -267,16 +279,17 @@ public class SingleMongoConnection extends DriverBase {
                         List<String> hosts = (List<String>) result.get("hosts");
                         Collections.shuffle(hosts);
                         for (String hst : hosts) {
-                            if (hst.equals(host) || hst.equals(connectedTo)) continue;
+                            if (hst.equals(host) || hst.equals(conto)) continue;
                             hsts.add(hst);
                         }
-                        if (host == null) hsts.add(connectedTo);
+                        if (host == null) hsts.add(conto);
                         setHostSeed(hsts.toArray(new String[hsts.size()]));
                         connect(getReplicaSetName());
                         return;
                     } else if (result.get("secondary").equals(false) && getConnectionType().equals(SingleMongoConnection.ConnectionType.SECONDARY)) {
                         log.info("Connected host is not secondary anymore - reconnecting");
-                        disconnect();
+                        if (isConnected())
+                            disconnect();
                         host = (String) result.get("primary");
                         List<String> hsts = new ArrayList<>();
 
@@ -286,7 +299,8 @@ public class SingleMongoConnection extends DriverBase {
                         }
                         hsts.add(host);
                         setHostSeed(hsts.toArray(new String[hsts.size()]));
-                        connect(getReplicaSetName());
+                        if (running)
+                            connect(getReplicaSetName());
                         return;
 
                     }
@@ -424,18 +438,20 @@ public class SingleMongoConnection extends DriverBase {
     }
 
     @Override
-    public void disconnect() {
+    public synchronized void disconnect() {
         try {
+            log.debug("Disconnecting...");
             running = false;
             in.close();
             out.close();
             s.close();
+
             while (readerThread.isAlive()) {
                 Thread.yield();
             }
             stopHousekeeping();
             //executor.shutdownNow();
-
+            connectedTo = null;
         } catch (IOException e) {
             //throw new RuntimeException(e);
         }

@@ -29,15 +29,37 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         SingleMongoConnection con = getConnection();
         con.connect();
         log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
+        Thread.sleep(500);
         var h = con.getConnectedTo();
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(10).setForce(Boolean.TRUE);
         var res = cmd.execute();
-        log.info("result: " + Utils.toJsonString(res));
-        Thread.sleep(5000);
+        //log.info("result: " + Utils.toJsonString(res));
+        while (true) {
+            while (con.getConnectedTo() == null || con.getConnectedTo().equals(h)) {
+                log.info("Waiting for failover...");
+                Thread.sleep(1500);
+            }
+            String hst = con.getConnectedTo();
+            log.info("Failover...to " + con.getConnectedTo());
+            boolean br = true;
+            for (int i = 0; i < 2; i++) {
+                Thread.sleep(1000);
+                if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
+                    log.info("Connection did not stick...");
+                    br = false;
+                    break;
+                }
+            }
+            if (br)
+                break;
+        }
         assertThat(con.isConnected());
         assertThat(con.getConnectedTo()).isNotEqualTo(h);
+        assertThat(h).isNotNull();
+        assertThat(con.getConnectedTo()).isNotNull();
         log.info("Connection changed from " + h + " to " + con.getConnectedTo());
-        for (var c:con.getHostSeed()) {
+        log.info("HostSeed:");
+        for (var c : con.getHostSeed()) {
             log.info("---> " + c);
         }
         con.disconnect();
