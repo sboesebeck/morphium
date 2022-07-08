@@ -12,7 +12,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.ClearCollectionSettings;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import de.caluga.morphium.driver.sync.SingleMongoConnection;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.Document;
@@ -95,7 +95,7 @@ public class MorphiumDriverSpeedTest {
 
         client.close();
         log.info("Using sync connection...");
-        SingleMongoConnection con = new SingleMongoConnection();
+        SingleMongoConnectDriver con = new SingleMongoConnectDriver();
         con.setHostSeed("localhost:27017");
         con.setDefaultBatchSize(100);
         con.connect();

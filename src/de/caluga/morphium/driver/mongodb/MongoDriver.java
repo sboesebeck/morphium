@@ -571,10 +571,6 @@ public class MongoDriver implements MorphiumDriver {
         defaultJ = j;
     }
 
-    @Override
-    public boolean replyAvailableFor(int msgId) {
-        return false;
-    }
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {

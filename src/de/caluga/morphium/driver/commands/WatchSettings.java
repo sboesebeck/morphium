@@ -191,20 +191,6 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         throw new IllegalArgumentException("Please use watch()");
     }
 
-    @Override
-    public boolean hasReplyFor(int cmdId) {
-        throw new IllegalArgumentException("Please use watch()");
-    }
-
-    @Override
-    public Map<String, Object> getSingleResultFor(int cmdId) throws MorphiumDriverException {
-        throw new IllegalArgumentException("Please use watch()");
-    }
-
-    @Override
-    public MorphiumCursor getAnswerFor(int cmdId) throws MorphiumDriverException {
-        throw new IllegalArgumentException("Please use watch()");
-    }
 
     public void watch() throws MorphiumDriverException {
         getDriver().watch(this);

@@ -240,7 +240,6 @@ public interface MorphiumDriver {
 
     void setDefaultJ(boolean j);
 
-    boolean replyAvailableFor(int msgId);
 
 
     //____    __    ____  ___   .___________.  ______  __    __
@@ -260,11 +259,11 @@ public interface MorphiumDriver {
 
 //    MorphiumCursor waitForReplyIterable(long id);
 
-    Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException;
+    Map<String, Object> readSingleAnswer(int msgId) throws MorphiumDriverException;
 
-    List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException;
+    List<Map<String, Object>> readAnswerFor(int msgId) throws MorphiumDriverException;
 
-    MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException;
+    MorphiumCursor getAnswerFor(int msgId) throws MorphiumDriverException;
 
     List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
 

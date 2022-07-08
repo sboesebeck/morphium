@@ -4,7 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
+import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.util.Map;
 

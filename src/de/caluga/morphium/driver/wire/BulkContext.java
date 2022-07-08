@@ -1,4 +1,4 @@
-package de.caluga.morphium.driver.sync;
+package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.Doc;

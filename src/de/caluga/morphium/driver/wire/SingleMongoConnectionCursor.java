@@ -1,8 +1,9 @@
-package de.caluga.morphium.driver.sync;
+package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.GetMoreMongoCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,51 +150,16 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
             //end of stream
             return null;
         }
-        OpMsg reply;
-        synchronized (SingleMongoConnectionCursor.this) {
-            OpMsg q = new OpMsg();
+        MorphiumCursor reply;
 
-            q.setFirstDoc(Doc.of("getMore", (Object) getCursorId())
-                    .add("$db", getDb())
-                    .add("collection", getCollection())
-                    .add("batchSize", getBatchSize()
-                    ));
-            q.setMessageId(driver.getNextId());
-            driver.sendQuery(q);
-            reply = driver.getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
-        }
+        GetMoreMongoCommand more = new GetMoreMongoCommand(driver)
+                .setCursorId(getCursorId())
+                .setDb(getDb())
+                .setColl(getCollection())
+                .setBatchSize(getBatchSize());
 
-        //noinspection unchecked
-
-        @SuppressWarnings("unchecked") Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
-        if (cursor == null) {
-            //cursor not found
-            throw new MorphiumDriverException("Iteration failed! Error: " + reply.getFirstDoc().get("code") + "  Message: " + reply.getFirstDoc().get("errmsg"));
-        }
-        //just a sanity check
-        if (cursor.get("id") != null) {
-            if (!cursor.get("id").equals(getCursorId())) {
-                if (cursor.get("id").equals(0L)) {
-                    //end of data
-                    setCursorId(0);
-                } else {
-                    throw new MorphiumDriverException("Cursor ID changed!? was " + getCursorId() + " we got:" + cursor.get("id"));
-                }
-            }
-        }
-
-        if (cursor.get("firstBatch") != null) {
-
-            log.warn("NEXT Iteration got first batch!?!?!?");
-            //noinspection unchecked
-            return (List) cursor.get("firstBatch");
-        } else if (cursor.get("nextBatch") != null) {
-            //noinspection unchecked
-            return (List) cursor.get("nextBatch");
-        }
-        throw new MorphiumDriverException("Cursor did not contain data! " + reply.getFirstDoc().get("code") + "  Message: " + reply.getFirstDoc().get("errmsg"));
-
-
+        reply = more.execute();
+        return reply.getBatch();
     }
 
     @Override

@@ -94,7 +94,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
             return Doc.of("n", fs.execute().size());
         }
         int id = executeAsync();
-        return getSingleResultFor(id);
+        return getDriver().readSingleAnswer(id);
     }
 
     public int getCount() throws MorphiumDriverException {

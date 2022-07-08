@@ -1505,11 +1505,6 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
-    @Override
-    public boolean replyAvailableFor(int msgId) {
-        return false;
-    }
-
 
     public List<Object> distinct(String db, String collection, String field, Doc filter, Collation collation, ReadPreference rp) {
         List<Map<String, Object>> list = getDB(db).get(collection);

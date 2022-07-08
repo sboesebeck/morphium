@@ -2,7 +2,7 @@ package de.caluga.morphium.driver.mongodb;
 
 import com.mongodb.client.ClientSession;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
-import de.caluga.morphium.driver.sync.MorphiumTransactionContextImpl;
+import de.caluga.morphium.driver.wire.MorphiumTransactionContextImpl;
 
 import java.util.UUID;
 

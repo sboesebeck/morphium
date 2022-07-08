@@ -1,16 +1,13 @@
-package de.caluga.morphium.driver.sync;/**
+package de.caluga.morphium.driver.wire;/**
  * Created by stephan on 09.11.15.
  */
 
 
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumDriverOperation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Map;
 
 /**
  * Mongodb throws errors on failover to the client, so we need to repeat all network calls several times
