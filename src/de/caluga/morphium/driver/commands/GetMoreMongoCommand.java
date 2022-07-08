@@ -1,6 +1,8 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     private long cursorId;
@@ -42,4 +44,9 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     public String getCommandName() {
         return "getMore";
     }
+
+    public MorphiumCursor execute() throws MorphiumDriverException {
+        return getDriver().runCommand(getDb(), asMap()).getCursor();
+    }
+
 }

@@ -1,8 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
+import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.util.ArrayList;
 import java.util.Iterator;

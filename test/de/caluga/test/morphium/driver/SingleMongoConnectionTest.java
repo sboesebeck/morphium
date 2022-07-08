@@ -4,7 +4,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.sync.SingleMongoConnection;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -26,7 +26,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testHeartbeat() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
         Thread.sleep(500);
@@ -35,7 +35,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         var res = cmd.execute();
         //log.info("result: " + Utils.toJsonString(res));
         while (true) {
-            while (con.getConnectedTo() == null || con.getConnectedTo().equals(h)) {
+            while (!con.isConnected() || con.getConnectedTo() == null || con.getConnectedTo().equals(h)) {
                 log.info("Waiting for failover...");
                 Thread.sleep(1500);
             }
@@ -69,7 +69,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testSyncConnection() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         log.info("Connected");
         int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
@@ -111,7 +111,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testUpdateSyncConnection() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
@@ -152,7 +152,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testWatch() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
@@ -166,7 +166,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
             public void run() {
                 try {
                     log.info("Thread is connecting...");
-                    SingleMongoConnection con = new SingleMongoConnection();
+                    SingleMongoConnectDriver con = new SingleMongoConnectDriver();
                     con.setHostSeed("localhost:27017");
 
                     con.setDefaultBatchSize(5);
@@ -213,7 +213,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testMapReduce() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
@@ -248,7 +248,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void testRunCommand() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
@@ -271,7 +271,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
 
     @Test
     public void iteratorTest() throws Exception {
-        SingleMongoConnection con = getConnection();
+        SingleMongoConnectDriver con = getConnection();
         con.connect();
         Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);

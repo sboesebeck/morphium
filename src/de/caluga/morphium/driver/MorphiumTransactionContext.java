@@ -1,6 +1,6 @@
 package de.caluga.morphium.driver;
 
-import de.caluga.morphium.driver.sync.MorphiumTransactionContextImpl;
+import de.caluga.morphium.driver.wire.MorphiumTransactionContextImpl;
 
 import java.util.UUID;
 

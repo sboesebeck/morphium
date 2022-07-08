@@ -4,7 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.sync.SingleMongoConnection;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -179,7 +179,7 @@ public class ConnectTest extends BaseTest {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:27017");
         cfg.setReplicasetMonitoring(false);
-        cfg.setDriverClass(SingleMongoConnection.class.getName());
+        cfg.setDriverClass(SingleMongoConnectDriver.class.getName());
         cfg.setDatabase("morphium_test");
         Morphium m = new Morphium(cfg);
 

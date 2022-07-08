@@ -3,14 +3,12 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.sync.DriverBase;
-import de.caluga.morphium.driver.sync.NetworkCallHelper;
+import de.caluga.morphium.driver.wire.DriverBase;
+import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public abstract class MongoCommand<T extends MongoCommand> {
@@ -144,28 +142,18 @@ public abstract class MongoCommand<T extends MongoCommand> {
     public int executeAsync() throws MorphiumDriverException {
         MorphiumDriver driver = getDriver();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
-        //noinspection unchecked
         return new NetworkCallHelper<Integer>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
             //long start = System.currentTimeMillis();
-            int id = driver.sendCommand(getDb(), asMap()).getMessageId();
+            var result = getDriver().sendCommand(getDb(), asMap());
             // long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", 0); //not waiting!
-            return id;
+            setMetaData("server", result.getServer());
+            return result.getMessageId();
         }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
     }
 
-    public boolean hasReplyFor(int cmdId) {
-        return getDriver().replyAvailableFor(cmdId);
-    }
 
-    public Map<String, Object> getSingleResultFor(int cmdId) throws MorphiumDriverException {
-        return getDriver().readSingleAnswer(cmdId);
-    }
 
-    public MorphiumCursor getAnswerFor(int cmdId) throws MorphiumDriverException {
-        return getDriver().getAnswerFor(cmdId);
-    }
 
 
 }

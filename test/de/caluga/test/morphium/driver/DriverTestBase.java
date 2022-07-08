@@ -2,7 +2,7 @@ package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
-import de.caluga.morphium.driver.sync.SingleMongoConnection;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,8 +12,8 @@ public class DriverTestBase {
     protected final static String db = "testdb";
     private Logger log = LoggerFactory.getLogger(DriverTestBase.class);
 
-    protected SingleMongoConnection getConnection() throws MorphiumDriverException {
-        SingleMongoConnection con = new SingleMongoConnection();
+    protected SingleMongoConnectDriver getConnection() throws MorphiumDriverException {
+        SingleMongoConnectDriver con = new SingleMongoConnectDriver();
         con.setHostSeed("localhost:27017");
         con.setDefaultBatchSize(5);
         con.setMaxWaitTime(100000);
