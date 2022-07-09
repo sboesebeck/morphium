@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.util.ArrayList;
@@ -11,7 +12,7 @@ import java.util.Map;
 public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand, Iterable<Map<String, Object>> {
     private ReadPreference readPreference;
 
-    public ReadMongoCommand(MorphiumDriver d) {
+    public ReadMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -34,14 +35,15 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
     }
 
     public List<Map<String, Object>> execute() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        MongoConnection connection = getConnection();
+        if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
             List<Map<String, Object>> ret = new ArrayList<>();
-            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+            setMetaData(Doc.of("server", connection.getConnectedTo()));
             long start = System.currentTimeMillis();
-            MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
+            var msg = connection.sendCommand(asMap());
+            MorphiumCursor crs = connection.getAnswerFor(msg);
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
                 if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals(Double.valueOf(0))) {
@@ -53,21 +55,22 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", dur);
             return ret;
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public MorphiumCursor executeIterable() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        MongoConnection connection = getConnection();
+        if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
-            List<Map<String, Object>> ret = new ArrayList<>();
-        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+        List<Map<String, Object>> ret = new ArrayList<>();
+        setMetaData(Doc.of("server", connection.getConnectedTo()));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
+        int msg = connection.sendCommand(asMap());
+        MorphiumCursor crs = connection.getAnswerFor(msg);
         long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
-            return crs;
+        getMetaData().put("duration", dur);
+        return crs;
     }
 
 }

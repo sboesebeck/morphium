@@ -101,7 +101,7 @@ public class MorphiumDriverSpeedTest {
         con.connect();
         log.info("Connected");
 
-        ClearCollectionSettings clear = new ClearCollectionSettings(con);
+        ClearCollectionSettings clear = new ClearCollectionSettings(con.getConnection());
         clear.setDb("morphium_test").setColl("uncached_object");
         log.info("Deleted documents:" + clear.doClear());
 
@@ -110,13 +110,13 @@ public class MorphiumDriverSpeedTest {
             dat.add(m.serialize(new UncachedObject("str_value " + (i % 5), i)));
         }
         start = System.currentTimeMillis();
-        InsertMongoCommand insert = new InsertMongoCommand(con).setDocuments(dat).setColl("uncached_object").setDb("morphium_test");
+        InsertMongoCommand insert = new InsertMongoCommand(con.getConnection()).setDocuments(dat).setColl("uncached_object").setDb("morphium_test");
         insert.execute();
         dur = System.currentTimeMillis() - start;
         log.info(String.format("Storing took %dms", dur));
         start = System.currentTimeMillis();
         for (int i = 0; i < amount; i++) {
-            FindCommand fnd = new FindCommand(con);
+            FindCommand fnd = new FindCommand(con.getConnection());
             fnd.setColl("uncached_object").setDb("morphium_test").setFilter(Doc.of("counter", i));
             var it = fnd.executeIterable();
             var d = it.next();

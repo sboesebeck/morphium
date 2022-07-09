@@ -97,7 +97,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     port = Integer.parseInt(h[1]);
                 }
                 connection = new SingleMongoConnection();
-                var hello = connection.connect(h[0], port);
+                var hello = connection.connect(this, h[0], port);
                 //checking hosts
                 if (hello.getHosts() != null) {
                     for (String s : hello.getHosts()) {
@@ -151,7 +151,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                 log.info("checking connection");
                 try {
-                    HelloCommand cmd = new HelloCommand(this)
+                    HelloCommand cmd = new HelloCommand(getConnection())
                             .setHelloOk(true)
                             .setIncludeClient(false);
                     var hello = cmd.execute();
@@ -181,78 +181,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public void watch(WatchSettings settings) throws MorphiumDriverException {
-        int maxWait = 0;
-        if (settings.getDb() == null) settings.setDb("1"); //watch all dbs!
-        if (settings.getColl() == null) {
-            //watch all collections
-            settings.setColl("1");
-        }
-        if (settings.getMaxWaitTime() == null || settings.getMaxWaitTime() <= 0) maxWait = getReadTimeout();
-        OpMsg startMsg = new OpMsg();
-        int batchSize = settings.getBatchSize() == null ? getDefaultBatchSize() : settings.getBatchSize();
-        startMsg.setMessageId(getNextId());
-        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
-        localPipeline.add(Doc.of("$changeStream", new HashMap<>()));
-        if (settings.getPipeline() != null && !settings.getPipeline().isEmpty())
-            localPipeline.addAll(settings.getPipeline());
-        Doc cmd = Doc.of("aggregate", settings.getColl()).add("pipeline", localPipeline)
-                .add("cursor", Doc.of("batchSize", batchSize))  //getDefaultBatchSize()
-                .add("$db", settings.getDb());
-        startMsg.setFirstDoc(cmd);
-        long start = System.currentTimeMillis();
-        connection.sendQuery(startMsg);
-
-        OpMsg msg = startMsg;
-        settings.setMetaData("server", connection.getConnectedTo());
-        long docsProcessed = 0;
-        while (true) {
-            OpMsg reply = connection.getReplyFor(msg.getMessageId(), getMaxWaitTime());
-            log.info("got answer for watch!");
-            Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-            if (cursor == null) throw new MorphiumDriverException("Could not watch - cursor is null");
-            log.debug("CursorID:" + cursor.get("id").toString());
-
-            long cursorId = Long.parseLong(cursor.get("id").toString());
-            settings.setMetaData("cursor", cursorId);
-            List<Map<String, Object>> result = (List<Map<String, Object>>) cursor.get("firstBatch");
-            if (result == null) {
-                result = (List<Map<String, Object>>) cursor.get("nextBatch");
-            }
-            if (result != null) {
-                for (Map<String, Object> o : result) {
-                    settings.getCb().incomingData(o, System.currentTimeMillis() - start);
-                    docsProcessed++;
-                }
-            } else {
-                log.info("No/empty result");
-            }
-            if (!settings.getCb().isContinued()) {
-                killCursors(settings.getDb(), settings.getColl(), cursorId);
-                settings.setMetaData("duration", System.currentTimeMillis() - start);
-                break;
-            }
-            if (cursorId != 0) {
-                msg = new OpMsg();
-                msg.setMessageId(getNextId());
-
-                Doc doc = new Doc();
-                doc.put("getMore", cursorId);
-                doc.put("collection", settings.getColl());
-
-                doc.put("batchSize", batchSize);
-                doc.put("maxTimeMS", maxWait);
-                doc.put("$db", settings.getDb());
-                msg.setFirstDoc(doc);
-                connection.sendQuery(msg);
-                //log.debug("sent getmore....");
-            } else {
-                log.debug("Cursor exhausted, restarting");
-                msg = startMsg;
-                msg.setMessageId(getNextId());
-                connection.sendQuery(msg);
-
-            }
-        }
+        connection.watch(settings);
     }
 
     @Override
@@ -273,6 +202,11 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
         return connection.readAnswerFor(crs);
+    }
+
+    @Override
+    public MongoConnection getConnection() {
+        return connection;
     }
 
 
@@ -376,7 +310,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 throw new MorphiumDriverException("Error: " + rep.getFirstDoc().get("code") + ": " + rep.getFirstDoc().get("errmsg"));
             }
             if (rep.getFirstDoc().containsKey("cursor")) {
-                crs = new SingleMongoConnectionCursor(this, batchSize, false, rep).setServer(connection.getConnectedTo());
+                crs = new SingleMongoConnectionCursor(connection, batchSize, false, rep).setServer(connection.getConnectedTo());
             } else if (rep.getFirstDoc().containsKey("results")) {
                 crs = new SingleBatchCursor((List<Map<String, Object>>) rep.getFirstDoc().get("results")).setServer(connection.getConnectedTo());
             } else {
@@ -433,10 +367,27 @@ public class SingleMongoConnectDriver extends DriverBase {
             return;
         }
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
-
-
     }
 
+    protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
+        List<Long> cursorIds = new ArrayList<>();
+        for (long l : ids) {
+            if (l != 0) {
+                cursorIds.add(l);
+            }
+        }
+        if (cursorIds.isEmpty()) {
+            return;
+        }
+
+        KillCursorsCommand k = new KillCursorsCommand(connection)
+                .setCursorIds(cursorIds)
+                .setDb(db)
+                .setColl(coll);
+
+        var ret = k.execute();
+        log.info("killed cursor");
+    }
 
     @Override
     public RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
@@ -620,20 +571,20 @@ public class SingleMongoConnectDriver extends DriverBase {
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
-                            InsertMongoCommand settings = new InsertMongoCommand(SingleMongoConnectDriver.this);
+                            InsertMongoCommand settings = new InsertMongoCommand(getConnection());
                             settings.setDb(db).setColl(collection)
                                     .setComment("Bulk insert")
                                     .setDocuments(((InsertBulkRequest) r).getToInsert());
                             settings.execute();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            UpdateMongoCommand upCmd = new UpdateMongoCommand(SingleMongoConnectDriver.this);
+                            UpdateMongoCommand upCmd = new UpdateMongoCommand(getConnection());
                             upCmd.setColl(collection).setDb(db)
                                     .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
                             upCmd.execute();
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                            DeleteMongoCommand del = new DeleteMongoCommand(SingleMongoConnectDriver.this);
+                            DeleteMongoCommand del = new DeleteMongoCommand(getConnection());
                             del.setColl(collection).setDb(db)
                                     .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
                             del.execute();

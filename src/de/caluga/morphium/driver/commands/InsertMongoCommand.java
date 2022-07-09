@@ -1,8 +1,8 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
 import java.util.Map;
@@ -13,7 +13,7 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
     private Boolean bypassDocumentValidation;
     private String comment;
 
-    public InsertMongoCommand(MorphiumDriver d) {
+    public InsertMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -63,7 +63,7 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
 
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
-        if (!getDriver().isConnected()) throw new RuntimeException("Not connected");
+        if (!getConnection().isConnected()) throw new RuntimeException("Not connected");
         Map<String, Object> writeResult = super.execute();
         if (writeResult.containsKey("writeErrors")) {
             int failedWrites = ((List) writeResult.get("writeErrors")).size();

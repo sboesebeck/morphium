@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
@@ -10,7 +11,7 @@ public class StepDownCommand extends AdminMongoCommand<StepDownCommand> {
     private Integer secondaryCatchUpPeriodSecs;
     private Boolean force;
 
-    public StepDownCommand(MorphiumDriver d) {
+    public StepDownCommand(MongoConnection d) {
         super(d);
     }
 

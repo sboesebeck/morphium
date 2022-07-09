@@ -86,7 +86,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
-        ListCollectionsCommand cmd = new ListCollectionsCommand(this);
+        ListCollectionsCommand cmd = new ListCollectionsCommand(getConnection());
         cmd.setDb(db).setNameOnly(true);
         cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
         var lst = cmd.execute();
@@ -606,25 +606,7 @@ public abstract class DriverBase implements MorphiumDriver {
 //    protected abstract OpMsg getReply(int waitingFor, int timeout) throws MorphiumDriverException;
 
 
-    protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
-        List<Long> cursorIds = new ArrayList<>();
-        for (long l : ids) {
-            if (l != 0) {
-                cursorIds.add(l);
-            }
-        }
-        if (cursorIds.isEmpty()) {
-            return;
-        }
 
-        KillCursorsCommand k = new KillCursorsCommand(this)
-                .setCursorIds(cursorIds)
-                .setDb(db)
-                .setColl(coll);
-
-        var ret = k.execute();
-        log.info("killed cursor");
-    }
 
 //
 //    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {

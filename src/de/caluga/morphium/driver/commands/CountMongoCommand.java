@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
@@ -14,7 +15,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
     private Map<String, Object> readConcern;
     private Map<String, Object> collation;
 
-    public CountMongoCommand(MorphiumDriver d) {
+    public CountMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -81,10 +82,10 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
 
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
-        if (getDriver().isTransactionInProgress()) {
+        if (getConnection().getDriver().isTransactionInProgress()) {
             //log.warn("Cannot count while in transaction, will use IDlist!");
             //TODO: use Aggregation
-            FindCommand fs = new FindCommand(getDriver());
+            FindCommand fs = new FindCommand(getConnection());
             fs.setMetaData(getMetaData());
             fs.setDb(getDb());
             fs.setColl(getColl());
@@ -94,7 +95,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
             return Doc.of("n", fs.execute().size());
         }
         int id = executeAsync();
-        return getDriver().readSingleAnswer(id);
+        return getConnection().readSingleAnswer(id);
     }
 
     public int getCount() throws MorphiumDriverException {
@@ -104,7 +105,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
 
     @Override
     public int executeAsync() throws MorphiumDriverException {
-        if (getDriver().isTransactionInProgress()) {
+        if (getConnection().getDriver().isTransactionInProgress()) {
             throw new MorphiumDriverException("Count during transaction is not allowed");
         }
         return super.executeAsync();

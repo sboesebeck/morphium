@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,7 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     private Object hint;
     private Doc let;
 
-    public FindAndModifyMongoCommand(MorphiumDriver d) {
+    public FindAndModifyMongoCommand(MongoConnection d) {
         super(d);
     }
 

@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
 import java.util.Map;
@@ -22,7 +23,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
 
-    public WatchSettings(MorphiumDriver d) {
+    public WatchSettings(MongoConnection d) {
         super(d);
     }
 
@@ -193,6 +194,6 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
 
 
     public void watch() throws MorphiumDriverException {
-        getDriver().watch(this);
+        getConnection().watch(this);
     }
 }

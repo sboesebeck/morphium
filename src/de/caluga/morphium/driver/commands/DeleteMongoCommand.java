@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,7 @@ public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
     private Doc let;
     private Boolean ordered;
 
-    public DeleteMongoCommand(MorphiumDriver d) {
+    public DeleteMongoCommand(MongoConnection d) {
         super(d);
     }
 

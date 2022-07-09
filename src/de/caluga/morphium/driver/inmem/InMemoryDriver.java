@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -234,6 +235,11 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public MongoConnection getConnection() {
         return null;
     }
 

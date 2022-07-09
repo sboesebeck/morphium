@@ -4,6 +4,7 @@ import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.Map;
 
 public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
 
-    public ListIndexesCommand(MorphiumDriver d) {
+    public ListIndexesCommand(MongoConnection d) {
         super(d);
     }
 
@@ -21,7 +22,8 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
     }
 
     public List<IndexDescription> execute() throws MorphiumDriverException {
-        var crs = getDriver().runCommand(getDb(), asMap()).getCursor();
+        var msg = getConnection().sendCommand(asMap());
+        var crs = getConnection().getAnswerFor(msg);
 
         List<IndexDescription> lst = new ArrayList<>();
         while (crs.hasNext()) {

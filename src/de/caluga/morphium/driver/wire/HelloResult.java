@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.bson.types.ObjectId;
 
@@ -18,9 +19,9 @@ public class HelloResult {
     private Integer maxWriteBatchSize = 100000;
     private Date localTime;
     private Integer logicalSessionTimeoutMinutes;
-    private Double connectionId;
-    private Double minWireVersion;
-    private Double maxWireVersion;
+    private Integer connectionId;
+    private Integer minWireVersion;
+    private Integer maxWireVersion;
     private Boolean readOnly = false;
     private String compression;
     private List<String> saslSupportedMechs;
@@ -31,15 +32,15 @@ public class HelloResult {
     private String me;
     private String primary;
     private String setName;
-    private Double setVersion;
+    private Integer setVersion;
     private Boolean arbiterOnly;
     private Boolean secondary;
     private Boolean passive;
     private Boolean hidden;
     private Map<String, String> tags;
-    private ObjectId electionId;
+    private MorphiumId electionId;
     private Map<String, Object> lastWrite;
-    private boolean ok;
+    private Double ok;
 
     public static HelloResult fromMsg(Map<String, Object> msg) {
         var fields = an.getAllFields(HelloResult.class);
@@ -121,29 +122,29 @@ public class HelloResult {
         return this;
     }
 
-    public Double getConnectionId() {
+    public Integer getConnectionId() {
         return connectionId;
     }
 
-    public HelloResult setConnectionId(Double connectionId) {
+    public HelloResult setConnectionId(Integer connectionId) {
         this.connectionId = connectionId;
         return this;
     }
 
-    public Double getMinWireVersion() {
+    public Integer getMinWireVersion() {
         return minWireVersion;
     }
 
-    public HelloResult setMinWireVersion(Double minWireVersion) {
+    public HelloResult setMinWireVersion(Integer minWireVersion) {
         this.minWireVersion = minWireVersion;
         return this;
     }
 
-    public Double getMaxWireVersion() {
+    public Integer getMaxWireVersion() {
         return maxWireVersion;
     }
 
-    public HelloResult setMaxWireVersion(Double maxWireVersion) {
+    public HelloResult setMaxWireVersion(Integer maxWireVersion) {
         this.maxWireVersion = maxWireVersion;
         return this;
     }
@@ -220,11 +221,11 @@ public class HelloResult {
         return this;
     }
 
-    public Double getSetVersion() {
+    public Integer getSetVersion() {
         return setVersion;
     }
 
-    public HelloResult setSetVersion(Double setVersion) {
+    public HelloResult setSetVersion(Integer setVersion) {
         this.setVersion = setVersion;
         return this;
     }
@@ -265,11 +266,11 @@ public class HelloResult {
         return this;
     }
 
-    public ObjectId getElectionId() {
+    public MorphiumId getElectionId() {
         return electionId;
     }
 
-    public HelloResult setElectionId(ObjectId electionId) {
+    public HelloResult setElectionId(MorphiumId electionId) {
         this.electionId = electionId;
         return this;
     }
@@ -284,10 +285,14 @@ public class HelloResult {
     }
 
     public boolean isOk() {
+        return Double.valueOf(1).equals(ok);
+    }
+
+    public Double getOk() {
         return ok;
     }
 
-    public HelloResult setOk(boolean ok) {
+    public HelloResult setOk(Double ok) {
         this.ok = ok;
         return this;
     }

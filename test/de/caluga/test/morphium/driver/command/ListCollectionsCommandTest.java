@@ -20,17 +20,17 @@ public class ListCollectionsCommandTest extends DriverTestBase {
         var con = getConnection();
         con.connect();
 
-        new InsertMongoCommand(con)
+        new InsertMongoCommand(con.getConnection())
                 .setDb(db)
                 .setColl(coll)
                 .setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123)))
                 .execute();
-        new InsertMongoCommand(con)
+        new InsertMongoCommand(con.getConnection())
                 .setDb(db)
                 .setColl(coll + "_2")
                 .setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123)))
                 .execute();
-        new InsertMongoCommand(con)
+        new InsertMongoCommand(con.getConnection())
                 .setDb(db)
                 .setColl(coll + "_3")
                 .setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123)))

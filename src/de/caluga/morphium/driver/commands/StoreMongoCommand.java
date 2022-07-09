@@ -1,9 +1,9 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import org.bson.types.ObjectId;
 
 import java.util.ArrayList;
@@ -14,7 +14,7 @@ import java.util.Map;
 public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     private List<Map<String, Object>> docs;
 
-    public StoreMongoCommand(MorphiumDriver d) {
+    public StoreMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -55,7 +55,7 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             //up.put("c",variablesDocument);
             opsLst.add(up);
         }
-        UpdateMongoCommand updateSettings = new UpdateMongoCommand(getDriver()).setDb(getDb()).setColl(getColl())
+        UpdateMongoCommand updateSettings = new UpdateMongoCommand(getConnection()).setDb(getDb()).setColl(getColl())
                 .setUpdates(opsLst).setWriteConcern(getWriteConcern());
         setMetaData(updateSettings.getMetaData());
         return updateSettings;

@@ -21,6 +21,7 @@ import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import org.bson.*;
 import org.bson.codecs.PatternCodec;
 import org.bson.conversions.Bson;
@@ -589,6 +590,11 @@ public class MongoDriver implements MorphiumDriver {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public MongoConnection getConnection() {
         return null;
     }
 

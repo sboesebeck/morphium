@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
@@ -37,7 +38,7 @@ public class FindCommand extends ReadMongoCommand<FindCommand> {
     }
 
 
-    public FindCommand(MorphiumDriver d) {
+    public FindCommand(MongoConnection d) {
         super(d);
     }
 

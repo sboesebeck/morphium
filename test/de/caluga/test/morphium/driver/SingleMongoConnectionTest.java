@@ -31,7 +31,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
         Thread.sleep(500);
         var h = con.getConnectedTo();
-        StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(10).setForce(Boolean.TRUE);
+        StepDownCommand cmd = new StepDownCommand(con.getConnection()).setTimeToStepDown(10).setForce(Boolean.TRUE);
         var res = cmd.execute();
         //log.info("result: " + Utils.toJsonString(res));
         while (true) {
@@ -72,26 +72,26 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         SingleMongoConnectDriver con = getConnection();
         con.connect();
         log.info("Connected");
-        int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
+        int deleted = (int) new ClearCollectionSettings(con.getConnection()).setColl(coll).setDb(db).doClear();
         log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            StoreMongoCommand cmd = new StoreMongoCommand(con)
+            StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
         log.info("running find...");
-        FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
+        FindCommand fnd = new FindCommand(con.getConnection()).setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = fnd.execute();
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(123);
         log.info("done.");
 
         log.info("Updating...");
-        UpdateMongoCommand update = new UpdateMongoCommand(con);
+        UpdateMongoCommand update = new UpdateMongoCommand(con.getConnection());
         update.addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
         update.setOrdered(false);
         update.setDb(db);
@@ -113,19 +113,19 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     public void testUpdateSyncConnection() throws Exception {
         SingleMongoConnectDriver con = getConnection();
         con.connect();
-        new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
+        new ClearCollectionSettings(con.getConnection()).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
-            StoreMongoCommand cmd = new StoreMongoCommand(con)
+            StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
         log.info("running find...");
-        FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
+        FindCommand fnd = new FindCommand(con.getConnection()).setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = fnd.execute();
         log.info("got result");
         assertThat(res.size()).isEqualTo(1);
@@ -133,7 +133,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         log.info("done.");
 
         log.info("Updating...");
-        UpdateMongoCommand update = new UpdateMongoCommand(con)
+        UpdateMongoCommand update = new UpdateMongoCommand(con.getConnection())
                 .setDb(db)
                 .setColl(coll)
                 .addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
@@ -157,7 +157,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
 
         UncachedObject o = new UncachedObject("value", 123);
-        StoreMongoCommand cmd = new StoreMongoCommand(con)
+        StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                 .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         cmd.execute();
 
@@ -178,7 +178,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                     Thread.sleep(3500);
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
-                    StoreMongoCommand cmd = new StoreMongoCommand(con)
+                    StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     log.info("stored data after " + (System.currentTimeMillis() - start) + "ms");
@@ -188,7 +188,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                 }
             }
         }.start();
-        con.watch(new WatchSettings(con).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
+        con.watch(new WatchSettings(con.getConnection()).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
             @Override
@@ -215,18 +215,18 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     public void testMapReduce() throws Exception {
         SingleMongoConnectDriver con = getConnection();
         con.connect();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionSettings(con.getConnection()).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreMongoCommand cmd = new StoreMongoCommand(con)
+        StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        MapReduceCommand settings = new MapReduceCommand(con)
+        MapReduceCommand settings = new MapReduceCommand(con.getConnection())
                 .setColl(coll)
                 .setDb(db)
                 .setOutConfig(Doc.of("inline", 1))
@@ -250,14 +250,14 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     public void testRunCommand() throws Exception {
         SingleMongoConnectDriver con = getConnection();
         con.connect();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionSettings(con.getConnection()).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
         for (int i = 0; i < 100; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreMongoCommand cmd = new StoreMongoCommand(con)
+        StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
@@ -273,18 +273,18 @@ public class SingleMongoConnectionTest extends DriverTestBase {
     public void iteratorTest() throws Exception {
         SingleMongoConnectDriver con = getConnection();
         con.connect();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionSettings(con.getConnection()).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
         for (int i = 0; i < 1000; i++) {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
-        StoreMongoCommand cmd = new StoreMongoCommand(con)
+        StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);
+        FindCommand fnd = new FindCommand(con.getConnection()).setDb(db).setColl(coll).setBatchSize(17);
         var crs = con.runCommand(db, fnd.asMap()).getCursor();
         int cnt = 0;
         while (crs.hasNext()) {

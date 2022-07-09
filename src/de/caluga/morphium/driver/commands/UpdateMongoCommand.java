@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +14,7 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
     private Boolean ordered;
     private Map<String, Object> let;
 
-    public UpdateMongoCommand(MorphiumDriver d) {
+    public UpdateMongoCommand(MongoConnection d) {
         super(d);
     }
 
