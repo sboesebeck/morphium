@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
@@ -11,7 +12,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
     private Map<String, Object> writeConcern;
     private Boolean bypassDocumentValidation;
 
-    public WriteMongoCommand(MorphiumDriver d) {
+    public WriteMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -34,16 +35,17 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        if (!getDriver().isConnected()) throw new RuntimeException("Not connected");
-        MorphiumDriver driver = getDriver();
+        if (!getConnection().isConnected()) throw new RuntimeException("Not connected");
+        MongoConnection con = getConnection();
 
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+        setMetaData(Doc.of("server", con.getConnectedTo() + ":" + con.getConnectedToPort()));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
+        int msg = con.sendCommand(asMap());
+        var crs = con.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         getMetaData().put("duration", dur);
-        return crs.next();
+        return crs;
     }
 }

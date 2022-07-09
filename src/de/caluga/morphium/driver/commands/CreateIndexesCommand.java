@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,7 @@ public class CreateIndexesCommand extends WriteMongoCommand<CreateIndexesCommand
     private List<Map<String, Object>> indexes;
     private String commitQuorum;
 
-    public CreateIndexesCommand(MorphiumDriver d) {
+    public CreateIndexesCommand(MongoConnection d) {
         super(d);
     }
 

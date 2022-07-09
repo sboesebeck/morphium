@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.HelloResult;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
@@ -12,7 +13,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
     private Boolean helloOk = true;
     private boolean includeClient = true;
 
-    public HelloCommand(MorphiumDriver d) {
+    public HelloCommand(MongoConnection d) {
         super(d);
     }
 
@@ -60,8 +61,8 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         ret.put(getCommandName(), 1);
         ret.put("$db", "local");
         String driverName = "unknown";
-        if (getDriver() != null) {
-            driverName = getDriver().getName();
+        if (getConnection() != null) {
+            driverName = getConnection().getDriver().getName();
         }
         if (includeClient) {
             ret.put("client", Doc.of("application", Doc.of("name", "Morphium"),
@@ -73,8 +74,9 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
 
 
     public HelloResult execute() throws MorphiumDriverException {
-        var crs = getDriver().runCommand(getDb(), asMap());
-        return HelloResult.fromMsg(crs.getCursor().next());
+        var msg = getConnection().sendCommand(asMap());
+        var crs = getConnection().getAnswerFor(msg);
+        return HelloResult.fromMsg(crs.next());
     }
 
 

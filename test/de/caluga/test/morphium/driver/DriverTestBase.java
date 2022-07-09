@@ -29,7 +29,7 @@ public class DriverTestBase {
             log.info("Dropping database...");
             var con = getConnection();
             con.connect();
-            DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
+            DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con.getConnection());
             cmd.setDb(db).execute();
             con.disconnect();
             log.info("done");

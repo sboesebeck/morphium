@@ -1,15 +1,17 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
+
+import java.util.Map;
 
 public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     private long cursorId;
     private Integer batchSize;
     private Integer maxTimeMs;
 
-    public GetMoreMongoCommand(MorphiumDriver d) {
+    public GetMoreMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -45,8 +47,18 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
         return "getMore";
     }
 
+    @Override
+    public Map<String, Object> asMap() {
+        var m = super.asMap();
+        m.put(getCommandName(), cursorId);
+        m.put("collection", getColl());
+        m.remove("cursorId");
+        return m;
+    }
+
     public MorphiumCursor execute() throws MorphiumDriverException {
-        return getDriver().runCommand(getDb(), asMap()).getCursor();
+        int c = getConnection().sendCommand(asMap());
+        return getConnection().getAnswerFor(c);
     }
 
 }

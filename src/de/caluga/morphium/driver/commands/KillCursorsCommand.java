@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +9,7 @@ import java.util.List;
 public class KillCursorsCommand extends WriteMongoCommand<KillCursorsCommand> {
     private List<Long> cursorIds;
 
-    public KillCursorsCommand(MorphiumDriver d) {
+    public KillCursorsCommand(MongoConnection d) {
         super(d);
     }
 

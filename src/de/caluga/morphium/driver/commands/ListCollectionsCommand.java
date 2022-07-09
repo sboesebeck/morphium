@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
@@ -14,7 +15,7 @@ public class ListCollectionsCommand extends ReadMongoCommand<ListCollectionsComm
     private Boolean nameOnly = false;
     private Boolean authorizedCollections = false;
 
-    public ListCollectionsCommand(MorphiumDriver d) {
+    public ListCollectionsCommand(MongoConnection d) {
         super(d);
         setColl("1");
     }

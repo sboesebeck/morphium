@@ -21,13 +21,13 @@ import java.util.*;
 public class SingleMongoConnectionCursor extends MorphiumCursor {
 
     private final boolean multithreaddedAccess;
-    private final DriverBase driver;
+    private final MongoConnection connection;
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionCursor.class);
     private int internalIndex = 0;
     private int index = 0;
 
-    public SingleMongoConnectionCursor(DriverBase drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
-        this.driver = drv;
+    public SingleMongoConnectionCursor(MongoConnection drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
+        this.connection = drv;
         this.multithreaddedAccess = multithreaddedAccess;
         Long cursorId = null;
         @SuppressWarnings("unchecked") Doc cursor = (Doc) reply.getFirstDoc().get("cursor");
@@ -129,7 +129,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     @Override
     public void close() {
         try {
-            getDriver().closeIteration(this);
+            getConnection().closeIteration(this);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -140,8 +140,8 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         return getBatch().size() - internalIndex;
     }
 
-    public DriverBase getDriver() {
-        return driver;
+    public MongoConnection getConnection() {
+        return connection;
     }
 
 
@@ -152,7 +152,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         }
         MorphiumCursor reply;
 
-        GetMoreMongoCommand more = new GetMoreMongoCommand(driver)
+        GetMoreMongoCommand more = new GetMoreMongoCommand(connection)
                 .setCursorId(getCursorId())
                 .setDb(getDb())
                 .setColl(getCollection())
@@ -161,6 +161,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         reply = more.execute();
         return reply.getBatch();
     }
+
 
     @Override
     public List<Map<String, Object>> getAll() throws MorphiumDriverException {

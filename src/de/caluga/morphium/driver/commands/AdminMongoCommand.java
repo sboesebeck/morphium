@@ -4,12 +4,13 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.util.Map;
 
 public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements SingleResultCommand {
-    public AdminMongoCommand(MorphiumDriver d) {
+    public AdminMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -22,29 +23,35 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
 
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
+        MongoConnection connection = getConnection();
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+        setMetaData(Doc.of("server", connection.getConnectedTo()));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand("admin", asMap()).getCursor();
+        var m = asMap();
+        m.put("$db", "admin");
+        var msg = connection.sendCommand(m);
+        var crs = connection.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         getMetaData().put("duration", dur);
-        return crs.next();
+        return crs;
     }
 
     @Override
     public int executeAsync() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        MongoConnection connection = getConnection();
+        if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
         return new NetworkCallHelper<Integer>().doCall(() -> {
-            setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+            setMetaData(Doc.of("server", connection.getConnectedTo()));
             //long start = System.currentTimeMillis();
-            int id = driver.sendCommand("admin", asMap()).getMessageId();
+            var m = asMap();
+            m.put("$db", "admin");
+            var id = connection.sendCommand(m);
+
             // long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", 0); //not waiting!
             return id;
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 }

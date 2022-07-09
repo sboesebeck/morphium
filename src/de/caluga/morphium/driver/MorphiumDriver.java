@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.commands.WatchSettings;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.net.MalformedURLException;
 import java.util.List;
@@ -266,6 +267,8 @@ public interface MorphiumDriver {
     MorphiumCursor getAnswerFor(int msgId) throws MorphiumDriverException;
 
     List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
+
+    MongoConnection getConnection();
 
 
     //

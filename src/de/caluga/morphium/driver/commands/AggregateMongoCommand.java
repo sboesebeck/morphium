@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,7 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
     private Integer batchSize;
     private Map<String, Object> cursor;
 
-    public AggregateMongoCommand(MorphiumDriver d) {
+    public AggregateMongoCommand(MongoConnection d) {
         super(d);
     }
 
@@ -142,7 +143,7 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
             ((Map) doc.get("cursor")).put("batchSize", getBatchSize());
             doc.remove("batchSize");
         } else {
-            ((Map) doc.get("cursor")).put("batchSize", getDriver().getDefaultBatchSize());
+            ((Map) doc.get("cursor")).put("batchSize", getDefaultBatchSize());
         }
         return doc;
     }

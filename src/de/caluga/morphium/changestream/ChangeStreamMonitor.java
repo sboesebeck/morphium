@@ -180,7 +180,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                WatchSettings watchSettings = new WatchSettings(morphium.getDriver());
+                WatchSettings watchSettings = new WatchSettings(morphium.getDriver().getConnection());
                 watchSettings.setCb(callback);
                 watchSettings.setMaxWaitTime(10000);
                 watchSettings.setFullDocument(fullDocument ? WatchSettings.FullDocumentEnum.required : WatchSettings.FullDocumentEnum.defaultValue);

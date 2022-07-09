@@ -1,9 +1,11 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.wire.DriverBase;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
 import java.lang.reflect.Field;
@@ -19,18 +21,53 @@ public abstract class MongoCommand<T extends MongoCommand> {
     private String comment;
 
     private Map<String, Object> metaData;
-    private MorphiumDriver driver;
 
-    public MongoCommand(MorphiumDriver d) {
-        driver = d;
+    @Transient
+    private MongoConnection connection;
+    @Transient
+    private int retriesOnNetworkError = 2;
+    @Transient
+    private int sleepBetweenErrorRetries = 100;
+    @Transient
+    private int defaultBatchSize = 100;
+
+    public MongoCommand(MongoConnection d) {
+        connection = d;
     }
 
-    public MorphiumDriver getDriver() {
-        return driver;
+    public int getRetriesOnNetworkError() {
+        return retriesOnNetworkError;
     }
 
-    public MongoCommand<T> setDriver(DriverBase driver) {
-        this.driver = driver;
+    public MongoCommand<T> setRetriesOnNetworkError(int retriesOnNetworkError) {
+        this.retriesOnNetworkError = retriesOnNetworkError;
+        return this;
+    }
+
+    public int getSleepBetweenErrorRetries() {
+        return sleepBetweenErrorRetries;
+    }
+
+    public MongoCommand<T> setSleepBetweenErrorRetries(int sleepBetweenErrorRetries) {
+        this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
+        return this;
+    }
+
+    public int getDefaultBatchSize() {
+        return defaultBatchSize;
+    }
+
+    public MongoCommand<T> setDefaultBatchSize(int defaultBatchSize) {
+        this.defaultBatchSize = defaultBatchSize;
+        return this;
+    }
+
+    public MongoConnection getConnection() {
+        return connection;
+    }
+
+    public MongoCommand<T> setConnection(MongoConnection connection) {
+        this.connection = connection;
         return this;
     }
 
@@ -93,10 +130,12 @@ public abstract class MongoCommand<T extends MongoCommand> {
             if (Modifier.isStatic(f.getModifiers())) {
                 continue;
             }
+            if (f.isAnnotationPresent(Transient.class)) continue;
             if (f.getName().equals("metaData")) continue;
             if (f.getName().equals("readPreference")) continue;
-            if (f.getName().equals("driver")) continue;
+            if (f.getName().equals("connection")) continue;
             if (f.getName().equals("coll")) continue;
+
             if (DriverTailableIterationCallback.class.isAssignableFrom(f.getType())) continue;
             if (AsyncOperationCallback.class.isAssignableFrom(f.getType())) continue;
 
@@ -140,16 +179,16 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
 
     public int executeAsync() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
+        MongoConnection driver = getConnection();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         return new NetworkCallHelper<Integer>().doCall(() -> {
             //long start = System.currentTimeMillis();
-            var result = getDriver().sendCommand(getDb(), asMap());
+            var result = getConnection().sendCommand(asMap());
             // long dur = System.currentTimeMillis() - start;
             getMetaData().put("duration", 0); //not waiting!
-            setMetaData("server", result.getServer());
-            return result.getMessageId();
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+            setMetaData("server", connection.getConnectedTo() + ":" + connection.getConnectedToPort());
+            return result;
+        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
 

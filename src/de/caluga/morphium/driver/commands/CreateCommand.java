@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +25,7 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
     private Map<String, Object> collation;
     private Map<String, Object> writeConcern;
 
-    public CreateCommand(MorphiumDriver d) {
+    public CreateCommand(MongoConnection d) {
         super(d);
     }
 
@@ -175,11 +176,12 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        MorphiumDriver driver = getDriver();
+        MongoConnection connection = getConnection();
 
-        setMetaData(Doc.of("server", driver.getHostSeed().get(0)));
+        setMetaData(Doc.of("server", connection.getConnectedTo()));
         long start = System.currentTimeMillis();
-        MorphiumCursor crs = driver.runCommand(getDb(), asMap()).getCursor();
+        var msg = connection.sendCommand(asMap());
+        var crs = connection.getAnswerFor(msg);
         long dur = System.currentTimeMillis() - start;
         getMetaData().put("duration", dur);
         return crs.next();

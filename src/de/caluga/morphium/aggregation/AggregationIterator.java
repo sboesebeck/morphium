@@ -96,7 +96,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     }
 
     private AggregateMongoCommand getAggregateCmd() {
-        AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver());
+        AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver().getConnection());
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
                 .setPipeline(aggregator.getPipeline())
