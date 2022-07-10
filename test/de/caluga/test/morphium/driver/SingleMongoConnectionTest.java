@@ -30,21 +30,21 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         con.connect();
         log.info("Hearbeat frequency " + con.getHeartbeatFrequency());
         Thread.sleep(500);
-        var h = con.getConnectedTo();
+        var h = con.getConnection().getConnectedTo();
         StepDownCommand cmd = new StepDownCommand(con.getConnection()).setTimeToStepDown(10).setForce(Boolean.TRUE);
         var res = cmd.execute();
         //log.info("result: " + Utils.toJsonString(res));
         while (true) {
-            while (!con.isConnected() || con.getConnectedTo() == null || con.getConnectedTo().equals(h)) {
+            while (!con.isConnected() || con.getConnection().getConnectedTo() == null || con.getConnection().getConnectedTo().equals(h)) {
                 log.info("Waiting for failover...");
                 Thread.sleep(1500);
             }
-            String hst = con.getConnectedTo();
-            log.info("Failover...to " + con.getConnectedTo());
+            String hst = con.getConnection().getConnectedTo();
+            log.info("Failover...to " + con.getConnection().getConnectedTo());
             boolean br = true;
             for (int i = 0; i < 2; i++) {
                 Thread.sleep(1000);
-                if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
+                if (con.getConnection().getConnectedTo() == null || !con.getConnection().getConnectedTo().equals(hst)) {
                     log.info("Connection did not stick...");
                     br = false;
                     break;
@@ -54,10 +54,10 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                 break;
         }
         assertThat(con.isConnected());
-        assertThat(con.getConnectedTo()).isNotEqualTo(h);
+        assertThat(con.getConnection().getConnectedTo()).isNotEqualTo(h);
         assertThat(h).isNotNull();
-        assertThat(con.getConnectedTo()).isNotNull();
-        log.info("Connection changed from " + h + " to " + con.getConnectedTo());
+        assertThat(con.getConnection().getConnectedTo()).isNotNull();
+        log.info("Connection changed from " + h + " to " + con.getConnection().getConnectedTo());
         log.info("HostSeed:");
         for (var c : con.getHostSeed()) {
             log.info("---> " + c);
@@ -188,7 +188,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                 }
             }
         }.start();
-        con.watch(new WatchSettings(con.getConnection()).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
+        con.watch(new WatchCommand(con.getConnection()).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
             @Override
@@ -261,7 +261,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        var result = con.runCommand(db, Doc.of("hello", 1)).getCursor().next();
+        var result = con.runCommand(db, Doc.of("hello", 1));
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
@@ -285,7 +285,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         cmd.execute();
 
         FindCommand fnd = new FindCommand(con.getConnection()).setDb(db).setColl(coll).setBatchSize(17);
-        var crs = con.runCommand(db, fnd.asMap()).getCursor();
+        var crs = con.runCommand(fnd).getCursor();
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;
@@ -296,7 +296,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        crs = con.runCommand(db, fnd.asMap()).getCursor();
+        crs = con.runCommand(fnd).getCursor();
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(1000);

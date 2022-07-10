@@ -1,20 +1,15 @@
 package de.caluga.morphium.driver.wire;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.BsonEncoder;
-import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
-import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.mongodb.Maximums;
-import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -241,8 +236,9 @@ public abstract class DriverBase implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Doc command = Doc.of("listDatabases", 1);
-        Map<String, Object> res = runCommand("admin", command).getCursor().next();
+        Doc command = Doc.of("listDatabases", 1, "$db", "admin");
+        var msg = getConnection().sendCommand(command);
+        Map<String, Object> res = getConnection().readSingleAnswer(msg);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {
             @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
@@ -276,29 +272,6 @@ public abstract class DriverBase implements MorphiumDriver {
         return hostSeed;
     }
 
-    private void addToListFromCursor(String db, List<Map<String, Object>> data, Map<String, Object> res) throws MorphiumDriverException {
-        boolean valid;
-        @SuppressWarnings("unchecked") Map<String, Object> crs = (Map<String, Object>) res.get("cursor");
-        do {
-            if (crs.get("firstBatch") != null) {
-                //noinspection unchecked
-                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
-            } else if (crs.get("nextBatch") != null) {
-                //noinspection unchecked
-                data.addAll((List<Map<String, Object>>) crs.get("firstBatch"));
-            }
-            //next iteration.
-            Doc doc = new Doc();
-            if (crs.get("id") != null && !crs.get("id").toString().equals("0")) {
-                valid = true;
-                doc.put("getMore", crs.get("id"));
-                crs = runCommand(db, doc).getCursor().next();
-            } else {
-                valid = false;
-            }
-
-        } while (valid);
-    }
 
     @Override
     public String getReplicaSetName() {
@@ -597,7 +570,7 @@ public abstract class DriverBase implements MorphiumDriver {
         transactionContext.remove();
     }
 
-    public abstract void watch(WatchSettings settings) throws MorphiumDriverException;
+    public abstract void watch(WatchCommand settings) throws MorphiumDriverException;
 
 //    public abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
 

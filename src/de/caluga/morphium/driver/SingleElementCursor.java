@@ -46,7 +46,7 @@ public class SingleElementCursor extends MorphiumCursor {
 
     @Override
     public void ahead(int skip) throws MorphiumDriverException {
-
+        idx += skip;
     }
 
     @Override

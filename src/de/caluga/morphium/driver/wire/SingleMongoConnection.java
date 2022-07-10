@@ -4,7 +4,9 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
-import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.slf4j.Logger;
@@ -273,7 +275,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
-    public void watch(WatchSettings settings) throws MorphiumDriverException {
+    public void watch(WatchCommand settings) throws MorphiumDriverException {
         int maxWait = 0;
         if (settings.getDb() == null) settings.setDb("1"); //watch all dbs!
         if (settings.getColl() == null) {
@@ -356,10 +358,19 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, driver.getMaxWaitTime());
+        checkForError(reply);
         if (reply.hasCursor()) {
             return new SingleMongoConnectionCursor(this, driver.getDefaultBatchSize(), true, reply).setServer(connectedTo);
+        } else if (reply.getFirstDoc().containsKey("results")) {
+            return new SingleBatchCursor((List<Map<String, Object>>) reply.getFirstDoc().get("results"));
         }
         return new SingleElementCursor(reply.getFirstDoc());
+    }
+
+    private void checkForError(OpMsg msg) throws MorphiumDriverException {
+        if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
+            throw new MorphiumDriverException("Error: " + msg.getFirstDoc().get("code") + " - " + msg.getFirstDoc().get("errmsg"));
+        }
     }
 
     @Override
@@ -452,5 +463,42 @@ public class SingleMongoConnection implements MongoConnection {
         return ret;
     }
 
+
+    public SingleElementResult runCommandSingleResult(Map<String, Object> cmd) throws MorphiumDriverException {
+
+        return new NetworkCallHelper<SingleElementResult>().doCall(() -> {
+            long start = System.currentTimeMillis();
+            int id = sendCommand(cmd);
+
+            OpMsg rep = null;
+            rep = getReplyFor(id, driver.getMaxWaitTime());
+            if (rep == null || rep.getFirstDoc() == null) {
+                return null;
+            }
+            if (rep.getFirstDoc().containsKey("cursor")) {
+                //should actually not happen!
+                log.warn("Expecting single result, got Cursor instead!");
+
+                Map cursor = (Map) rep.getFirstDoc().get("cursor");
+                String ns = (String) cursor.get("ns");
+                String[] sp = ns.split("\\.");
+                String db = sp[0];
+                String col = sp[1];
+                Map<String, Object> ret = null;
+                if (cursor.containsKey("firstBatch")) {
+                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
+                } else if (cursor.containsKey("nextBatch")) {
+                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
+                }
+                killCursors(db, col, (Long) cursor.get("id"));
+                SingleElementResult result = new SingleElementResult().setResult(ret)
+                        .setServer(getConnectedTo()).setDuration(System.currentTimeMillis() - start);
+                return ret;
+            } else {
+                return rep.getFirstDoc();
+            }
+        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
+
+    }
 
 }

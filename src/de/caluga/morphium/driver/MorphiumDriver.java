@@ -4,8 +4,12 @@ package de.caluga.morphium.driver;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.MongoCommand;
+import de.caluga.morphium.driver.commands.MultiResultCommand;
+import de.caluga.morphium.driver.commands.SingleResultCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -173,7 +177,7 @@ public interface MorphiumDriver {
 //
 //    //MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
-    void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
+//    void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
 
 
     //.______       __    __  .__   __.      ______   ______   .___  ___. .___  ___.      ___      .__   __.  _______
@@ -183,7 +187,13 @@ public interface MorphiumDriver {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-    SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException;
+
+    CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException;
+
+    ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException;
+
+    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
 
     Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
@@ -193,17 +203,10 @@ public interface MorphiumDriver {
     Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
 
 
-    CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    //CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
-    /**
-     * sends runcommand message, but only returns ID for later check for replies
-     *
-     * @param db
-     * @param cmd
-     * @return
-     * @throws MorphiumDriverException
-     */
-    RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+
+    //RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
     int getMaxConnectionLifetime();
 
@@ -242,14 +245,13 @@ public interface MorphiumDriver {
     void setDefaultJ(boolean j);
 
 
-
     //____    __    ____  ___   .___________.  ______  __    __
     //\   \  /  \  /   / /   \  |           | /      ||  |  |  |
     // \   \/    \/   / /  ^  \ `---|  |----`|  ,----'|  |__|  |
     //  \            / /  /_\  \    |  |     |  |     |   __   |
     //   \    /\    / /  _____  \   |  |     |  `----.|  |  |  |
     //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
-    void watch(WatchSettings settings) throws MorphiumDriverException;
+    void watch(WatchCommand settings) throws MorphiumDriverException;
 
     //.______       _______ .______    __       __   _______     _______.
     //|   _  \     |   ____||   _  \  |  |     |  | |   ____|   /       |
@@ -260,13 +262,13 @@ public interface MorphiumDriver {
 
 //    MorphiumCursor waitForReplyIterable(long id);
 
-    Map<String, Object> readSingleAnswer(int msgId) throws MorphiumDriverException;
+//    Map<String, Object> readSingleAnswer(int msgId) throws MorphiumDriverException;
 
-    List<Map<String, Object>> readAnswerFor(int msgId) throws MorphiumDriverException;
+//    List<Map<String, Object>> readAnswerFor(int msgId) throws MorphiumDriverException;
 
-    MorphiumCursor getAnswerFor(int msgId) throws MorphiumDriverException;
+//    MorphiumCursor getAnswerFor(int msgId) throws MorphiumDriverException;
 
-    List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
+//    List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
 
     MongoConnection getConnection();
 

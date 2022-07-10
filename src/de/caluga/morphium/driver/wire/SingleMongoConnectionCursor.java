@@ -41,14 +41,13 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         String[] ns = ((String) cursor.get("ns")).split("\\.");
         setDb(ns[0]); //collection name
         if (ns.length > 1) setCollection(ns[1]); //collection name
-        List<Map<String, Object>> firstBatch;
         if (cursor.get("firstBatch") != null) {
             //noinspection unchecked
             setBatch((List) cursor.get("firstBatch"));
         } else if (cursor.get("nextBatch") != null) {
             //noinspection unchecked
             setBatch((List) cursor.get("nextBatch"));
-            log.error("First Cursor init returned NEXT BATCH?!?!?");
+            //log.error("First Cursor init returned NEXT BATCH?!?!?");
         } else {
             log.warn("No result returned");
             setBatch(Collections.emptyList());
@@ -103,12 +102,14 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     private void getNextIteration() throws MorphiumDriverException {
-        if (multithreaddedAccess) {
-            setBatch(Collections.synchronizedList(nextIteration()));
-        } else {
-            setBatch(nextIteration());
-        }
+        var batch = nextIteration();
         internalIndex = 0;
+        if (multithreaddedAccess && batch != null) {
+            setBatch(Collections.synchronizedList(batch));
+        } else {
+            setBatch(batch);
+        }
+
     }
 
     @Override
@@ -158,8 +159,14 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
                 .setColl(getCollection())
                 .setBatchSize(getBatchSize());
 
-        reply = more.execute();
-        return reply.getBatch();
+        try {
+            reply = more.execute();
+            setCursorId(reply.getCursorId()); //setting 0 if end of iteration
+            return reply.getBatch();
+        } catch (MorphiumDriverException e) {
+            log.error("Error ", e);
+        }
+        return null;
     }
 
 

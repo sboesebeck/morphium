@@ -6,6 +6,7 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -212,30 +213,9 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-
     @Override
-    public void watch(WatchSettings settings) {
+    public void watch(WatchCommand settings) {
 
-    }
-
-    @Override
-    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
-        return null;
     }
 
     @Override
@@ -1100,10 +1080,6 @@ public class InMemoryDriver implements MorphiumDriver {
 
     }
 
-    @Override
-    public SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
 
     @SuppressWarnings("ConstantConditions")
 
@@ -1408,17 +1384,6 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public boolean exists(String db) {
         return database.containsKey(db);
-    }
-
-
-    @Override
-    public CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
     }
 
     @Override
@@ -1818,6 +1783,26 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public void abortTransaction() {
         currentTransaction.set(null);
+    }
+
+    @Override
+    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
 

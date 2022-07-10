@@ -12,4 +12,6 @@ public interface MultiResultCommand {
 
     MorphiumCursor executeIterable() throws MorphiumDriverException;
 
+    Map<String, Object> asMap();
+
 }

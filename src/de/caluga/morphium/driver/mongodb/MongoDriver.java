@@ -19,6 +19,7 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.result.CursorResult;
+import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -125,7 +126,7 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void watch(WatchSettings settings) {
+    public void watch(WatchCommand settings) {
 
     }
 
@@ -567,31 +568,11 @@ public class MongoDriver implements MorphiumDriver {
         return defaultJ;
     }
 
-
+    @Override
     public void setDefaultJ(boolean j) {
-        defaultJ = j;
+
     }
 
-
-    @Override
-    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
-        return null;
-    }
 
     @Override
     public MongoConnection getConnection() {
@@ -1443,10 +1424,6 @@ public class MongoDriver implements MorphiumDriver {
         }, retriesOnNetworkError, sleepBetweenErrorRetries);
     }
 
-    @Override
-    public SingleElementResult runCommandSingleResult(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
 
 
     public List<Map<String, Object>> find(String db, String collection, Doc query, Map<String, Integer> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation collation, final Doc findMetaData) throws MorphiumDriverException {
@@ -1956,18 +1933,6 @@ public class MongoDriver implements MorphiumDriver {
         return false;
     }
 
-
-    @Override
-    public CursorResult runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public RunCommandResult sendCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-
     public List<Object> distinct(String db, String collection, String field, final Doc filter, Collation collation, ReadPreference rp) throws MorphiumDriverException {
         DriverHelper.replaceMorphiumIdByObjectId(filter);
         final List<Object> ret = new ArrayList<>();
@@ -2399,6 +2364,26 @@ public class MongoDriver implements MorphiumDriver {
         }
         currentTransaction.get().getSession().abortTransaction();
         currentTransaction.set(null);
+    }
+
+    @Override
+    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+        return null;
     }
 
 
