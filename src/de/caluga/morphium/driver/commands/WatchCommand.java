@@ -6,7 +6,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import java.util.List;
 import java.util.Map;
 
-public class WatchSettings extends MongoCommand<WatchSettings> {
+public class WatchCommand extends MongoCommand<WatchCommand> {
     private DriverTailableIterationCallback cb;
     private Integer batchSize;
     private List<Map<String, Object>> pipeline;
@@ -23,7 +23,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
 
-    public WatchSettings(MongoConnection d) {
+    public WatchCommand(MongoConnection d) {
         super(d);
     }
 
@@ -32,7 +32,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return fullDocumentBeforeChange;
     }
 
-    public WatchSettings setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
+    public WatchCommand setFullDocumentBeforeChange(FullDocumentBeforeChangeEnum fullDocumentBeforeChange) {
         this.fullDocumentBeforeChange = fullDocumentBeforeChange;
         return this;
     }
@@ -41,7 +41,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return fullDocument;
     }
 
-    public WatchSettings setFullDocument(FullDocumentEnum fullDocument) {
+    public WatchCommand setFullDocument(FullDocumentEnum fullDocument) {
         this.fullDocument = fullDocument;
         return this;
     }
@@ -50,7 +50,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return pipeline;
     }
 
-    public WatchSettings setPipeline(List<Map<String, Object>> pipeline) {
+    public WatchCommand setPipeline(List<Map<String, Object>> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -59,7 +59,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return explain;
     }
 
-    public WatchSettings setExplain(Boolean explain) {
+    public WatchCommand setExplain(Boolean explain) {
         this.explain = explain;
         return this;
     }
@@ -68,7 +68,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return allowDiskUse;
     }
 
-    public WatchSettings setAllowDiskUse(Boolean allowDiskUse) {
+    public WatchCommand setAllowDiskUse(Boolean allowDiskUse) {
         this.allowDiskUse = allowDiskUse;
         return this;
     }
@@ -77,7 +77,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return maxWaitTime;
     }
 
-    public WatchSettings setMaxWaitTime(Integer maxWaitTime) {
+    public WatchCommand setMaxWaitTime(Integer maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
         return this;
     }
@@ -86,7 +86,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return bypassDocumentValidation;
     }
 
-    public WatchSettings setBypassDocumentValidation(Boolean bypassDocumentValidation) {
+    public WatchCommand setBypassDocumentValidation(Boolean bypassDocumentValidation) {
         this.bypassDocumentValidation = bypassDocumentValidation;
         return this;
     }
@@ -95,7 +95,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return readConcern;
     }
 
-    public WatchSettings setReadConcern(Map<String, Object> readConcern) {
+    public WatchCommand setReadConcern(Map<String, Object> readConcern) {
         this.readConcern = readConcern;
         return this;
     }
@@ -104,7 +104,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return collation;
     }
 
-    public WatchSettings setCollation(Map<String, Object> collation) {
+    public WatchCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -113,7 +113,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return hint;
     }
 
-    public WatchSettings setHint(Object hint) {
+    public WatchCommand setHint(Object hint) {
         this.hint = hint;
         return this;
     }
@@ -122,7 +122,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return writeConern;
     }
 
-    public WatchSettings setWriteConern(Doc writeConern) {
+    public WatchCommand setWriteConern(Doc writeConern) {
         this.writeConern = writeConern;
         return this;
     }
@@ -131,7 +131,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return let;
     }
 
-    public WatchSettings setLet(Doc let) {
+    public WatchCommand setLet(Doc let) {
         this.let = let;
         return this;
     }
@@ -140,7 +140,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return cursor;
     }
 
-    public WatchSettings setCursor(Doc cursor) {
+    public WatchCommand setCursor(Doc cursor) {
         this.cursor = cursor;
         return this;
     }
@@ -149,7 +149,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return cb;
     }
 
-    public WatchSettings setCb(DriverTailableIterationCallback cb) {
+    public WatchCommand setCb(DriverTailableIterationCallback cb) {
         this.cb = cb;
         return this;
     }
@@ -158,7 +158,7 @@ public class WatchSettings extends MongoCommand<WatchSettings> {
         return batchSize;
     }
 
-    public WatchSettings setBatchSize(Integer batchSize) {
+    public WatchCommand setBatchSize(Integer batchSize) {
         this.batchSize = batchSize;
         return this;
     }

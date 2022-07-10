@@ -3,7 +3,8 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 import java.io.IOException;
@@ -40,7 +41,7 @@ public interface MongoConnection {
 
     Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException;
 
-    void watch(WatchSettings settings) throws MorphiumDriverException;
+    void watch(WatchCommand settings) throws MorphiumDriverException;
 
     List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException;
 
@@ -53,6 +54,5 @@ public interface MongoConnection {
     List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException;
 
     int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException;
-
 
 }

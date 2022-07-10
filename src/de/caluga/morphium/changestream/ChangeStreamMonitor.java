@@ -1,10 +1,8 @@
 package de.caluga.morphium.changestream;
 
 import de.caluga.morphium.*;
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.WatchSettings;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import org.slf4j.Logger;
@@ -180,16 +178,16 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                WatchSettings watchSettings = new WatchSettings(morphium.getDriver().getConnection());
-                watchSettings.setCb(callback);
-                watchSettings.setMaxWaitTime(10000);
-                watchSettings.setFullDocument(fullDocument ? WatchSettings.FullDocumentEnum.required : WatchSettings.FullDocumentEnum.defaultValue);
-                watchSettings.setPipeline(pipeline);
+                WatchCommand watchCommand = new WatchCommand(morphium.getDriver().getConnection());
+                watchCommand.setCb(callback);
+                watchCommand.setMaxWaitTime(10000);
+                watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.required : WatchCommand.FullDocumentEnum.defaultValue);
+                watchCommand.setPipeline(pipeline);
                 if (!dbOnly) {
-                    watchSettings.setColl(collectionName);
+                    watchCommand.setColl(collectionName);
 //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 }
-                watchSettings.watch();
+                watchCommand.watch();
             } catch (Exception e) {
                 if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");

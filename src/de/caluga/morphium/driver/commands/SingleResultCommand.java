@@ -7,4 +7,6 @@ import java.util.Map;
 public interface SingleResultCommand {
     Map<String, Object> execute() throws MorphiumDriverException;
 
+    Map<String, Object> asMap();
+
 }

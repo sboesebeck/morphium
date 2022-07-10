@@ -688,20 +688,20 @@ public class Morphium implements AutoCloseable {
     public Map<String, Object> execCommandSingleResult(Map<String, Object> command) {
         Map<String, Object> ret = null;
         try {
-            ret = morphiumDriver.runCommandSingleResult(config.getDatabase(), command).getResult();
+            ret = morphiumDriver.runCommand(config.getDatabase(), command);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
         return ret;
     }
-
-    public List<Map<String, Object>> execCommand(Map<String, Object> command) {
-        try {
-            return morphiumDriver.readAnswerFor(morphiumDriver.runCommand(config.getDatabase(), command).getCursor());
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//
+//    public List<Map<String, Object>> execCommand(Map<String, Object> command) {
+//        try {
+//            return morphiumDriver.readAnswerFor(morphiumDriver.runCommand(config.getDatabase(), command));
+//        } catch (MorphiumDriverException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     /**
      * automatically convert the collection for the given type to a capped collection
@@ -3243,7 +3243,7 @@ public class Morphium implements AutoCloseable {
 
 
     public boolean exists(String db) throws MorphiumDriverException {
-        var ret = getDriver().runCommandSingleResult("admin", Doc.of("listDatabasess", 1)).getResult();
+        var ret = getDriver().runCommand("admin", Doc.of("listDatabasess", 1));
         List<Map<String, Object>> dbs = (List<Map<String, Object>>) ret.get("databases");
         for (Map<String, Object> l : dbs) {
             if (l.get("name").equals(db)) return true;
@@ -3552,12 +3552,12 @@ public class Morphium implements AutoCloseable {
 
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
-            WatchSettings settings = new WatchSettings(getDriver().getConnection())
+            WatchCommand settings = new WatchCommand(getDriver().getConnection())
                     .setDb(config.getDatabase())
                     .setColl(collectionName)
                     .setMaxWaitTime(maxWaitTime)
                     .setPipeline(pipeline)
-                    .setFullDocument(updateFull ? WatchSettings.FullDocumentEnum.updateLookup : WatchSettings.FullDocumentEnum.defaultValue)
+                    .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setCb(new DriverTailableIterationCallback() {
                         boolean b = true;
 
@@ -3620,10 +3620,10 @@ public class Morphium implements AutoCloseable {
     public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
 
-            WatchSettings settings = new WatchSettings(getDriver().getConnection())
+            WatchCommand settings = new WatchCommand(getDriver().getConnection())
                     .setDb(dbName)
                     .setMaxWaitTime(maxWaitTime)
-                    .setFullDocument(updateFull ? WatchSettings.FullDocumentEnum.updateLookup : WatchSettings.FullDocumentEnum.defaultValue)
+                    .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setPipeline(pipeline)
                     .setCb(new DriverTailableIterationCallback() {
                         private boolean b = true;
