@@ -178,12 +178,12 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
     public Map<String, Object> execute() throws MorphiumDriverException {
         MongoConnection connection = getConnection();
 
-        setMetaData(Doc.of("server", connection.getConnectedTo()));
+        setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
         var msg = connection.sendCommand(asMap());
         var crs = connection.getAnswerFor(msg);
         long dur = System.currentTimeMillis() - start;
-        getMetaData().put("duration", dur);
+        setMetaData("duration", dur);
         return crs.next();
     }
 

@@ -37,7 +37,7 @@ public class MorphiumInMemTestBase {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
         cfg.setHostSeed("inMem");
         cfg.setDatabase("test");
-        cfg.setDriverClass(InMemoryDriver.class.getName());
+        cfg.setDriverName(InMemoryDriver.driverName);
         cfg.setReplicasetMonitoring(false);
         cfg.setAggregatorFactory(new InMemAggregatorFactory());
         cfg.setAggregatorClass(InMemAggregator.class);

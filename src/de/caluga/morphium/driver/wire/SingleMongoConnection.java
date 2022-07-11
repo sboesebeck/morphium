@@ -1,12 +1,9 @@
 package de.caluga.morphium.driver.wire;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
-import de.caluga.morphium.driver.commands.result.CursorResult;
-import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.slf4j.Logger;
@@ -42,6 +39,7 @@ public class SingleMongoConnection implements MongoConnection {
     private boolean connected;
     private MorphiumDriver driver;
 
+
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
         driver = drv;
@@ -72,6 +70,11 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public MorphiumDriver getDriver() {
         return driver;
+    }
+
+    public SingleMongoConnection setDriver(MorphiumDriver d) {
+        driver = d;
+        return this;
     }
 
     @Override
@@ -166,7 +169,7 @@ public class SingleMongoConnection implements MongoConnection {
 
 
     @Override
-    public void disconnect() {
+    public void close() {
         running = false;
         while (readerThread.isAlive()) {
             Thread.yield();
@@ -210,7 +213,7 @@ public class SingleMongoConnection implements MongoConnection {
         return incoming.remove(msgid);
     }
 
-    @Override
+
     public void sendQuery(OpMsg q) throws MorphiumDriverException {
         if (driver.getTransactionContext() != null) {
             q.getFirstDoc().put("lsid", Doc.of("id", driver.getTransactionContext().getLsid()));
@@ -237,7 +240,7 @@ public class SingleMongoConnection implements MongoConnection {
             } catch (IOException e) {
                 log.error("Error sending request - reconnecting", e);
 
-                disconnect();
+                close();
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException ex) {
@@ -249,7 +252,6 @@ public class SingleMongoConnection implements MongoConnection {
         }
     }
 
-    @Override
     public OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         sendQuery(q);
         return getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
@@ -275,55 +277,56 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
-    public void watch(WatchCommand settings) throws MorphiumDriverException {
-        int maxWait = 0;
-        if (settings.getDb() == null) settings.setDb("1"); //watch all dbs!
-        if (settings.getColl() == null) {
+    public void watch(WatchCommand command) throws MorphiumDriverException {
+        int maxWait = command.getMaxTimeMS();
+        if (command.getDb() == null) command.setDb("1"); //watch all dbs!
+        if (command.getColl() == null) {
             //watch all collections
-            settings.setColl("1");
+            command.setColl("1");
         }
-        if (settings.getMaxWaitTime() == null || settings.getMaxWaitTime() <= 0) maxWait = driver.getReadTimeout();
+        if (command.getMaxTimeMS() == null || command.getMaxTimeMS() <= 0) maxWait = driver.getReadTimeout();
         OpMsg startMsg = new OpMsg();
-        int batchSize = settings.getBatchSize() == null ? driver.getDefaultBatchSize() : settings.getBatchSize();
+        int batchSize = command.getBatchSize() == null ? driver.getDefaultBatchSize() : command.getBatchSize();
         startMsg.setMessageId(msgId.incrementAndGet());
-        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
-        localPipeline.add(Doc.of("$changeStream", new HashMap<>()));
-        if (settings.getPipeline() != null && !settings.getPipeline().isEmpty())
-            localPipeline.addAll(settings.getPipeline());
-        Doc cmd = Doc.of("aggregate", settings.getColl()).add("pipeline", localPipeline)
-                .add("cursor", Doc.of("batchSize", batchSize))  //getDefaultBatchSize()
-                .add("$db", settings.getDb());
-        startMsg.setFirstDoc(cmd);
+//        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
+//        localPipeline.add(Doc.of("$changeStream", new HashMap<>()));
+//        if (command.getPipeline() != null && !command.getPipeline().isEmpty())
+//            localPipeline.addAll(command.getPipeline());
+//        Doc cmd = Doc.of("aggregate", command.getColl()).add("pipeline", localPipeline)
+//                .add("cursor", Doc.of("batchSize", batchSize))  //getDefaultBatchSize()
+//                .add("$db", command.getDb());
+        startMsg.setFirstDoc(command.asMap());
         long start = System.currentTimeMillis();
         sendQuery(startMsg);
 
         OpMsg msg = startMsg;
-        settings.setMetaData("server", getConnectedTo());
+        command.setMetaData("server", getConnectedTo());
         long docsProcessed = 0;
         while (true) {
-            OpMsg reply = getReplyFor(msg.getMessageId(), driver.getMaxWaitTime());
-            log.info("got answer for watch!");
+            OpMsg reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+            //log.info("got answer for watch!");
+            checkForError(reply);
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
             if (cursor == null) throw new MorphiumDriverException("Could not watch - cursor is null");
-            log.debug("CursorID:" + cursor.get("id").toString());
+            // log.debug("CursorID:" + cursor.get("id").toString());
 
             long cursorId = Long.parseLong(cursor.get("id").toString());
-            settings.setMetaData("cursor", cursorId);
+            command.setMetaData("cursor", cursorId);
             List<Map<String, Object>> result = (List<Map<String, Object>>) cursor.get("firstBatch");
             if (result == null) {
                 result = (List<Map<String, Object>>) cursor.get("nextBatch");
             }
-            if (result != null) {
+            if (result != null && !result.isEmpty()) {
                 for (Map<String, Object> o : result) {
-                    settings.getCb().incomingData(o, System.currentTimeMillis() - start);
+                    command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
             } else {
                 log.info("No/empty result");
             }
-            if (!settings.getCb().isContinued()) {
-                killCursors(settings.getDb(), settings.getColl(), cursorId);
-                settings.setMetaData("duration", System.currentTimeMillis() - start);
+            if (!command.getCb().isContinued()) {
+                killCursors(command.getDb(), command.getColl(), cursorId);
+                command.setMetaData("duration", System.currentTimeMillis() - start);
                 break;
             }
             if (cursorId != 0) {
@@ -332,11 +335,11 @@ public class SingleMongoConnection implements MongoConnection {
 
                 Doc doc = new Doc();
                 doc.put("getMore", cursorId);
-                doc.put("collection", settings.getColl());
+                doc.put("collection", command.getColl());
 
                 doc.put("batchSize", batchSize);
                 doc.put("maxTimeMS", maxWait);
-                doc.put("$db", settings.getDb());
+                doc.put("$db", command.getDb());
                 msg.setFirstDoc(doc);
                 sendQuery(msg);
                 //log.debug("sent getmore....");
@@ -352,7 +355,8 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
-        return readBatches(queryId, driver.getDefaultBatchSize());
+        return readAnswerFor(getAnswerFor(queryId));
+        //return readBatches(queryId, driver.getDefaultBatchSize());
     }
 
     @Override
@@ -399,106 +403,5 @@ public class SingleMongoConnection implements MongoConnection {
         return ret;
     }
 
-    @Override
-    public List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException {
-        List<Map<String, Object>> ret = new ArrayList<>();
-
-        Map<String, Object> doc;
-        String db = null;
-        String coll = null;
-        while (true) {
-            OpMsg reply = getReplyFor(waitingfor, driver.getMaxWaitTime());
-            if (reply.getResponseTo() != waitingfor) {
-                log.error("Wrong answer - waiting for " + waitingfor + " but got " + reply.getResponseTo());
-                log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
-                continue;
-            }
-
-            //                    replies.remove(i);
-            @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-            if (cursor == null) {
-                //trying result
-                if (reply.getFirstDoc().get("result") != null) {
-                    //noinspection unchecked
-                    return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
-                }
-                if (reply.getFirstDoc().containsKey("results")) {
-                    return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
-                }
-                throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
-            }
-            if (db == null) {
-                //getting ns
-                String[] namespace = cursor.get("ns").toString().split("\\.");
-                db = namespace[0];
-                if (namespace.length > 1)
-                    coll = namespace[1];
-            }
-            if (cursor.get("firstBatch") != null) {
-                //noinspection unchecked
-                ret.addAll((List) cursor.get("firstBatch"));
-            } else if (cursor.get("nextBatch") != null) {
-                //noinspection unchecked
-                ret.addAll((List) cursor.get("nextBatch"));
-            }
-            if (((Long) cursor.get("id")) != 0) {
-                //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                //there is more! Sending getMore!
-
-                //there is more! Sending getMore!
-                OpMsg q = new OpMsg();
-                q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
-                        .add("$db", db)
-                        .add("batchSize", batchSize)
-                );
-                if (coll != null) q.getFirstDoc().put("collection", coll);
-                q.setMessageId(msgId.incrementAndGet());
-                waitingfor = q.getMessageId();
-                sendQuery(q);
-            } else {
-                break;
-            }
-
-        }
-        return ret;
-    }
-
-
-    public SingleElementResult runCommandSingleResult(Map<String, Object> cmd) throws MorphiumDriverException {
-
-        return new NetworkCallHelper<SingleElementResult>().doCall(() -> {
-            long start = System.currentTimeMillis();
-            int id = sendCommand(cmd);
-
-            OpMsg rep = null;
-            rep = getReplyFor(id, driver.getMaxWaitTime());
-            if (rep == null || rep.getFirstDoc() == null) {
-                return null;
-            }
-            if (rep.getFirstDoc().containsKey("cursor")) {
-                //should actually not happen!
-                log.warn("Expecting single result, got Cursor instead!");
-
-                Map cursor = (Map) rep.getFirstDoc().get("cursor");
-                String ns = (String) cursor.get("ns");
-                String[] sp = ns.split("\\.");
-                String db = sp[0];
-                String col = sp[1];
-                Map<String, Object> ret = null;
-                if (cursor.containsKey("firstBatch")) {
-                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
-                } else if (cursor.containsKey("nextBatch")) {
-                    ret = ((List<Map<String, Object>>) cursor.get("firstBatch")).get(0);
-                }
-                killCursors(db, col, (Long) cursor.get("id"));
-                SingleElementResult result = new SingleElementResult().setResult(ret)
-                        .setServer(getConnectedTo()).setDuration(System.currentTimeMillis() - start);
-                return ret;
-            } else {
-                return rep.getFirstDoc();
-            }
-        }, driver.getRetriesOnNetworkError(), driver.getSleepBetweenErrorRetries());
-
-    }
 
 }

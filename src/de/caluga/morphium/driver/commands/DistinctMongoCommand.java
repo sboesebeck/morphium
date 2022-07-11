@@ -66,12 +66,12 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
         return new NetworkCallHelper<List<Object>>().doCall(() -> {
-            setMetaData(Doc.of("server", connection.getConnectedTo()));
+            setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
             var msg = connection.sendCommand(asMap());
             var res = connection.readSingleAnswer(msg);
             long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
+            setMetaData("duration", dur);
             return (List<Object>) res.get("values");
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }

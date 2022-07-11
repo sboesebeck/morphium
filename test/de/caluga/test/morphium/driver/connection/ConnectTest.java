@@ -1,4 +1,4 @@
-package de.caluga.test.morphium.driver.bson;
+package de.caluga.test.morphium.driver.connection;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -179,7 +179,7 @@ public class ConnectTest extends BaseTest {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.setHostSeed("localhost:27017");
         cfg.setReplicasetMonitoring(false);
-        cfg.setDriverClass(SingleMongoConnectDriver.class.getName());
+        cfg.setDriverName(SingleMongoConnectDriver.driverName);
         cfg.setDatabase("morphium_test");
         Morphium m = new Morphium(cfg);
 

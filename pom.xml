@@ -269,6 +269,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.colofabrix.scala</groupId>
+            <artifactId>figlet4s-java</artifactId>
+            <version>[0.3.1,)</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>cglib</groupId>
             <artifactId>cglib</artifactId>
             <version>3.3.0</version>

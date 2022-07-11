@@ -8,7 +8,6 @@ import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
@@ -45,6 +44,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
     });
     private ScheduledFuture<?> heartbeat;
+    public final static String driverName = "SingleMongoConnectDriver";
 
     public ConnectionType getConnectionType() {
         return connectionType;
@@ -105,7 +105,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
                 if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
                     log.info("want primary connection, got secondary, retrying");
-                    disconnect();
+                    close();
                     Thread.sleep(1000);//slowing down
                     if (hello.getPrimary() != null) {
                         //checking for primary
@@ -120,7 +120,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     continue;
                 } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
                     log.info("want secondary connection, got other - retrying");
-                    disconnect();
+                    close();
                     Thread.sleep(1000);//Slowing down
                     connectToIdx++;
                     if (connectToIdx >= getHostSeed().size()) {
@@ -146,7 +146,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             log.info("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(() -> {
 
-                log.info("checking connection");
+                //log.info("checking connection");
                 try {
                     HelloCommand cmd = new HelloCommand(getConnection())
                             .setHelloOk(true)
@@ -154,13 +154,13 @@ public class SingleMongoConnectDriver extends DriverBase {
                     var hello = cmd.execute();
                     if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
                         log.info("wanted primary connection, changed to secondary, retrying");
-                        disconnect();
+                        close();
                         Thread.sleep(1000);
                         connect(getReplicaSetName());
 
                     } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
                         log.info("state changed, wanted secondary, got something differnt now -reconnecting");
-                        disconnect();
+                        close();
                         Thread.sleep(1000);//Slowing down
                         connect(getReplicaSetName());
 
@@ -209,7 +209,8 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public String getName() {
-        return "SingleMongoConnectDriver";
+
+        return driverName;
     }
 
 
@@ -224,10 +225,8 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     @Override
-    public void disconnect() {
-
-        connection.disconnect();
-
+    public void close() {
+        connection.close();
     }
 
     @Override

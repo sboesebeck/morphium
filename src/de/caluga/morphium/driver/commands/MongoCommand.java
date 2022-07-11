@@ -185,7 +185,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
             //long start = System.currentTimeMillis();
             var result = getConnection().sendCommand(asMap());
             // long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", 0); //not waiting!
+            setMetaData("duration", 0); //not waiting!
             setMetaData("server", connection.getConnectedTo() + ":" + connection.getConnectedToPort());
             return result;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());

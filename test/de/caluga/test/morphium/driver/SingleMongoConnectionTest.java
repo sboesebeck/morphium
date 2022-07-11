@@ -62,7 +62,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         for (var c : con.getHostSeed()) {
             log.info("---> " + c);
         }
-        con.disconnect();
+        con.close();
 
 
     }
@@ -105,7 +105,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         res = fnd.execute();
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(9999);
-        con.disconnect();
+        con.close();
     }
 
 
@@ -146,7 +146,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         res = fnd.execute();
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(9999);
-        con.disconnect();
+        con.close();
     }
 
 
@@ -182,13 +182,13 @@ public class SingleMongoConnectionTest extends DriverTestBase {
                             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     log.info("stored data after " + (System.currentTimeMillis() - start) + "ms");
-                    con.disconnect();
+                    con.close();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             }
         }.start();
-        con.watch(new WatchCommand(con.getConnection()).setMaxWaitTime(10000).setCb(new DriverTailableIterationCallback() {
+        con.watch(new WatchCommand(con.getConnection()).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
             @Override
@@ -202,11 +202,11 @@ public class SingleMongoConnectionTest extends DriverTestBase {
             public boolean isContinued() {
                 return counter < 2;
             }
-        }).setBatchSize(1).setColl(coll).setDb(db).setMaxWaitTime(1000));
+        }).setBatchSize(1).setColl(coll).setDb(db).setMaxTimeMS(1000));
 
-        log.info("Watch endet");
+        log.info("Watch ended");
 
-        con.disconnect();
+        con.close();
     }
 
 
@@ -242,7 +242,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         assertThat(res.get(0).containsKey("_id")).isTrue();
         assertThat(res.get(0).containsKey("value"));
         assertThat(((List) res.get(14).get("value")).get(0)).isEqualTo(1.0);
-        con.disconnect();
+        con.close();
     }
 
 
@@ -265,7 +265,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
-        con.disconnect();
+        con.close();
     }
 
 
@@ -302,7 +302,7 @@ public class SingleMongoConnectionTest extends DriverTestBase {
         assertThat(lst.size()).isEqualTo(1000);
         assertThat(lst.get(0).get("_id")).isNotNull();
 
-        con.disconnect();
+        con.close();
     }
 
     @Test

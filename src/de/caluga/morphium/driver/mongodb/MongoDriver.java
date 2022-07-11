@@ -42,6 +42,8 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"WeakerAccess", "deprecation", "MagicConstant", "BusyWait", "CommentedOutCode"})
 public class MongoDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(MongoDriver.class);
+
+    public final static String driverName = "MongoDBDriver";
     private List<String> hostSeed;
 
     private int maxConnections = 100;
@@ -336,7 +338,7 @@ public class MongoDriver implements MorphiumDriver {
 
 
     public String getName() {
-        return null;
+        return driverName;
     }
 
     @Override
@@ -924,10 +926,6 @@ public class MongoDriver implements MorphiumDriver {
     }
 
 
-    public void disconnect() {
-
-    }
-
 
     public int getDefaultWriteTimeout() {
         return writeTimeout;
@@ -938,9 +936,10 @@ public class MongoDriver implements MorphiumDriver {
         writeTimeout = wt;
     }
 
+    @Override
     @SuppressWarnings("RedundantThrows")
 
-    public void close() throws MorphiumDriverException {
+    public void close() {
         try {
             if (currentTransaction.get() != null) {
                 log.warn("Closing while transaction in progress - aborting!");

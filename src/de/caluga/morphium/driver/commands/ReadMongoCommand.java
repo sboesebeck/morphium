@@ -40,20 +40,20 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         //noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
             List<Map<String, Object>> ret = new ArrayList<>();
-            setMetaData(Doc.of("server", connection.getConnectedTo()));
+            setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
             var msg = connection.sendCommand(asMap());
             MorphiumCursor crs = connection.getAnswerFor(msg);
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
-                if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals(Double.valueOf(0))) {
+                if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals((double) 0)) {
                     throw new MorphiumDriverException("Error: " + batch.get(0).get("code") + ": " + batch.get(0).get("errmsg"));
                 }
                 ret.addAll(batch);
                 crs.ahead(batch.size());
             }
             long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", dur);
+            setMetaData("duration", dur);
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
@@ -64,12 +64,12 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
         List<Map<String, Object>> ret = new ArrayList<>();
-        setMetaData(Doc.of("server", connection.getConnectedTo()));
+        setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
         int msg = connection.sendCommand(asMap());
         MorphiumCursor crs = connection.getAnswerFor(msg);
         long dur = System.currentTimeMillis() - start;
-        getMetaData().put("duration", dur);
+        setMetaData("duration", dur);
         return crs;
     }
 

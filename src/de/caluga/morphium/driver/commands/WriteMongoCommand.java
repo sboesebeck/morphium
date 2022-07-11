@@ -40,12 +40,12 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", con.getConnectedTo() + ":" + con.getConnectedToPort()));
+        setMetaData("server", con.getConnectedTo());
         long start = System.currentTimeMillis();
         int msg = con.sendCommand(asMap());
         var crs = con.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
-        getMetaData().put("duration", dur);
+        setMetaData("duration", dur);
         return crs;
     }
 }

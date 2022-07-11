@@ -26,14 +26,14 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         MongoConnection connection = getConnection();
         //noinspection unchecked
 
-        setMetaData(Doc.of("server", connection.getConnectedTo()));
+        setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
         var m = asMap();
         m.put("$db", "admin");
         var msg = connection.sendCommand(m);
         var crs = connection.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
-        getMetaData().put("duration", dur);
+        setMetaData("duration", dur);
         return crs;
     }
 
@@ -43,14 +43,14 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
         return new NetworkCallHelper<Integer>().doCall(() -> {
-            setMetaData(Doc.of("server", connection.getConnectedTo()));
+            setMetaData("server", connection.getConnectedTo());
             //long start = System.currentTimeMillis();
             var m = asMap();
             m.put("$db", "admin");
             var id = connection.sendCommand(m);
 
             // long dur = System.currentTimeMillis() - start;
-            getMetaData().put("duration", 0); //not waiting!
+            setMetaData("duration", 0); //not waiting!
             return id;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }

@@ -83,7 +83,8 @@ public abstract class DriverBase implements MorphiumDriver {
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
         ListCollectionsCommand cmd = new ListCollectionsCommand(getConnection());
         cmd.setDb(db).setNameOnly(true);
-        cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
+        if (regex != null)
+            cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
         var lst = cmd.execute();
         List<String> colNames = new ArrayList<>();
 
@@ -577,8 +578,6 @@ public abstract class DriverBase implements MorphiumDriver {
 //    public abstract OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException;
 
 //    protected abstract OpMsg getReply(int waitingFor, int timeout) throws MorphiumDriverException;
-
-
 
 
 //

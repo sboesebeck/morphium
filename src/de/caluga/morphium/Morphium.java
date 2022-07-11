@@ -18,6 +18,7 @@ import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.MongoField;
@@ -43,6 +44,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
@@ -212,7 +214,53 @@ public class Morphium implements AutoCloseable {
 
 
             try {
-                morphiumDriver = (MorphiumDriver) Class.forName(config.getDriverClass()).getDeclaredConstructor().newInstance();
+                try (ScanResult scanResult =
+                             new ClassGraph()
+                                     .enableAllInfo()       // Scan classes, methods, fields, annotations
+                                     .scan()) {
+                    ClassInfoList entities =
+                            scanResult.getClassesImplementing(MorphiumDriver.class.getName());
+                    //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
+                    logger.info("Found " + entities.size() + " drivers in classpath");
+                    if (config.getDriverName() == null) {
+                        config.setDriverName(SingleMongoConnectDriver.driverName);
+                        morphiumDriver = new SingleMongoConnectDriver();
+                    } else {
+                        for (String cn : entities.getNames()) {
+                            try {
+                                Class c = Class.forName(cn);
+                                if (Modifier.isAbstract(c.getModifiers())) continue;
+                                var flds = annotationHelper.getAllFields(c);
+                                for (var f : flds) {
+                                    if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
+                                        String dn = (String) f.get(c);
+                                        logger.info("Found driverName: " + dn);
+                                        if (dn.equals(config.getDriverName())) {
+                                            morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+
+                                        }
+                                        break;
+                                    }
+                                }
+                                if (morphiumDriver == null) {
+                                    var drv = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                    if (drv.getName().equals(config.getDriverName())) {
+                                        morphiumDriver = drv;
+                                        break;
+                                    }
+                                }
+                            } catch (ClassNotFoundException e) {
+                                throw new RuntimeException("Could not load driver " + config.getDriverName());
+                            }
+                        }
+                    }
+                    if (morphiumDriver == null) {
+                        morphiumDriver = new SingleMongoConnectDriver(); //default
+                    }
+
+                }
+
+
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -3317,7 +3365,7 @@ public class Morphium implements AutoCloseable {
         }
         if (morphiumDriver != null) {
             try {
-                morphiumDriver.disconnect();
+                morphiumDriver.close();
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -3555,7 +3603,7 @@ public class Morphium implements AutoCloseable {
             WatchCommand settings = new WatchCommand(getDriver().getConnection())
                     .setDb(config.getDatabase())
                     .setColl(collectionName)
-                    .setMaxWaitTime(maxWaitTime)
+                    .setMaxTimeMS(maxWaitTime)
                     .setPipeline(pipeline)
                     .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setCb(new DriverTailableIterationCallback() {
@@ -3622,7 +3670,7 @@ public class Morphium implements AutoCloseable {
 
             WatchCommand settings = new WatchCommand(getDriver().getConnection())
                     .setDb(dbName)
-                    .setMaxWaitTime(maxWaitTime)
+                    .setMaxTimeMS(maxWaitTime)
                     .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setPipeline(pipeline)
                     .setCb(new DriverTailableIterationCallback() {
@@ -3630,7 +3678,8 @@ public class Morphium implements AutoCloseable {
 
                         @Override
                         public void incomingData(Map<String, Object> data, long dur) {
-
+                            ChangeStreamEvent evt = new ChangeStreamEvent();
+                            b = lst.incomingData(evt);
                         }
 
                         @Override
