@@ -123,7 +123,7 @@ public class MorphiumConfig {
     @Transient
     private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
 
-    private String driverClass;
+    private String driverName;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
@@ -332,15 +332,12 @@ public class MorphiumConfig {
         this.encryptionKeyProviderClass = encryptionKeyProviderClass;
     }
 
-    public String getDriverClass() {
-        if (driverClass == null) {
-            driverClass = MongoDriver.class.getName();
-        }
-        return driverClass;
+    public String getDriverName() {
+        return driverName;
     }
 
-    public MorphiumConfig setDriverClass(String driverClass) {
-        this.driverClass = driverClass;
+    public MorphiumConfig setDriverName(String driverName) {
+        this.driverName = driverName;
         return this;
     }
 

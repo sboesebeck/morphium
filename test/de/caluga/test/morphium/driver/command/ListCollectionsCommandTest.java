@@ -40,6 +40,6 @@ public class ListCollectionsCommandTest extends DriverTestBase {
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(3);
 
-        con.disconnect();
+        con.close();
     }
 }

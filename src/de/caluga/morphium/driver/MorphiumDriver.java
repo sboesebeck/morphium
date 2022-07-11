@@ -4,16 +4,15 @@ package de.caluga.morphium.driver;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.MultiResultCommand;
 import de.caluga.morphium.driver.commands.SingleResultCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
+import java.io.Closeable;
 import java.net.MalformedURLException;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +24,7 @@ import java.util.Map;
  * limited to be mongodb drivers. There is also an InMemory implementation.
  **/
 @SuppressWarnings({"BooleanMethodIsAlwaysInverted", "RedundantThrows", "UnusedReturnValue"})
-public interface MorphiumDriver {
+public interface MorphiumDriver extends Closeable {
 
     //     _______. _______ .___________.___________. __  .__   __.   _______      _______.
     //    /       ||   ____||           |           ||  | |  \ |  |  /  _____|    /       |
@@ -78,8 +77,6 @@ public interface MorphiumDriver {
     void connect(String replicaSetName) throws MorphiumDriverException;
 
     boolean isConnected();
-
-    void disconnect();
 
     boolean isReplicaset();
 

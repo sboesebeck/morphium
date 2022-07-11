@@ -12,6 +12,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.OplogMonitor;
+import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.slf4j.Logger;
@@ -176,10 +177,8 @@ public class MorphiumTestBase {
             log.info("Morphium instanciated");
         }
         int num = number.incrementAndGet();
-        log.info("------------------------------------------------");
-        log.info("----------------------------------------");
-        log.info("-----------------------------");
-        log.info("------ > TestNumber: " + num);
+        OutputHelper.figletOutput(log, "-------------");
+        OutputHelper.figletOutput(log, "--> Test#: " + num);
 
         try {
             if (!morphium.getConfig().isAtlas()) {

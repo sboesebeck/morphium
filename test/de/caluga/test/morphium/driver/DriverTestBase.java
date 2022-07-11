@@ -31,7 +31,7 @@ public class DriverTestBase {
             con.connect();
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con.getConnection());
             cmd.setDb(db).execute();
-            con.disconnect();
+            con.close();
             log.info("done");
         } catch (MorphiumDriverException e) {
             log.error("Error during preparation", e);

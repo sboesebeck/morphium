@@ -61,6 +61,6 @@ public class DriverIndexTest extends DriverTestBase {
         assertThat(lst.size()).isEqualTo(4);
 
 
-        con.disconnect();
+        con.close();
     }
 }

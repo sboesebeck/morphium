@@ -7,16 +7,17 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public interface MongoConnection {
+public interface MongoConnection extends Closeable {
     HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException;
 
     MorphiumDriver getDriver();
 
-    void disconnect();
+    void close();
 
     boolean isConnected();
 
@@ -35,9 +36,9 @@ public interface MongoConnection {
 
     OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException;
 
-    void sendQuery(OpMsg q) throws MorphiumDriverException;
+//    void sendQuery(OpMsg q) throws MorphiumDriverException;
 
-    OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException;
+//    OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException;
 
     Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException;
 
@@ -51,7 +52,7 @@ public interface MongoConnection {
 
 //    Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException;
 
-    List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException;
+//    List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException;
 
     int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException;
 

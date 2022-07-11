@@ -40,6 +40,7 @@ import java.util.zip.GZIPOutputStream;
 @SuppressWarnings({"WeakerAccess", "EmptyMethod", "BusyWait"})
 public class InMemoryDriver implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
+    public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
 
@@ -226,7 +227,7 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public String getName() {
-        return null;
+        return driverName;
     }
 
     @Override
@@ -438,7 +439,7 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
-    public void disconnect() {
+    public void close() {
         exec.shutdownNow();
         for (Object m : monitors) {
             synchronized (m) {

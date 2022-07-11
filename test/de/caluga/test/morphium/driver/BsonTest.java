@@ -1,4 +1,4 @@
-package de.caluga.test.morphium.driver.bson;/**
+package de.caluga.test.morphium.driver;/**
  * Created by stephan on 28.10.15.
  */
 
@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.test.morphium.driver.connection.BaseTest;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

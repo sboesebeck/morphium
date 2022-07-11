@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
@@ -16,6 +18,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class ChangeStreamTest extends MorphiumTestBase {
     long start;
     long count;
@@ -28,23 +32,29 @@ public class ChangeStreamTest extends MorphiumTestBase {
         count = 0;
         final boolean[] run = {true};
         morphium.watchDbAsync(true, evt -> {
+            log.info("Incoming event!");
             printevent(evt);
             count++;
             return run[0];
         });
-        morphium.store(new UncachedObject("test", 123));
+        Thread.sleep(100);
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        Morphium morphium2 = new Morphium(cfg);
+        morphium2.store(new UncachedObject("test", 123));
         ComplexObject o = new ComplexObject();
         o.setEinText("Text");
-        morphium.store(o);
+        morphium2.store(o);
 
         log.info("waiting for some time!");
-        Thread.sleep(1500);
+        Thread.sleep(15000);
         run[0] = false;
-        assert (count >= 2 && count <= 3) : "Count = " + count;
+        assertThat(count).isGreaterThanOrEqualTo(2).isLessThanOrEqualTo(3);
         long cnt = count;
-        morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
+        morphium2.set(morphium2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
         Thread.sleep(550);
         assert (cnt + 1 == count) : "Count wrong " + cnt + "!=" + count + "+1";
+        morphium2.close();
+        log.info("Finished!");
     }
 
     @Test

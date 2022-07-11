@@ -1,18 +1,23 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.*;
+import de.caluga.morphium.annotations.Transient;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class WatchCommand extends MongoCommand<WatchCommand> {
+    @Transient
     private DriverTailableIterationCallback cb;
     private Integer batchSize;
     private List<Map<String, Object>> pipeline;
     private Boolean explain;
     private Boolean allowDiskUse;
-    private Integer maxWaitTime;
+    private Integer maxTimeMS;
     private Boolean bypassDocumentValidation;
     private Map<String, Object> readConcern;
     private Map<String, Object> collation;
@@ -22,11 +27,20 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     private Doc cursor;
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
+    private Boolean showExpandedEvents;
 
     public WatchCommand(MongoConnection d) {
         super(d);
     }
 
+    public Boolean getShowExpandedEvents() {
+        return showExpandedEvents;
+    }
+
+    public WatchCommand setShowExpandedEvents(Boolean showExpandedEvents) {
+        this.showExpandedEvents = showExpandedEvents;
+        return this;
+    }
 
     public FullDocumentBeforeChangeEnum getFullDocumentBeforeChange() {
         return fullDocumentBeforeChange;
@@ -73,12 +87,12 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         return this;
     }
 
-    public Integer getMaxWaitTime() {
-        return maxWaitTime;
+    public Integer getMaxTimeMS() {
+        return maxTimeMS;
     }
 
-    public WatchCommand setMaxWaitTime(Integer maxWaitTime) {
-        this.maxWaitTime = maxWaitTime;
+    public WatchCommand setMaxTimeMS(Integer maxTimeMS) {
+        this.maxTimeMS = maxTimeMS;
         return this;
     }
 
@@ -184,7 +198,7 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
 
     @Override
     public String getCommandName() {
-        return null;
+        return "aggregate";
     }
 
     @Override
@@ -195,5 +209,39 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
 
     public void watch() throws MorphiumDriverException {
         getConnection().watch(this);
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        var m = super.asMap();
+        m.remove("cb");
+        ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
+        Doc changeStream = Doc.of();
+        localPipeline.add(Doc.of("$changeStream", changeStream));
+        if (getPipeline() != null && !getPipeline().isEmpty())
+            localPipeline.addAll(getPipeline());
+        Doc cmd = Doc.of("aggregate", getColl()).add("pipeline", localPipeline);
+        if (fullDocument != null) {
+            m.remove("fullDocument");
+            changeStream.put("fullDocument", fullDocument.n);
+        }
+        if (fullDocumentBeforeChange != null) {
+            m.remove("fullDocumentBeforeChange");
+            changeStream.add("fullDocumentBeforeChange", fullDocumentBeforeChange.name());
+        }
+        if (showExpandedEvents != null) {
+            m.remove("showExpandedEvents");
+            changeStream.put("showExpandedEvents", showExpandedEvents);
+        }
+
+        if (cursor == null) {
+            cmd.add("cursor", Doc.of("batchSize", batchSize == null ? getConnection().getDriver().getDefaultBatchSize() : batchSize));
+        } //getDefaultBatchSize()
+
+        m.remove("batchSize");
+
+
+        m.putAll(cmd);
+        return m;
     }
 }
