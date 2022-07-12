@@ -2,7 +2,9 @@ package de.caluga.morphium.changestream;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import org.slf4j.Logger;
@@ -30,6 +32,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
     private final List<Map<String, Object>> pipeline;
+    private SingleMongoConnection dedicatedConnection;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -60,6 +63,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object>> pipeline) {
         morphium = m;
+        //dedicated connection
+        dedicatedConnection = new SingleMongoConnection();
+        try {
+            dedicatedConnection.connect(m.getDriver(),m.getDriver().getConnection().getConnectedToHost(),m.getDriver().getConnection().getConnectedToPort());
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
         listeners = new ConcurrentLinkedDeque<>();
         morphium.addShutdownListener(this);
         this.pipeline = pipeline;
@@ -178,8 +188,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                WatchCommand watchCommand = new WatchCommand(morphium.getDriver().getConnection());
+                WatchCommand watchCommand = new WatchCommand(dedicatedConnection);
                 watchCommand.setCb(callback);
+                watchCommand.setDb(morphium.getDatabase());
                 watchCommand.setMaxTimeMS(10000);
                 watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.required : WatchCommand.FullDocumentEnum.defaultValue);
                 watchCommand.setPipeline(pipeline);

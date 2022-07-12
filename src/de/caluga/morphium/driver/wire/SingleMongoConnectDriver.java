@@ -136,6 +136,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                 break;
             } catch (Exception e) {
                 log.error("connection failed", e);
+                connectToIdx++;
+                if (connectToIdx>getHostSeed().size()){
+                    connectToIdx=0;
+                }
             }
         }
     }
@@ -166,8 +170,9 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                     }
                 } catch (MorphiumDriverException e) {
-                    log.error("Error in heartbeat", e);
                 } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch(Exception e){
                     e.printStackTrace();
                 }
 
@@ -284,7 +289,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
 
-    enum ConnectionType {
+    public enum ConnectionType {
         PRIMARY, SECONDARY, ANY,
     }
 

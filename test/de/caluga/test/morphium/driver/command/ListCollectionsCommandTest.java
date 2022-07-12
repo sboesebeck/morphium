@@ -2,7 +2,8 @@ package de.caluga.test.morphium.driver.command;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import de.caluga.test.morphium.driver.DriverTestBase;
+import de.caluga.test.morphium.driver.ConnectionTestBase;
+import de.caluga.test.morphium.driver.SingleConnectDriverTests;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,14 +12,13 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ListCollectionsCommandTest extends DriverTestBase {
+public class ListCollectionsCommandTest extends SingleConnectDriverTests {
     private Logger log = LoggerFactory.getLogger(ListCollectionsCommandTest.class);
 
 
     @Test
     public void testListCollections() throws Exception {
-        var con = getConnection();
-        con.connect();
+        var con = getDriver();
 
         new InsertMongoCommand(con.getConnection())
                 .setDb(db)

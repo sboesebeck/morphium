@@ -220,7 +220,9 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         localPipeline.add(Doc.of("$changeStream", changeStream));
         if (getPipeline() != null && !getPipeline().isEmpty())
             localPipeline.addAll(getPipeline());
-        Doc cmd = Doc.of("aggregate", getColl()).add("pipeline", localPipeline);
+
+        Doc cmd = Doc.of("aggregate", getColl()==null?(int)1:getColl()).add("pipeline", localPipeline);
+
         if (fullDocument != null) {
             m.remove("fullDocument");
             changeStream.put("fullDocument", fullDocument.n);

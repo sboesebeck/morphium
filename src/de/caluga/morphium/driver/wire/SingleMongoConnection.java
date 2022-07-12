@@ -31,7 +31,6 @@ public class SingleMongoConnection implements MongoConnection {
     private Thread readerThread = null;
     private Map<Integer, OpMsg> incoming = new HashMap<>();
     private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
-    private int heartbeatPause = 1000;
     private boolean running = true;
 
     private String connectedTo;
@@ -131,6 +130,11 @@ public class SingleMongoConnection implements MongoConnection {
         readerThread = new Thread(() -> {
             while (running) {
                 try {
+                    if (!s.isConnected() || s.isClosed()){
+                        log.error("Connection died!");
+                        close();
+                        return;
+                    }
                     //reading in data
                     if (in.available() > 0) {
                         OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
@@ -141,22 +145,23 @@ public class SingleMongoConnection implements MongoConnection {
                         synchronized (incoming) {
                             incoming.notifyAll();
                         }
-                        var s = new HashSet(incomingTimes.keySet());
-                        for (var k : s) {
-                            synchronized (incomingTimes) {
-                                if (incomingTimes.get(k) == null) continue;
-                                if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
-                                    log.warn("Discarding unused answer " + k);
-                                    incoming.remove(k);
-                                    incomingTimes.remove(k);
-                                }
+
+                    }
+                    var s = new HashSet(incomingTimes.keySet());
+                    for (var k : s) {
+                        synchronized (incomingTimes) {
+                            if (incomingTimes.get(k) == null) continue;
+                            if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
+                                log.warn("Discarding unused answer " + k);
+                                incoming.remove(k);
+                                incomingTimes.remove(k);
                             }
                         }
                     }
-
                 } catch (Exception e) {
                     log.error("Reader-Thread error", e);
                 }
+
                 Thread.yield();
             }
 //                log.info("Reader Thread terminated");
@@ -171,14 +176,20 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public void close() {
         running = false;
+        synchronized (incoming) {
+            incoming.notifyAll();
+        }
         while (readerThread.isAlive()) {
             Thread.yield();
         }
         connected = false;
         try {
-            in.close();
-            out.close();
-            s.close();
+            if (in!=null)
+                in.close();
+            if (out!=null)
+                out.close();
+            if (s!=null)
+                s.close();
         } catch (IOException e) {
             //swallow
         }
@@ -226,29 +237,27 @@ public class SingleMongoConnection implements MongoConnection {
             q.getFirstDoc().remove("writeConcern");
         }
 
-        boolean retry = true;
-        long start = System.currentTimeMillis();
-        while (retry) {
-            try {
-                if (System.currentTimeMillis() - start > driver.getMaxWaitTime()) {
-                    throw new MorphiumDriverException("Could not send message! Timeout!");
-                }
-                //q.setFlags(4); //slave ok
-                out.write(q.bytes());
-                out.flush();
-                retry = false;
-            } catch (IOException e) {
-                log.error("Error sending request - reconnecting", e);
-
-                close();
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ex) {
-                    //swallow
-                }
-                connect(driver, connectedTo, connectedToPort);
-
+        try {
+            //q.setFlags(4); //slave ok
+            if (out==null){
+                close(); //should be already
+                throw new MorphiumDriverException("closed");
             }
+            out.write(q.bytes());
+            out.flush();
+        } catch (Exception e) {
+//                log.error("Error sending request", e);
+
+            close();
+//                try {
+//                    Thread.sleep(1000);
+//                } catch (InterruptedException ex) {
+//                    //swallow
+//                }
+//                connect(driver, connectedTo, connectedToPort);
+            throw (new MorphiumDriverException("Error sending Request: ", e));
+
+
         }
     }
 
@@ -280,10 +289,7 @@ public class SingleMongoConnection implements MongoConnection {
     public void watch(WatchCommand command) throws MorphiumDriverException {
         int maxWait = command.getMaxTimeMS();
         if (command.getDb() == null) command.setDb("1"); //watch all dbs!
-        if (command.getColl() == null) {
-            //watch all collections
-            command.setColl("1");
-        }
+
         if (command.getMaxTimeMS() == null || command.getMaxTimeMS() <= 0) maxWait = driver.getReadTimeout();
         OpMsg startMsg = new OpMsg();
         int batchSize = command.getBatchSize() == null ? driver.getDefaultBatchSize() : command.getBatchSize();
@@ -332,14 +338,21 @@ public class SingleMongoConnection implements MongoConnection {
             if (cursorId != 0) {
                 msg = new OpMsg();
                 msg.setMessageId(msgId.incrementAndGet());
-
+                String[] ns = cursor.get("ns").toString().split("\\.");
+                var db = ns[0];
+                var col = ns[1];
+                if (ns.length > 2) {
+                    for (int i = 2; i < ns.length; i++) {
+                        col = col + "." + ns[i];
+                    }
+                }
                 Doc doc = new Doc();
                 doc.put("getMore", cursorId);
-                doc.put("collection", command.getColl());
+                doc.put("collection", col);
 
                 doc.put("batchSize", batchSize);
                 doc.put("maxTimeMS", maxWait);
-                doc.put("$db", command.getDb());
+                doc.put("$db", db);
                 msg.setFirstDoc(doc);
                 sendQuery(msg);
                 //log.debug("sent getmore....");
