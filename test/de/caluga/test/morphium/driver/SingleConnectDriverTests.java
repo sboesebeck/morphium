@@ -1,5 +1,6 @@
 package de.caluga.test.morphium.driver;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.commands.StepDownCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
@@ -79,13 +80,13 @@ public class SingleConnectDriverTests extends DriverTestBase {
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
         Thread.sleep(1500);
         var h = drv.getConnection().getConnectedTo();
-        ShutdownCommand cmd = new ShutdownCommand(drv.getConnection()).setForce(Boolean.TRUE);
+        ShutdownCommand cmd = new ShutdownCommand(drv.getConnection()).setForce(Boolean.TRUE).setTimeoutSecs(2);
         var res = cmd.execute();
+        log.info("result: " + Utils.toJsonString(res));
 
-        //log.info("result: " + Utils.toJsonString(res));
         while (true) {
             while (!drv.isConnected() || drv.getConnection().getConnectedTo() == null || drv.getConnection().getConnectedTo().equals(h)) {
-                log.info("Waiting for failover...");
+                log.info("Waiting for failover...still connected to " + h + " == " + drv.getConnection().getConnectedTo());
                 Thread.sleep(1500);
             }
             String hst = drv.getConnection().getConnectedTo();

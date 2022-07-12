@@ -3,6 +3,7 @@ package de.caluga.test.morphium.driver;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -24,20 +25,27 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
 
-    @Test
+    @Test(expected = MorphiumDriverException.class)
     public void failTest() throws Exception{
-        var con = getConnection();
+        try (var con = getConnection()) {
 
-        ShutdownCommand cmd=new ShutdownCommand(con);
-        cmd.setForce(true);
-        var msg=con.sendCommand(cmd.asMap());
+            ShutdownCommand cmd = new ShutdownCommand(con);
+            cmd.setForce(true);
+            cmd.setTimeoutSecs(2);
+            var msg = con.sendCommand(cmd.asMap());
+            log.info("Sent Shutdown command...");
+            Thread.sleep(3000);
+            //server should be down now
+            log.info("Should be down now. Sending hello...");
 
-        //server should go down now
+            HelloCommand c = new HelloCommand(con).setHelloOk(true);
+            while (true) {
+                log.info("Sending message...");
+                msg = con.sendCommand(c.asMap());
+                Thread.sleep(500);
+            }
 
-        HelloCommand c=new HelloCommand(con).setHelloOk(true);
-        msg=con.sendCommand(c.asMap());
-        var ret=con.readSingleAnswer(msg);
-        con.close();
+        }
     }
 
     @Test

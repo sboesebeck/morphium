@@ -45,6 +45,7 @@ public class SingleMongoConnection implements MongoConnection {
         try {
             log.info("Connecting to " + host + ":" + port);
             s = new Socket(host, port);
+            s.setKeepAlive(true);
             out = s.getOutputStream();
             in = s.getInputStream();
         } catch (IOException e) {
@@ -60,7 +61,6 @@ public class SingleMongoConnection implements MongoConnection {
         var hello = HelloResult.fromMsg(firstDoc);
         connectedTo = host;
         connectedToPort = port;
-
 
         connected = true;
         return hello;
@@ -212,7 +212,10 @@ public class SingleMongoConnection implements MongoConnection {
                     incoming.wait(timeout);
                 }
             } catch (InterruptedException e) {
-                //Swallow
+                throw new RuntimeException("Interrupted", e);
+            }
+            if (System.currentTimeMillis() - start > timeout) {
+                throw new MorphiumDriverException("Did not receive OpMsg-Reply in time " + timeout + "ms");
             }
         }
         synchronized (incomingTimes) {
@@ -239,12 +242,15 @@ public class SingleMongoConnection implements MongoConnection {
 
         try {
             //q.setFlags(4); //slave ok
-            if (out==null){
+            if (out == null) {
                 close(); //should be already
                 throw new MorphiumDriverException("closed");
             }
             out.write(q.bytes());
             out.flush();
+        } catch (MorphiumDriverException e) {
+            close();
+            throw (e);
         } catch (Exception e) {
 //                log.error("Error sending request", e);
 
