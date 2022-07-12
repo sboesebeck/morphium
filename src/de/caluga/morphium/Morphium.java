@@ -48,6 +48,7 @@ import java.lang.reflect.Modifier;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -3637,57 +3638,59 @@ public class Morphium implements AutoCloseable {
     }
 
 
-    public <T> void watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        AtomicBoolean runningFlag=new AtomicBoolean(true);
         asyncOperationsThreadPool.execute(() -> {
-            watchDb(dbName, updateFull, lst);
+            watchDb(dbName, updateFull, null,runningFlag,lst);
             logger.debug("watch async finished");
         });
+        return runningFlag;
     }
 
 
-    public <T> void watchDbAsync(boolean updateFull, ChangeStreamListener lst) {
-        watchDbAsync(config.getDatabase(), updateFull, null, lst);
+    public <T> AtomicBoolean watchDbAsync(boolean updateFull, AtomicBoolean runningFlag, ChangeStreamListener lst) {
+        return watchDbAsync(config.getDatabase(), updateFull, null, lst);
     }
 
-    public <T> void watchDbAsync(boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        watchDbAsync(config.getDatabase(), updateFull, pipeline, lst);
+    public <T> AtomicBoolean watchDbAsync(boolean updateFull, List<Map<String, Object>> pipeline,  ChangeStreamListener lst) {
+        return watchDbAsync(config.getDatabase(), updateFull, pipeline, lst);
     }
 
     public <T> void watchDb(boolean updateFull, ChangeStreamListener lst) {
-        watchDb(getConfig().getDatabase(), updateFull, lst);
+         watchDb(getConfig().getDatabase(), updateFull, lst);
     }
 
     public <T> void watchDb(String dbName, boolean updateFull, ChangeStreamListener lst) {
-        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, null, lst);
+        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, null,new AtomicBoolean(true), lst);
     }
 
-    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, pipeline, lst);
+    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
+         watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, pipeline, runningFlag,lst);
     }
 
-    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         try {
-
-            WatchCommand settings = new WatchCommand(getDriver().getConnection())
+            WatchCommand cmd = new WatchCommand(getDriver().getConnection())
                     .setDb(dbName)
                     .setMaxTimeMS(maxWaitTime)
                     .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setPipeline(pipeline)
                     .setCb(new DriverTailableIterationCallback() {
-                        private boolean b = true;
-
                         @Override
                         public void incomingData(Map<String, Object> data, long dur) {
-                            ChangeStreamEvent evt = new ChangeStreamEvent();
-                            b = lst.incomingData(evt);
+                            ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class,data);
+
+                            if (!lst.incomingData(evt)){
+                                runningFlag.set(false);
+                            }
                         }
 
                         @Override
                         public boolean isContinued() {
-                            return b;
+                            return runningFlag.get();
                         }
                     });
-            getDriver().watch(settings);
+            cmd.watch();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

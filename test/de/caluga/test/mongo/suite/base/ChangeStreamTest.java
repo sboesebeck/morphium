@@ -30,12 +30,12 @@ public class ChangeStreamTest extends MorphiumTestBase {
         morphium.dropCollection(ComplexObject.class);
         morphium.dropCollection(UncachedObject.class);
         count = 0;
-        final boolean[] run = {true};
-        morphium.watchDbAsync(true, evt -> {
+
+        var runningFlag=morphium.watchDbAsync(morphium.getDatabase(),true,null, evt -> {
             log.info("Incoming event!");
             printevent(evt);
             count++;
-            return run[0];
+            return true;
         });
         Thread.sleep(100);
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
@@ -47,7 +47,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         log.info("waiting for some time!");
         Thread.sleep(15000);
-        run[0] = false;
+        runningFlag.set(false);
         assertThat(count).isGreaterThanOrEqualTo(2).isLessThanOrEqualTo(3);
         long cnt = count;
         morphium2.set(morphium2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
@@ -210,7 +210,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
         m.addListener(evt -> {
             printevent(evt);
-            cnt.set(cnt.get() + 1);
+            cnt.incrementAndGet();
             return true;
         });
         Thread.sleep(1000);

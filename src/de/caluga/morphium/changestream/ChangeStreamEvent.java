@@ -12,7 +12,7 @@ import java.util.Map;
 public class ChangeStreamEvent {
 
     @Id
-    private MorphiumId id;
+    private Object id;
     private String operationType;
     private Map<String, Object> fullDocument;
     private Map<String, String> ns;
@@ -50,7 +50,7 @@ public class ChangeStreamEvent {
         this.collectionName = collectionName;
     }
 
-    public MorphiumId getId() {
+    public Object getId() {
         return id;
     }
 

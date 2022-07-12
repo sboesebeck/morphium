@@ -20,7 +20,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         morphium.dropCollection(UncachedObject.class);
         count = 0;
         final boolean[] run = {true};
-        morphium.watchDbAsync(true, evt -> {
+        morphium.watchDbAsync(morphium.getDatabase(), true,null,evt -> {
             if (evt.getOperationType().equals("drop")) return true;
             printevent(evt);
             count++;
