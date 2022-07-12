@@ -150,7 +150,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             log.info("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(() -> {
 
-                //log.info("checking connection");
+                log.info("checking connection");
                 try {
                     HelloCommand cmd = new HelloCommand(getConnection())
                             .setHelloOk(true)
@@ -170,14 +170,34 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                     }
                 } catch (MorphiumDriverException e) {
+                    log.info("Connection error", e);
+                    log.info("Trying reconnect");
+                    try {
+                        close();
+                    } catch (Exception ex) {
+                        //swallow - maybe error because connection died
+                    }
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        //really?
+                    }
+                    try {
+                        connect();
+                    } catch (MorphiumDriverException ex) {
+                        log.error("Could not reconnect", ex);
+                    }
                 } catch (InterruptedException e) {
                     e.printStackTrace();
-                } catch(Exception e){
+                } catch (Exception e) {
                     e.printStackTrace();
                 }
 
 
             }, getHeartbeatFrequency(), getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+        } else {
+            log.info("Heartbeat already scheduled...");
         }
     }
 
@@ -232,6 +252,8 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public void close() {
         connection.close();
+        heartbeat.cancel(true);
+        heartbeat = null;
     }
 
     @Override
