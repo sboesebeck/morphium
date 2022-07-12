@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,42 +61,49 @@ public class ChangeStreamTest extends MorphiumTestBase {
     @Test
     public void changeStreamBackgroundTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
-        final boolean[] run = {true};
+        final AtomicBoolean run = new AtomicBoolean(true);
         try {
-            final int[] count = {0};
-            final int[] written = {0};
+            final var count = new AtomicInteger(0);
+            final var written = new AtomicInteger(0);
             new Thread(() -> {
-                while (run[0]) {
-                    try {
-                        Thread.sleep(2500);
-                    } catch (InterruptedException e) {
+                try {
+                    Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    while (run.get()) {
+                        try {
+                            Thread.sleep(2500);
+                        } catch (InterruptedException e) {
+                        }
+                        m2.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+                        log.info("Written");
+                        written.incrementAndGet();
+                        m2.set(m2.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
+                        log.info("updated");
+                        written.incrementAndGet();
                     }
-                    morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
-                    log.info("Written");
-                    written[0]++;
-                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
-                    log.info("updated");
-                    written[0]++;
+                    log.info("Thread finished");
+                    m2.close();
+                } catch (Exception e) {
+                    log.error("Error in Thread", e);
                 }
-                log.info("Thread finished");
             }).start();
             start = System.currentTimeMillis();
             morphium.watchAsync(UncachedObject.class, true, evt -> {
-                count[0]++;
+                count.incrementAndGet();
                 printevent(evt);
-                return run[0];
+                return run.get();
             });
 
-
-            run[0] = false;
+            Thread.sleep(3000);
+            log.info("Stopping thread");
+            run.set(false);
             start = System.currentTimeMillis();
-            while (!(count[0] > 0 && count[0] >= written[0] - 2)) {
+            while (!(count.get() > 0 && count.get() >= written.get() - 2)) {
                 Thread.sleep(500);
-                log.info("Wrong count: " + count[0] + " written: " + written[0]);
+                log.info("Wrong count: " + count.get() + " written: " + written.get());
                 assert (System.currentTimeMillis() - start < 10000);
             }
         } finally {
-            run[0] = false;
+            run.set(false);
             morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
         }
         Thread.sleep(2000);
@@ -105,30 +113,32 @@ public class ChangeStreamTest extends MorphiumTestBase {
     @Test
     public void changeStreamInsertTest() throws Exception {
         //morphium.dropCollection(UncachedObject.class);
-        final boolean[] run = {true};
-        int[] count = {0};
-        int[] written = {0};
+        final var run = new AtomicBoolean(true);
+        final var count = new AtomicInteger(0);
+        final var written = new AtomicInteger(0);
         new Thread(() -> {
-            while (run[0]) {
+            while (run.get()) {
                 try {
                     Thread.sleep(2500);
                 } catch (InterruptedException e) {
                 }
                 log.info("Writing...");
-                morphium.store(new UncachedObject("value", 123));
-                written[0]++;
+                Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                m2.store(new UncachedObject("value", 123));
+                written.incrementAndGet();
+                m2.close();
             }
         }).start();
         start = System.currentTimeMillis();
         morphium.watch(UncachedObject.class, true, evt -> {
             printevent(evt);
-            count[0]++;
+            count.incrementAndGet();
             return System.currentTimeMillis() - start < 8500;
         });
 
-        assert (count[0] >= written[0] - 1 && count[0] <= written[0]);
+        assert (count.get() >= written.get() - 1 && count.get() <= written.get());
         log.info("Stopped!");
-        run[0] = false;
+        run.set(false);
         Thread.sleep(2500);
 
     }
@@ -139,8 +149,8 @@ public class ChangeStreamTest extends MorphiumTestBase {
         Thread.sleep(1500);
         createUncachedObjects(100);
         log.info("Init finished...");
-        final boolean[] run = {true};
-        final int[] count = {0};
+        final var run = new AtomicBoolean(true);
+        final var count = new AtomicInteger(0);
         start = System.currentTimeMillis();
 
         long start = System.currentTimeMillis();
@@ -150,35 +160,37 @@ public class ChangeStreamTest extends MorphiumTestBase {
             } catch (InterruptedException e) {
             }
             int i = 50;
-            while (run[0]) {
+            while (run.get()) {
                 try {
                     Thread.sleep(500);
                 } catch (InterruptedException e) {
                 }
                 if (System.currentTimeMillis() - start > 26000) {
                     log.error("Error - took too long!");
-                    run[0] = false;
+                    run.set(false);
                 }
                 log.info("Setting to value " + i);
-                morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
+                Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                m2.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
+                m2.close();
             }
             log.info("Writing thread finished...");
         }).start();
         log.info("Watching...");
         morphium.watch(UncachedObject.class, true, evt -> {
             printevent(evt);
-            count[0]++;
-            log.info("count: " + count[0]);
-            if (count[0] == 50) {
-                run[0] = false;
+            count.incrementAndGet();
+            log.info("count: " + count.get());
+            if (count.get() == 50) {
+                run.set(false);
                 return false;
             }
             return true;
         });
-        assert (count[0] == 50);
+        assertThat(count.get()).isEqualTo(50);
+        assertThat(run.get()).isFalse();
         log.info("Quitting");
-        run[0] = false;
-        Thread.sleep(500);
+
 
     }
 
@@ -249,7 +261,7 @@ public class ChangeStreamTest extends MorphiumTestBase {
 
     @Test
     public void terminateChangeStreamTest() throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 3; i++) {
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
             m.start();
             m.addListener(evt -> {
