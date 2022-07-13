@@ -150,28 +150,28 @@ public class SingleMongoConnectDriver extends DriverBase {
             log.info("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(() -> {
 
-                log.info("checking connection");
+               // log.info("checking connection");
                 try {
                     HelloCommand cmd = new HelloCommand(getConnection())
                             .setHelloOk(true)
                             .setIncludeClient(false);
                     var hello = cmd.execute();
                     if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
-                        log.info("wanted primary connection, changed to secondary, retrying");
+                        log.warn("wanted primary connection, changed to secondary, retrying");
                         close();
                         Thread.sleep(1000);
                         connect(getReplicaSetName());
 
                     } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
-                        log.info("state changed, wanted secondary, got something differnt now -reconnecting");
+                        log.warn("state changed, wanted secondary, got something differnt now -reconnecting");
                         close();
                         Thread.sleep(1000);//Slowing down
                         connect(getReplicaSetName());
 
                     }
                 } catch (MorphiumDriverException e) {
-                    log.info("Connection error", e);
-                    log.info("Trying reconnect");
+                    log.error("Connection error", e);
+                    log.warn("Trying reconnect");
                     try {
                         close();
                     } catch (Exception ex) {
@@ -197,7 +197,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
             }, getHeartbeatFrequency(), getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
-            log.info("Heartbeat already scheduled...");
+            log.debug("Heartbeat already scheduled...");
         }
     }
 
@@ -281,7 +281,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         var msg = getConnection().sendCommand(m);
         var res = getConnection().readSingleAnswer(msg);
         return new SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo());
+                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
     }
 
     @Override
@@ -290,7 +290,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         var msg = getConnection().sendCommand(cmd.asMap());
         return new CursorResult().setCursor(getConnection().getAnswerFor(msg))
                 .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo());
+                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
     }
 
     @Override
@@ -299,7 +299,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         var msg = getConnection().sendCommand(cmd.asMap());
         return new ListResult().setResult(getConnection().readAnswerFor(msg))
                 .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo());
+                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
     }
 
     @Override
@@ -391,20 +391,20 @@ public class SingleMongoConnectDriver extends DriverBase {
 //                .setDuration(System.currentTimeMillis() - start)
 //                .setServer(connection.getConnectedTo());
 //    }
-
-    private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException {
-        if (!msg.hasCursor()) return null;
-        Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
-        Map<String, Object> ret = null;
-        if (cursor.containsKey("firstBatch")) {
-            ret = (Map<String, Object>) cursor.get("firstBatch");
-        } else {
-            ret = (Map<String, Object>) cursor.get("nextBatch");
-        }
-        String[] namespace = cursor.get("ns").toString().split("\\.");
-        killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
-        return ret;
-    }
+//
+//    private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws MorphiumDriverException {
+//        if (!msg.hasCursor()) return null;
+//        Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
+//        Map<String, Object> ret = null;
+//        if (cursor.containsKey("firstBatch")) {
+//            ret = (Map<String, Object>) cursor.get("firstBatch");
+//        } else {
+//            ret = (Map<String, Object>) cursor.get("nextBatch");
+//        }
+//        String[] namespace = cursor.get("ns").toString().split("\\.");
+//        killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
+//        return ret;
+//    }
 
 
     private List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException {

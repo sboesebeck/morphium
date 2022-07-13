@@ -212,7 +212,8 @@ public class SingleMongoConnection implements MongoConnection {
                     incoming.wait(timeout);
                 }
             } catch (InterruptedException e) {
-                throw new RuntimeException("Interrupted", e);
+                //throw new RuntimeException("Interrupted", e);
+                 //swallow
             }
             if (System.currentTimeMillis() - start > timeout) {
                 throw new MorphiumDriverException("Did not receive OpMsg-Reply in time " + timeout + "ms");

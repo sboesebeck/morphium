@@ -8,5 +8,7 @@ public interface SingleResultCommand {
     Map<String, Object> execute() throws MorphiumDriverException;
 
     Map<String, Object> asMap();
+    Map<String, Object> getMetaData();
+
 
 }
