@@ -183,7 +183,7 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     }
 
     public enum FullDocumentEnum {
-        updateLookup("updateLookup"), whenAvailable("whenAvailable"), required("required"), defaultValue("default");
+        updateLookup("updateLookup"), defaultValue("default"); //, whenAvailable("whenAvailable"), required("true");
 
         String n;
 

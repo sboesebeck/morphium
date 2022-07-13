@@ -192,7 +192,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 watchCommand.setCb(callback);
                 watchCommand.setDb(morphium.getDatabase());
                 watchCommand.setMaxTimeMS(10000);
-                watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.required : WatchCommand.FullDocumentEnum.defaultValue);
+                watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue);
                 watchCommand.setPipeline(pipeline);
                 if (!dbOnly) {
                     watchCommand.setColl(collectionName);
