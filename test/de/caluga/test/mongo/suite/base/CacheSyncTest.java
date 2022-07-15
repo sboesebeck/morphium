@@ -12,6 +12,7 @@ import de.caluga.morphium.cache.MessagingCacheSyncListener;
 import de.caluga.morphium.cache.MessagingCacheSynchronizer;
 import de.caluga.morphium.cache.WatchingCacheSynchronizer;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -23,6 +24,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * User: Stephan Bösebeck
@@ -609,6 +612,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void testWatchingCacheSynchronizer() throws Exception {
+        morphium.getDriver().setMaxWaitTime(5000);
         morphium.dropCollection(CachedObject.class);
 
         WatchingCacheSynchronizer sync = new WatchingCacheSynchronizer(morphium);
@@ -630,14 +634,26 @@ public class CacheSyncTest extends MorphiumTestBase {
         obj.put("_id", new MorphiumId());
         obj.put(CachedObject.Fields.value.name(), "test");
         writings.add(obj);
-       // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
+        StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getConnection());
+        cmd.setDocs(writings).setColl(morphium.getMapper().getCollectionName(CachedObject.class)).setDb(morphium.getDatabase());
+        cmd.execute();
+        // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
         waitForWriteToStart(1000);
         waitForWrites();
 
-        Thread.sleep(200);
-        assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
+        Thread.sleep(1200);
+        long start = System.currentTimeMillis();
+        while (true) {
+
+            Double stat = morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject");
+            log.info("CachedObjects in cache: " + stat);
+            if (stat < 1) break;
+            Thread.sleep(1000);
+            assertThat(System.currentTimeMillis() - start).isLessThanOrEqualTo(150000);
+        }
+        assertThat(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject")).isLessThanOrEqualTo(1);
         sync.terminate();
 
     }

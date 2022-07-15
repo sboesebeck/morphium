@@ -112,7 +112,7 @@ public class MorphiumDriverSpeedTest {
         for (int i = 0; i < amount; i++) {
             FindCommand fnd = new FindCommand(con.getConnection());
             fnd.setColl("uncached_object").setDb("morphium_test").setFilter(Doc.of("counter", i));
-            var it = fnd.executeIterable();
+            var it = fnd.executeIterable(con.getDefaultBatchSize());
             var d = it.next();
             assertThat(d.get("counter")).isEqualTo(i);
             assertThat(it.hasNext()).isEqualTo(Boolean.FALSE);

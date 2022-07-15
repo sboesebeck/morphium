@@ -316,7 +316,18 @@ public class SingleMongoConnection implements MongoConnection {
         command.setMetaData("server", getConnectedTo());
         long docsProcessed = 0;
         while (true) {
-            OpMsg reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+            OpMsg reply = null;
+            try {
+                reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+            } catch (MorphiumDriverException e) {
+                if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
+                    log.info("timout in watch - restarting");
+                    msg.setMessageId(msgId.incrementAndGet());
+                    sendQuery(msg);
+                    continue;
+                }
+                throw (e);
+            }
             //log.info("got answer for watch!");
             checkForError(reply);
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
@@ -375,16 +386,16 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
-        return readAnswerFor(getAnswerFor(queryId));
+        return readAnswerFor(getAnswerFor(queryId, driver.getDefaultBatchSize()));
         //return readBatches(queryId, driver.getDefaultBatchSize());
     }
 
     @Override
-    public MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException {
+    public MorphiumCursor getAnswerFor(int queryId, int batchSize) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
         if (reply.hasCursor()) {
-            return new SingleMongoConnectionCursor(this, driver.getDefaultBatchSize(), true, reply).setServer(connectedTo);
+            return new SingleMongoConnectionCursor(this, batchSize, true, reply).setServer(connectedTo);
         } else if (reply.getFirstDoc().containsKey("results")) {
             return new SingleBatchCursor((List<Map<String, Object>>) reply.getFirstDoc().get("results"));
         }

@@ -21,6 +21,8 @@ import java.util.List;
 public class WriteBufferCountTest extends MorphiumTestBase {
     @Test
     public void testWbCount() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 10000; i++) {
             UncachedObject uc = new UncachedObject();
@@ -50,6 +52,7 @@ public class WriteBufferCountTest extends MorphiumTestBase {
 
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).countAll() < 10000) {
+            log.info("Count: " + morphium.createQueryFor(UncachedObject.class).countAll());
             Thread.sleep(500);
             assert (System.currentTimeMillis() - s < 15000);
         }

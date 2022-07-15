@@ -701,7 +701,7 @@ public class Morphium implements AutoCloseable {
             logger.warn("copying might take some time, as data is read and written ☹️");
 
             FindCommand fnd = new FindCommand(morphiumDriver.getConnection()).setColl(collectionName).setDb(getDatabase());
-            var crs = fnd.executeIterable();
+            var crs = fnd.executeIterable(getConfig().getCursorBatchSize());
             while (crs.hasNext()) {
                 InsertMongoCommand insert = new InsertMongoCommand(morphiumDriver.getConnection());
                 insert.setDocuments(crs.getBatch());
@@ -1775,10 +1775,6 @@ public class Morphium implements AutoCloseable {
             fields[idx] = getARHelper().getMongoFieldName(ent.getClass(), fields[idx]);
         }
 
-        //        if (annotationHelper.isAnnotationPresentInHierarchy(ent.getClass(), NoCache.class)) {
-        //            config.getWriter().updateUsingFields(ent, collection, null, fields);
-        //            return;
-        //        }
         getWriterForClass(ent.getClass()).updateUsingFields(ent, collection, null, fields);
     }
 

@@ -28,7 +28,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
     @Override
     public Iterator<Map<String, Object>> iterator() {
         try {
-            return executeIterable();
+            return executeIterable(getDefaultBatchSize());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -43,7 +43,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
             var msg = connection.sendCommand(asMap());
-            MorphiumCursor crs = connection.getAnswerFor(msg);
+            MorphiumCursor crs = connection.getAnswerFor(msg, getDefaultBatchSize());
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
                 if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals((double) 0)) {
@@ -59,7 +59,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
     }
 
     @Override
-    public MorphiumCursor executeIterable() throws MorphiumDriverException {
+    public MorphiumCursor executeIterable(int batchsize) throws MorphiumDriverException {
         MongoConnection connection = getConnection();
         if (connection == null) throw new IllegalArgumentException("you need to set the connection!");
         //noinspection unchecked
@@ -67,7 +67,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
         int msg = connection.sendCommand(asMap());
-        MorphiumCursor crs = connection.getAnswerFor(msg);
+        MorphiumCursor crs = connection.getAnswerFor(msg, batchsize);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);
         return crs;

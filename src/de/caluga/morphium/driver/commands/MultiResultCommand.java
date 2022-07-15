@@ -10,7 +10,7 @@ public interface MultiResultCommand {
 
     List<Map<String, Object>> execute() throws MorphiumDriverException;
 
-    MorphiumCursor executeIterable() throws MorphiumDriverException;
+    MorphiumCursor executeIterable(int batchSize) throws MorphiumDriverException;
 
     Map<String, Object> asMap();
     Map<String, Object> getMetaData();

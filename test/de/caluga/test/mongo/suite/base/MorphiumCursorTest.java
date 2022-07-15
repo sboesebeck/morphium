@@ -76,7 +76,7 @@ public class MorphiumCursorTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             morphium.store(new SimpleEntity(i, (long) (Math.random() * 100000.0)));
         }
-        var crs = morphium.createQueryFor(SimpleEntity.class).sort("v1").setBatchSize(10).getFindCmd().executeIterable();
+        var crs = morphium.createQueryFor(SimpleEntity.class).sort("v1").setBatchSize(10).getFindCmd().executeIterable(10);
         crs.ahead(14);
         var n = crs.next();
         assertThat(n).isNotNull();

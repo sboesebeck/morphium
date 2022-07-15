@@ -9,7 +9,6 @@ import de.caluga.morphium.driver.inmem.InMemAggregatorFactory;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -63,15 +62,6 @@ public class MorphiumInMemTestBase {
                         log.info("Waiting for messaging to finish");
                         Thread.sleep(100);
                     }
-                } else if (l instanceof OplogMonitor) {
-                    ((OplogMonitor) l).stop();
-                    while (((OplogMonitor) l).isRunning()) {
-                        log.info("Waiting for oplogmonitor to finish");
-                        Thread.sleep(100);
-                    }
-                    f = l.getClass().getDeclaredField("listeners");
-                    f.setAccessible(true);
-                    ((Collection) f.get(l)).clear();
                 } else if (l instanceof ChangeStreamMonitor) {
                     log.info("Changestream Monitor still running");
                     ((ChangeStreamMonitor) l).terminate();

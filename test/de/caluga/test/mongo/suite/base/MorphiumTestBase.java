@@ -11,7 +11,6 @@ import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.replicaset.OplogMonitor;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -217,20 +216,7 @@ public class MorphiumTestBase {
                 }
                 toRemove.add(l);
                 morphium.dropCollection(Msg.class, ((Messaging) l).getCollectionName(), null);
-            } else if (l instanceof OplogMonitor) {
-                try {
-                    ((OplogMonitor) l).stop();
-                    while (((OplogMonitor) l).isRunning()) {
-                        log.info("Waiting for oplogmonitor to finish");
-                        Thread.sleep(100);
-                    }
-                    Field f = l.getClass().getDeclaredField("listeners");
-                    f.setAccessible(true);
-                    ((Collection) f.get(l)).clear();
-                    toRemove.add(l);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+
             } else if (l instanceof ChangeStreamMonitor) {
                 try {
                     log.info("Changestream Monitor still running");

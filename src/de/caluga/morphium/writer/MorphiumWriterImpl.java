@@ -1031,10 +1031,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         collectionName = morphium.getMapper().getCollectionName(ent.getClass());
                     }
                     checkIndexAndCaps(ent.getClass(), collectionName, callback);
-//                    if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.getDriver().getConnection().exists(getDbName(), collectionName)) {
-//                        createCappedCollationColl(ent.getClass(), collectionName);
-//                        morphium.ensureIndicesFor((Class<T>) ent.getClass(), collectionName, callback);
-//                    }
+
                     Entity en = morphium.getARHelper().getAnnotationFromHierarchy(ent.getClass(), Entity.class);
 
                     UpdateMongoCommand up = new UpdateMongoCommand(morphium.getDriver().getConnection())

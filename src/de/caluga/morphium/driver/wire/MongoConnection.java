@@ -46,7 +46,7 @@ public interface MongoConnection extends Closeable {
 
     List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException;
 
-    MorphiumCursor getAnswerFor(int queryId) throws MorphiumDriverException;
+    MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException;
 
     List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
 

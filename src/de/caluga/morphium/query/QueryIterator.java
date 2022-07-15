@@ -126,7 +126,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
                 if (windowSize != 0) {
                     cmd.setBatchSize(windowSize);
                 }
-                cursor = cmd.executeIterable();
+                cursor = cmd.executeIterable(windowSize);
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
