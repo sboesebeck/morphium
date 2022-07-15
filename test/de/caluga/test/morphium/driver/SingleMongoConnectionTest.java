@@ -327,7 +327,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);
         var msg = con.sendCommand(fnd.asMap());
-        var crs=con.getAnswerFor(msg);
+        var crs = con.getAnswerFor(msg, 100);
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;
@@ -338,8 +338,8 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        msg=con.sendCommand(fnd.asMap());
-        crs = con.getAnswerFor(msg);
+        msg = con.sendCommand(fnd.asMap());
+        crs = con.getAnswerFor(msg, 100);
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();
         assertThat(lst.size()).isEqualTo(1000);

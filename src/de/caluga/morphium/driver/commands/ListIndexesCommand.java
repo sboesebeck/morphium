@@ -23,7 +23,7 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
 
     public List<IndexDescription> execute() throws MorphiumDriverException {
         var msg = getConnection().sendCommand(asMap());
-        var crs = getConnection().getAnswerFor(msg);
+        var crs = getConnection().getAnswerFor(msg, getDefaultBatchSize());
 
         List<IndexDescription> lst = new ArrayList<>();
         while (crs.hasNext()) {

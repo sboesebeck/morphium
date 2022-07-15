@@ -1219,7 +1219,7 @@ public class Query<T> implements Cloneable {
     }
 
     public MorphiumCursor getCursor() throws MorphiumDriverException {
-        return getFindCmd().executeIterable();
+        return getFindCmd().executeIterable(getBatchSize());
     }
 
 

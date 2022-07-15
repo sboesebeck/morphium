@@ -189,7 +189,7 @@ public class BsonEncoder {
             for (int i = 0; i < arrayLength; i++) {
                 doc.put("" + i, Array.get(v, i));
             }
-
+            writeBytes(BsonEncoder.encodeDocument(doc));
         } else if (v instanceof Map || Map.class.isAssignableFrom(v.getClass())) {
 
             writeByte(3);

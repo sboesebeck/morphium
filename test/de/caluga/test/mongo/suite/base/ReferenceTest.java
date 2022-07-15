@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 
@@ -138,7 +139,9 @@ public class ReferenceTest extends MorphiumTestBase {
 
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(rc);
-//        morphium.getDriver().store(morphium.getConfig().getDatabase(), "reference_container", lst, null);
+        InsertMongoCommand cmd = new InsertMongoCommand(morphium.getDriver().getConnection()).setColl("reference_container")
+                .setDb(morphium.getDatabase()).setDocuments(lst);
+        cmd.execute();
         Thread.sleep(1000);
 
         assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);

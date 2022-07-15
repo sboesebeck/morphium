@@ -140,7 +140,7 @@ public class MongoConnectionTest {
 
         log.info("Calling find - as cursor");
         msg = con.sendCommand(find.asMap());
-        var crs = con.getAnswerFor(msg);
+        var crs = con.getAnswerFor(msg, 100);
         int cnt = 0;
         while (crs.hasNext()) {
             cnt++;

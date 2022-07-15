@@ -61,23 +61,6 @@ public class SequenceTest extends MorphiumTestBase {
     }
 
     @Test
-    public void migrationTest() throws Exception {
-
-        Map<String, Object> seq = UtilsMap.of("_id", new MorphiumId());
-        seq.put("name", "testSeq");
-        seq.put("locked_at", 0);
-        seq.put("current_value", 100);
-//        morphium.getDriver().store(morphium.getConfig().getDatabase(), "sequence", Arrays.asList(seq), null);
-//        Thread.sleep(100);
-
-        SequenceGenerator gen = new SequenceGenerator(morphium, "testSeq");
-        log.info("Current value: " + gen.getCurrentValue());
-        assert (gen.getCurrentValue() == 100);
-        assert (gen.getNextValue() > 100);
-
-    }
-
-    @Test
     public void massiveMultiSequenceTest() {
         morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();

@@ -58,7 +58,7 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
 
     public MorphiumCursor execute() throws MorphiumDriverException {
         int c = getConnection().sendCommand(asMap());
-        return getConnection().getAnswerFor(c);
+        return getConnection().getAnswerFor(c, getBatchSize());
     }
 
 }

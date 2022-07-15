@@ -288,7 +288,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
         var start = System.currentTimeMillis();
         var msg = getConnection().sendCommand(cmd.asMap());
-        return new CursorResult().setCursor(getConnection().getAnswerFor(msg))
+        return new CursorResult().setCursor(getConnection().getAnswerFor(msg, getDefaultBatchSize()))
                 .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
                 .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
     }
