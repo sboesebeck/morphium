@@ -39,9 +39,12 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             log.info("Should be down now. Sending hello...");
 
             HelloCommand c = new HelloCommand(con).setHelloOk(true);
+            int sent = 0;
             while (true) {
                 log.info("Sending message...");
+                assertThat(sent).isLessThan(3);
                 msg = con.sendCommand(c.asMap());
+                sent++;
                 Thread.sleep(500);
             }
 

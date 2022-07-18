@@ -216,7 +216,7 @@ public class SingleMongoConnection implements MongoConnection {
                  //swallow
             }
             if (System.currentTimeMillis() - start > timeout) {
-                throw new MorphiumDriverException("Did not receive OpMsg-Reply in time " + timeout + "ms");
+                throw new MorphiumDriverException("server did not answer in time: " + timeout + "ms");
             }
         }
         synchronized (incomingTimes) {
