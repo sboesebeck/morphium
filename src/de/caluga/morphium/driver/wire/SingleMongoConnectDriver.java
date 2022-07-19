@@ -231,6 +231,10 @@ public class SingleMongoConnectDriver extends DriverBase {
         return connection;
     }
 
+    @Override
+    public void releaseConnection(MongoConnection con) {
+        log.info("Nothing to release for a single connection!");
+    }
 
     @Override
     public String getName() {
@@ -310,11 +314,6 @@ public class SingleMongoConnectDriver extends DriverBase {
         var start = System.currentTimeMillis();
         var msg = getConnection().sendCommand(cmd);
         return getConnection().readSingleAnswer(msg);
-    }
-
-
-    public enum ConnectionType {
-        PRIMARY, SECONDARY, ANY,
     }
 
 

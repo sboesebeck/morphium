@@ -56,6 +56,8 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         setBatchSize(batchSize);
 
     }
+
+
 //    public SynchronousConnectCursor(DriverBase drv, long id,String db, String collection, int batchSize,List<Map<String,Object>> firstBatch , boolean multithreadded) {
 //        this.driver = drv;
 //        this.multithreaddedAccess=multithreadded;
@@ -135,6 +137,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
             throw new RuntimeException(e);
         }
     }
+
 
     @Override
     public int available() {

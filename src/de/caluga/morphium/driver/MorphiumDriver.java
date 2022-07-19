@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
+import de.caluga.morphium.driver.wire.ConnectionType;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.io.Closeable;
@@ -160,22 +161,6 @@ public interface MorphiumDriver extends Closeable {
     void abortTransaction() throws MorphiumDriverException;
 
 
-    // __  .___________. _______ .______          ___   .___________. __    ______   .__   __.      _______.
-    //|  | |           ||   ____||   _  \        /   \  |           ||  |  /  __  \  |  \ |  |     /       |
-    //|  | `---|  |----`|  |__   |  |_)  |      /  ^  \ `---|  |----`|  | |  |  |  | |   \|  |    |   (----`
-    //|  |     |  |     |   __|  |      /      /  /_\  \    |  |     |  | |  |  |  | |  . `  |     \   \
-    //|  |     |  |     |  |____ |  |\  \----./  _____  \   |  |     |  | |  `--'  | |  |\   | .----)   |
-    //|__|     |__|     |_______|| _| `._____/__/     \__\  |__|     |__|  \______/  |__| \__| |_______/
-
-//
-//    MorphiumCursor initAggregationIteration(AggregateMongoCommand settings) throws MorphiumDriverException;
-//
-//    MorphiumCursor initIteration(FindCommand settings) throws MorphiumDriverException;
-//
-//    //MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException;
-
-//    void closeIteration(MorphiumCursor crs) throws MorphiumDriverException;
-
 
     //.______       __    __  .__   __.      ______   ______   .___  ___. .___  ___.      ___      .__   __.  _______
     //|   _  \     |  |  |  | |  \ |  |     /      | /  __  \  |   \/   | |   \/   |     /   \     |  \ |  | |       \
@@ -250,72 +235,19 @@ public interface MorphiumDriver extends Closeable {
     //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
     void watch(WatchCommand settings) throws MorphiumDriverException;
 
-    //.______       _______ .______    __       __   _______     _______.
-    //|   _  \     |   ____||   _  \  |  |     |  | |   ____|   /       |
-    //|  |_)  |    |  |__   |  |_)  | |  |     |  | |  |__     |   (----`
-    //|      /     |   __|  |   ___/  |  |     |  | |   __|     \   \
-    //|  |\  \----.|  |____ |  |      |  `----.|  | |  |____.----)   |
-    //| _| `._____||_______|| _|      |_______||__| |_______|_______/
 
-//    MorphiumCursor waitForReplyIterable(long id);
+    MongoConnection getConnection(ConnectionType type);
 
-//    Map<String, Object> readSingleAnswer(int msgId) throws MorphiumDriverException;
+    MongoConnection getConnection(ReadPreference rp);
 
-//    List<Map<String, Object>> readAnswerFor(int msgId) throws MorphiumDriverException;
+    void releaseConnection(MongoConnection con);
 
-//    MorphiumCursor getAnswerFor(int msgId) throws MorphiumDriverException;
-
-//    List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException;
-
-    MongoConnection getConnection();
-
-
-    //
-//    List<Map<String, Object>> aggregate(AggregateMongoCommand settings) throws MorphiumDriverException;
-//
-//    long count(CountMongoCommand settings) throws MorphiumDriverException;
-//
-//
-//    List<Object> distinct(DistinctMongoCommand settings) throws MorphiumDriverException;
-//
-//    List<Map<String, Object>> mapReduce(MapReduceSettings settings) throws MorphiumDriverException;
-//
-//    /**
-//     * @return number of deleted documents
-//     */
-//    int delete(DeleteMongoCommand settings) throws MorphiumDriverException;
-//
-//    Map<String, Object> findAndModify(FindAndModifyMongoCommand settings) throws MorphiumDriverException;
-//
-//    void insert(InsertMongoCommand settings) throws MorphiumDriverException;
-//
-//    Map<String, Object> store(StoreMongoCommand settings) throws MorphiumDriverException;
-//
-//    Map<String, Object> update(UpdateMongoCommand settings) throws MorphiumDriverException;
-//
-//    Map<String, Object> drop(DropMongoCommand settings) throws MorphiumDriverException;
-//
-//    Map<String, Object> dropDatabase(DropMongoCommand settings) throws MorphiumDriverException;
-//
-//    int clearCollection(ClearCollectionSettings settings) throws MorphiumDriverException;
-//
     boolean exists(String db, String coll) throws MorphiumDriverException;
 
-    //
+
     boolean exists(String db) throws MorphiumDriverException;
 
-    //
-//    List<String> listCollections(String db, String pattern) throws MorphiumDriverException;
-//
+
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
-//
-//    List<String> listDatabases() throws MorphiumDriverException;
-//
-//    Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException;
-//
-//    Map<String, Object> getDbStats(String db) throws MorphiumDriverException;
-//
-//    Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException;
-//
-//    Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
+
 }

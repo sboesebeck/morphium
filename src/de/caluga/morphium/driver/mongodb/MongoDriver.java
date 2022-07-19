@@ -581,6 +581,10 @@ public class MongoDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public void releaseConnection(MongoConnection con) {
+
+    }
 
     public int getLocalThreshold() {
         return localThreshold;
@@ -1097,6 +1101,12 @@ public class MongoDriver implements MorphiumDriver {
                 public int getCursor() {
                     return 0;
                 }
+
+                @Override
+                public MongoConnection getConnection() {
+                    return null;
+                }
+
             };
             crs.setBatchSize(batchSize);
 
@@ -1213,6 +1223,12 @@ public class MongoDriver implements MorphiumDriver {
                 public int getCursor() {
                     return 0;
                 }
+
+                @Override
+                public MongoConnection getConnection() {
+                    return null;
+                }
+
             };
             crs.setBatchSize(batchSize);
 

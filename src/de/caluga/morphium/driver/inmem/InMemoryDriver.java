@@ -224,6 +224,10 @@ public class InMemoryDriver implements MorphiumDriver {
         return null;
     }
 
+    @Override
+    public void releaseConnection(MongoConnection con) {
+
+    }
 
     @Override
     public String getName() {
@@ -540,6 +544,11 @@ public class InMemoryDriver implements MorphiumDriver {
             public int getCursor() {
                 return 0;
             }
+
+            @Override
+            public MongoConnection getConnection() {
+                return null;
+            }
         };
     }
 
@@ -589,6 +598,11 @@ public class InMemoryDriver implements MorphiumDriver {
             @Override
             public int getCursor() {
                 return 0;
+            }
+
+            @Override
+            public MongoConnection getConnection() {
+                return null;
             }
         };
         crs.setBatchSize(batchSize);
@@ -724,6 +738,11 @@ public class InMemoryDriver implements MorphiumDriver {
             @Override
             public int getCursor() {
                 return 0;
+            }
+
+            @Override
+            public MongoConnection getConnection() {
+                return null;
             }
         };
         next.setCursorId(crs.getCursorId());

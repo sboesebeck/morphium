@@ -2,6 +2,8 @@ package de.caluga.morphium.driver;/**
  * Created by stephan on 22.03.16.
  */
 
+import de.caluga.morphium.driver.wire.MongoConnection;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -81,5 +83,7 @@ public abstract class MorphiumCursor implements Iterable<Map<String, Object>>, I
     public abstract void back(int jump) throws MorphiumDriverException;
 
     public abstract int getCursor();
+
+    public abstract MongoConnection getConnection();
 
 }

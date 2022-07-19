@@ -1,5 +1,7 @@
 package de.caluga.morphium.driver;
 
+import de.caluga.morphium.driver.wire.MongoConnection;
+
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -57,6 +59,11 @@ public class SingleElementCursor extends MorphiumCursor {
     @Override
     public int getCursor() {
         return idx;
+    }
+
+    @Override
+    public MongoConnection getConnection() {
+        return null;
     }
 
     @Override
