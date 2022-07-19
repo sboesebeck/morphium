@@ -51,6 +51,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         }
     }
 
+
     @Test
     public void testSyncConnection() throws Exception {
         var con = getConnection();
