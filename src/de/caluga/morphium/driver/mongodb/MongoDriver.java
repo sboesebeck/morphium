@@ -577,11 +577,6 @@ public class MongoDriver implements MorphiumDriver {
 
 
     @Override
-    public MongoConnection getConnection() {
-        return null;
-    }
-
-    @Override
     public void releaseConnection(MongoConnection con) {
 
     }
@@ -2381,26 +2376,6 @@ public class MongoDriver implements MorphiumDriver {
         currentTransaction.set(null);
     }
 
-    @Override
-    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
-
 
     public SSLContext getSslContext() {
         return this.sslContext;
@@ -2417,5 +2392,15 @@ public class MongoDriver implements MorphiumDriver {
 
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+    }
+
+    @Override
+    public MongoConnection getReadConnection(de.caluga.morphium.driver.ReadPreference rp) {
+        return null;
+    }
+
+    @Override
+    public MongoConnection getPrimaryConnection(de.caluga.morphium.driver.WriteConcern wc) {
+        return null;
     }
 }

@@ -139,7 +139,7 @@ public class ReferenceTest extends MorphiumTestBase {
 
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(rc);
-        InsertMongoCommand cmd = new InsertMongoCommand(morphium.getDriver().getConnection()).setColl("reference_container")
+        InsertMongoCommand cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(null)).setColl("reference_container")
                 .setDb(morphium.getDatabase()).setDocuments(lst);
         cmd.execute();
         Thread.sleep(1000);

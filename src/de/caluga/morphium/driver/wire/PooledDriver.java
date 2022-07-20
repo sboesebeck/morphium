@@ -156,36 +156,36 @@ public class PooledDriver extends DriverBase {
             heartbeat = executor.scheduleWithFixedDelay(() -> {
 
                 // log.info("checking connection");
-                try {
-                    HelloCommand cmd = new HelloCommand(getConnection())
-                            .setHelloOk(true)
-                            .setIncludeClient(false);
-                    var hello = cmd.execute();
-                    Thread.sleep(100);
-                } catch (MorphiumDriverException e) {
-                    log.error("Connection error", e);
-                    log.warn("Trying reconnect");
-                    try {
-                        close();
-                    } catch (Exception ex) {
-                        //swallow - maybe error because connection died
-                    }
-
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ex) {
-                        //really?
-                    }
-                    try {
-                        connect();
-                    } catch (MorphiumDriverException ex) {
-                        log.error("Could not reconnect", ex);
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+//                try {
+//                    HelloCommand cmd = new HelloCommand(getConnection())
+//                            .setHelloOk(true)
+//                            .setIncludeClient(false);
+//                    var hello = cmd.execute();
+//                    Thread.sleep(100);
+//                } catch (MorphiumDriverException e) {
+//                    log.error("Connection error", e);
+//                    log.warn("Trying reconnect");
+//                    try {
+//                        close();
+//                    } catch (Exception ex) {
+//                        //swallow - maybe error because connection died
+//                    }
+//
+//                    try {
+//                        Thread.sleep(1000);
+//                    } catch (InterruptedException ex) {
+//                        //really?
+//                    }
+//                    try {
+//                        connect();
+//                    } catch (MorphiumDriverException ex) {
+//                        log.error("Could not reconnect", ex);
+//                    }
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
 
 
             }, getHeartbeatFrequency(), getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
@@ -200,7 +200,12 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-    public MongoConnection getConnection() {
+    public MongoConnection getReadConnection(ReadPreference rp) {
+        return null;
+    }
+
+    @Override
+    public MongoConnection getPrimaryConnection(WriteConcern wc) {
         return null;
     }
 
@@ -259,7 +264,7 @@ public class PooledDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
         MorphiumTransactionContext ctx = getTransactionContext();
-        runCommand("admin", Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+        getPrimaryConnection(null).sendCommand(Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid()), "$db", "admin"));
         clearTransactionContext();
     }
 
@@ -268,73 +273,73 @@ public class PooledDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
         MorphiumTransactionContext ctx = getTransactionContext();
-        runCommand("admin", Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+        getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid(), "$db", "admin")));
         clearTransactionContext();
     }
+//
+//    @Override
+//    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var m = cmd.asMap();
+//        var msg = getConnection().sendCommand(m);
+//        var res = getConnection().readSingleAnswer(msg);
+//        return new SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
 
-    @Override
-    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var m = cmd.asMap();
-        var msg = getConnection().sendCommand(m);
-        var res = getConnection().readSingleAnswer(msg);
-        return new SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
+//    @Override
+//    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd.asMap());
+//        return new CursorResult().setCursor(getConnection().getAnswerFor(msg, getDefaultBatchSize()))
+//                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
 
-    @Override
-    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd.asMap());
-        return new CursorResult().setCursor(getConnection().getAnswerFor(msg, getDefaultBatchSize()))
-                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
+//    @Override
+//    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd.asMap());
+//        return new ListResult().setResult(getConnection().readAnswerFor(msg))
+//                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
 
-    @Override
-    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd.asMap());
-        return new ListResult().setResult(getConnection().readAnswerFor(msg))
-                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
-
-    @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        cmd.put("$db", db);
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd);
-        return getConnection().readSingleAnswer(msg);
-    }
+//    @Override
+//    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+//        cmd.put("$db", db);
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd);
+//        return getConnection().readSingleAnswer(msg);
+//    }
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-            var ret = runCommand("admin", Doc.of("replSetGetStatus", 1));
-            @SuppressWarnings("unchecked") List<Doc> mem = (List) ret.get("members");
-            if (mem == null) {
-                return null;
-            }
-            //noinspection unchecked
-            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
-            return ret;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        ReplicastStatusCommand cmd = new ReplicastStatusCommand(getPrimaryConnection(null));
+        var result = cmd.execute();
+        @SuppressWarnings("unchecked") List<Doc> mem = (List) result.get("members");
+        if (mem == null) {
+            return null;
+        }
+        //noinspection unchecked
+        mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+        return result;
     }
 
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
-        return runCommand(db, Doc.of("dbstats", 1));
+        return new DbStatsCommand(getPrimaryConnection(null)).setDb(db).execute();
     }
 
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        return runCommand(db, Doc.of("collStats", coll, "scale", 1024));
+        CollStatsCommand cmd = new CollStatsCommand(getPrimaryConnection(null));
+        return cmd.execute();
     }
 
-    public Map<String, Object> currentOp(long threshold) throws MorphiumDriverException {
-        return runCommand("admin", Doc.of("currentOp", 1, "secs_running", Doc.of("$gt", threshold)))
-                ;
+    public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
+        CurrentOpCommand cmd = new CurrentOpCommand(getPrimaryConnection(null)).setColl("admin").setSecsRunning(threshold);
+        return cmd.execute();
     }
 
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
@@ -549,33 +554,33 @@ public class PooledDriver extends DriverBase {
 
 
             public Doc execute() {
-                try {
-                    for (BulkRequest r : requests) {
-                        if (r instanceof InsertBulkRequest) {
-                            InsertMongoCommand settings = new InsertMongoCommand(getConnection());
-                            settings.setDb(db).setColl(collection)
-                                    .setComment("Bulk insert")
-                                    .setDocuments(((InsertBulkRequest) r).getToInsert());
-                            settings.execute();
-                        } else if (r instanceof UpdateBulkRequest) {
-                            UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            UpdateMongoCommand upCmd = new UpdateMongoCommand(getConnection());
-                            upCmd.setColl(collection).setDb(db)
-                                    .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
-                            upCmd.execute();
-                        } else if (r instanceof DeleteBulkRequest) {
-                            DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                            DeleteMongoCommand del = new DeleteMongoCommand(getConnection());
-                            del.setColl(collection).setDb(db)
-                                    .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
-                            del.execute();
-                        } else {
-                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
-                        }
-                    }
-                } catch (MorphiumDriverException e) {
-                    log.error("Got exception: ", e);
-                }
+//                try {
+//                    for (BulkRequest r : requests) {
+//                        if (r instanceof InsertBulkRequest) {
+//                            InsertMongoCommand settings = new InsertMongoCommand(getConnection());
+//                            settings.setDb(db).setColl(collection)
+//                                    .setComment("Bulk insert")
+//                                    .setDocuments(((InsertBulkRequest) r).getToInsert());
+//                            settings.execute();
+//                        } else if (r instanceof UpdateBulkRequest) {
+//                            UpdateBulkRequest up = (UpdateBulkRequest) r;
+//                            UpdateMongoCommand upCmd = new UpdateMongoCommand(getConnection());
+//                            upCmd.setColl(collection).setDb(db)
+//                                    .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
+//                            upCmd.execute();
+//                        } else if (r instanceof DeleteBulkRequest) {
+//                            DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
+//                            DeleteMongoCommand del = new DeleteMongoCommand(getConnection());
+//                            del.setColl(collection).setDb(db)
+//                                    .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
+//                            del.execute();
+//                        } else {
+//                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+//                        }
+//                    }
+//                } catch (MorphiumDriverException e) {
+//                    log.error("Got exception: ", e);
+//                }
                 return new Doc();
 
             }

@@ -266,7 +266,7 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getConnection())
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getPrimaryConnection(null))
                     .setQuery(Doc.of(toQueryObject()))
                     .setRemove(true)
                     .setSort(new Doc(getSort()))
@@ -338,7 +338,7 @@ public class Query<T> implements Cloneable {
         Map<String, Object> ret = null;
 
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getConnection())
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType())))
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setQuery(Doc.of(toQueryObject()))
@@ -406,7 +406,7 @@ public class Query<T> implements Cloneable {
 
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
-        CountMongoCommand settings = new CountMongoCommand(morphium.getDriver().getConnection())
+        CountMongoCommand settings = new CountMongoCommand(morphium.getDriver().getReadConnection(getRP()))
                 .setColl(collectionName)
                 .setDb(getDB())
                 .setQuery(Doc.of(query));
@@ -558,7 +558,7 @@ public class Query<T> implements Cloneable {
 
     public List distinct(String field) {
         try {
-            var cmd = new DistinctMongoCommand(morphium.getDriver().getConnection())
+            var cmd = new DistinctMongoCommand(morphium.getDriver().getReadConnection(getRP()))
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setKey(field)
@@ -867,7 +867,7 @@ public class Query<T> implements Cloneable {
         }
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             try {
-                CountMongoCommand settings = new CountMongoCommand(getMorphium().getDriver().getConnection()).setDb(getDB())
+                CountMongoCommand settings = new CountMongoCommand(getMorphium().getDriver().getReadConnection(getRP())).setDb(getDB())
                         .setColl(getCollectionName())
                         //.setQuery(Doc.of(this.toQueryObject()))
                         ;
@@ -881,7 +881,7 @@ public class Query<T> implements Cloneable {
             }
         } else {
             try {
-                var cmd = new CountMongoCommand(getMorphium().getDriver().getConnection())
+                var cmd = new CountMongoCommand(getMorphium().getDriver().getReadConnection(getRP()))
                         .setDb(getDB())
                         .setColl(getCollectionName())
                         .setQuery(Doc.of(toQueryObject()));
@@ -1261,7 +1261,7 @@ public class Query<T> implements Cloneable {
                         }
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        UpdateMongoCommand settings = new UpdateMongoCommand(getMorphium().getDriver().getConnection())
+                        UpdateMongoCommand settings = new UpdateMongoCommand(getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType())))
                                 .setDb(getDB())
                                 .setColl(getCollectionName())
                                 .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
@@ -2233,7 +2233,7 @@ public class Query<T> implements Cloneable {
     }
 
     public FindCommand getFindCmd() {
-        FindCommand settings = new FindCommand(getMorphium().getDriver().getConnection())
+        FindCommand settings = new FindCommand(getMorphium().getDriver().getReadConnection(getRP()))
                 .setDb(getMorphium().getConfig().getDatabase())
                 .setColl(getCollectionName())
                 .setFilter(toQueryObject())

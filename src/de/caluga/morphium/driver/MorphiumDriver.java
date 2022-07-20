@@ -10,7 +10,6 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
-import de.caluga.morphium.driver.wire.ConnectionType;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.io.Closeable;
@@ -161,7 +160,6 @@ public interface MorphiumDriver extends Closeable {
     void abortTransaction() throws MorphiumDriverException;
 
 
-
     //.______       __    __  .__   __.      ______   ______   .___  ___. .___  ___.      ___      .__   __.  _______
     //|   _  \     |  |  |  | |  \ |  |     /      | /  __  \  |   \/   | |   \/   |     /   \     |  \ |  | |       \
     //|  |_)  |    |  |  |  | |   \|  |    |  ,----'|  |  |  | |  \  /  | |  \  /  |    /  ^  \    |   \|  | |  .--.  |
@@ -169,13 +167,13 @@ public interface MorphiumDriver extends Closeable {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-    SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException;
+//    SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException;
+//
+//    CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException;
+//
+//    ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException;
 
-    CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException;
-
-    ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException;
-
-    Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
+    //Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
 
     Map<String, Object> getReplsetStatus() throws MorphiumDriverException;
@@ -235,10 +233,17 @@ public interface MorphiumDriver extends Closeable {
     //    \__/  \__/ /__/     \__\  |__|      \______||__|  |__|
     void watch(WatchCommand settings) throws MorphiumDriverException;
 
+    //  ______   ______   .__   __. .__   __.  _______   ______ .___________. __    ______   .__   __.      _______.
+    // /      | /  __  \  |  \ |  | |  \ |  | |   ____| /      ||           ||  |  /  __  \  |  \ |  |     /       |
+    //|  ,----'|  |  |  | |   \|  | |   \|  | |  |__   |  ,----'`---|  |----`|  | |  |  |  | |   \|  |    |   (----`
+    //|  |     |  |  |  | |  . `  | |  . `  | |   __|  |  |         |  |     |  | |  |  |  | |  . `  |     \   \
+    //|  `----.|  `--'  | |  |\   | |  |\   | |  |____ |  `----.    |  |     |  | |  `--'  | |  |\   | .----)   |
+    // \______| \______/  |__| \__| |__| \__| |_______| \______|    |__|     |__|  \______/  |__| \__| |_______/
+    //MongoConnection getConnection(ConnectionType type);
 
-    MongoConnection getConnection(ConnectionType type);
+    MongoConnection getReadConnection(ReadPreference rp);
 
-    MongoConnection getConnection(ReadPreference rp);
+    MongoConnection getPrimaryConnection(WriteConcern wc);
 
     void releaseConnection(MongoConnection con);
 

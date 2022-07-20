@@ -4,6 +4,7 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -66,7 +67,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         //dedicated connection
         dedicatedConnection = new SingleMongoConnection();
         try {
-            dedicatedConnection.connect(m.getDriver(),m.getDriver().getConnection().getConnectedToHost(),m.getDriver().getConnection().getConnectedToPort());
+            MongoConnection primaryConnection = m.getDriver().getPrimaryConnection(null);
+            dedicatedConnection.connect(m.getDriver(), primaryConnection.getConnectedToHost(), primaryConnection.getConnectedToPort());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }

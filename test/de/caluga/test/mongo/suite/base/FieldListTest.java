@@ -57,7 +57,7 @@ public class FieldListTest extends MorphiumTestBase {
         marshall.put("read_only_value", "stored in db");
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);
-        StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getConnection());
+        StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getPrimaryConnection(null));
         cmd.setDb(morphium.getDatabase()).setColl("read_only_object").setDocs(lst);
         cmd.execute();
         Thread.sleep(100);

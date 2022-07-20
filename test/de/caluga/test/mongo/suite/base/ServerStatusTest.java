@@ -16,10 +16,7 @@ public class ServerStatusTest extends MorphiumTestBase {
 
     @Test
     public void getServerStatus() {
-        Morphium m = morphium;
-        Map res = m.execCommand("serverStatus");
 
-        System.out.println(res.toString());
 
     }
 }
