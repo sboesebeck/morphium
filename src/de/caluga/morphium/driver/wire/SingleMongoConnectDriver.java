@@ -6,14 +6,14 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.commands.result.CursorResult;
-import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -137,8 +137,8 @@ public class SingleMongoConnectDriver extends DriverBase {
             } catch (Exception e) {
                 log.error("connection failed", e);
                 connectToIdx++;
-                if (connectToIdx>getHostSeed().size()){
-                    connectToIdx=0;
+                if (connectToIdx > getHostSeed().size()) {
+                    connectToIdx = 0;
                 }
             }
         }
@@ -150,7 +150,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             log.info("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(() -> {
 
-               // log.info("checking connection");
+                // log.info("checking connection");
                 try {
                     HelloCommand cmd = new HelloCommand(getConnection())
                             .setHelloOk(true)
@@ -226,9 +226,19 @@ public class SingleMongoConnectDriver extends DriverBase {
 //        return connection.readAnswerFor(crs);
 //    }
 
-    @Override
+
     public MongoConnection getConnection() {
         return connection;
+    }
+
+    @Override
+    public MongoConnection getReadConnection(ReadPreference rp) {
+        return getConnection();
+    }
+
+    @Override
+    public MongoConnection getPrimaryConnection(WriteConcern wc) {
+        return getConnection();
     }
 
     @Override
@@ -267,7 +277,10 @@ public class SingleMongoConnectDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
         MorphiumTransactionContext ctx = getTransactionContext();
-        runCommand("admin", Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+        getConnection().sendCommand(Doc.of("commitTransaction", 1,
+                "txnNumber", ctx.getTxnNumber(),
+                "autocommit", false,
+                "lsid", Doc.of("id", ctx.getLsid()), "$db", "admin"));
         clearTransactionContext();
     }
 
@@ -276,79 +289,84 @@ public class SingleMongoConnectDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
         MorphiumTransactionContext ctx = getTransactionContext();
-        runCommand("admin", Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid())));
+
+        getConnection().sendCommand(Doc.of("abortTransaction", 1,
+                "txnNumber", ctx.getTxnNumber(),
+                "autocommit", false, "lsid", Doc.of("id", ctx.getLsid()),
+                "$db", "admin")
+        );
         clearTransactionContext();
     }
-
-    @Override
-    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var m = cmd.asMap();
-        var msg = getConnection().sendCommand(m);
-        var res = getConnection().readSingleAnswer(msg);
-        return new SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
-
-    @Override
-    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd.asMap());
-        return new CursorResult().setCursor(getConnection().getAnswerFor(msg, getDefaultBatchSize()))
-                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
-
-    @Override
-    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd.asMap());
-        return new ListResult().setResult(getConnection().readAnswerFor(msg))
-                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    }
-
-    @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        cmd.put("$db", db);
-        var start = System.currentTimeMillis();
-        var msg = getConnection().sendCommand(cmd);
-        return getConnection().readSingleAnswer(msg);
-    }
+//
+//    @Override
+//    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var m = cmd.asMap();
+//        var msg = getConnection().sendCommand(m);
+//        var res = getConnection().readSingleAnswer(msg);
+//        return new SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
+//
+//    @Override
+//    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd.asMap());
+//        return new CursorResult().setCursor(getConnection().getAnswerFor(msg, getDefaultBatchSize()))
+//                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
+//
+//    @Override
+//    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd.asMap());
+//        return new ListResult().setResult(getConnection().readAnswerFor(msg))
+//                .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
+//                .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
+//    }
+//
+//    @Override
+//    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
+//        cmd.put("$db", db);
+//        var start = System.currentTimeMillis();
+//        var msg = getConnection().sendCommand(cmd);
+//        return getConnection().readSingleAnswer(msg);
+//    }
 
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-            var ret = runCommand("admin", Doc.of("replSetGetStatus", 1));
-            @SuppressWarnings("unchecked") List<Doc> mem = (List) ret.get("members");
-            if (mem == null) {
-                return null;
-            }
-            //noinspection unchecked
-            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
-            return ret;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+
+        ReplicastStatusCommand cmd = new ReplicastStatusCommand(getPrimaryConnection(null));
+        var result = cmd.execute();
+        @SuppressWarnings("unchecked") List<Doc> mem = (List) result.get("members");
+        if (mem == null) {
+            return null;
+        }
+        //noinspection unchecked
+        mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+        return result;
     }
 
 
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
-        return runCommand(db, Doc.of("dbstats", 1));
+        return new DbStatsCommand(getPrimaryConnection(null)).setDb(db).execute();
     }
 
 
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        return runCommand(db, Doc.of("collStats", coll, "scale", 1024));
+        CollStatsCommand cmd = new CollStatsCommand(getConnection());
+        return cmd.execute();
     }
 
 
-    public Map<String, Object> currentOp(long threshold) throws MorphiumDriverException {
-        return runCommand("admin", Doc.of("currentOp", 1, "secs_running", Doc.of("$gt", threshold)))
-                ;
+    public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
+        CurrentOpCommand cmd = new CurrentOpCommand(getConnection()).setColl("admin").setSecsRunning(threshold);
+        return cmd.execute();
     }
-
 
 
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {

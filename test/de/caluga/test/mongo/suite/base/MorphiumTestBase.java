@@ -182,7 +182,7 @@ public class MorphiumTestBase {
         try {
             if (!morphium.getConfig().isAtlas()) {
                 log.info("Dropping database: " + morphium.getConfig().getDatabase());
-                DropDatabaseMongoCommand settings = new DropDatabaseMongoCommand(morphium.getDriver().getConnection());
+                DropDatabaseMongoCommand settings = new DropDatabaseMongoCommand(morphium.getDriver().getPrimaryConnection(null));
                 settings.setComment("Dropping from morphiumg test base");
                 settings.setDb(morphium.getConfig().getDatabase());
                 settings.execute();
@@ -237,7 +237,7 @@ public class MorphiumTestBase {
         for (ShutdownListener t : toRemove) {
             morphium.removeShutdownListener(t);
         }
-        ListCollectionsCommand cmd = new ListCollectionsCommand(morphium.getDriver().getConnection()).setDb(morphium.getDatabase());
+        ListCollectionsCommand cmd = new ListCollectionsCommand(morphium.getDriver().getPrimaryConnection(null)).setDb(morphium.getDatabase());
         try {
             for (var collMap : cmd.execute()) {
                 String coll = (String) collMap.get("name");

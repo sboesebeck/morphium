@@ -381,7 +381,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     public AggregateMongoCommand getAggregateCmd() {
-        AggregateMongoCommand cmd = new AggregateMongoCommand(morphium.getDriver().getConnection());
+        AggregateMongoCommand cmd = new AggregateMongoCommand(morphium.getDriver().getReadConnection(null));
         cmd.setDb(morphium.getDatabase())
                 .setColl(getCollectionName())
                 .setPipeline(getPipeline())

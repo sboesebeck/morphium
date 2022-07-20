@@ -96,12 +96,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
             return;
         }
-        try {
-            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
-        } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
-            throw new RuntimeException(e);
-        }
+//        try {
+//            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
+//        } catch (MorphiumDriverException e) {
+//            //TODO: Implement Handling
+//            throw new RuntimeException(e);
+//        }
+        throw new RuntimeException("Needs to be implemented!");
     }
 
 

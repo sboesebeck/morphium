@@ -597,7 +597,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 toSet.put(fieldName, ef.getValue());
             }
 
-            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(q.q().f("_id").in(lst).toQueryObject(), Doc.of("$set", toSet), null, false, multiple, null, null, null);
             cmd.execute();
@@ -696,7 +696,7 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> update = Doc.of("$set", toSet);
         Map<String, Object> qobj = q.toQueryObject();
         try {
-            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, processMultiple, null, null, null);
             Map<String, Object> result = cmd.execute();
@@ -757,7 +757,7 @@ public class Messaging extends Thread implements ShutdownListener {
             if (receiveAnswers.equals(ReceiveAnswers.NONE) || (receiveAnswers.equals(ReceiveAnswers.ONLY_MINE) && msg.getRecipients() != null && !msg.getRecipients().contains(id))) {
                 if (msg.isExclusive() && msg.getLockedBy() != null && msg.getLockedBy().equals(id)) {
                     try {
-                        UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+                        UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
                         cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
                         cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$set", Doc.of("locked_by", null)), null, false, false, null, null, null);
                         cmd.execute();
@@ -780,7 +780,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (msg.isExclusive()) {
                 try {
-                    UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+                    UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
                     cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
                     cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$set", Doc.of("locked_by", null)), null, false, false, null, null, null);
                     cmd.execute();
@@ -868,7 +868,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         updateProcessedBy(msg);
                         if (msg.isExclusive()) {
                             try {
-                                UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+                                UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
                                 cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
                                 cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$set", Doc.of("locked_by", null)), null, false, false, null, null, null);
                                 cmd.execute();
@@ -890,7 +890,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     msg.setLocked(0);
                     msg.setLockedBy(null);
                     try {
-                        UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+                        UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
                         cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
                         cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$set", Doc.of("locked_by", null, "locked", 0)), null, false, false, null, null, null);
                         cmd.execute();
@@ -972,7 +972,7 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> set = Doc.of(fieldName, id);
         Map<String, Object> update = Doc.of("$push", set);
         try {
-            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getConnection());
+            UpdateMongoCommand cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();

@@ -310,25 +310,6 @@ public class DriverMock implements MorphiumDriver {
 
     }
 
-    @Override
-    public SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException {
-        return null;
-    }
-
-    @Override
-    public Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException {
-        return null;
-    }
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
@@ -441,8 +422,18 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
-    public MongoConnection getConnection() {
+    public MongoConnection getReadConnection(ReadPreference rp) {
         return null;
+    }
+
+    @Override
+    public MongoConnection getPrimaryConnection(WriteConcern wc) {
+        return null;
+    }
+
+    @Override
+    public void releaseConnection(MongoConnection con) {
+
     }
 
     @Override
