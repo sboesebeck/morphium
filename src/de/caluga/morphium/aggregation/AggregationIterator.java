@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,7 +97,8 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
     }
 
     private AggregateMongoCommand getAggregateCmd() {
-        AggregateMongoCommand settings = new AggregateMongoCommand(aggregator.getMorphium().getDriver().getReadConnection(null));
+        MongoConnection readConnection = aggregator.getMorphium().getDriver().getReadConnection(null);
+        AggregateMongoCommand settings = new AggregateMongoCommand(readConnection);
         settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
                 .setColl(aggregator.getCollectionName())
                 .setPipeline(aggregator.getPipeline())
@@ -105,6 +107,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
                 .setAllowDiskUse(aggregator.isUseDisk());
         if (aggregator.getCollation() != null) settings.setCollation(Doc.of(aggregator.getCollation().toQueryObject()));
         //TODO .setReadConcern(morphium.getReadPreferenceForC)
+        aggregator.getMorphium().getDriver().releaseConnection(readConnection);
         return settings;
     }
 

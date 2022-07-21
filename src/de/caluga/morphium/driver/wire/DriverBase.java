@@ -81,18 +81,23 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
-        ListCollectionsCommand cmd = new ListCollectionsCommand(getPrimaryConnection(null));
-        cmd.setDb(db).setNameOnly(true);
-        if (regex != null)
-            cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
-        var lst = cmd.execute();
-        List<String> colNames = new ArrayList<>();
+        MongoConnection primaryConnection = getPrimaryConnection(null);
+        try {
+            ListCollectionsCommand cmd = new ListCollectionsCommand(primaryConnection);
+            cmd.setDb(db).setNameOnly(true);
+            if (regex != null)
+                cmd.setFilter(Doc.of("name", Pattern.compile(regex)));
+            var lst = cmd.execute();
+            List<String> colNames = new ArrayList<>();
 
-        for (Map<String, Object> doc : lst) {
-            String name = doc.get("name").toString();
-            colNames.add(name);
+            for (Map<String, Object> doc : lst) {
+                String name = doc.get("name").toString();
+                colNames.add(name);
+            }
+            return colNames;
+        } finally {
+            primaryConnection.release();
         }
-        return colNames;
     }
 
     @Override

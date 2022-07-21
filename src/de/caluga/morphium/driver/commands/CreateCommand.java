@@ -19,6 +19,7 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
     private Map<String, Object> storageEngine;
     private Map<String, Object> validator;
     private String validationLevel;
+    private String validationAction;
     private Map<String, Object> indexOptionDefaults;
     private String viewOn;
     private List<Map<String, Object>> pipeline;
@@ -127,6 +128,15 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
 
     public CreateCommand setValidationLevel(String validationLevel) {
         this.validationLevel = validationLevel;
+        return this;
+    }
+
+    public String getValidationAction() {
+        return validationAction;
+    }
+
+    public CreateCommand setValidationAction(String validationAction) {
+        this.validationAction = validationAction;
         return this;
     }
 

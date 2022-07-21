@@ -188,7 +188,7 @@ public class SingleMongoConnection implements MongoConnection {
                 in.close();
             if (out!=null)
                 out.close();
-            if (s!=null)
+            if (s != null)
                 s.close();
         } catch (IOException e) {
             //swallow
@@ -196,6 +196,11 @@ public class SingleMongoConnection implements MongoConnection {
         in = null;
         out = null;
         s = null;
+    }
+
+    @Override
+    public void release() {
+        driver.releaseConnection(this);
     }
 
     @Override
@@ -320,7 +325,7 @@ public class SingleMongoConnection implements MongoConnection {
             try {
                 reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
-                if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
+                if (e.getMessage().contains("server did not answer in time: ")) {
                     log.info("timout in watch - restarting");
                     msg.setMessageId(msgId.incrementAndGet());
                     sendQuery(msg);

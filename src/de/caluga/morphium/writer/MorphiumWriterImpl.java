@@ -746,14 +746,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
 
+        CreateCommand cmd = new CreateCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(c)));
+        cmd.setDb(morphium.getDatabase());
+        cmd.setColl(morphium.getMapper().getCollectionName(c));
 
-        Map<String, Object> cmd = new LinkedHashMap<>();
-        cmd.put("create", collectionName != null ? collectionName : morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
         if (capped != null) {
-            cmd.put("capped", true);
-            cmd.put("size", capped.maxSize());
-            cmd.put("max", capped.maxEntries());
+            cmd.setCapped(true);
+            cmd.setSize(capped.maxSize());
+            cmd.setMax(capped.maxEntries());
         }
 
         //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
@@ -772,47 +773,47 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         return new ArrayList();
                     }
                 });
-                cmd.put("validator", def);
-                cmd.put("validationLevel", e.validationLevel().name());
-                cmd.put("validationAction", e.validationAction().name());
+                cmd.setValidator(def);
+                cmd.setValidationLevel(e.validationLevel().name());
+                cmd.setValidationAction(e.validationAction().name());
             } catch (ParseException parseException) {
                 parseException.printStackTrace();
             }
 
         }
         if (!e.comment().equals("")) {
-            cmd.put("comment", e.comment());
+            cmd.setComment(e.comment());
         }
         de.caluga.morphium.annotations.Collation collation = morphium.getARHelper().getAnnotationFromHierarchy(c, de.caluga.morphium.annotations.Collation.class);
         if (collation != null) {
-            Map<String, Object> map = new LinkedHashMap<>();
-
-            map.put("locale", collation.locale());
-
+            Collation collation1 = new Collation();
+            collation1.locale(collation.locale());
             if (!collation.alternate().equals("")) {
-                map.put("alternate", collation.alternate());
+                collation1.alternate(collation.alternate());
             }
             if (!collation.caseFirst().equals("")) {
-                map.put("caseFirst", collation.caseFirst());
+                collation1.caseFirst(collation.caseFirst());
             }
-            map.put("backwards", collation.backwards());
-            map.put("caseLevel", collation.caseLevel());
-            map.put("numericOrdering", collation.numericOrdering());
-            map.put("strength", collation.strength());
-            cmd.put("collation", map);
+            collation1.backwards(collation.backwards());
+            collation1.caseLevel(collation.caseLevel());
+            collation1.numericOrdering(collation.numericOrdering());
+            collation1.strength(collation.strength());
+            cmd.setCollation(collation1.toQueryObject());
+
         }
 
-//        try {
-//            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), Doc.of(cmd));
-//        } catch (MorphiumDriverException ex) {
-//            if (ex.getMessage().startsWith("internal error: Command failed with error 48 (NamespaceExists): 'Collection already exists. NS:")) {
-//                LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...?");
-//            } else {
-//
-//                throw new RuntimeException(ex);
-//            }
-//        }
-        throw new RuntimeException("Not implemented yet!");
+        try {
+            cmd.execute();
+        } catch (MorphiumDriverException ex) {
+            if (ex.getMessage().startsWith("internal error: Command failed with error 48 (NamespaceExists): 'Collection already exists. NS:")) {
+                LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Collection already exists...?");
+            } else {
+
+                throw new RuntimeException(ex);
+            }
+        } finally {
+            morphium.getDriver().releaseConnection(cmd.getConnection());
+        }
     }
 
 
