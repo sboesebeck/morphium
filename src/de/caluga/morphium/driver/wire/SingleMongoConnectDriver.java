@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,6 +44,12 @@ public class SingleMongoConnectDriver extends DriverBase {
             return ret;
         }
     });
+
+
+    public MongoConnection getConnection() {
+        return new ConnectionWrapper(connection);
+    }
+
     private ScheduledFuture<?> heartbeat;
     public final static String driverName = "SingleMongoConnectDriver";
 
@@ -226,9 +233,11 @@ public class SingleMongoConnectDriver extends DriverBase {
 //        return connection.readAnswerFor(crs);
 //    }
 
-
-    public MongoConnection getConnection() {
-        return connection;
+    @Override
+    public void releaseConnection(MongoConnection con) {
+        if (con instanceof ConnectionWrapper) {
+            ((ConnectionWrapper) con).release();
+        }
     }
 
     @Override
@@ -241,9 +250,102 @@ public class SingleMongoConnectDriver extends DriverBase {
         return getConnection();
     }
 
-    @Override
-    public void releaseConnection(MongoConnection con) {
-        log.info("Nothing to release for a single connection!");
+    private class ConnectionWrapper implements MongoConnection {
+        private MongoConnection delegate;
+
+        public ConnectionWrapper(MongoConnection con) {
+            delegate = con;
+        }
+
+        @Override
+        public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
+            return delegate.connect(drv, host, port);
+        }
+
+        @Override
+        public MorphiumDriver getDriver() {
+            return SingleMongoConnectDriver.this;
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public boolean isConnected() {
+            return delegate.isConnected();
+        }
+
+        @Override
+        public String getConnectedTo() {
+            return delegate.getConnectedTo();
+        }
+
+        @Override
+        public String getConnectedToHost() {
+            return delegate.getConnectedToHost();
+        }
+
+        @Override
+        public int getConnectedToPort() {
+            return delegate.getConnectedToPort();
+        }
+
+        @Override
+        public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+            delegate.closeIteration(crs);
+        }
+
+        @Override
+        public Map<String, Object> killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
+            return delegate.killCursors(db, coll, ids);
+        }
+
+        @Override
+        public boolean replyAvailableFor(int msgId) {
+            return delegate.replyAvailableFor(msgId);
+        }
+
+        @Override
+        public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
+            return delegate.getReplyFor(msgid, timeout);
+        }
+
+        @Override
+        public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+            return delegate.readSingleAnswer(id);
+        }
+
+        @Override
+        public void watch(WatchCommand settings) throws MorphiumDriverException {
+            delegate.watch(settings);
+        }
+
+        @Override
+        public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+            return delegate.readAnswerFor(queryId);
+        }
+
+        @Override
+        public MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException {
+            return delegate.getAnswerFor(queryId, batchsize);
+        }
+
+        @Override
+        public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+            return delegate.readAnswerFor(crs);
+        }
+
+        @Override
+        public int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+            return delegate.sendCommand(cmd);
+        }
+
+        @Override
+        public void release() {
+            delegate = null;
+        }
     }
 
     @Override

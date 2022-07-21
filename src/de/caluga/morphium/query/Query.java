@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -264,9 +265,9 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
 
         Map<String, Object> ret = null;
-
+        var con = morphium.getDriver().getPrimaryConnection(null);
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getPrimaryConnection(null))
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con)
                     .setQuery(Doc.of(toQueryObject()))
                     .setRemove(true)
                     .setSort(new Doc(getSort()))
@@ -276,6 +277,8 @@ public class Query<T> implements Cloneable {
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
+        } finally {
+            con.release();
         }
 
         if (ret == null) {
@@ -336,9 +339,9 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
 
         Map<String, Object> ret = null;
-
+        var con = morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType()));
         try {
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType())))
+            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con)
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setQuery(Doc.of(toQueryObject()))
@@ -347,6 +350,8 @@ public class Query<T> implements Cloneable {
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
+        } finally {
+            con.release();
         }
 
         if (ret == null) {
@@ -406,19 +411,22 @@ public class Query<T> implements Cloneable {
 
     public long complexQueryCount(Map<String, Object> query) {
         long ret = 0;
-        CountMongoCommand settings = new CountMongoCommand(morphium.getDriver().getReadConnection(getRP()))
+        MongoConnection con = morphium.getDriver().getReadConnection(getRP());
+        CountMongoCommand cmd = new CountMongoCommand(con)
                 .setColl(collectionName)
                 .setDb(getDB())
                 .setQuery(Doc.of(query));
         Entity et = getARHelper().getAnnotationFromClass(getType(), Entity.class);
         if (et != null) {
-            settings.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
+            cmd.setReadConcern(Doc.of("level", et.readConcernLevel().name()));
         }
         try {
-            ret = settings.getCount();
+            ret = cmd.getCount();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            con.release();
         }
         return ret;
     }
@@ -462,8 +470,8 @@ public class Query<T> implements Cloneable {
 
         List<Map<String, Object>> obj = null;
         Map<String, Object> findMetaData = new HashMap<>();
+        FindCommand settings = getFindCmd();
         try {
-            FindCommand settings = getFindCmd();
             settings.setFilter(query)
                     .setSkip(skip)
                     .setSort(new LinkedHashMap<>(sort))
@@ -473,6 +481,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            morphium.getDriver().releaseConnection(settings.getConnection());
         }
         for (Map<String, Object> in : obj) {
             T unmarshall = morphium.getMapper().deserialize(type, in);
@@ -557,8 +567,9 @@ public class Query<T> implements Cloneable {
 
 
     public List distinct(String field) {
+        MongoConnection con = morphium.getDriver().getReadConnection(getRP());
         try {
-            var cmd = new DistinctMongoCommand(morphium.getDriver().getReadConnection(getRP()))
+            var cmd = new DistinctMongoCommand(con)
                     .setDb(getDB())
                     .setColl(getCollectionName())
                     .setKey(field)
@@ -570,6 +581,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            con.release();
         }
     }
 
@@ -865,35 +878,39 @@ public class Query<T> implements Cloneable {
             return count;
 
         }
-        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
-            try {
-                CountMongoCommand settings = new CountMongoCommand(getMorphium().getDriver().getReadConnection(getRP())).setDb(getDB())
-                        .setColl(getCollectionName())
-                        //.setQuery(Doc.of(this.toQueryObject()))
-                        ;
-                if (getCollation() != null)
-                    settings.setCollation(getCollation().toQueryObject());
-                ret = settings.getCount();
+        MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
+        try {
+            if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
+                try {
+                    CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB())
+                            .setColl(getCollectionName())
+                            //.setQuery(Doc.of(this.toQueryObject()))
+                            ;
+                    if (getCollation() != null)
+                        settings.setCollation(getCollation().toQueryObject());
+                    ret = settings.getCount();
 //                            .setReadConcern(getRP().);
-            } catch (MorphiumDriverException e) {
-                log.error("Error counting", e);
-                ret = 0;
+                } catch (MorphiumDriverException e) {
+                    log.error("Error counting", e);
+                    ret = 0;
+                }
+            } else {
+                try {
+                    var cmd = new CountMongoCommand(con)
+                            .setDb(getDB())
+                            .setColl(getCollectionName())
+                            .setQuery(Doc.of(toQueryObject()));
+                    if (getCollation() != null)
+                        cmd.setCollation(getCollation().toQueryObject());
+                    ret = cmd.getCount();
+                } catch (MorphiumDriverException e) {
+                    // TODO: Implement Handling
+                    throw new RuntimeException(e);
+                }
             }
-        } else {
-            try {
-                var cmd = new CountMongoCommand(getMorphium().getDriver().getReadConnection(getRP()))
-                        .setDb(getDB())
-                        .setColl(getCollectionName())
-                        .setQuery(Doc.of(toQueryObject()));
-                if (getCollation() != null)
-                    cmd.setCollation(getCollation().toQueryObject());
-                ret = cmd.getCount();
-            } catch (MorphiumDriverException e) {
-                // TODO: Implement Handling
-                throw new RuntimeException(e);
-            }
+        } finally {
+            con.release();
         }
-
         morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
         return ret;
     }
@@ -1247,6 +1264,7 @@ public class Query<T> implements Cloneable {
             for (String ctf : lst) {
                 Field f = getARHelper().getField(type, ctf);
                 if (f != null) {
+                    MongoConnection con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
                     try {
                         long currentTime = System.currentTimeMillis();
                         if (f.getType().equals(Date.class)) {
@@ -1261,7 +1279,8 @@ public class Query<T> implements Cloneable {
                         }
                         Object id = getARHelper().getId(unmarshall);
                         //Cannot use store, as this would trigger an update of last changed...
-                        UpdateMongoCommand settings = new UpdateMongoCommand(getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType())))
+
+                        UpdateMongoCommand settings = new UpdateMongoCommand(con)
                                 .setDb(getDB())
                                 .setColl(getCollectionName())
                                 .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
@@ -1269,6 +1288,8 @@ public class Query<T> implements Cloneable {
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
+                    } finally {
+                        con.release();
                     }
                 }
             }
@@ -2233,7 +2254,8 @@ public class Query<T> implements Cloneable {
     }
 
     public FindCommand getFindCmd() {
-        FindCommand settings = new FindCommand(getMorphium().getDriver().getReadConnection(getRP()))
+        MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
+        FindCommand settings = new FindCommand(con)
                 .setDb(getMorphium().getConfig().getDatabase())
                 .setColl(getCollectionName())
                 .setFilter(toQueryObject())
