@@ -25,31 +25,31 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
 
-    @Test(expected = MorphiumDriverException.class)
-    public void failTest() throws Exception{
-        try (var con = getConnection()) {
-
-            ShutdownCommand cmd = new ShutdownCommand(con);
-            cmd.setForce(true);
-            cmd.setTimeoutSecs(2);
-            var msg = con.sendCommand(cmd.asMap());
-            log.info("Sent Shutdown command...");
-            Thread.sleep(3000);
-            //server should be down now
-            log.info("Should be down now. Sending hello...");
-
-            HelloCommand c = new HelloCommand(con).setHelloOk(true);
-            int sent = 0;
-            while (true) {
-                log.info("Sending message...");
-                assertThat(sent).isLessThan(3);
-                msg = con.sendCommand(c.asMap());
-                sent++;
-                Thread.sleep(500);
-            }
-
-        }
-    }
+//    @Test(expected = MorphiumDriverException.class)
+//    public void failTest() throws Exception{
+//        try (var con = getConnection()) {
+//
+//            ShutdownCommand cmd = new ShutdownCommand(con);
+//            cmd.setForce(true);
+//            cmd.setTimeoutSecs(2);
+//            var msg = con.sendCommand(cmd.asMap());
+//            log.info("Sent Shutdown command...");
+//            Thread.sleep(3000);
+//            //server should be down now
+//            log.info("Should be down now. Sending hello...");
+//
+//            HelloCommand c = new HelloCommand(con).setHelloOk(true);
+//            int sent = 0;
+//            while (true) {
+//                log.info("Sending message...");
+//                assertThat(sent).isLessThan(3);
+//                msg = con.sendCommand(c.asMap());
+//                sent++;
+//                Thread.sleep(500);
+//            }
+//
+//        }
+//    }
 
 
     @Test
@@ -90,6 +90,10 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         assertThat(res.size()).isEqualTo(1);
         assertThat(res.get(0).get("counter")).isEqualTo(9999);
         con.close();
+
+        for (var e : con.getStats().entrySet()) {
+            log.info("Stats: " + e.getKey() + " -> " + e.getValue());
+        }
     }
 
 

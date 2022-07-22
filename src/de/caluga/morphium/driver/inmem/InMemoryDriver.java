@@ -1678,6 +1678,11 @@ public class InMemoryDriver implements MorphiumDriver {
         };
     }
 
+    @Override
+    public Map<DriverStatsKey, Double> getDriverStats() {
+        return null;
+    }
+
 
     public void createIndex(String db, String collection, Doc index, Doc options) {
 

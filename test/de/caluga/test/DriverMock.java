@@ -450,4 +450,9 @@ public class DriverMock implements MorphiumDriver {
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return null;
     }
+
+    @Override
+    public Map<DriverStatsKey, Double> getDriverStats() {
+        return null;
+    }
 }

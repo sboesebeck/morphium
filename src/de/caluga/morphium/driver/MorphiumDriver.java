@@ -4,12 +4,7 @@ package de.caluga.morphium.driver;/**
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.commands.MultiResultCommand;
-import de.caluga.morphium.driver.commands.SingleResultCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
-import de.caluga.morphium.driver.commands.result.CursorResult;
-import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.io.Closeable;
@@ -136,7 +131,7 @@ public interface MorphiumDriver extends Closeable {
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 
 
-   Map<String,Integer> getNumConnectionsByHost();
+    Map<String, Integer> getNumConnectionsByHost();
 
     ////////////////////////////////////////////////////
     // .___________..______          ___      .__   __.      _______.     ___       ______ .___________. __    ______   .__   __.      _______.
@@ -255,4 +250,13 @@ public interface MorphiumDriver extends Closeable {
 
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
 
+    Map<DriverStatsKey, Double> getDriverStats();
+
+
+    enum DriverStatsKey {
+        CONNECTIONS_OPENED, CONNECTIONS_CLOSED, CONNECTIONS_BORROWED, CONNECTIONS_RELEASED, CONNECTIONS_IN_USE,
+        ERRORS, FAILOVERS,
+        MSG_SENT, REPLY_PROCESSED, REPLY_IN_MEM, REPLY_RECEIVED,
+        THREADS_CREATED,
+    }
 }
