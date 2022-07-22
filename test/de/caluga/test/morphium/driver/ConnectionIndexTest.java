@@ -28,9 +28,9 @@ public class ConnectionIndexTest extends ConnectionTestBase {
         InsertMongoCommand cmd = new InsertMongoCommand(con).setDb(db).setColl(coll)
                 .setDocuments(Arrays.asList(Doc.of("counter", 123, "str_val", "This is a test")));
         cmd.execute();
+        CreateIndexesCommand cic = new CreateIndexesCommand(con).addIndex(new IndexDescription().setKey(Doc.of("counter", 1)).setName("tst1").setSparse(true)).setDb(db).setColl(coll);
         //Created collection
-        var msg = con.sendCommand( Doc.of("createIndexes", coll, "indexes", Arrays.asList(Doc.of("key", Doc.of("counter", 1), "name", "tst1", "sparse", true,"$db",db))));
-        var res=con.readSingleAnswer(msg);
+        var res = cic.execute();
         log.info(Utils.toJsonString(res));
         ListIndexesCommand lcmd = new ListIndexesCommand(con).setDb(db).setColl(coll);
         List<IndexDescription> lst = lcmd.execute();
@@ -44,7 +44,7 @@ public class ConnectionIndexTest extends ConnectionTestBase {
 
         IndexDescription id = new IndexDescription().setKey(Doc.of("counter", -1, "str_value", 1)).setName("MyIdx");
         IndexDescription id2 = new IndexDescription().setKey(Doc.of("timestamp", 1)).setExpireAfterSeconds(10).setName("ts_exp");
-        CreateIndexesCommand cic = new CreateIndexesCommand(con).setDb(db).setColl(coll)
+        cic = new CreateIndexesCommand(con).setDb(db).setColl(coll)
                 .addIndex(id).addIndex(id2);
         var ret = cic.execute();
         log.info(Utils.toJsonString(ret));
@@ -59,8 +59,6 @@ public class ConnectionIndexTest extends ConnectionTestBase {
             }
         }
         assertThat(lst.size()).isEqualTo(4);
-
-
         con.close();
     }
 }

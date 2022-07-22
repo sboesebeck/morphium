@@ -608,6 +608,11 @@ public class PooledDriver extends DriverBase {
         };
     }
 
+    @Override
+    public Map<DriverStatsKey, Double> getDriverStats() {
+        return null;
+    }
+
 
     public enum ConnectionType {
         PRIMARY, SECONDARY, ANY,

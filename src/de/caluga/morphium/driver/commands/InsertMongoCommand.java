@@ -68,7 +68,15 @@ public class InsertMongoCommand extends WriteMongoCommand<InsertMongoCommand> {
         if (writeResult.containsKey("writeErrors")) {
             int failedWrites = ((List) writeResult.get("writeErrors")).size();
             int success = (int) writeResult.get("n");
-            throw new MorphiumDriverException("Failed to write: " + failedWrites + " - succeeded: " + success);
+            StringBuilder msg = new StringBuilder();
+            msg.append("Failed to write: " + failedWrites + " - succeeded: " + success);
+            for (Map<String, Object> err : (List<Map<String, Object>>) writeResult.get("writeErrors")) {
+                msg.append("\n----> ");
+                msg.append(err.get("code"));
+                msg.append(":");
+                msg.append(err.get("errmsg"));
+            }
+            throw new MorphiumDriverException(msg.toString());
         }
         return writeResult;
     }

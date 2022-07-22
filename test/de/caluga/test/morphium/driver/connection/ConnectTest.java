@@ -195,34 +195,34 @@ public class ConnectTest extends BaseTest {
 
     }
 
-
-    @Test
-    public void incomingTest() throws Exception {
-        ServerSocket ssoc = new ServerSocket(17017);
-        log.info("Opening port on 17017");
-        Socket s = ssoc.accept();
-        log.info("incoming connection");
-        InputStream in = s.getInputStream();
-//        byte[] inBuffer = new byte[1024];
 //
-//        int numRead = -1;
-//        long start=System.currentTimeMillis();
+//    @Test
+//    public void incomingTest() throws Exception {
+//        ServerSocket ssoc = new ServerSocket(17017);
+//        log.info("Opening port on 17017");
+//        Socket s = ssoc.accept();
+//        log.info("incoming connection");
+//        InputStream in = s.getInputStream();
+////        byte[] inBuffer = new byte[1024];
+////
+////        int numRead = -1;
+////        long start=System.currentTimeMillis();
+////
+////        while (numRead == -1) {
+////            numRead = in.read(inBuffer);
+////            if (System.currentTimeMillis()-start > 1000){
+////                throw new RuntimeException("Timeout - did not get answer in time");
+////            }
+////        }
+////        log.info("read: " + numRead + " bytes");
+////        log.info("\n" + Utils.getHex(inBuffer, numRead));
+//        WireProtocolMessage msg = WireProtocolMessage.parseFromStream(in);
+//        log.info("Message msg " + msg.getOpCode() + " " + msg.getClass().getName());
+//        log.info(msg.toString());
 //
-//        while (numRead == -1) {
-//            numRead = in.read(inBuffer);
-//            if (System.currentTimeMillis()-start > 1000){
-//                throw new RuntimeException("Timeout - did not get answer in time");
-//            }
-//        }
-//        log.info("read: " + numRead + " bytes");
-//        log.info("\n" + Utils.getHex(inBuffer, numRead));
-        WireProtocolMessage msg = WireProtocolMessage.parseFromStream(in);
-        log.info("Message msg " + msg.getOpCode() + " " + msg.getClass().getName());
-        log.info(msg.toString());
-
-
-        //incoming.
-    }
+//
+//        //incoming.
+//    }
 
 
 }

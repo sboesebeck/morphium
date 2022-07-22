@@ -1,33 +1,36 @@
 package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.driver.commands.ShutdownCommand;
-import de.caluga.morphium.driver.commands.StepDownCommand;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.*;
 
 public class SingleConnectDriverTests extends DriverTestBase {
-    private Logger log= LoggerFactory.getLogger(SingleConnectDriverTests.class);
+    private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
 
     @Test
-    public void hostSeedTest() throws Exception{
-        SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
-        drv.setHostSeed("localhost:27017");
-        drv.setConnectionTimeout(1000);
-        drv.setHeartbeatFrequency(1000);
-        drv.setMaxWaitTime(1000);
-        drv.connect();
-
+    public void hostSeedTest() throws Exception {
+        var drv = getDriver();
         Thread.sleep(1000);
         assertThat(drv.getHostSeed().size()).isGreaterThan(1); //should update hostseed
-        for(String n:drv.getHostSeed()){
-            log.info("HostSeed: "+n);
+        for (String n : drv.getHostSeed()) {
+            log.info("HostSeed: " + n);
         }
-        drv.close();
+
     }
 
 
@@ -36,21 +39,30 @@ public class SingleConnectDriverTests extends DriverTestBase {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
         Thread.sleep(500);
-        var h = drv.getConnection().getConnectedTo();
-        StepDownCommand cmd = new StepDownCommand(drv.getConnection()).setTimeToStepDown(10).setForce(Boolean.TRUE);
+        MongoConnection con = drv.getConnection();
+        var originalConnectedTo = con.getConnectedTo();
+        StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
         var res = cmd.execute();
-        //log.info("result: " + Utils.toJsonString(res));
+        log.info("result: " + Utils.toJsonString(res));
+        con.release();
         while (true) {
-            while (!drv.isConnected() || drv.getConnection().getConnectedTo() == null || drv.getConnection().getConnectedTo().equals(h)) {
-                log.info("Waiting for failover...");
-                Thread.sleep(1500);
+            while (!drv.isConnected()) {
+                //log.info("Connected: "+drv.isConnected()+" "+con.getConnectedTo());
+                //Thread.sleep(500);
+                Thread.yield();
+
             }
-            String hst = drv.getConnection().getConnectedTo();
-            log.info("Failover...to " + drv.getConnection().getConnectedTo());
+            con = drv.getConnection();
+            if (con.getConnectedTo().equals(originalConnectedTo)) {
+                con.release();
+                continue;
+            }
+            String hst = con.getConnectedTo();
+            log.info("Failover...to " + con.getConnectedTo());
             boolean br = true;
             for (int i = 0; i < 2; i++) {
                 Thread.sleep(1000);
-                if (drv.getConnection().getConnectedTo() == null || !drv.getConnection().getConnectedTo().equals(hst)) {
+                if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
                     log.info("Connection did not stick...");
                     br = false;
                     break;
@@ -60,41 +72,58 @@ public class SingleConnectDriverTests extends DriverTestBase {
                 break;
         }
         assertThat(drv.isConnected());
-        assertThat(drv.getConnection().getConnectedTo()).isNotEqualTo(h);
-        assertThat(h).isNotNull();
-        assertThat(drv.getConnection().getConnectedTo()).isNotNull();
-        log.info("Connection changed from " + h + " to " + drv.getConnection().getConnectedTo());
-        log.info("HostSeed:");
-        for (var c : drv.getHostSeed()) {
-            log.info("---> " + c);
+        assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
+        assertThat(originalConnectedTo).isNotNull();
+        assertThat(con.getConnectedTo()).isNotNull();
+
+        log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
+
+        con.release();
+        while (true) {
+            log.info("Waiting for it to change back...");
+            Thread.sleep(1000);
+            if (drv.isConnected()) {
+                con = drv.getConnection();
+                if (!con.getConnectedTo().equals(originalConnectedTo)) {
+                    con.release();
+                    continue;
+                }
+                break;
+            }
         }
-        drv.close();
+
+        String hst = con.getConnectedTo();
+        log.info("back connected to " + con.getConnectedTo());
+        con.release();
 
 
     }
-
 
     @Test
     public void testFailover() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
-        Thread.sleep(1500);
-        var h = drv.getConnection().getConnectedTo();
-        ShutdownCommand cmd = new ShutdownCommand(drv.getConnection()).setForce(Boolean.TRUE).setTimeoutSecs(2);
+        while (!drv.isConnected()) Thread.yield();
+        MongoConnection con = drv.getConnection();
+        var originalConnectedTo = con.getConnectedTo();
+        ShutdownCommand cmd = new ShutdownCommand(con).setForce(Boolean.TRUE).setTimeoutSecs(2);
         var res = cmd.execute();
-        log.info("result: " + Utils.toJsonString(res));
-
+        log.info("Shutdown Result: " + Utils.toJsonString(res));
+        con.release();
         while (true) {
-            while (!drv.isConnected() || drv.getConnection().getConnectedTo() == null || drv.getConnection().getConnectedTo().equals(h)) {
-                log.info("Waiting for failover...still connected to " + h + " == " + drv.getConnection().getConnectedTo());
-                Thread.sleep(1500);
+            while (!drv.isConnected()) {
+                Thread.yield();
             }
-            String hst = drv.getConnection().getConnectedTo();
-            log.info("Failover...to " + drv.getConnection().getConnectedTo());
+            con = drv.getConnection();
+            if (con.getConnectedTo() == null || con.getConnectedTo().equals(originalConnectedTo)) {
+                continue;
+            }
+            String hst = con.getConnectedTo();
+            log.info("Failover...to " + con.getConnectedTo());
             boolean br = true;
             for (int i = 0; i < 2; i++) {
                 Thread.sleep(1000);
-                if (drv.getConnection().getConnectedTo() == null || !drv.getConnection().getConnectedTo().equals(hst)) {
+                if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
                     log.info("Connection did not stick...");
                     br = false;
                     break;
@@ -103,18 +132,103 @@ public class SingleConnectDriverTests extends DriverTestBase {
             if (br)
                 break;
         }
+
         assertThat(drv.isConnected());
-        assertThat(drv.getConnection().getConnectedTo()).isNotEqualTo(h);
-        assertThat(h).isNotNull();
-        assertThat(drv.getConnection().getConnectedTo()).isNotNull();
-        log.info("Connection changed from " + h + " to " + drv.getConnection().getConnectedTo());
+        assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
+        assertThat(originalConnectedTo).isNotNull();
+        assertThat(con.getConnectedTo()).isNotNull();
+        log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
+        con.release();
         log.info("HostSeed:");
         for (var c : drv.getHostSeed()) {
             log.info("---> " + c);
         }
-        drv.close();
+
+        String startNode = MorphiumTestBase.getProps().getProperty("failoverNodeRestartCommand");
+        if (startNode == null) {
+            log.error("Cannot restart node for tests! Please do so manually!");
+            Thread.sleep(5000);
+        } else {
+            log.info("Trying to restart shut down node! using " + startNode);
+            var ret = Runtime.getRuntime().exec(startNode);
+            BufferedReader br = new BufferedReader(new InputStreamReader(ret.getInputStream()));
+            while (ret.isAlive()) {
+
+                if (br.ready()) {
+                    log.info(br.readLine());
+                } else {
+                    log.info("waiting for node to startup...");
+                }
+                Thread.sleep(1000);
+            }
+
+        }
+        log.info("Node should be started up... checking cluster");
+
+        OUT:
+        while (true) {
+            Thread.sleep(1000);
+            con = drv.getConnection();
+            ReplicastStatusCommand rstat = new ReplicastStatusCommand(con);
+            var status = rstat.execute();
+            con.release();
+            var members = ((List<Map<String, Object>>) status.get("members"));
+            for (Map<String, Object> mem : members) {
+                if (mem.get("name").equals(originalConnectedTo)) {
+                    Object stateStr = mem.get("stateStr");
+                    log.info("Status of original host: " + stateStr);
+                    if (stateStr.equals("PRIMARY")) {
+                        log.info("Finally...");
+                        break OUT;
+                    } else if (stateStr.equals("STARTUP") || stateStr.equals("STARTUP2") || stateStr.equals("SECONDARY")) {
+                        log.info("Status is still " + stateStr);
+                    } else {
+                        log.warn("Unknown status " + stateStr);
+                    }
+                }
+            }
+        }
+        log.info("State recovered");
+
+    }
 
 
+    @Test
+    public void crudTest() throws Exception {
+        SingleMongoConnectDriver drv = getDriver();
+        MongoConnection con = drv.getConnection();
+        ClearCollectionSettings cmd = new ClearCollectionSettings(con).setColl("tests").setDb("morphium_test");
+        cmd.execute();
+        InsertMongoCommand insert = new InsertMongoCommand(con).setDocuments(Arrays.asList(Doc.of("_id", "123123", "value", "thing")))
+                .setColl("tests")
+                .setDb("morphium_test");
+        //inserted
+        insert.execute();
+
+        var find = new FindCommand(con).setDb("morphium_test").setColl("tests")
+                .setBatchSize(1)
+                .setLimit(1)
+                .setFilter(Doc.of("_id", "123123"));
+        var result = find.execute();
+        assertNotNull(result);
+        assertTrue("did not find", result.size() > 0);
+
+        var update = new UpdateMongoCommand(con).setDb("morphium_test").setColl("tests")
+                .addUpdate(Doc.of("_id", "123123"), Doc.of("value", "the value"), null, false, false, null, null, null);
+        var stats = update.execute();
+        assertNotNull(stats);
+        for (var e : stats.entrySet()) {
+            log.info("Stat: " + e.getKey() + " --> " + e.getValue());
+        }
+        find = new FindCommand(con).setDb("morphium_test").setColl("tests")
+                .setBatchSize(1)
+                .setLimit(1)
+                .setFilter(Doc.of("_id", "123123"));
+        result = find.execute();
+        assertNotNull(result);
+        assertTrue(result.size() == 1);
+        assertTrue("update failed", result.get(0).get("value").equals("the value"));
+        drv.releaseConnection(con);
     }
 
 

@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
@@ -63,6 +64,7 @@ public class UpdateMongoCommand extends WriteMongoCommand<UpdateMongoCommand> {
         updates.add(upd);
         return this;
     }
+
 
     @Override
     public String getCommandName() {

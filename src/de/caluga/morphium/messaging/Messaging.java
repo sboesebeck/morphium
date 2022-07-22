@@ -977,7 +977,7 @@ public class Messaging extends Thread implements ShutdownListener {
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();
             //morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), qobj, update, false, false, null, null);
-            if (ret.get("modified") == null) {
+            if (ret.get("nModified") == null) {
                 log.warn("Could not update processed_by in msg " + msg.getMsgId());
             }
         } catch (MorphiumDriverException e) {

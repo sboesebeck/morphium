@@ -326,7 +326,7 @@ public class MessagingTest extends MorphiumTestBase {
         });
 
         m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
         assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
         assert (gotMessage4) : "Message not recieved yet by m4?!?!?";

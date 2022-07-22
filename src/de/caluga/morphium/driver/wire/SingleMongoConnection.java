@@ -17,6 +17,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
+
 public class SingleMongoConnection implements MongoConnection {
 
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnection.class);
@@ -33,11 +35,19 @@ public class SingleMongoConnection implements MongoConnection {
     private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
     private boolean running = true;
 
+
+    private Map<MorphiumDriver.DriverStatsKey, AtomicDecimal> stats;
     private String connectedTo;
     private int connectedToPort;
     private boolean connected;
     private MorphiumDriver driver;
 
+    public SingleMongoConnection() {
+        stats = new HashMap<>();
+        stats.put(MSG_SENT, new AtomicDecimal(0));
+        stats.put(REPLY_PROCESSED, new AtomicDecimal(0));
+        stats.put(REPLY_RECEIVED, new AtomicDecimal(0));
+    }
 
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
@@ -61,7 +71,7 @@ public class SingleMongoConnection implements MongoConnection {
         var hello = HelloResult.fromMsg(firstDoc);
         connectedTo = host;
         connectedToPort = port;
-
+        //log.info("Connected to "+connectedTo+":"+port);
         connected = true;
         return hello;
     }
@@ -74,6 +84,16 @@ public class SingleMongoConnection implements MongoConnection {
     public SingleMongoConnection setDriver(MorphiumDriver d) {
         driver = d;
         return this;
+    }
+
+    public Map<MorphiumDriver.DriverStatsKey, Double> getStats() {
+        Map<MorphiumDriver.DriverStatsKey, Double> ret = new HashMap<>();
+        var s = new HashMap<>(stats);
+        for (var e : s.entrySet()) {
+            ret.put(e.getKey(), e.getValue().get());
+        }
+        ret.put(THREADS_CREATED, 1.0);
+        return ret;
     }
 
     @Override
@@ -138,6 +158,7 @@ public class SingleMongoConnection implements MongoConnection {
                     //reading in data
                     if (in.available() > 0) {
                         OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
+                        stats.get(REPLY_RECEIVED).incrementAndGet();
                         incoming.put(msg.getResponseTo(), msg);
                         synchronized (incomingTimes) {
                             incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
@@ -230,11 +251,13 @@ public class SingleMongoConnection implements MongoConnection {
         if (!incoming.containsKey(msgid)) {
             log.warn("Did not get reply within " + timeout + "ms");
         }
+        stats.get(REPLY_PROCESSED).incrementAndGet();
         return incoming.remove(msgid);
     }
 
 
     public void sendQuery(OpMsg q) throws MorphiumDriverException {
+
         if (driver.getTransactionContext() != null) {
             q.getFirstDoc().put("lsid", Doc.of("id", driver.getTransactionContext().getLsid()));
             q.getFirstDoc().put("txnNumber", driver.getTransactionContext().getTxnNumber());
@@ -252,6 +275,7 @@ public class SingleMongoConnection implements MongoConnection {
                 close(); //should be already
                 throw new MorphiumDriverException("closed");
             }
+            stats.get(MSG_SENT).incrementAndGet();
             out.write(q.bytes());
             out.flush();
         } catch (MorphiumDriverException e) {
@@ -275,6 +299,7 @@ public class SingleMongoConnection implements MongoConnection {
 
     public OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         sendQuery(q);
+
         return getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
     }
 

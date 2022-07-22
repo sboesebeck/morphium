@@ -2225,6 +2225,11 @@ public class MongoDriver implements MorphiumDriver {
         return new MongodbBulkContext(m, db, collection, this, ordered, wc);
     }
 
+    @Override
+    public Map<DriverStatsKey, Double> getDriverStats() {
+        return null;
+    }
+
 
     public MongoDatabase getDb(String db) {
         return mongo.getDatabase(db);
