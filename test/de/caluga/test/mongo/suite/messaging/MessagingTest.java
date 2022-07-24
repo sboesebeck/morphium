@@ -15,6 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -153,7 +155,7 @@ public class MessagingTest extends MorphiumTestBase {
         log.info("now multithreadded and multiprocessing");
         for (int i = 0; i < amount; i++) {
             if (i % 10 == 0) {
-                log.info("Messages sent: " + i);
+                log.info("Messages sent: " + i + "/" + amount);
             }
             Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
             producer.sendMessage(m);
@@ -169,7 +171,7 @@ public class MessagingTest extends MorphiumTestBase {
         long start = System.currentTimeMillis();
         consumer.start();
         while (count.get() < amount) {
-            log.info("Messages processed: " + count.get());
+            log.info("Messages processed: " + count.get() + "/" + amount);
             Thread.sleep(1000);
             if (System.currentTimeMillis() - start > 20000) throw new RuntimeException("Timeout!");
         }
@@ -202,7 +204,8 @@ public class MessagingTest extends MorphiumTestBase {
         messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
 
         Thread.sleep(1000);
-        assert (!gotMessage) : "Message recieved from self?!?!?!";
+        assertFalse("Message recieved from self?!?!?!", gotMessage);
+        ;
         log.info("Did not get own message - cool!");
 
         Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
@@ -214,16 +217,14 @@ public class MessagingTest extends MorphiumTestBase {
         long start = System.currentTimeMillis();
         while (!gotMessage) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - start < 5000) : " Message did not come?!?!?";
+            assertTrue("Message timeout?!?!?", System.currentTimeMillis() - start < 5000);
         }
-        assert (gotMessage);
+        assertTrue(gotMessage);
         gotMessage = false;
         Thread.sleep(1000);
-        assert (!gotMessage) : "Got message again?!?!?!";
+        assertFalse("Got message again?!?!?!", gotMessage);
 
         messaging.terminate();
-        Thread.sleep(1000);
-        assert (!messaging.isAlive()) : "Messaging still running?!?";
     }
 
 
@@ -263,20 +264,20 @@ public class MessagingTest extends MorphiumTestBase {
         });
 
         m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(1000);
-        assert (gotMessage2) : "Message not recieved yet?!?!?";
+        while (!gotMessage2) {
+            Thread.sleep(100);
+        }
+        assertTrue("Message not recieved yet?!?!?", gotMessage2);
         gotMessage2 = false;
 
         m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
         Thread.sleep(1000);
-        assert (gotMessage1) : "Message not recieved yet?!?!?";
+        assertTrue("Message not recieved yet?!?!?", gotMessage1);
         gotMessage1 = false;
-        assert (!error);
+        assertFalse(error);
         m1.terminate();
         m2.terminate();
-        Thread.sleep(1000);
-        assert (!m1.isAlive()) : "m1 still running?";
-        assert (!m2.isAlive()) : "m2 still running?";
+
 
     }
 
@@ -288,7 +289,6 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
         error = false;
-
 
         final Messaging m1 = new Messaging(morphium, 10, true);
         final Messaging m2 = new Messaging(morphium, 10, true);
@@ -326,21 +326,26 @@ public class MessagingTest extends MorphiumTestBase {
         });
 
         m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-        Thread.sleep(1500);
-        assert (gotMessage2) : "Message not recieved yet by m2?!?!?";
-        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
-        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
+        while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
+            Thread.sleep(100);
+            //log.info("Still waiting for messages...");
+        }
+        assertTrue("Message not recieved yet by m2?!?!?", gotMessage2);
+        assertTrue("Message not recieved yet by m3?!?!?", gotMessage3);
+        assertTrue("Message not recieved yet by m4?!?!?", gotMessage4);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
 
         m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
-        Thread.sleep(500);
-        assert (gotMessage1) : "Message not recieved yet by m1?!?!?";
-        assert (gotMessage3) : "Message not recieved yet by m3?!?!?";
-        assert (gotMessage4) : "Message not recieved yet by m4?!?!?";
-
+        while (!gotMessage1 || !gotMessage3 || !gotMessage4) {
+            Thread.sleep(100);
+            //log.info("Still waiting for messages...");
+        }
+        assertTrue("Message not recieved yet by m1?!?!?", gotMessage1);
+        assertTrue("Message not recieved yet by m3?!?!?", gotMessage3);
+        assertTrue("Message not recieved yet by m4?!?!?", gotMessage4);
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -348,48 +353,40 @@ public class MessagingTest extends MorphiumTestBase {
         gotMessage4 = false;
 
         m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
-        Thread.sleep(500);
+        while (!gotMessage1 && !gotMessage2 && !gotMessage3 && !gotMessage4) {
+            Thread.sleep(100);
+        }
         int cnt = 0;
         if (gotMessage1) cnt++;
         if (gotMessage2) cnt++;
         if (gotMessage3) cnt++;
         if (gotMessage4) cnt++;
 
-
-        Thread.sleep(1000);
-
-        assert (cnt != 0) : "Message was  not received";
-        assert (cnt == 1) : "Message was received too often: " + cnt;
-
+        assertTrue("Message was not received", cnt != 0);
+        assertTrue("Message was received too often: " + cnt, cnt == 1);
 
         m1.terminate();
         m2.terminate();
         m3.terminate();
         m4.terminate();
-        Thread.sleep(2000);
-        assert (!m1.isAlive()) : "M1 still running";
-        assert (!m2.isAlive()) : "M2 still running";
-        assert (!m3.isAlive()) : "M3 still running";
-        assert (!m4.isAlive()) : "M4 still running";
-
 
     }
 
     @Test
     public void testRejectException() {
         MessageRejectedException ex = new MessageRejectedException("rejected", true, true);
-        assert (ex.isContinueProcessing());
-        assert (ex.isSendAnswer());
+        assertTrue(ex.isContinueProcessing());
+        assertTrue(ex.isSendAnswer());
 
         ex = new MessageRejectedException("rejected");
         ex.setSendAnswer(true);
         ex.setContinueProcessing(true);
-        assert (ex.isContinueProcessing());
-        assert (ex.isSendAnswer());
+        assertTrue(ex.isContinueProcessing());
+        assertTrue(ex.isSendAnswer());
 
         ex = new MessageRejectedException("rejected", true);
-        assert (ex.isContinueProcessing());
-        assert (!ex.isSendAnswer());
+        assertTrue(ex.isContinueProcessing());
+        assertFalse(ex.isSendAnswer());
     }
 
     @Test
@@ -499,10 +496,6 @@ public class MessagingTest extends MorphiumTestBase {
 
             sender.sendMessage(new Msg("test", "message", "value"));
 
-            Thread.sleep(1000);
-            assert (gotMessage1);
-            assert (gotMessage2);
-            assert (gotMessage3);
         } finally {
             sender.terminate();
             rec1.terminate();
@@ -674,12 +667,15 @@ public class MessagingTest extends MorphiumTestBase {
             m1.start();
             m2.start();
             m3.start();
-            Thread.sleep(250);
+            Thread.sleep(1250);
             for (int i = 0; i < 10; i++) {
                 Msg m = new Msg("test", "ignore me please", "value", 2000, true);
                 m1.sendMessage(m);
-                Thread.sleep(1000);
-                m = morphium.reread(m);
+                while (true) {
+                    Thread.sleep(1000);
+                    m = morphium.reread(m);
+                    if (m.getProcessedBy() != null && m.getProcessedBy().size() != 0) break;
+                }
                 assertThat(m.getProcessedBy().size()).isEqualTo(1);
                 assertThat(m.getProcessedBy().contains("m3")).isTrue();
             }
@@ -743,9 +739,9 @@ public class MessagingTest extends MorphiumTestBase {
         List<Messaging> systems;
         systems = new ArrayList<>();
         try {
-            int numberOfWorkers = 10;
-            int numberOfMessages = 100;
-            long ttl = 15000; //15 sec
+            int numberOfWorkers = 5;
+            int numberOfMessages = 50;
+            long ttl = 30000; //30 sec
 
             final boolean[] failed = {false};
             morphium.clearCollection(Msg.class);
@@ -1014,7 +1010,7 @@ public class MessagingTest extends MorphiumTestBase {
                 producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
             }
 
-            for (int i = 0; i < 30 && processed[0] < amount; i++) {
+            for (int i = 0; i < 50 && processed[0] < amount; i++) {
                 log.info("Still processing: " + processed[0]);
                 Thread.sleep(1000);
             }
@@ -1426,8 +1422,9 @@ public class MessagingTest extends MorphiumTestBase {
 
 
             sender.sendMessage(new Msg("test", "testmsg", "testvalue", 120000, false));
-
-            Thread.sleep(1000);
+            while (!gotMessage3) {
+                Thread.sleep(100);
+            }
             assert (gotMessage3);
             Thread.sleep(2000);
 
@@ -1438,8 +1435,9 @@ public class MessagingTest extends MorphiumTestBase {
             });
 
             m1.start();
-
-            Thread.sleep(1500);
+            while (!gotMessage1) {
+                Thread.sleep(150);
+            }
             assert (gotMessage1);
 
 
@@ -1449,8 +1447,9 @@ public class MessagingTest extends MorphiumTestBase {
             });
 
             m2.start();
-
-            Thread.sleep(1500);
+            while (!gotMessage2) {
+                Thread.sleep(150);
+            }
             assert (gotMessage2);
 
         } finally {
@@ -1487,8 +1486,9 @@ public class MessagingTest extends MorphiumTestBase {
             Thread.sleep(500);
             sender.sendMessage(new Msg("test", "test", "test"));
             sender.sendMessage(new Msg("test", "test", "test"));
-
-            Thread.sleep(500);
+            while (list.size() == 0) {
+                Thread.sleep(500);
+            }
             assert (list.size() == 1) : "Size wrong: " + list.size();
             Thread.sleep(2200);
             assert (list.size() == 2);
@@ -1525,8 +1525,10 @@ public class MessagingTest extends MorphiumTestBase {
             Thread.sleep(500);
             sender.sendMessage(new Msg("test", "test", "test"));
             sender.sendMessage(new Msg("test", "test", "test"));
-            Thread.sleep(1000);
-
+            while (list.size() < 2) {
+                Thread.sleep(100);
+            }
+            Thread.sleep(100);
             assert (list.size() == 2) : "Size wrong: " + list.size();
         } finally {
             sender.terminate();
@@ -2082,9 +2084,11 @@ public class MessagingTest extends MorphiumTestBase {
             m.addRecipient("rec5");
 
             sender.sendMessage(m);
-            Thread.sleep(1000);
+            while (receivedBy.size() != m.getTo().size()) {
+                Thread.sleep(100);
+            }
 
-            assert (receivedBy.size() == m.getTo().size());
+            assertTrue(receivedBy.size() == m.getTo().size());
             for (String r : m.getTo()) {
                 assert (receivedBy.contains(r));
             }
@@ -2099,7 +2103,7 @@ public class MessagingTest extends MorphiumTestBase {
             m.setExclusive(true);
 
             sender.sendMessage(m);
-            Thread.sleep(1000);
+            while (receivedBy.size() == 0) Thread.sleep(100);
             assert (receivedBy.size() == 1);
             assert (m.getTo().contains(receivedBy.get(0)));
         } finally {

@@ -8,6 +8,10 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.wire.ConnectionType;
+import de.caluga.morphium.driver.wire.MongoConnection;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.bson.BsonNull;
@@ -69,6 +73,10 @@ public class Messaging extends Thread implements ShutdownListener {
     private final List<MorphiumId> processing = new CopyOnWriteArrayList<>();
 
     private final AtomicInteger skipped = new AtomicInteger(0);
+
+    private SingleMongoConnectDriver watchConnection;
+    private MongoConnection connection;
+
 
     /**
      * attaches to the default queue named "msg"
@@ -144,6 +152,16 @@ public class Messaging extends Thread implements ShutdownListener {
 
         listeners = new CopyOnWriteArrayList<>();
         listenerByName = new HashMap<>();
+
+        watchConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
+        watchConnection.setHostSeed(morphium.getConfig().getHostSeed());
+        watchConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
+        watchConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
+        try {
+            watchConnection.connect();
+        } catch (MorphiumDriverException e) {
+            log.error("Could not connect", e);
+        }
     }
 
     public void enableStatusInfoListener() {
@@ -1082,6 +1100,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.warn("Exception when shutting down decouple-pool", e);
             }
         }
+        morphium.removeShutdownListener(this);
         if (threadPool != null) {
             try {
                 int sz = threadPool.shutdownNow().size();
