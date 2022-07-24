@@ -49,6 +49,7 @@ public class SingleMongoConnection implements MongoConnection {
         stats.put(REPLY_RECEIVED, new AtomicDecimal(0));
     }
 
+
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
         driver = drv;
@@ -172,7 +173,7 @@ public class SingleMongoConnection implements MongoConnection {
                     for (var k : s) {
                         synchronized (incomingTimes) {
                             if (incomingTimes.get(k) == null) continue;
-                            if (System.currentTimeMillis() - incomingTimes.get(k) > 10000) {
+                            if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
                                 log.warn("Discarding unused answer " + k);
                                 incoming.remove(k);
                                 incomingTimes.remove(k);
@@ -351,7 +352,7 @@ public class SingleMongoConnection implements MongoConnection {
                 reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("server did not answer in time: ")) {
-                    log.info("timout in watch - restarting");
+                    log.debug("timeout in watch - restarting");
                     msg.setMessageId(msgId.incrementAndGet());
                     sendQuery(msg);
                     continue;

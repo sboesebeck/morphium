@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.query.geospatial.*;
 import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassGraphException;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import org.apache.commons.lang3.ArrayUtils;
@@ -127,6 +128,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
             }
 
+        } catch (ClassGraphException e) {
+            //swallow
         }
 
 
