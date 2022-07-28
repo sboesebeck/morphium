@@ -709,6 +709,11 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         @Override
+        public int getSourcePort() {
+            return 0;
+        }
+
+        @Override
         public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
             return getDelegate().connect(drv, host, port);
         }

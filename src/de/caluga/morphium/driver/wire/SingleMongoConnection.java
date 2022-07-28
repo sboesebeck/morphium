@@ -324,6 +324,12 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
+    public int getSourcePort() {
+        if (s == null) return 0;
+        return s.getLocalPort();
+    }
+
+    @Override
     public void watch(WatchCommand command) throws MorphiumDriverException {
         int maxWait = command.getMaxTimeMS();
         if (command.getDb() == null) command.setDb("1"); //watch all dbs!

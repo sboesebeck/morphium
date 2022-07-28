@@ -3,7 +3,6 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
-import org.bson.types.ObjectId;
 
 import java.lang.reflect.Field;
 import java.util.Date;

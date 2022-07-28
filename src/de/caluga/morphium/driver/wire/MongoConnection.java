@@ -17,6 +17,8 @@ public interface MongoConnection extends Closeable {
 
     MorphiumDriver getDriver();
 
+    int getSourcePort();
+
     void close();
 
     void release();
