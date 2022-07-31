@@ -34,6 +34,7 @@ public class PooledDriver extends DriverBase {
 
         //todo - heartbeat implementation
     });
+    private int lastSecondaryNode;
 
     public PooledDriver() {
         connectionPool = new HashMap<>();
@@ -53,6 +54,7 @@ public class PooledDriver extends DriverBase {
                 }
             }
         }
+        setReplicaSet(getHostSeed().size() > 1);
 
         startHeartbeat();
 
@@ -171,12 +173,14 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
                         } catch (MorphiumDriverException ex) {
-                            log.error("Error talking to " + e.getKey(), ex);
-                            connectionPool.get(e.getKey()).remove(c);
-                            try {
-                                c.getCon().close();
-                            } catch (Exception exc) {
-                                //swallow - something was broken before already!
+                            if (!ex.getMessage().equals("closed")) {
+                                log.error("Error talking to " + e.getKey(), ex);
+                                connectionPool.get(e.getKey()).remove(c);
+                                try {
+                                    c.getCon().close();
+                                } catch (Exception exc) {
+                                    //swallow - something was broken before already!
+                                }
                             }
                         }
                     }
@@ -264,19 +268,17 @@ public class PooledDriver extends DriverBase {
                     }
                 case SECONDARY_PREFERRED:
                 case SECONDARY:
-                    //take least used secondary node
-                    int sz = getMaxConnectionsPerHost() + 1;
-                    String host = "";
-                    for (String k : connectionPool.keySet()) {
-                        if (k.equals(primaryNode)) continue;
-                        if (connectionPool.get(k).size() > sz) {
-                            host = k;
+                    //round robin
+                    if (lastSecondaryNode >= getHostSeed().size()) {
+                        lastSecondaryNode = 0;
+                    }
+                    if (getHostSeed().get(lastSecondaryNode).equals(primaryNode)) {
+                        lastSecondaryNode++;
+                        if (lastSecondaryNode > getHostSeed().size()) {
+                            lastSecondaryNode = 0;
                         }
                     }
-                    if (host.isEmpty()) {
-                        throw new RuntimeException("Did not find a secondary node!?!");
-                    }
-                    return borrowConnection(host);
+                    return borrowConnection(getHostSeed().get(lastSecondaryNode++));
                 default:
                     throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
             }
@@ -287,8 +289,11 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-    public MongoConnection getPrimaryConnection(WriteConcern wc) {
-        return null;
+    public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
+        if (primaryNode == null) {
+            throw new MorphiumDriverException("No primary node found - connection not established yet?");
+        }
+        return borrowConnection(primaryNode);
     }
 
     @Override
@@ -453,7 +458,7 @@ public class PooledDriver extends DriverBase {
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
     }
 
-    private List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException {
+    private List<Map<String, Object>> readBatches(MongoConnection connection, int waitingfor, int batchSize) throws MorphiumDriverException {
         List<Map<String, Object>> ret = new ArrayList<>();
 
         Map<String, Object> doc;
@@ -495,9 +500,6 @@ public class PooledDriver extends DriverBase {
                 ret.addAll((List) cursor.get("nextBatch"));
             }
             if (((Long) cursor.get("id")) != 0) {
-                //                        log.info("getting next batch for cursor " + cursor.get("id"));
-                //there is more! Sending getMore!
-
                 //there is more! Sending getMore!
                 OpMsg q = new OpMsg();
                 q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
@@ -593,15 +595,23 @@ public class PooledDriver extends DriverBase {
             q.setResponseTo(0);
 
             List<Map<String, Object>> ret;
-//            connection.sendQuery(q);
-            ret = readBatches(q.getMessageId(), getMaxWriteBatchSize());
+            var connection = getPrimaryConnection(null);
+            connection.sendCommand(cmd);
+            ret = readBatches(connection, q.getMessageId(), getMaxWriteBatchSize());
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
-        return null;// UtilsMap.of(connection.getConnectedTo(), 1);
+        Map<String, Integer> ret = new HashMap<>();
+        for (var e : connectionPool.entrySet()) {
+            ret.put(e.getKey(), e.getValue().size());
+        }
+        for (var e : borrowedConnections.values()) {
+            ret.put(e.getCon().getConnectedTo(), ret.get(e.getCon().getConnectedTo()).intValue() + 1);
+        }
+        return ret;
     }
 
     @Override
@@ -724,12 +734,10 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<DriverStatsKey, Double> getDriverStats() {
-        return null;
+        Map<DriverStatsKey, Double> m = new HashMap<>();
+        return m;
     }
 
 
-    public enum ConnectionType {
-        PRIMARY, SECONDARY, ANY,
-    }
 
 }

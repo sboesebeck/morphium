@@ -8,6 +8,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -237,8 +238,10 @@ public class MorphiumTestBase {
         for (ShutdownListener t : toRemove) {
             morphium.removeShutdownListener(t);
         }
-        ListCollectionsCommand cmd = new ListCollectionsCommand(morphium.getDriver().getPrimaryConnection(null)).setDb(morphium.getDatabase());
+        MongoConnection con = null;
         try {
+            con = morphium.getDriver().getPrimaryConnection(null);
+            ListCollectionsCommand cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
             for (var collMap : cmd.execute()) {
                 String coll = (String) collMap.get("name");
                 log.info("Dropping collection " + coll);
@@ -249,8 +252,6 @@ public class MorphiumTestBase {
                 }
                 morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
             }
-
-
             while (cmd.execute().size() > 0) {
                 Thread.sleep(100);
                 for (var k : cmd.execute()) {
@@ -259,6 +260,8 @@ public class MorphiumTestBase {
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            if (con != null) con.release();
         }
 
         Thread.sleep(150);

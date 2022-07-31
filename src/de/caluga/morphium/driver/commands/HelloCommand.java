@@ -12,9 +12,19 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
     private String saslSupportedMechs;
     private Boolean helloOk = true;
     private boolean includeClient = true;
+    private Boolean loadBalanced;
 
     public HelloCommand(MongoConnection d) {
         super(d);
+    }
+
+    public Boolean getLoadBalanced() {
+        return loadBalanced;
+    }
+
+    public HelloCommand setLoadBalanced(Boolean loadBalanced) {
+        this.loadBalanced = loadBalanced;
+        return this;
     }
 
     public Boolean getHelloOk() {

@@ -238,7 +238,7 @@ public interface MorphiumDriver extends Closeable {
 
     MongoConnection getReadConnection(ReadPreference rp);
 
-    MongoConnection getPrimaryConnection(WriteConcern wc);
+    MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException;
 
     void releaseConnection(MongoConnection con);
 

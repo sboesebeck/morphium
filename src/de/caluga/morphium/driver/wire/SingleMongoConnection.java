@@ -64,6 +64,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
         startReaderThread();
         HelloCommand cmd = new HelloCommand(null);
+        cmd.setLoadBalanced(true);
         OpMsg msg = new OpMsg();
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(cmd.asMap());
