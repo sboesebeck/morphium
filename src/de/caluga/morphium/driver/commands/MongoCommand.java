@@ -3,8 +3,10 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.wire.DriverBase;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
@@ -25,14 +27,21 @@ public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
     private MongoConnection connection;
     @Transient
+    private MorphiumDriver driver;
+    @Transient
     private int retriesOnNetworkError = 2;
     @Transient
     private int sleepBetweenErrorRetries = 100;
     @Transient
     private int defaultBatchSize = 100;
+    private Doc $readPreference = Doc.of("mode", "primaryPreferred");
 
-    public MongoCommand(MongoConnection d) {
-        connection = d;
+    public MongoCommand(MongoConnection c) {
+        connection = c;
+    }
+
+    public MongoCommand(MorphiumDriver d) {
+        driver = d;
     }
 
     public int getRetriesOnNetworkError() {
@@ -64,6 +73,10 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     public MongoConnection getConnection() {
         return connection;
+    }
+
+    public MorphiumDriver getDriver() {
+        return driver;
     }
 
     public MongoCommand<T> setConnection(MongoConnection connection) {
@@ -190,9 +203,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
             return result;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
-
-
-
 
 
 }

@@ -265,8 +265,9 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
 
         Map<String, Object> ret = null;
-        var con = morphium.getDriver().getPrimaryConnection(null);
+        MongoConnection con = null;
         try {
+            con = morphium.getDriver().getPrimaryConnection(null);
             FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con)
                     .setQuery(Doc.of(toQueryObject()))
                     .setRemove(true)
@@ -339,8 +340,10 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
 
         Map<String, Object> ret = null;
-        var con = morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType()));
+        MongoConnection con = null;
         try {
+            con = morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType()));
+
             FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con)
                     .setDb(getDB())
                     .setColl(getCollectionName())
@@ -351,7 +354,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         } finally {
-            con.release();
+            if (con != null)
+                con.release();
         }
 
         if (ret == null) {
@@ -1264,8 +1268,9 @@ public class Query<T> implements Cloneable {
             for (String ctf : lst) {
                 Field f = getARHelper().getField(type, ctf);
                 if (f != null) {
-                    MongoConnection con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
+                    MongoConnection con = null;
                     try {
+                        con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
                         long currentTime = System.currentTimeMillis();
                         if (f.getType().equals(Date.class)) {
                             f.set(unmarshall, new Date());
@@ -1289,7 +1294,8 @@ public class Query<T> implements Cloneable {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
                     } finally {
-                        con.release();
+                        if (con != null)
+                            con.release();
                     }
                 }
             }

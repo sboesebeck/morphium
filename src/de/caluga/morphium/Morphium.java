@@ -400,19 +400,23 @@ public class Morphium implements AutoCloseable {
                             }
                             break;
                         case CREATE_ON_STARTUP:
-                            MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                            CreateCommand cmd = new CreateCommand(primaryConnection);
-                            cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls))
-                                    .setCapped(true)
-                                    .setMax(capped.get(cls).get("max"))
-                                    .setSize(capped.get(cls).get("size"));
+                            MongoConnection primaryConnection = null;
                             try {
+                                primaryConnection = morphiumDriver.getPrimaryConnection(null);
+                                CreateCommand cmd = new CreateCommand(primaryConnection);
+                                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls))
+                                        .setCapped(true)
+                                        .setMax(capped.get(cls).get("max"))
+                                        .setSize(capped.get(cls).get("size"));
+
                                 var ret = cmd.execute();
                                 //TODO: check for errors
                             } catch (MorphiumDriverException e) {
                                 throw new RuntimeException(e);
+                            } finally {
+                                if (primaryConnection != null)
+                                    primaryConnection.release();
                             }
-                            primaryConnection.release();
                         case CREATE_ON_WRITE_NEW_COL:
                         case NO_CHECK:
                             break;
@@ -3706,8 +3710,9 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
-        var con = getDriver().getPrimaryConnection(null);
+        MongoConnection con = null;
         try {
+            con = getDriver().getPrimaryConnection(null);
             WatchCommand cmd = new WatchCommand(con)
                     .setDb(dbName)
                     .setMaxTimeMS(maxWaitTime)
@@ -3732,8 +3737,11 @@ public class Morphium implements AutoCloseable {
 
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (con != null) {
+                con.release();
+            }
         }
-        getDriver().releaseConnection(con);
     }
 
     public void reset() {

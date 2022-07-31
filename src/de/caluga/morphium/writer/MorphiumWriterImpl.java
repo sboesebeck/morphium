@@ -5,9 +5,13 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
-import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ContainerFactory;
@@ -732,77 +736,75 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             logger.debug("Collection does not exist - ensuring indices / capped status / Schema validation");
         }
         //checking if collection exists
-        ListCollectionsCommand lcmd = new ListCollectionsCommand(morphium.getDriver().getPrimaryConnection(null)).setDb(getDbName()).setFilter(Doc.of("name", collectionName));
+        MongoConnection con = null;
         try {
+            con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(c));
+            ListCollectionsCommand lcmd = new ListCollectionsCommand(con).setDb(getDbName()).setFilter(Doc.of("name", collectionName));
             var result = lcmd.execute();
             if (result.size() > 0) {
                 logger.info("collection already exists");
                 return;
             }
-        } catch (MorphiumDriverException e) {
-
-        }
 
 
-        Entity e = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
+            Entity e = morphium.getARHelper().getAnnotationFromHierarchy(c, Entity.class);
+            CreateCommand cmd = new CreateCommand(con);
+            cmd.setDb(morphium.getDatabase());
+            cmd.setColl(morphium.getMapper().getCollectionName(c));
 
-        CreateCommand cmd = new CreateCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(c)));
-        cmd.setDb(morphium.getDatabase());
-        cmd.setColl(morphium.getMapper().getCollectionName(c));
-
-        Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
-        if (capped != null) {
-            cmd.setCapped(true);
-            cmd.setSize(capped.maxSize());
-            cmd.setMax(capped.maxEntries());
-        }
-
-        //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
-
-        if (!e.schemaDef().equals("")) {
-            JSONParser jsonParser = new JSONParser();
-            try {
-                Map<String, Object> def = (Map<String, Object>) jsonParser.parse(e.schemaDef(), new ContainerFactory() {
-                    @Override
-                    public Map createObjectContainer() {
-                        return new HashMap<>();
-                    }
-
-                    @Override
-                    public List creatArrayContainer() {
-                        return new ArrayList();
-                    }
-                });
-                cmd.setValidator(def);
-                cmd.setValidationLevel(e.validationLevel().name());
-                cmd.setValidationAction(e.validationAction().name());
-            } catch (ParseException parseException) {
-                parseException.printStackTrace();
+            Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
+            if (capped != null) {
+                cmd.setCapped(true);
+                cmd.setSize(capped.maxSize());
+                cmd.setMax(capped.maxEntries());
             }
 
-        }
-        if (!e.comment().equals("")) {
-            cmd.setComment(e.comment());
-        }
-        de.caluga.morphium.annotations.Collation collation = morphium.getARHelper().getAnnotationFromHierarchy(c, de.caluga.morphium.annotations.Collation.class);
-        if (collation != null) {
-            Collation collation1 = new Collation();
-            collation1.locale(collation.locale());
-            if (!collation.alternate().equals("")) {
-                collation1.alternate(collation.alternate());
-            }
-            if (!collation.caseFirst().equals("")) {
-                collation1.caseFirst(collation.caseFirst());
-            }
-            collation1.backwards(collation.backwards());
-            collation1.caseLevel(collation.caseLevel());
-            collation1.numericOrdering(collation.numericOrdering());
-            collation1.strength(collation.strength());
-            cmd.setCollation(collation1.toQueryObject());
+            //cmd.put("autoIndexId", (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
 
-        }
+            if (!e.schemaDef().equals("")) {
+                JSONParser jsonParser = new JSONParser();
+                try {
+                    Map<String, Object> def = (Map<String, Object>) jsonParser.parse(e.schemaDef(), new ContainerFactory() {
+                        @Override
+                        public Map createObjectContainer() {
+                            return new HashMap<>();
+                        }
 
-        try {
+                        @Override
+                        public List creatArrayContainer() {
+                            return new ArrayList();
+                        }
+                    });
+                    cmd.setValidator(def);
+                    cmd.setValidationLevel(e.validationLevel().name());
+                    cmd.setValidationAction(e.validationAction().name());
+                } catch (ParseException parseException) {
+                    parseException.printStackTrace();
+                }
+
+            }
+            if (!e.comment().equals("")) {
+                cmd.setComment(e.comment());
+            }
+            de.caluga.morphium.annotations.Collation collation = morphium.getARHelper().getAnnotationFromHierarchy(c, de.caluga.morphium.annotations.Collation.class);
+            if (collation != null) {
+                Collation collation1 = new Collation();
+                collation1.locale(collation.locale());
+                if (!collation.alternate().equals("")) {
+                    collation1.alternate(collation.alternate());
+                }
+                if (!collation.caseFirst().equals("")) {
+                    collation1.caseFirst(collation.caseFirst());
+                }
+                collation1.backwards(collation.backwards());
+                collation1.caseLevel(collation.caseLevel());
+                collation1.numericOrdering(collation.numericOrdering());
+                collation1.strength(collation.strength());
+                cmd.setCollation(collation1.toQueryObject());
+
+            }
+
+
             cmd.execute();
         } catch (MorphiumDriverException ex) {
             if (ex.getMessage().startsWith("internal error: Command failed with error 48 (NamespaceExists): 'Collection already exists. NS:")) {
@@ -812,7 +814,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 throw new RuntimeException(ex);
             }
         } finally {
-            morphium.getDriver().releaseConnection(cmd.getConnection());
+            con.release();
         }
     }
 
