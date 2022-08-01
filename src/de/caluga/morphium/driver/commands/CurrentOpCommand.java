@@ -1,7 +1,10 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.mongodb.MongoDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
@@ -11,8 +14,16 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
     private int secsRunning;
     private Map<String, Object> filter;
 
+    @Transient
+    private MorphiumDriver drv;
+
     public CurrentOpCommand(MongoConnection d) {
         super(d);
+    }
+
+    public CurrentOpCommand(MorphiumDriver drv) {
+        super(null);
+        this.drv = drv;
     }
 
     public int getSecsRunning() {
@@ -22,6 +33,23 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
     public CurrentOpCommand setSecsRunning(int secsRunning) {
         this.secsRunning = secsRunning;
         return this;
+    }
+
+    @Override
+    public int executeAsync() throws MorphiumDriverException {
+        if (getConnection() != null) {
+            return super.executeAsync();
+        }
+        MongoConnection con = null;
+        try {
+            con = drv.getPrimaryConnection(null);
+            setConnection(con);
+            var ret = super.executeAsync();
+            setConnection(null);
+            return ret;
+        } finally {
+            if (con != null) con.release();
+        }
     }
 
     public Map<String, Object> getFilter() {

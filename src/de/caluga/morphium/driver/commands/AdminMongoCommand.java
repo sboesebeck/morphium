@@ -24,9 +24,6 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
 
     public Map<String, Object> execute() throws MorphiumDriverException {
         MongoConnection connection = getConnection();
-        if (connection == null && getDriver() != null) {
-            connection = getDriver().getPrimaryConnection(null);
-        }
         //noinspection unchecked
 
         setMetaData("server", connection.getConnectedTo());
@@ -37,9 +34,6 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         var crs = connection.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);
-        if (getConnection() == null) {
-            connection.release();
-        }
         return crs;
     }
 

@@ -1,19 +1,28 @@
 package de.caluga.test.morphium.driver.pool;
 
+import com.mongodb.MongoClientSettings;
+import com.mongodb.ServerAddress;
+import com.mongodb.client.MongoClients;
+import com.mongodb.connection.ClusterConnectionMode;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
+import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.bson.Document;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.View;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -37,27 +46,23 @@ public class PooledDriverTest {
     }
 
     @Test
-    public void testCRUD() throws Exception {
+    public void testCRUDPooledDriver() throws Exception {
+        long start = System.currentTimeMillis();
         var drv = getDriver();
         try (drv) {
             drv.connect();
-            while (!drv.isConnected()) {
-                log.info("Waiting...");
-                Thread.sleep(500);
-            }
 
             //dropping testdb
             var con = drv.getPrimaryConnection(null);
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
             cmd.setDb("morphium_test");
             cmd.execute();
-
             con.release();
             ObjectMapperImpl om = new ObjectMapperImpl();
             //Write
-            for (int i = 0; i < 100; i++) {
-                var c = drv.getPrimaryConnection(null);
-                InsertMongoCommand insert = new InsertMongoCommand(c);
+            for (int i = 0; i < 1000; i++) {
+                con = drv.getPrimaryConnection(null);
+                InsertMongoCommand insert = new InsertMongoCommand(con);
                 insert.setDocuments(Arrays.asList(
                         om.serialize(new UncachedObject("value_" + (i + 100), i + 100)),
                         om.serialize(new UncachedObject("value_" + i, i))
@@ -65,16 +70,19 @@ public class PooledDriverTest {
                 insert.setColl("uncached_object").setDb("morphium_test");
                 var m = insert.execute();
                 assertEquals("should insert 2 elements", 2, m.get("n"));
-                log.info(Utils.toJsonString(m));
-                c.release();
+                //log.info(Utils.toJsonString(m));
+                con.release();
             }
+            con.release();
+            long d = System.currentTimeMillis() - start;
+            log.info("Writing took: " + d);
 //            log.info("Waiting for reconnects due to idle / max age connections");
 //            Thread.sleep(1000); //forcing idle reconnects
 
             //reading
             for (int i = 0; i < 100; i++) {
                 var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
-                log.info("got connection to " + c.getConnectedTo());
+                //log.info("got connection to " + c.getConnectedTo());
                 FindCommand fnd = new FindCommand(c).setLimit(10).setColl("uncached_object").setDb("morphium_test")
                         .setFilter(Doc.of("counter", i));
                 var ret = fnd.execute();
@@ -83,9 +91,73 @@ public class PooledDriverTest {
                 c.release();
             }
         }
-
-
+        long dur = System.currentTimeMillis() - start;
+        log.info("PooledDriver took " + dur + "ms");
+        drv.close();
     }
+
+    @Test
+    public void crudTestMongoDriver() {
+        long start = System.currentTimeMillis();
+        MongoClientSettings.Builder o = MongoClientSettings.builder();
+        o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000).toMongoWriteConcern());
+        //read preference check
+        o.retryReads(true);
+        o.retryWrites(true);
+        o.applyToSocketSettings(socketSettings -> {
+            socketSettings.connectTimeout(1000, TimeUnit.MILLISECONDS);
+            socketSettings.readTimeout(10000, TimeUnit.MILLISECONDS);
+        });
+
+        o.applyToConnectionPoolSettings(connectionPoolSettings -> {
+            connectionPoolSettings.maxConnectionIdleTime(500, TimeUnit.MILLISECONDS);
+            connectionPoolSettings.maxConnectionLifeTime(1000, TimeUnit.MILLISECONDS);
+            connectionPoolSettings.maintenanceFrequency(2000, TimeUnit.MILLISECONDS);
+            connectionPoolSettings.maxSize(10);
+            connectionPoolSettings.minSize(2);
+            connectionPoolSettings.maxWaitTime(10000, TimeUnit.MILLISECONDS);
+        });
+        o.applyToClusterSettings(clusterSettings -> {
+            clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
+            clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
+            List<ServerAddress> hosts = new ArrayList<>();
+            hosts.add(new ServerAddress("localhost", 27017));
+            hosts.add(new ServerAddress("localhost", 27018));
+            hosts.add(new ServerAddress("localhost", 27019));
+
+            clusterSettings.hosts(hosts);
+            clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
+            clusterSettings.localThreshold(100, TimeUnit.MILLISECONDS);
+        });
+        var mongo = MongoClients.create(o.build());
+
+        var col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
+        col.drop();
+        ObjectMapperImpl om = new ObjectMapperImpl();
+        //Write
+        for (int i = 0; i < 1000; i++) {
+            col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
+            var ret = col.insertMany(Arrays.asList(
+                    new Document(om.serialize(new UncachedObject("value_" + (i + 100), i + 100))),
+                    new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+
+            assertEquals("should insert 2 elements", 2, ret.getInsertedIds().size());
+        }
+        long d = System.currentTimeMillis() - start;
+        log.info("Writing took " + d);
+        //reading
+        for (int i = 0; i < 100; i++) {
+            var it = mongo.getDatabase("morphium_test").getCollection("uncached_object").find(new Document(Doc.of("counter", i)));
+            int cnt = 0;
+            for (var m : it) {
+                cnt++;
+            }
+            assertEquals(1, cnt);
+        }
+        long dur = System.currentTimeMillis() - start;
+        log.info("MongoClient took " + dur + "ms");
+    }
+
 
     private PooledDriver getDriver() throws MorphiumDriverException {
         var drv = new PooledDriver();
