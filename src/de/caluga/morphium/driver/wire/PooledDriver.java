@@ -17,6 +17,7 @@ public class PooledDriver extends DriverBase {
     public final static String driverName = "PooledDriver";
     private Map<String, List<Connection>> connectionPool;
     private Map<Integer, Connection> borrowedConnections;
+    private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
     private String fastestHost = "";
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
@@ -39,6 +40,10 @@ public class PooledDriver extends DriverBase {
     public PooledDriver() {
         connectionPool = new HashMap<>();
         borrowedConnections = Collections.synchronizedMap(new HashMap<>());
+        stats = new ConcurrentHashMap<>();
+        for (var e : DriverStatsKey.values()) {
+            stats.put(e, new AtomicDecimal(0));
+        }
     }
 
     @Override
@@ -62,12 +67,14 @@ public class PooledDriver extends DriverBase {
     }
 
     private void connectToHost(String host) throws MorphiumDriverException {
+
         String h = getHost(host);
         int port = getPortFromHost(host);
 
         var con = new SingleMongoConnection();
         long start = System.currentTimeMillis();
         var hello = con.connect(this, h, port);
+        stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
         long dur = System.currentTimeMillis() - start;
         if (fastestTime > dur) {
             fastestTime = dur;
@@ -124,17 +131,21 @@ public class PooledDriver extends DriverBase {
                         if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
                             try {
                                 //max lifetime exceeded
-                                log.info("Lifetime exceeded...");
-                                connectionPool.get(e.getKey()).remove(c);
-                                c.getCon().close();
+                                //log.info("Lifetime exceeded...");
+                                if (connectionPool.get(e.getKey()).remove(c)) {
+                                    c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                }
                             } catch (Exception ex) {
 
                             }
                         } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
                             try {
                                 log.info("Unused connection closed");
-                                connectionPool.get(e.getKey()).remove(c);
-                                c.getCon().close();
+                                if (connectionPool.get(e.getKey()).remove(c)) {
+                                    c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                }
                             } catch (Exception ex) {
 
                             }
@@ -166,6 +177,7 @@ public class PooledDriver extends DriverBase {
                                         for (Connection con : lst) {
                                             try {
                                                 con.getCon().close();
+                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                             } catch (Exception ex) {
                                             }
                                         }
@@ -178,6 +190,7 @@ public class PooledDriver extends DriverBase {
                                 connectionPool.get(e.getKey()).remove(c);
                                 try {
                                     c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                                 } catch (Exception exc) {
                                     //swallow - something was broken before already!
                                 }
@@ -204,7 +217,15 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
-//        connection.watch(settings);
+        MongoConnection con = null;
+        try {
+            con = getPrimaryConnection(null);
+            con.watch(settings);
+        } finally {
+            if (con != null) {
+                con.release();
+            }
+        }
     }
 
     private int getTotalConnectionsToHost(String h) {
@@ -236,6 +257,7 @@ public class PooledDriver extends DriverBase {
                 var con = new SingleMongoConnection();
                 var hello = con.connect(this, h, port);
                 c = new Connection(con);
+                stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
@@ -243,6 +265,7 @@ public class PooledDriver extends DriverBase {
             c = connectionPool.get(host).remove(0);
         }
         borrowedConnections.put(c.getCon().getSourcePort(), c);
+        stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
         return c.getCon();
 
     }
@@ -308,6 +331,7 @@ public class PooledDriver extends DriverBase {
             c = new Connection((SingleMongoConnection) con);
         }
         connectionPool.get(con.getConnectedTo()).add(c);
+        stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
     }
 
     public boolean isConnected() {
@@ -319,7 +343,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public String getName() {
-
         return driverName;
     }
 
@@ -335,6 +358,7 @@ public class PooledDriver extends DriverBase {
             for (var c : e.getValue()) {
                 try {
                     c.getCon().close();
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
                 } catch (Exception ex) {
                 }
             }
@@ -424,25 +448,39 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
-        ReplicastStatusCommand cmd = new ReplicastStatusCommand(getPrimaryConnection(null));
-        var result = cmd.execute();
-        @SuppressWarnings("unchecked") List<Doc> mem = (List) result.get("members");
-        if (mem == null) {
-            return null;
+        MongoConnection con = null;
+        try {
+            con = getPrimaryConnection(null);
+            ReplicastStatusCommand cmd = new ReplicastStatusCommand(con);
+            var result = cmd.execute();
+            @SuppressWarnings("unchecked") List<Doc> mem = (List) result.get("members");
+            if (mem == null) {
+                return null;
+            }
+            //noinspection unchecked
+            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+            return result;
+        } finally {
+            if (con != null)
+                con.release();
         }
-        //noinspection unchecked
-        mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
-        return result;
     }
 
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
-        return new DbStatsCommand(getPrimaryConnection(null)).setDb(db).execute();
+        MongoConnection con = null;
+        try {
+            con = getPrimaryConnection(null);
+            return new DbStatsCommand(con).setDb(db).execute();
+        } finally {
+            if (con != null)
+                con.release();
+        }
     }
 
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        CollStatsCommand cmd = new CollStatsCommand(getPrimaryConnection(null));
+        CollStatsCommand cmd = new CollStatsCommand(this);
         return cmd.execute();
     }
 
@@ -737,7 +775,6 @@ public class PooledDriver extends DriverBase {
         Map<DriverStatsKey, Double> m = new HashMap<>();
         return m;
     }
-
 
 
 }

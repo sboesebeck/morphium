@@ -1,9 +1,12 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +27,6 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
     public AggregateMongoCommand(MongoConnection d) {
         super(d);
     }
-
 
     public Integer getBatchSize() {
         return batchSize;

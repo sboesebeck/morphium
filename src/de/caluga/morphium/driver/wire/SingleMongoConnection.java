@@ -54,7 +54,7 @@ public class SingleMongoConnection implements MongoConnection {
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
         driver = drv;
         try {
-            log.info("Connecting to " + host + ":" + port);
+           // log.info("Connecting to " + host + ":" + port);
             s = new Socket(host, port);
             s.setKeepAlive(true);
             out = s.getOutputStream();

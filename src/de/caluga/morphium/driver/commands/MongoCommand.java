@@ -27,8 +27,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
     private MongoConnection connection;
     @Transient
-    private MorphiumDriver driver;
-    @Transient
     private int retriesOnNetworkError = 2;
     @Transient
     private int sleepBetweenErrorRetries = 100;
@@ -39,11 +37,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
     public MongoCommand(MongoConnection c) {
         connection = c;
     }
-
-    public MongoCommand(MorphiumDriver d) {
-        driver = d;
-    }
-
     public int getRetriesOnNetworkError() {
         return retriesOnNetworkError;
     }
@@ -75,9 +68,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return connection;
     }
 
-    public MorphiumDriver getDriver() {
-        return driver;
-    }
 
     public MongoCommand<T> setConnection(MongoConnection connection) {
         this.connection = connection;
