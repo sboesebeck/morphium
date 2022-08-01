@@ -46,25 +46,31 @@ public class PooledDriverTest {
     }
 
     @Test
+    public void comparePooledDriverMongoDriver() throws Exception {
+        testCRUDPooledDriver();
+        crudTestMongoDriver();
+    }
+
+
     public void testCRUDPooledDriver() throws Exception {
+        ObjectMapperImpl om = new ObjectMapperImpl();
         long start = System.currentTimeMillis();
         var drv = getDriver();
         try (drv) {
             drv.connect();
-
             //dropping testdb
             var con = drv.getPrimaryConnection(null);
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
             cmd.setDb("morphium_test");
             cmd.execute();
             con.release();
-            ObjectMapperImpl om = new ObjectMapperImpl();
             //Write
-            for (int i = 0; i < 1000; i++) {
+            int amount = 1000;
+            for (int i = 0; i < amount; i++) {
                 con = drv.getPrimaryConnection(null);
                 InsertMongoCommand insert = new InsertMongoCommand(con);
                 insert.setDocuments(Arrays.asList(
-                        om.serialize(new UncachedObject("value_" + (i + 100), i + 100)),
+                        om.serialize(new UncachedObject("value_" + (i + amount), i + amount)),
                         om.serialize(new UncachedObject("value_" + i, i))
                 ));
                 insert.setColl("uncached_object").setDb("morphium_test");
@@ -76,27 +82,29 @@ public class PooledDriverTest {
             con.release();
             long d = System.currentTimeMillis() - start;
             log.info("Writing took: " + d);
+            start = System.currentTimeMillis();
 //            log.info("Waiting for reconnects due to idle / max age connections");
 //            Thread.sleep(1000); //forcing idle reconnects
 
             //reading
-            for (int i = 0; i < 100; i++) {
-                var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
+            var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
+            for (int i = 0; i < amount; i++) {
+
                 //log.info("got connection to " + c.getConnectedTo());
                 FindCommand fnd = new FindCommand(c).setLimit(10).setColl("uncached_object").setDb("morphium_test")
                         .setFilter(Doc.of("counter", i));
                 var ret = fnd.execute();
                 assertNotNull(ret);
                 assertEquals("Should find exactly one element", ret.size(), 1);
-                c.release();
+
             }
+            c.release();
         }
         long dur = System.currentTimeMillis() - start;
         log.info("PooledDriver took " + dur + "ms");
         drv.close();
     }
 
-    @Test
     public void crudTestMongoDriver() {
         long start = System.currentTimeMillis();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
@@ -135,18 +143,20 @@ public class PooledDriverTest {
         col.drop();
         ObjectMapperImpl om = new ObjectMapperImpl();
         //Write
-        for (int i = 0; i < 1000; i++) {
+        int amount = 1000;
+        for (int i = 0; i < amount; i++) {
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret = col.insertMany(Arrays.asList(
-                    new Document(om.serialize(new UncachedObject("value_" + (i + 100), i + 100))),
+                    new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))),
                     new Document(om.serialize(new UncachedObject("value_" + i, i)))));
 
             assertEquals("should insert 2 elements", 2, ret.getInsertedIds().size());
         }
         long d = System.currentTimeMillis() - start;
         log.info("Writing took " + d);
+        start = System.currentTimeMillis();
         //reading
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < amount; i++) {
             var it = mongo.getDatabase("morphium_test").getCollection("uncached_object").find(new Document(Doc.of("counter", i)));
             int cnt = 0;
             for (var m : it) {
