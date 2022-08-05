@@ -12,6 +12,7 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.InsertBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,16 +93,19 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             cmd.put("capped", true);
             cmd.put("size", capped.maxSize());
             cmd.put("max", capped.maxEntries());
+            cmd.put("$db", morphium.getConfig().getDatabase());
         } else {
             //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
             return;
         }
-//        try {
-//            morphium.getDriver().runCommand(morphium.getConfig().getDatabase(), cmd);
-//        } catch (MorphiumDriverException e) {
-//            //TODO: Implement Handling
-//            throw new RuntimeException(e);
-//        }
+        try {
+            MongoConnection primaryConnection = morphium.getDriver().getPrimaryConnection(null);
+            primaryConnection.sendCommand(cmd);
+            primaryConnection.release();
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
         throw new RuntimeException("Needs to be implemented!");
     }
 
@@ -117,8 +121,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         Map<String, BulkRequestContext> bulkByCollectionName = new HashMap<>();
 
 
-        //        BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", false, null);
-        //        BulkRequestContext octx = morphium.getDriver().createBulkContext(morphium.getConfig().getDatabase(), "", true, null);
         try {
             for (WriteBufferEntry entry : localQueue) {
                 if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
@@ -152,11 +154,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                     ctx.execute();
                 }
             }
-            //        } catch (BulkWriteException bwe) {
-            //            logger.error("Error executing unordered bulk",bwe);
-            //            for (BulkWriteError err:bwe.getWriteErrors()){
-            //                logger.error("Write error: "+err.getMessage()+"\n"+err.getDetails().toString());
-            //            }
         } catch (Exception e) {
             logger.error("Error during exeecution of unordered bulk", e);
         }

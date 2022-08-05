@@ -1,45 +1,48 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
-public class AggregationCountTest extends MorphiumTestBase {
+public class AggregationCountTest extends MultiDriverTestBase {
 
-    @Test
-    public void testCount() throws Exception {
-        createUncachedObjects(1000);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testCount(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 1000);
 
-        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10))
-                .project("cnt", Expr.sum(Expr.intExpr(1)));
-        List<Map> res = agg.aggregate();
-        log.info(Utils.toJsonString(res));
-        assertThat(agg.getCount()).isEqualTo(990);
+            Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+            agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10))
+                    .project("cnt", Expr.sum(Expr.intExpr(1)));
+            List<Map> res = agg.aggregate();
+            log.info(Utils.toJsonString(res));
+            assertThat(agg.getCount()).isEqualTo(990);
+        }
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testCountEmpty(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 1000);
 
-    @Test
-    public void testCountEmpty() throws Exception {
-        createUncachedObjects(1000);
-
-        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(1000))
-                .project("cnt", Expr.sum(Expr.intExpr(1)));
-        List<Map> res = agg.aggregate();
-        log.info(Utils.toJsonString(res));
-        assertThat(agg.getCount()).isEqualTo(0);
+            Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+            agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(1000))
+                    .project("cnt", Expr.sum(Expr.intExpr(1)));
+            List<Map> res = agg.aggregate();
+            log.info(Utils.toJsonString(res));
+            assertThat(agg.getCount()).isEqualTo(0);
+        }
     }
 //
 //    @Test

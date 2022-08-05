@@ -718,8 +718,6 @@ public class Morphium implements AutoCloseable {
                 insert.setColl(tmpColl).setDb(getDatabase());
                 crs.ahead(crs.getBatch().size());
             }
-            con.release();
-
             //TODO: check for error!
             logger.info("dropping old collection");
             DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection)
@@ -3015,9 +3013,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
-        StoreMongoCommand settings = new StoreMongoCommand(getDriver().getPrimaryConnection(null))
+        var con = getDriver().getPrimaryConnection(null);
+        StoreMongoCommand settings = new StoreMongoCommand(con)
                 .setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(lst);
         settings.execute();
+        con.release();
         return null;
     }
 
@@ -3975,7 +3975,7 @@ public class Morphium implements AutoCloseable {
 
                 } catch (Throwable e) {
                     //swallow
-                    if (!e.getMessage().contains("Error: 26: ns does not exist:")) {
+                    if (!e.getMessage().contains("Error: 26 - ns does not exist:")) {
                         logger.error("Could not check indices for " + cn, e);
                     }
                 }
@@ -3985,7 +3985,13 @@ public class Morphium implements AutoCloseable {
         }
         return missingIndicesByClass;
     }
-//
+
+    @Override
+    public String toString() {
+        return "Morphium: Driver " + getDriver().getName() + " - " + String.join(",", getConfig().getHostSeed());
+    }
+
+    //
 //    public void addCommandListener(CommandListener cmd) {
 //        morphiumDriver.addCommandListener(cmd);
 //    }

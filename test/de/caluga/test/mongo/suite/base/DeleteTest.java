@@ -1,8 +1,11 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 
@@ -12,83 +15,87 @@ import java.util.List;
  * Time: 08:18
  * <p/>
  */
-public class DeleteTest extends MorphiumTestBase {
+public class DeleteTest extends MultiDriverTestBase {
 
-    @Test
-    public void uncachedDeleteSingle() throws Exception {
-        createUncachedObjects(10);
-        Thread.sleep(250);
-        long c = morphium.createQueryFor(UncachedObject.class).countAll();
-        assert (c == 10);
-        UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
-        morphium.delete(u);
-        Thread.sleep(500);
-        c = morphium.createQueryFor(UncachedObject.class).countAll();
-        assert (c == 9) : "Count is " + c;
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
-        for (UncachedObject uc : lst) {
-            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void uncachedDeleteSingle(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 10);
+            waitForCondidtionToBecomeTrue(1000, "create failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
+            morphium.delete(u);
+            waitForCondidtionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
+            for (UncachedObject uc : lst) {
+                assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+            }
         }
     }
 
-    @Test
-    public void uncachedDeleteQuery() throws Exception {
-        createUncachedObjects(10);
-        Thread.sleep(400);
-        long c = morphium.createQueryFor(UncachedObject.class).countAll();
-        assert (c == 10);
-        UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
-        morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
-        Thread.sleep(400);
-        c = morphium.createQueryFor(UncachedObject.class).countAll();
-        assert (c == 9);
-        List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
-        for (UncachedObject uc : lst) {
-            assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void uncachedDeleteQuery(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 10);
+            waitForCondidtionToBecomeTrue(1000, "Count!=10 still", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
+            morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
+            waitForCondidtionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
+            for (UncachedObject uc : lst) {
+                assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
+            }
         }
     }
 
-    @Test
-    public void cachedDeleteSingle() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
-        createCachedObjects(10);
-        waitForWrites();
-        long c = morphium.createQueryFor(CachedObject.class).countAll();
-        assert (c == 10) : "Count is " + c;
-        CachedObject u = morphium.createQueryFor(CachedObject.class).get();
-        morphium.delete(u);
-        waitForWrites();
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void cachedDeleteSingle(Morphium morphium) throws Exception {
+        try (morphium) {
+            morphium.dropCollection(UncachedObject.class);
+            createCachedObjects(morphium, 10);
+            waitForWrites(morphium);
+            long c = morphium.createQueryFor(CachedObject.class).countAll();
+            assert (c == 10) : "Count is " + c;
+            CachedObject u = morphium.createQueryFor(CachedObject.class).get();
+            morphium.delete(u);
+            waitForWrites(morphium);
 
-        String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
+            String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
 
-        while (morphium.getStatistics().get(k).intValue() != 0) {
-            log.info("Waiting for cache to be cleared");
-            Thread.sleep(250);
-        }
+            while (morphium.getStatistics().get(k).intValue() != 0) {
+                log.info("Waiting for cache to be cleared");
+                Thread.sleep(250);
+            }
 
-        c = morphium.createQueryFor(CachedObject.class).countAll();
-        assert (c == 9);
-        List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
-        for (CachedObject uc : lst) {
-            assert (!uc.getId().equals(u.getId()));
+            c = morphium.createQueryFor(CachedObject.class).countAll();
+            assert (c == 9);
+            List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
+            for (CachedObject uc : lst) {
+                assert (!uc.getId().equals(u.getId()));
+            }
         }
     }
 
-    @Test
-    public void cachedDeleteQuery() throws Exception {
-        createCachedObjects(10);
-        waitForWrites();
-        long cnt = morphium.createQueryFor(CachedObject.class).countAll();
-        assert (cnt == 10) : "Count is " + cnt;
-        CachedObject co = morphium.createQueryFor(CachedObject.class).get();
-        morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
-        waitForWrites();
-        Thread.sleep(100);
-        cnt = morphium.createQueryFor(CachedObject.class).countAll();
-        assert (cnt == 9);
-        List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
-        for (CachedObject c : lst) {
-            assert (!c.getId().equals(co.getId()));
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void cachedDeleteQuery(Morphium morphium) throws Exception {
+        try (morphium) {
+            createCachedObjects(morphium, 10);
+            waitForWrites(morphium);
+            long cnt = morphium.createQueryFor(CachedObject.class).countAll();
+            assert (cnt == 10) : "Count is " + cnt;
+            CachedObject co = morphium.createQueryFor(CachedObject.class).get();
+            morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
+            waitForWrites(morphium);
+            Thread.sleep(100);
+            cnt = morphium.createQueryFor(CachedObject.class).countAll();
+            assert (cnt == 9);
+            List<CachedObject> lst = morphium.createQueryFor(CachedObject.class).asList();
+            for (CachedObject c : lst) {
+                assert (!c.getId().equals(co.getId()));
+            }
         }
     }
 

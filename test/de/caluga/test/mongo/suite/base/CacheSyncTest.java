@@ -145,7 +145,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         o.setCounter(0);
         o.setValue("a value");
         morphium.store(o);
-        wiatForAsyncOpToStart(3000);
+        waitForAsyncOperationsToStart(morphium, 3000);
         waitForWrites();
         Thread.sleep(2000);
         long start = System.currentTimeMillis();

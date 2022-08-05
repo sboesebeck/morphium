@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 
@@ -11,15 +13,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Created by stephan on 28.07.16.
  */
-public class MapReduceTest extends MorphiumTestBase {
+public class MapReduceTest extends MultiDriverTestBase {
 
-    @Test
-    public void mapReduce() throws Exception {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void mapReduce(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 100);
 
-        doSimpleMRTest(morphium);
+            doSimpleMRTest(morphium);
 //        doSimpleMRTest(morphiumMongodb);
 //
+        }
     }
 
     private void doSimpleMRTest(Morphium m) throws Exception {

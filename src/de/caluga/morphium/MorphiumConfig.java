@@ -193,7 +193,11 @@ public class MorphiumConfig {
                     List<String> l = new ArrayList<>();
                     lst = lst.replaceAll("[\\[\\]]", "");
                     Collections.addAll(l, lst.split(","));
-                    f.set(this, l);
+                    List<String> ret = new ArrayList<>();
+                    for (String n : l) {
+                        ret.add(n.trim());
+                    }
+                    f.set(this, ret);
                 } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
                     f.set(this, setting.equals("true"));
                 } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {

@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.AdditionalData;
@@ -9,6 +10,8 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,109 +23,112 @@ import java.util.Map;
  * Time: 08:00
  * <p/>
  */
-public class SubDocumentTests extends MorphiumTestBase {
+public class SubDocumentTests extends MultiDriverTestBase {
 
-    @Test
-    public void testSubDocQuery() throws Exception {
-        morphium.dropCollection(UncachedObject.class);
-        morphium.dropCollection(ComplexObject.class);
-        Thread.sleep(250);
-        UncachedObject o = new UncachedObject();
-        o.setCounter(111);
-        o.setStrValue("Embedded object");
-        //morphium.store(o);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testSubDocQuery(Morphium morphium) throws Exception {
+        try (morphium) {
+            morphium.dropCollection(UncachedObject.class);
+            morphium.dropCollection(ComplexObject.class);
+            Thread.sleep(250);
+            UncachedObject o = new UncachedObject();
+            o.setCounter(111);
+            o.setStrValue("Embedded object");
+            //morphium.store(o);
 
-        EmbeddedObject eo = new EmbeddedObject();
-        eo.setName("Embedded object 1");
-        eo.setValue("A value");
-        eo.setTest(System.currentTimeMillis());
+            EmbeddedObject eo = new EmbeddedObject();
+            eo.setName("Embedded object 1");
+            eo.setValue("A value");
+            eo.setTest(System.currentTimeMillis());
 
-        ComplexObject co = new ComplexObject();
-        co.setEmbed(eo);
+            ComplexObject co = new ComplexObject();
+            co.setEmbed(eo);
 
-        co.setEntityEmbeded(o);
+            co.setEntityEmbeded(o);
 
-        UncachedObject ref = new UncachedObject();
-        ref.setCounter(200);
-        ref.setStrValue("The reference");
-        morphium.store(ref);
+            UncachedObject ref = new UncachedObject();
+            ref.setCounter(200);
+            ref.setStrValue("The reference");
+            morphium.store(ref);
 
-        co.setRef(ref);
-        co.setEinText("This is a very complex object");
-        morphium.store(co);
+            co.setRef(ref);
+            co.setEinText("This is a very complex object");
+            morphium.store(co);
 
-        waitForWrites();
-        Thread.sleep(1500);
-        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
-        q = q.f("embed.value").eq("A value");
-        List<ComplexObject> lst = q.asList();
-        assert (lst != null);
-        assert (lst.size() == 1) : "List size wrong: " + lst.size();
-        assert (lst.get(0).getId().equals(co.getId()));
-    }
-
-    @Test
-    public void testSubDocNoExistQuery() {
-        UncachedObject o = new UncachedObject();
-        o.setCounter(111);
-        o.setStrValue("Embedded object");
-        //morphium.store(o);
-
-        EmbeddedObject eo = new EmbeddedObject();
-        eo.setName("Embedded object 1");
-        eo.setValue("A value");
-        eo.setTest(System.currentTimeMillis());
-
-        ComplexObject co = new ComplexObject();
-        co.setEmbed(eo);
-
-        co.setEntityEmbeded(o);
-
-        UncachedObject ref = new UncachedObject();
-        ref.setCounter(100);
-        ref.setStrValue("The reference");
-        morphium.store(ref);
-
-        co.setRef(ref);
-        co.setEinText("This is a very complex object");
-        morphium.store(co);
-
-        waitForWrites();
-
-        Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
-        q = q.f("embed.value").eq("A value_not");
-        List<ComplexObject> lst = q.asList();
-        assert (lst != null);
-        assert (lst.isEmpty());
-    }
-
-    @Test
-    public void testSubDocAdditionals() throws Exception {
-        SubDocumentAdditional s = new SubDocumentAdditional();
-        s.setStrValue("SubDoc");
-        s.setCounter(102);
-        s.additionals = new HashMap<>();
-        s.additionals.put("test", 100);
-        s.additionals.put("sub", UtilsMap.of("val", 42));
-
-        morphium.store(s);
-        Thread.sleep(100);
-        List<SubDocumentAdditional> lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
-        long st = System.currentTimeMillis();
-        while (lst.size() != 1) {
-            Thread.sleep(100);
-            lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
-            assert (System.currentTimeMillis() - st < 5000);
+            waitForWrites(morphium);
+            Thread.sleep(1500);
+            Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
+            q = q.f("embed.value").eq("A value");
+            List<ComplexObject> lst = q.asList();
+            assert (lst != null);
+            assert (lst.size() == 1) : "List size wrong: " + lst.size();
+            assert (lst.get(0).getId().equals(co.getId()));
         }
-        assert (lst.size() == 1);
-        assert (lst.get(0).additionals.get("sub") != null);
-        assert (lst.get(0).additionals.get("sub") instanceof Map);
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testSubDocNoExistQuery(Morphium morphium) {
+        try (morphium) {
+            UncachedObject o = new UncachedObject();
+            o.setCounter(111);
+            o.setStrValue("Embedded object");
+            //morphium.store(o);
 
-    @Test
-    public void testSubDocumentIndex() {
-        morphium.ensureIndicesFor(SubDocumentIndex.class);
+            EmbeddedObject eo = new EmbeddedObject();
+            eo.setName("Embedded object 1");
+            eo.setValue("A value");
+            eo.setTest(System.currentTimeMillis());
+
+            ComplexObject co = new ComplexObject();
+            co.setEmbed(eo);
+
+            co.setEntityEmbeded(o);
+
+            UncachedObject ref = new UncachedObject();
+            ref.setCounter(100);
+            ref.setStrValue("The reference");
+            morphium.store(ref);
+
+            co.setRef(ref);
+            co.setEinText("This is a very complex object");
+            morphium.store(co);
+
+            waitForWrites(morphium);
+
+            Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
+            q = q.f("embed.value").eq("A value_not");
+            List<ComplexObject> lst = q.asList();
+            assert (lst != null);
+            assert (lst.isEmpty());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testSubDocAdditionals(Morphium morphium) throws Exception {
+        try (morphium) {
+            SubDocumentAdditional s = new SubDocumentAdditional();
+            s.setStrValue("SubDoc");
+            s.setCounter(102);
+            s.additionals = new HashMap<>();
+            s.additionals.put("test", 100);
+            s.additionals.put("sub", UtilsMap.of("val", 42));
+
+            morphium.store(s);
+            Thread.sleep(100);
+            List<SubDocumentAdditional> lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
+            long st = System.currentTimeMillis();
+            while (lst.size() != 1) {
+                Thread.sleep(100);
+                lst = morphium.createQueryFor(SubDocumentAdditional.class).f("sub.val").eq(42).asList();
+                assert (System.currentTimeMillis() - st < 5000);
+            }
+            assert (lst.size() == 1);
+            assert (lst.get(0).additionals.get("sub") != null);
+            assert (lst.get(0).additionals.get("sub") instanceof Map);
+        }
     }
 
     @Index({"embed.id"})

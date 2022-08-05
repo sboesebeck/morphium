@@ -32,7 +32,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int maxBsonObjectSize;
     private int maxMessageSize = 16 * 1024 * 1024;
     private int maxWriteBatchSize = 1000;
-    private ReadPreference defaultRP;
+    private ReadPreference defaultRP = ReadPreference.primary();
     private boolean replicaSet = false;
     private String replicaSetName = null;
     private int retriesOnNetworkError = 5;

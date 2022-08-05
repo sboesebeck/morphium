@@ -95,6 +95,7 @@ public class SingleMongoConnection implements MongoConnection {
             ret.put(e.getKey(), e.getValue().get());
         }
         ret.put(THREADS_CREATED, 1.0);
+        ret.put(REPLY_IN_MEM, (double) incoming.size());
         return ret;
     }
 

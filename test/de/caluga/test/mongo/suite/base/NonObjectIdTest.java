@@ -30,7 +30,7 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setBirthday(new Date());
         p.setName("2nd Test");
         morphium.store(p);
-        wiatForAsyncOpToStart(1000);
+        waitForAsyncOperationsToStart(morphium, 1000);
         waitForWrites();
 
         p.setName("CHANGED");
@@ -41,7 +41,7 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setBirthday(new Date());
         p.setName("no ID");
         morphium.store(p);
-        wiatForAsyncOpToStart(1000);
+        waitForAsyncOperationsToStart(morphium, 1000);
         waitForWrites();
         Thread.sleep(1500);
         long cnt = morphium.createQueryFor(Person.class).countAll();
