@@ -1,7 +1,10 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 
@@ -12,16 +15,19 @@ import java.util.List;
  * Time: 13:24
  * To change this template use File | Settings | File Templates.
  */
-public class DistinctTest extends MorphiumTestBase {
+public class DistinctTest extends MultiDriverTestBase {
 
-    @Test
-    public void distinctTest() {
-        createUncachedObjects(100);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void distinctTest(Morphium morphium) {
+        try (morphium) {
+            createUncachedObjects(morphium, 100);
 
-        List lst = morphium.createQueryFor(UncachedObject.class).distinct("counter");
-        assert (lst.size() == 100);
-        lst = morphium.createQueryFor(UncachedObject.class).distinct("str_value");
-        assert (lst.size() == 1);
+            List lst = morphium.createQueryFor(UncachedObject.class).distinct("counter");
+            assert (lst.size() == 100);
+            lst = morphium.createQueryFor(UncachedObject.class).distinct("str_value");
+            assert (lst.size() == 1);
+        }
     }
 //
 //    @Test

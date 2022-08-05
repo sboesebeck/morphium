@@ -1197,9 +1197,8 @@ public class Query<T> implements Cloneable {
                     updateLastAccess(unmarshall);
                     morphium.firePostLoadEvent(unmarshall);
                 }
-
-
             }
+            cmd.getConnection().release();
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -2170,30 +2169,30 @@ public class Query<T> implements Cloneable {
      */
 
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
-//        try {
-//            morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, new DriverTailableIterationCallback() {
-//                        private boolean running = true;
-//
-//                        
-//                        public void incomingData(Map<String, Object> data, long dur) {
-//                            T entity = morphium.getMapper().deserialize(getType(), data);
-//                            try {
-//                                cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
-//                            } catch (MorphiumAccessVetoException ex) {
-//                                log.info("Veto Exception " + ex.getMessage());
-//                                running = false;
-//                            }
-//                        }
-//
-//                        
-//                        public boolean isContinued() {
-//                            return running;
-//                        }
-//                    }
-//            );
-//        } catch (MorphiumDriverException e) {
-//            throw new RuntimeException(e);
-//        }
+        try {
+            morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, new DriverTailableIterationCallback() {
+                        private boolean running = true;
+
+
+                        public void incomingData(Map<String, Object> data, long dur) {
+                            T entity = morphium.getMapper().deserialize(getType(), data);
+                            try {
+                                cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
+                            } catch (MorphiumAccessVetoException ex) {
+                                log.info("Veto Exception " + ex.getMessage());
+                                running = false;
+                            }
+                        }
+
+
+                        public boolean isContinued() {
+                            return running;
+                        }
+                    }
+            );
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 

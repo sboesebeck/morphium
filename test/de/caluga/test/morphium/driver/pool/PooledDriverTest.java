@@ -6,6 +6,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.connection.ClusterConnectionMode;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
@@ -22,7 +23,9 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -172,13 +175,88 @@ public class PooledDriverTest {
     private PooledDriver getDriver() throws MorphiumDriverException {
         var drv = new PooledDriver();
         drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");
-        drv.setMaxConnectionsPerHost(10);
+        drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);
-        drv.setConnectionTimeout(2000);
+        drv.setConnectionTimeout(5000);
         drv.setMaxConnectionLifetime(1000);
         drv.setMaxConnectionIdleTime(500);
-
+        drv.setDefaultReadPreference(ReadPreference.nearest());
         return drv;
+    }
+
+
+    @Test
+    public void testMultithreaddedConnectionPool() throws Exception {
+        var drv = getDriver();
+        drv.connect();
+        while (!drv.isConnected()) {
+            Thread.sleep(500);
+        }
+        log.info("Connected...");
+        int loops = 15;
+        int readThreads = 15;
+        int primaryThreads = 10;
+        var error = new AtomicInteger(0);
+
+        List<Thread> threads = new ArrayList<>();
+        var primaryRun = new Runnable() {
+            public void run() {
+
+                for (int i = 0; i < loops; i++) {
+                    try {
+                        var con = drv.getPrimaryConnection(null);
+                        Thread.sleep((long) (1000 * Math.random()));
+                        con.release();
+                    } catch (Exception e) {
+                        log.error("error", e);
+                        error.incrementAndGet();
+                    }
+                }
+
+            }
+        };
+        for (int i = 0; i < primaryThreads; i++) {
+            Thread thr = new Thread(primaryRun);
+            threads.add(thr);
+        }
+
+        var runnable = new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < loops; i++) {
+                    try {
+                        var con = drv.getReadConnection(null);
+                        Thread.sleep((long) (1000 * Math.random()));
+                        con.release();
+                    } catch (Exception e) {
+                        log.error("error", e);
+                        error.incrementAndGet();
+                    }
+                }
+            }
+        };
+        for (int i = 0; i < readThreads; i++) {
+            Thread thr = new Thread(runnable);
+            threads.add(thr);
+        }
+        for (Thread t : threads) {
+            t.start();
+        }
+
+        log.info("All threads started...");
+        for (var t : threads) {
+            t.join();
+            log.info("Thread finished...");
+        }
+        log.info("All threads finished!");
+        assertEquals("Too man errors", 0, error.get());
+        Map<MorphiumDriver.DriverStatsKey, Double> driverStats = drv.getDriverStats();
+        for (var e : driverStats.entrySet()) {
+            log.info(e.getKey() + "  =  " + e.getValue());
+        }
+        assertEquals("Release vs. borrow do not match up!", driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED));
+        assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_USE), 0);
+        drv.close();
     }
 
 

@@ -267,7 +267,11 @@ public class MorphiumTestBase {
         Thread.sleep(150);
     }
 
-    public boolean wiatForAsyncOpToStart(long maxWaitMs) {
+    public boolean waitForAsyncOperationsToStart(long maxWait) {
+        return waitForAsyncOperationsToStart(morphium, maxWait);
+    }
+
+    public boolean waitForAsyncOperationsToStart(Morphium morphium, long maxWaitMs) {
         long start = System.currentTimeMillis();
         while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
