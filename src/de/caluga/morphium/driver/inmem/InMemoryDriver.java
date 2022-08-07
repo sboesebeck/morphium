@@ -9,7 +9,9 @@ import de.caluga.morphium.driver.commands.result.CursorResult;
 import de.caluga.morphium.driver.commands.result.ListResult;
 import de.caluga.morphium.driver.commands.result.RunCommandResult;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
+import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -38,7 +40,7 @@ import java.util.zip.GZIPOutputStream;
  * functionality yet.
  */
 @SuppressWarnings({"WeakerAccess", "EmptyMethod", "BusyWait"})
-public class InMemoryDriver implements MorphiumDriver {
+public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
@@ -158,7 +160,9 @@ public class InMemoryDriver implements MorphiumDriver {
 
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
-        return null;
+        var size = getDatabase(db).get(coll).size();
+
+        return Map.of("size", size);
     }
 
 
@@ -220,13 +224,33 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
     @Override
-    public MongoConnection getReadConnection(ReadPreference rp) {
+    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
         return null;
     }
 
     @Override
-    public MongoConnection getPrimaryConnection(WriteConcern wc) {
+    public MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException {
         return null;
+    }
+
+    @Override
+    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+        return 0;
+    }
+
+    @Override
+    public MongoConnection getReadConnection(ReadPreference rp) {
+        return this;
+    }
+
+    @Override
+    public MongoConnection getPrimaryConnection(WriteConcern wc) {
+        return this;
     }
 
     @Override
@@ -334,6 +358,21 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public boolean isConnected() {
         return true;
+    }
+
+    @Override
+    public String getConnectedTo() {
+        return null;
+    }
+
+    @Override
+    public String getConnectedToHost() {
+        return null;
+    }
+
+    @Override
+    public int getConnectedToPort() {
+        return 0;
     }
 
 
@@ -448,6 +487,21 @@ public class InMemoryDriver implements MorphiumDriver {
     }
 
 
+    @Override
+    public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public MorphiumDriver getDriver() {
+        return this;
+    }
+
+    @Override
+    public int getSourcePort() {
+        return 0;
+    }
+
     public void close() {
         exec.shutdownNow();
         for (Object m : monitors) {
@@ -456,6 +510,11 @@ public class InMemoryDriver implements MorphiumDriver {
             }
         }
         database.clear();
+    }
+
+    @Override
+    public void release() {
+
     }
 
     @Override
@@ -487,18 +546,6 @@ public class InMemoryDriver implements MorphiumDriver {
 //        ret.put("entries", getDB(db).get(coll).size());
 //        return null;
 //    }
-
-
-    public Doc getOps(long threshold) {
-        log.warn("getOpts not working on memory");
-        return new Doc();
-    }
-
-
-    public Doc runCommand(String db, Doc cmd) {
-        log.warn("Runcommand not working on memory");
-        return new Doc();
-    }
 
     @SuppressWarnings("RedundantThrows")
 
@@ -1103,6 +1150,26 @@ public class InMemoryDriver implements MorphiumDriver {
 
     public void closeIteration(MorphiumCursor crs) {
 
+    }
+
+    @Override
+    public Map<String, Object> killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public boolean replyAvailableFor(int msgId) {
+        return false;
+    }
+
+    @Override
+    public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
+        return null;
+    }
+
+    @Override
+    public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+        return null;
     }
 
 

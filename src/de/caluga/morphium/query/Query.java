@@ -2164,34 +2164,66 @@ public class Query<T> implements Cloneable {
      * do a tail query
      *
      * @param batchSize - determins how much data is read in one step
-     * @param maxWait   - how long to wait _at most_ for data
+     * @param maxWait   - how long to wait _at most_ for data, throws Exception otherwise
      * @param cb        - the callback being called for _every single document_ - the entity field is filled, lists will be null
      */
 
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
+        var con = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(type));
+        boolean running = true;
+        if (maxWait == 0) maxWait = Integer.MAX_VALUE;
         try {
-            morphium.getDriver().tailableIteration(getDB(), getCollectionName(), toQueryObject(), getSort(), fieldList, getSkip(), getLimit(), batchSize, getRP(), maxWait, new DriverTailableIterationCallback() {
-                        private boolean running = true;
+            FindCommand cmd = new FindCommand(con)
+                    .setTailable(true)
+                    .setFilter(toQueryObject())
+                    .setSort(getSort())
+                    .setLimit(getLimit())
+                    .setBatchSize(batchSize)
+                    .setMaxTimeMS(maxWait)
+                    .setDb(morphium.getDatabase())
+                    .setColl(getCollectionName());
+            if (collation != null) cmd.setCollation(collation.toQueryObject());
+            long start = System.currentTimeMillis();
 
+            var msgId = cmd.executeAsync();
+            long cursorId = 0;
+            while (running) {
+                var answer = con.getReplyFor(msgId, maxWait);
+                List<Map<String, Object>> batch = null;
+                Map<String, Object> cursor = (Map<String, Object>) answer.getFirstDoc().get("cursor");
+                if (cursor == null) {
+                    log.warn("No cursor in result");
+                    break;
+                }
+                if (cursor.containsKey("firstBatch")) {
+                    batch = (List<Map<String, Object>>) cursor.get("firstBatch");
+                } else if (cursor.containsKey("nextBatch")) {
+                    batch = (List<Map<String, Object>>) cursor.get("nextBatch");
+                } else {
+                    batch = new ArrayList<>();
+                }
 
-                        public void incomingData(Map<String, Object> data, long dur) {
-                            T entity = morphium.getMapper().deserialize(getType(), data);
-                            try {
-                                cb.onOperationSucceeded(AsyncOperationType.READ, QueryImpl.this, dur, null, entity);
-                            } catch (MorphiumAccessVetoException ex) {
-                                log.info("Veto Exception " + ex.getMessage());
-                                running = false;
-                            }
-                        }
-
-
-                        public boolean isContinued() {
-                            return running;
-                        }
+                for (Map<String, Object> doc : batch) {
+                    try {
+                        cb.onOperationSucceeded(AsyncOperationType.READ, this, System.currentTimeMillis() - start, null, morphium.getMapper().deserialize(type, doc));
+                    } catch (MorphiumAccessVetoException ex) {
+                        running = false;
+                        break;
                     }
-            );
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
+                }
+                cursorId = (Long) cursor.get("id");
+                GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize)
+                        .setColl(getCollectionName())
+                        .setDb(cmd.getDb())
+                        .setCursorId(cursorId);
+                msgId = more.executeAsync();
+            }
+
+            log.info("Tail ended!");
+        } catch (Exception e) {
+            throw new RuntimeException("Error running command", e);
+        } finally {
+            con.release();
         }
     }
 

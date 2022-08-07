@@ -11,13 +11,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by stephan on 29.07.16.
  */
 
 public class TailableQueryTests extends MultiDriverTestBase {
-    boolean found = false;
+    AtomicInteger found = new AtomicInteger(0);
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -27,30 +30,25 @@ public class TailableQueryTests extends MultiDriverTestBase {
             CappedCol o = new CappedCol("Test1", 1);
             m.store(o);
             m.store(new CappedCol("Test 2", 2));
-            Thread.sleep(1000);
-            found = false;
+            Thread.sleep(100);
             new Thread(() -> {
                 Query<CappedCol> q = m.createQueryFor(CappedCol.class);
-                q.tail(10, 0, new AsyncCallbackAdapter<CappedCol>() {
+                q.tail(10, 0, new AsyncCallbackAdapter<>() {
                     @Override
                     public void onOperationSucceeded(AsyncOperationType type, Query<CappedCol> q, long duration, List<CappedCol> result, CappedCol entity, Object... param) {
                         log.info("Got incoming!!! " + entity.getStrValue() + " " + entity.getCounter());
-                        found = true;
+                        found.incrementAndGet();
                         if (entity.getStrValue().equals("Test 3 - quit")) {
                             throw new MorphiumAccessVetoException("Quitting");
                         }
                     }
                 });
-                assert (found);
+                assertTrue(found.get() >= 1);
             }).start();
-
-            Thread.sleep(2500);
-            assert (found);
-            found = false;
+            waitForCondidtionToBecomeTrue(2500, "no result coming in?", () -> found.get() == 2);
             log.info("Storing 3...");
             m.store(new CappedCol("Test 3 - quit", 3));
-            Thread.sleep(2500);
-            assert (found);
+            waitForCondidtionToBecomeTrue(2500, "3rd result not coming in", () -> found.get() == 3);
         }
 
     }
