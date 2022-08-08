@@ -3,7 +3,7 @@ package de.caluga.test.morphium.driver.connection;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.ClearCollectionSettings;
+import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,7 +62,7 @@ public class MongoConnectionTest {
         MongoConnection con = new SingleMongoConnection();
         con.connect(new DriverMock(), "localhost", 27017);
         log.info("Clearing collection");
-        ClearCollectionSettings clr = new ClearCollectionSettings(con).setColl("test").setDb("morphium_test");
+        ClearCollectionCommand clr = new ClearCollectionCommand(con).setColl("test").setDb("morphium_test");
         int del = clr.doClear();
         log.info("done - deleted " + del + " entries");
         AtomicBoolean running = new AtomicBoolean(true);
@@ -113,7 +112,7 @@ public class MongoConnectionTest {
         MongoConnection con = new SingleMongoConnection();
         con.connect(new DriverMock(), "localhost", 27017);
         log.info("Clearing collection");
-        ClearCollectionSettings clr = new ClearCollectionSettings(con).setColl("test").setDb("morphium_test");
+        ClearCollectionCommand clr = new ClearCollectionCommand(con).setColl("test").setDb("morphium_test");
         int del = clr.doClear();
         log.info("done - deleted " + del + " entries");
 

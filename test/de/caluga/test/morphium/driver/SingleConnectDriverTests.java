@@ -197,7 +197,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
     public void crudTest() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         MongoConnection con = drv.getConnection();
-        ClearCollectionSettings cmd = new ClearCollectionSettings(con).setColl("tests").setDb("morphium_test");
+        ClearCollectionCommand cmd = new ClearCollectionCommand(con).setColl("tests").setDb("morphium_test");
         cmd.execute();
         InsertMongoCommand insert = new InsertMongoCommand(con).setDocuments(Arrays.asList(Doc.of("_id", "123123", "value", "thing")))
                 .setColl("tests")

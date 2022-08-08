@@ -55,4 +55,10 @@ public class StepDownCommand extends AdminMongoCommand<StepDownCommand> {
         return m;
     }
 
+    @Override
+    public StepDownCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        timeToStepDown=Integer.valueOf((int)m.get(getCommandName()));
+        return this;
+    }
 }

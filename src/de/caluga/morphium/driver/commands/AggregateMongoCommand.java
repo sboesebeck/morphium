@@ -155,5 +155,12 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         return "aggregate";
     }
 
-
+    @Override
+    public AggregateMongoCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        if (m.containsKey("cursor")){
+            batchSize= (Integer) ((Map)m.get("cursor")).get("batchSize");
+        }
+        return this;
+    }
 }

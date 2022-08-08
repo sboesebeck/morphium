@@ -80,6 +80,13 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
         return m;
     }
 
+    @Override
+    public CurrentOpCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        secsRunning= (int) ((Map)m.get("secs_running")).get("$gt");
+        return this;
+    }
+
     public List<Map<String, Object>> execute() throws MorphiumDriverException {
         var msgid = getConnection().sendCommand(asMap());
         var res = getConnection().readSingleAnswer(msgid);

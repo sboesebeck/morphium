@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
+import org.apache.log4j.Logger;
 
 import java.util.Map;
 
@@ -176,7 +177,8 @@ public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
     public Map<String, Object> asMap() {
         Map<String, Object> m = super.asMap();
         if (m.containsKey("outColl") && m.containsKey("outConfig")) {
-            throw new IllegalArgumentException("Cannot specify out coll and out config!");
+            Logger.getLogger(MapReduceCommand.class).error("Cannot specify out coll and out config! Ignoring outConfig");
+            m.remove("outConfig");
         }
         String k = "outColl";
         if (m.containsKey("outConfig")) {
@@ -188,5 +190,17 @@ public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
             m.put("out", Doc.of("inline", 1));
         }
         return m;
+    }
+
+    @Override
+    public MapReduceCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        if (m.containsKey("out") && (m.get("out") instanceof String)){
+            outColl= (String) m.get("out");
+        }
+        if (m.containsKey("out")&&(m.get("out") instanceof Map)){
+            outConfig= (Doc) m.get("out");
+        }
+        return this;
     }
 }
