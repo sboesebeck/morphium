@@ -62,6 +62,13 @@ public class ListCollectionsCommand extends ReadMongoCommand<ListCollectionsComm
     }
 
     @Override
+    public ListCollectionsCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        super.setColl((String) m.get(getCommandName()));
+        return this;
+    }
+
+    @Override
     public String getCommandName() {
         return "listCollections";
     }

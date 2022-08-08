@@ -5,28 +5,33 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
-import de.caluga.morphium.driver.commands.result.CursorResult;
-import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.RunCommandResult;
-import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassInfo;
+import io.github.classgraph.ClassInfoList;
+import io.github.classgraph.ScanResult;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.el.MethodNotFoundException;
 import javax.net.ssl.SSLContext;
 import java.io.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -64,13 +69,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
     private List<Runnable> eventQueue = new CopyOnWriteArrayList<>();
 
+    private Map<Integer,Map<String,Object>> commandResults=new ConcurrentHashMap<>();
+    private Map<String,Class<? extends MongoCommand>> commandsCache=new HashMap<>();
+    private AtomicInteger commandNumber=new AtomicInteger(0);
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
     }
 
+
+
     public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
         if (db != null) database.put(dbn, db);
     }
+
+
 
 
     public void restore(InputStream in) throws IOException, ParseException {
@@ -239,8 +251,239 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
-    public int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+    public synchronized int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+        if (commandsCache.size()==0) {
+            try (ScanResult scanResult =
+                         new ClassGraph()
+                                 //                     .verbose()             // Enable verbose logging
+                                 .enableAnnotationInfo()
+//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+                                 .scan()) {
+                ClassInfoList entities =
+                        scanResult.getSubclasses(MongoCommand.class.getName());
+                for (ClassInfo info:entities) {
+                    try {
+                        String n = info.getName();
+                        Class cls = Class.forName(n);
+                        if (Modifier.isAbstract(cls.getModifiers())) continue;
+                        if (cls.isInterface()) continue;
+
+                        Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
+                        declaredConstructor.setAccessible(true);
+                        var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+                        commandsCache.put(mongoCommand.getCommandName(),cls);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        }
+        var commandName=cmd.keySet().toArray(new String[1])[0];
+        Class<? extends MongoCommand> commandClass=commandsCache.get(commandName);
+        if (commandClass==null){
+            throw new IllegalArgumentException("Unknown kommand "+commandName);
+        }
+
+        try {
+            Constructor declaredConstructor = commandClass.getDeclaredConstructor(MongoConnection.class);
+            declaredConstructor.setAccessible(true);
+            var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+            mongoCommand.fromMap(cmd);
+            try {
+                Method method = this.getClass().getDeclaredMethod("runCommand", commandClass);
+                method.invoke(this, mongoCommand);
+            } catch(MethodNotFoundException ex){
+                log.error("No method for command "+commandClass.getSimpleName()+" - "+mongoCommand.getCommandName());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         return 0;
+    }
+
+    private int runCommand(UpdateMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(WatchCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(StoreMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(ShutdownCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(ReplicastStatusCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(RenameCollectionCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+
+    }
+    private int runCommand(MapReduceCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+
+    }
+    private int runCommand(ListIndexesCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+
+    }
+    private int runCommand(ListDatabasesCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(ListCollectionsCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(KillCursorsCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(InsertMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(GetMoreMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(FindCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(FindAndModifyMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(DropMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(DropDatabaseMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(DistinctMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(DeleteMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(DbStatsCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(CurrentOpCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(CreateIndexesCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(CreateCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(CountMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(ConvertToCappedCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(CollStatsCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(ClearCollectionCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    private int runCommand(AggregateMongoCommand cmd){
+        log.info(cmd.getCommandName()+" - incoming ("+cmd.getClass().getSimpleName()+")");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
+    }
+    
+    private int runCommand(MongoCommand cmd){
+        log.error("Unknown Command incoming");
+        return 0;
+    }
+
+    private int runCommand(HelloCommand cmd){
+        log.info("Hello Command incoming");
+        int ret=commandNumber.incrementAndGet();
+        commandResults.put(ret,new HashMap<>());
+        return ret;
     }
 
     @Override
@@ -690,12 +933,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //            inCrs.dataRead = res.size();
 //        }
         return crs;
-    }
-
-    @SuppressWarnings("RedundantThrows")
-
-    public void watch(String db, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object>> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        watch(db, null, timeout, fullDocumentOnUpdate, pipeline, cb);
     }
 
     @SuppressWarnings({"RedundantThrows", "CatchMayIgnoreException"})
@@ -1692,7 +1929,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
-        return null;
+        return Map.of("inMem",1);
     }
 
 

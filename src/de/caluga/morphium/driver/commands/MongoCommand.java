@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public abstract class MongoCommand<T extends MongoCommand> {
+    @Transient
     private static AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);
     private String $db;
     private String coll;
@@ -125,6 +126,42 @@ public abstract class MongoCommand<T extends MongoCommand> {
     }
 
 
+    public T fromMap(Map<String,Object> m){
+        setColl(""+m.get(getCommandName()));
+        for (Field f : an.getAllFields(this.getClass())) {
+            if (Modifier.isStatic(f.getModifiers())) {
+                continue;
+            }
+            if (f.isAnnotationPresent(Transient.class)) continue;
+            if (f.getName().equals("metaData")) continue;
+            if (f.getName().equals("readPreference")) continue;
+            if (f.getName().equals("connection")) continue;
+            if (f.getName().equals("coll")) continue;
+
+            if (DriverTailableIterationCallback.class.isAssignableFrom(f.getType())) continue;
+            if (AsyncOperationCallback.class.isAssignableFrom(f.getType())) continue;
+            String n = f.getName();
+            //TODO: find better solution
+            if (n.equals("newFlag")) n = "new";
+            f.setAccessible(true);
+
+            try {
+                Object v=m.get(n);
+                if (v==null)continue;
+                Class  targetType = f.getType();
+                if (targetType.isEnum()) {
+                    Enum en=Enum.valueOf((Class<Enum>)f.getType(),v.toString());
+                    v = en;
+                }
+
+                if (v != null)
+                    f.set(this,v);
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            }
+        }
+        return (T) this;
+    }
     public Map<String, Object> asMap() {
         Object o;
         Doc map = new Doc();

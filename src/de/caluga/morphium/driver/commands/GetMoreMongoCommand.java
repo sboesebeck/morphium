@@ -56,6 +56,14 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
         return m;
     }
 
+    @Override
+    public GetMoreMongoCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        cursorId=(Long)m.get(getCommandName());
+        setColl((String) m.get("collection"));
+        return this;
+    }
+
     public MorphiumCursor execute() throws MorphiumDriverException {
         int c = getConnection().sendCommand(asMap());
         return getConnection().getAnswerFor(c, getBatchSize());

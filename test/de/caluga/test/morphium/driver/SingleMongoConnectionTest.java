@@ -3,7 +3,6 @@ package de.caluga.test.morphium.driver;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -56,7 +55,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
     public void testSyncConnection() throws Exception {
         var con = getConnection();
         log.info("Connected");
-        int deleted = (int) new ClearCollectionSettings(con).setColl(coll).setDb(db).doClear();
+        int deleted = (int) new ClearCollectionCommand(con).setColl(coll).setDb(db).doClear();
         log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
@@ -100,7 +99,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
     @Test
     public void testUpdateSyncConnection() throws Exception {
         var con = getConnection();
-        new ClearCollectionSettings(con).setDb(db).setColl(coll).execute();
+        new ClearCollectionCommand(con).setDb(db).setColl(coll).execute();
         //log.info("Deleted old data: " + deleted);
 
         ObjectMapperImpl objectMapper = new ObjectMapperImpl();
@@ -265,7 +264,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
     @Test
     public void testMapReduce() throws Exception {
         var con = getConnection();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionCommand(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
@@ -299,7 +298,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
     @Test
     public void testRunCommand() throws Exception {
         var con = getConnection();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionCommand(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();
@@ -322,7 +321,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
     @Test
     public void iteratorTest() throws Exception {
         var con = getConnection();
-        Object deleted = new ClearCollectionSettings(con).setDb(db).setColl(coll).execute().get("n");
+        Object deleted = new ClearCollectionCommand(con).setDb(db).setColl(coll).execute().get("n");
         log.info("Deleted old data: " + deleted);
         List<Map<String, Object>> testList = new ArrayList<>();
         MorphiumObjectMapper om = new ObjectMapperImpl();

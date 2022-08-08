@@ -246,4 +246,22 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         m.putAll(cmd);
         return m;
     }
+
+    @Override
+    public WatchCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        pipeline= new ArrayList<>((List<Map<String, Object>>)(List)m.get("pipeline"));
+        var cstr=pipeline.remove(0);
+        cstr= (Map<String, Object>) cstr.get("$changeStream");
+        if (cstr.get("fullDocument")!=null) {
+            fullDocument = FullDocumentEnum.valueOf((String) cstr.get("fullDocument"));
+        }
+        fullDocumentBeforeChange=FullDocumentBeforeChangeEnum.valueOf(((String)cstr.get("fullDocumentBeforeChange")));
+        if (cstr.get("showExpandedEvents") instanceof Boolean) {
+            showExpandedEvents = (Boolean) cstr.get("showExpandedEvents");
+        } else {
+            showExpandedEvents = "true".equals(cstr.get("showExpandedEvents"));
+        }
+        return this;
+    }
 }

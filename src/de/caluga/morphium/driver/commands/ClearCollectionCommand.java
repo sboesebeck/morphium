@@ -1,16 +1,15 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class ClearCollectionSettings extends WriteMongoCommand<ClearCollectionSettings> {
+public class ClearCollectionCommand extends WriteMongoCommand<ClearCollectionCommand> {
 
-    public ClearCollectionSettings(MongoConnection d) {
+    public ClearCollectionCommand(MongoConnection d) {
         super(d);
     }
 

@@ -9,7 +9,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.connection.ClusterConnectionMode;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.commands.ClearCollectionSettings;
+import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
@@ -93,7 +93,7 @@ public class MorphiumDriverSpeedTest {
         con.connect();
         log.info("Connected");
 
-        ClearCollectionSettings clear = new ClearCollectionSettings(con.getConnection());
+        ClearCollectionCommand clear = new ClearCollectionCommand(con.getConnection());
         clear.setDb("morphium_test").setColl("uncached_object");
         log.info("Deleted documents:" + clear.doClear());
 

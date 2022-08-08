@@ -47,4 +47,13 @@ public class RenameCollectionCommand extends AdminMongoCommand<RenameCollectionC
         return m;
     }
 
+    @Override
+    public RenameCollectionCommand fromMap(Map<String, Object> m) {
+        super.fromMap(m);
+        var sp=((String)m.get(getCommandName())).split("\\.");
+        setDb(sp[0]);
+        setColl(sp[1]);
+        setTo(getTo().split("\\.")[1]);
+        return this;
+    }
 }
