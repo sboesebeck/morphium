@@ -3,6 +3,7 @@ package de.caluga.test.morphium.driver;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.*;
@@ -72,20 +73,28 @@ public class InMemDriverTest {
         assertEquals("Should only find 1",found.size(),1);
 
         fnd.setFilter(null);
-        found=fnd.execute();
-        assertEquals("Should find 4",found.size(),4);
+        found = fnd.execute();
+        assertEquals("Should find 4", found.size(), 4);
 
-        DistinctMongoCommand distinct=new DistinctMongoCommand(drv).setKey("strVal");
+        DistinctMongoCommand distinct = new DistinctMongoCommand(drv).setKey("strVal");
         distinct.setDb("testing").setColl("testcoll");
-        var distinctResult=distinct.execute();
-        log.info("Distinct values: "+distinctResult.size());
-        assertEquals(4,distinctResult.size());
+        var distinctResult = distinct.execute();
+        log.info("Distinct values: " + distinctResult.size());
+        assertEquals(4, distinctResult.size());
 
+        CreateIndexesCommand createIndexesCommand = new CreateIndexesCommand(drv).setDb("testing").setColl("testcoll");
+        createIndexesCommand.addIndex(new IndexDescription().setKey(Doc.of("strVal", 1)));
+        createIndexesCommand.execute();
 
-        CountMongoCommand count=new CountMongoCommand(drv).setColl("testcoll").setDb("testing").setQuery(Doc.of());
-        assertEquals(4,count.getCount());
-        ClearCollectionCommand clr=new ClearCollectionCommand(drv).setColl("testcoll").setDb("testing");
-        var cleared=clr.execute();
-        assertEquals(drv.getDatabase("testing").get("testcoll").size(),0);
+        CollStatsCommand collStatsCommand = new CollStatsCommand((MorphiumDriver) drv).setDb("testing").setColl("testcoll");
+        var collStats = collStatsCommand.execute();
+        assertNotNull(collStats.get("nindexes"));
+        assertTrue((int) collStats.get("nindexes") > 1);
+        assertTrue((long) collStats.get("totalSize") > 0);
+        CountMongoCommand count = new CountMongoCommand(drv).setColl("testcoll").setDb("testing").setQuery(Doc.of());
+        assertEquals(4, count.getCount());
+        ClearCollectionCommand clr = new ClearCollectionCommand(drv).setColl("testcoll").setDb("testing");
+        var cleared = clr.execute();
+        assertEquals(drv.getDatabase("testing").get("testcoll").size(), 0);
     }
 }
