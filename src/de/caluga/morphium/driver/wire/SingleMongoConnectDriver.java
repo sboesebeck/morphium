@@ -337,10 +337,10 @@ public class SingleMongoConnectDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
         MorphiumTransactionContext ctx = getTransactionContext();
-        connection.sendCommand(Doc.of("commitTransaction", 1,
-                "txnNumber", ctx.getTxnNumber(),
-                "autocommit", false,
-                "lsid", Doc.of("id", ctx.getLsid()), "$db", "admin"));
+
+        var cmd=new CommitTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
+                .setLsid(ctx.getLsid());
+        cmd.execute();
         clearTransactionContext();
 
     }
@@ -350,12 +350,9 @@ public class SingleMongoConnectDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
         MorphiumTransactionContext ctx = getTransactionContext();
-
-        connection.sendCommand(Doc.of("abortTransaction", 1,
-                "txnNumber", ctx.getTxnNumber(),
-                "autocommit", false, "lsid", Doc.of("id", ctx.getLsid()),
-                "$db", "admin")
-        );
+        var cmd=new AbortTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
+                .setLsid(ctx.getLsid());
+        cmd.execute();
         clearTransactionContext();
     }
 
@@ -790,9 +787,10 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         @Override
-        public int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+        public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
             return getDelegate().sendCommand(cmd);
         }
+
 
         @Override
         public void release() {

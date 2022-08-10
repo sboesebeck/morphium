@@ -42,7 +42,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
 
         setMetaData("server", con.getConnectedTo());
         long start = System.currentTimeMillis();
-        int msg = con.sendCommand(asMap());
+        int msg = con.sendCommand(this);
         var crs = con.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);

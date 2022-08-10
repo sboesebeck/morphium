@@ -18,7 +18,7 @@ public class ListDatabasesCommand extends MongoCommand<ListDatabasesCommand> {
     }
 
     public List<Map<String, Object>> getList() throws MorphiumDriverException {
-        var ret = getConnection().sendCommand(asMap());
+        var ret = getConnection().sendCommand(this);
         var result = getConnection().readSingleAnswer(ret);
         if (result.containsKey("databases")) {
             return (List<Map<String, Object>>) result.get("databases");

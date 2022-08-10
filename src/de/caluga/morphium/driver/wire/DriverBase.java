@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
+import de.caluga.morphium.driver.commands.ListDatabasesCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.mongodb.Maximums;
 import org.slf4j.Logger;
@@ -242,9 +243,9 @@ public abstract class DriverBase implements MorphiumDriver {
         if (!isConnected()) {
             return null;
         }
-        Doc command = Doc.of("listDatabases", 1, "$db", "admin");
         MongoConnection primaryConnection = getPrimaryConnection(null);
-        var msg = primaryConnection.sendCommand(command);
+        ListDatabasesCommand cmd=new ListDatabasesCommand(primaryConnection);
+        var msg = primaryConnection.sendCommand(cmd);
         Map<String, Object> res = primaryConnection.readSingleAnswer(msg);
         List<String> ret = new ArrayList<>();
         if (res.get("databases") != null) {

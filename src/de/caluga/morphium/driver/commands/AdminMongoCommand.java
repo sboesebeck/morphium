@@ -28,9 +28,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
 
         setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
-        var m = asMap();
-        m.put("$db", "admin");
-        var msg = connection.sendCommand(m);
+        var msg = connection.sendCommand(this);
         var crs = connection.readSingleAnswer(msg);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);
@@ -45,9 +43,7 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
         return new NetworkCallHelper<Integer>().doCall(() -> {
             setMetaData("server", connection.getConnectedTo());
             //long start = System.currentTimeMillis();
-            var m = asMap();
-            m.put("$db", "admin");
-            var id = connection.sendCommand(m);
+            var id = connection.sendCommand(this);
 
             // long dur = System.currentTimeMillis() - start;
             setMetaData("duration", 0); //not waiting!

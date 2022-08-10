@@ -13,6 +13,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
@@ -990,8 +991,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
         MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
         try {
-
-            int msgid = con.sendCommand(UtilsMap.of("listShards", 1, "$db", "admin"));
+            var cmd=new GenericCommand(con).addKey("listShards",1).setDb("morphium_test").setColl("admin");
+            int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
@@ -1000,9 +1001,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
 
         try {
-
-            int msgid = con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
-                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
+            GenericCommand cmd=new GenericCommand(con).addKey("shardCollection","morphium_test."+ morphium.getMapper().getCollectionName(UncachedObject.class))
+                    .addKey("key",Doc.of("_id","hashed")).setDb("admin");
+            int msgid =con.sendCommand(cmd);
+                    // con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
+            //                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
             Map<String, Object> state = con.readSingleAnswer(msgid);
 
         } catch (MorphiumDriverException e) {
@@ -1037,8 +1040,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
         MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
         try {
-
-            int msgid = con.sendCommand(UtilsMap.of("listShards", 1, "$db", "admin"));
+            var cmd=new GenericCommand(con).addKey("listShards",1).setDb("morphium_test").setColl("admin");
+            int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
@@ -1048,8 +1051,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
         try {
 
-            int msgid = con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
-                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
+            GenericCommand cmd=new GenericCommand(con).addKey("shardCollection","morphium_test."+ morphium.getMapper().getCollectionName(UncachedObject.class))
+                    .addKey("key",Doc.of("_id","hashed")).setDb("admin");
+            int msgid =con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
 
         } catch (MorphiumDriverException e) {

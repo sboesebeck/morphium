@@ -54,6 +54,15 @@ public class Doc extends LinkedHashMap<String, Object> {
                 .add(k4, v4);
     }
 
+    public static Doc of(String k1, Object v1, String k2, Object v2, String k3, Object v3, String k4, Object v4, String k5, Object v5,String k6, Object v6) {
+        return of().add(k1,v1)
+                .add(k2,v2)
+                .add(k3,v3)
+                .add(k4,v4)
+                .add(k5,v5)
+                .add(k6,v6);
+
+    }
     public static Doc of(String k1, Object v1, String k2, Object v2, String k3, Object v3, String k4, Object v4, String k5, Object v5) {
         return of().add(k1, v1)
                 .add(k2, v2)

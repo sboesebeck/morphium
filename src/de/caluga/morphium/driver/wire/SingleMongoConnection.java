@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
+import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
@@ -316,10 +317,10 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
-    public int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException {
+    public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         OpMsg q = new OpMsg();
         q.setMessageId(msgId.incrementAndGet());
-        q.setFirstDoc(Doc.of(cmd));
+        q.setFirstDoc(Doc.of(cmd.asMap()));
 
         sendQuery(q);
         return q.getMessageId();

@@ -190,7 +190,7 @@ public class CreateCommand extends MongoCommand<CreateCommand> {
 
         setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
-        var msg = connection.sendCommand(asMap());
+        var msg = connection.sendCommand(this);
         var crs = connection.getAnswerFor(msg, getDefaultBatchSize());
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);

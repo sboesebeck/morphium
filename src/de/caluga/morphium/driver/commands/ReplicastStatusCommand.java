@@ -18,7 +18,7 @@ public class ReplicastStatusCommand extends MongoCommand<ReplicastStatusCommand>
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        var msgId = getConnection().sendCommand(asMap());
+        var msgId = getConnection().sendCommand(this);
         var result = getConnection().readSingleAnswer(msgId);
         return result;
     }

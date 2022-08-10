@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -58,6 +59,6 @@ public interface MongoConnection extends Closeable {
 
 //    List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException;
 
-    int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException;
-
+//    int sendCommand(Map<String, Object> cmd) throws MorphiumDriverException;
+    int sendCommand(MongoCommand cmd) throws MorphiumDriverException;
 }

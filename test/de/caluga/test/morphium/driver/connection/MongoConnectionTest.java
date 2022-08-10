@@ -32,7 +32,7 @@ public class MongoConnectionTest {
         con.connect(new DriverMock(), "localhost", 27017);
 
         HelloCommand hello = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
-        var m = con.sendCommand(hello.asMap());
+        var m = con.sendCommand(hello);
         var res = con.readSingleAnswer(m);
         log.info(Utils.toJsonString(res));
         assertThat(res).isNotNull();
@@ -126,19 +126,19 @@ public class MongoConnectionTest {
                 .setDocuments(lst).setColl("test").setDb("morphium_test")
                 .setBypassDocumentValidation(true);
 
-        var msg = con.sendCommand(insert.asMap());
+        var msg = con.sendCommand(insert);
         var ret = con.readSingleAnswer(msg);
         assertThat(ret).doesNotContainKey("code");
 
         log.info("Calling find...");
         FindCommand find = new FindCommand(con).setBatchSize(17)
                 .setDb("morphium_test").setColl("test");
-        msg = con.sendCommand(find.asMap());
+        msg = con.sendCommand(find);
         var resultList = con.readAnswerFor(msg);
         assertThat(resultList.size()).isEqualTo(1000);
 
         log.info("Calling find - as cursor");
-        msg = con.sendCommand(find.asMap());
+        msg = con.sendCommand(find);
         var crs = con.getAnswerFor(msg, 100);
         int cnt = 0;
         while (crs.hasNext()) {

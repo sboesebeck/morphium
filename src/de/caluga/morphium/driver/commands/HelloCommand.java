@@ -16,6 +16,8 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
 
     public HelloCommand(MongoConnection d) {
         super(d);
+        setDb("");
+        setColl("");
     }
 
     public Boolean getLoadBalanced() {
@@ -84,7 +86,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
 
 
     public HelloResult execute() throws MorphiumDriverException {
-        var msg = getConnection().sendCommand(asMap());
+        var msg = getConnection().sendCommand(this);
         var crs = getConnection().getAnswerFor(msg, getDefaultBatchSize());
         return HelloResult.fromMsg(crs.next());
     }

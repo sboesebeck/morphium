@@ -401,8 +401,14 @@ public class PooledDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot commit");
         MorphiumTransactionContext ctx = getTransactionContext();
-        getPrimaryConnection(null).sendCommand(Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid()), "$db", "admin"));
+        MongoConnection con = getPrimaryConnection(null);
+        var cmd = new CommitTransactionCommand(con).setTxnNumber(ctx.getTxnNumber())
+                .setAutocommit(false)
+                .setLsid(ctx.getLsid());
+        cmd.execute();
+//        getPrimaryConnection(null).sendCommand(Doc.of("commitTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid()), "$db", "admin"));
         clearTransactionContext();
+        con.release();
     }
 
     @Override
@@ -410,8 +416,14 @@ public class PooledDriver extends DriverBase {
         if (getTransactionContext() == null)
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
         MorphiumTransactionContext ctx = getTransactionContext();
-        getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid(), "$db", "admin")));
+        MongoConnection con = getPrimaryConnection(null);
+        var cmd = new AbortTransactionCommand(con).setTxnNumber(ctx.getTxnNumber())
+                .setAutocommit(false)
+                .setLsid(ctx.getLsid());
+        cmd.execute();
+        //getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid(), "$db", "admin")));
         clearTransactionContext();
+        con.release();
     }
 //
 //    @Override
