@@ -9,8 +9,8 @@ import de.caluga.morphium.driver.wire.AtomicDecimal;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
-import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
@@ -18,6 +18,7 @@ import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
 import org.bson.types.ObjectId;
 import org.json.simple.parser.ParseException;
+import org.openjdk.jol.vm.VM;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -303,7 +304,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @Override
     public synchronized int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         stats.get(DriverStatsKey.MSG_SENT).incrementAndGet();
-        if (cmd.asMap().get("$db")==null){
+        if (cmd.asMap().get("$db") == null) {
             throw new IllegalArgumentException("DB cannot be null");
         }
         try {
@@ -597,29 +598,29 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         //del.addDelete(Doc.of("q", new HashMap<>(), "limit", 0));
-        for (var del:cmd.getDeletes()) {
-            delete(cmd.getDb(), cmd.getColl(), (Map)del.get("q"),null,true,null,null);
+        for (var del : cmd.getDeletes()) {
+            delete(cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, true, null, null);
         }
-        commandResults.put(ret,prepareResult());
+        commandResults.put(ret, prepareResult());
         return ret;
     }
 
     private int runCommand(DbStatsCommand cmd) {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
-        var m=prepareResult();
-        m.put("databases",database.size());
-        commandResults.put(ret,m);
+        var m = prepareResult();
+        m.put("databases", database.size());
+        commandResults.put(ret, m);
         return ret;
     }
 
     private int runCommand(CurrentOpCommand cmd) {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
-        var m=prepareResult();
-        m.put("ok",0.0);
-        m.put("errmsg","no running ops in memory");
-        commandResults.put(ret,m);
+        var m = prepareResult();
+        m.put("ok", 0.0);
+        m.put("errmsg", "no running ops in memory");
+        commandResults.put(ret, m);
         return ret;
     }
 
@@ -627,12 +628,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
 
-        for (var idx:cmd.getIndexes()){
-            IndexDescription descr=IndexDescription.fromMap(idx);
-            createIndex(cmd.getDb(),cmd.getColl(), (Map<String, Object>) idx.get("key"),idx);
+        for (var idx : cmd.getIndexes()) {
+            IndexDescription descr = IndexDescription.fromMap(idx);
+            createIndex(cmd.getDb(), cmd.getColl(), (Map<String, Object>) idx.get("key"), idx);
         }
 
-        commandResults.put(ret,prepareResult());
+        commandResults.put(ret, prepareResult());
         return ret;
     }
 
@@ -646,11 +647,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private int runCommand(CountMongoCommand cmd) throws MorphiumDriverException {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
-        var m=prepareResult();
-        var cnt=find(cmd.getDb(),cmd.getColl(),cmd.getQuery(),null,null,0,0).size();
-        m.put("n",cnt);
-        m.put("count",cnt);
-        commandResults.put(ret,m);
+        var m = prepareResult();
+        var cnt = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), null, null, 0, 0).size();
+        m.put("n", cnt);
+        m.put("count", cnt);
+        commandResults.put(ret, m);
         return ret;
     }
 
@@ -661,12 +662,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //        return ret;
 //    }
 
-//    private int runCommand(CollStatsCommand cmd) {
-//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
-//        int ret = commandNumber.incrementAndGet();
-//        commandResults.put(ret,prepareResult( Arrays.asList(new HashMap<>())));
-//        return ret;
-//    }
+    private int runCommand(CollStatsCommand cmd) {
+        /**
+         * "ns" : "admin.admin",
+         *     "size" : 0.0,
+         *     "count" : 0.0,
+         *     "numOrphanDocs" : 0.0,
+         *     "storageSize" : 0.0,
+         *     "totalSize" : 0.0,
+         *     "nindexes" : 0.0,
+         *     "totalIndexSize" : 0.0,
+         *     "indexDetails" : {
+         *
+         *     },
+         *     "indexSizes" : {
+         *
+         *     },
+         */
+        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+        int ret = commandNumber.incrementAndGet();
+        var m = prepareResult();
+        m.put("ns", cmd.getDb() + "." + cmd.getColl());
+        var size = VM.current().sizeOf(database.get(cmd.getDb()).get(cmd.getColl()));
+        m.put("size", size);
+        m.put("storageSize", 0);
+
+        List<Map<String, Object>> indexes = getIndexes(cmd.getDb(), cmd.getColl());
+        m.put("nindexes", indexes.size());
+        var indexDetails = Doc.of();
+        var indexSizes = Doc.of();
+        long totalSize = size;
+        for (var idx : indexes) {
+            String idxName = (String) ((Map) idx.get("$options")).get("name");
+            indexDetails.put(idxName, idx);
+            long sz = VM.current().sizeOf(indexDataByDBCollection.get(cmd.getDb()).get(cmd.getColl()))
+                    + VM.current().sizeOf(idx);
+            indexSizes.put(idxName, sz);
+            totalSize += sz;
+
+        }
+        m.put("totalSize", totalSize);
+        m.put("indexDetails", indexDetails);
+        m.put("indexSizes", indexSizes);
+        commandResults.put(ret, m);
+        return ret;
+    }
 
     private int runCommand(ClearCollectionCommand cmd) {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
