@@ -47,8 +47,8 @@ public class ShutdownCommand extends AdminMongoCommand<ShutdownCommand> {
 
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-       executeAsync();
-       return null;
+       int msg=executeAsync();
+       return getConnection().readSingleAnswer(msg);
 
     }
 
@@ -61,9 +61,7 @@ public class ShutdownCommand extends AdminMongoCommand<ShutdownCommand> {
 
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
-            var m = asMap();
-            m.put("$db", "admin");
-            var msg = connection.sendCommand(m);
+            var msg = connection.sendCommand(this);
             return msg;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }

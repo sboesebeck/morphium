@@ -12,6 +12,7 @@ import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.InsertBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
+import de.caluga.morphium.driver.commands.CreateCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
@@ -86,27 +87,27 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         if (logger.isDebugEnabled()) {
             logger.debug("Collection does not exist - ensuring indices / capped status");
         }
-        Doc cmd = new Doc();
-        cmd.put("create", n != null ? n : morphium.getMapper().getCollectionName(c));
         Capped capped = morphium.getARHelper().getAnnotationFromHierarchy(c, Capped.class);
-        if (capped != null) {
-            cmd.put("capped", true);
-            cmd.put("size", capped.maxSize());
-            cmd.put("max", capped.maxEntries());
-            cmd.put("$db", morphium.getConfig().getDatabase());
-        } else {
-            //            logger.warn("cannot cap collection for class " + c.getName() + " not @Capped");
-            return;
-        }
+        if (capped == null) return;
+
+        MongoConnection primaryConnection = null;
+
         try {
-            MongoConnection primaryConnection = morphium.getDriver().getPrimaryConnection(null);
+            primaryConnection = morphium.getDriver().getPrimaryConnection(null);
+
+            CreateCommand cmd = new CreateCommand(primaryConnection);
+            cmd.setCapped(true);
+            cmd.setSize(capped.maxSize()).setMax(capped.maxEntries());
+            cmd.setDb(morphium.getConfig().getDatabase());
+
             primaryConnection.sendCommand(cmd);
-            primaryConnection.release();
+
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            if (primaryConnection!=null) primaryConnection.release();
         }
-        throw new RuntimeException("Needs to be implemented!");
     }
 
 
@@ -1009,7 +1010,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
         flushQueueToMongo(opLog.get(type));
     }
-
 
 
     @Override

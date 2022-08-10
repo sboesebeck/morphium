@@ -42,7 +42,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             List<Map<String, Object>> ret = new ArrayList<>();
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
-            var msg = connection.sendCommand(asMap());
+            var msg = connection.sendCommand(this);
             MorphiumCursor crs = connection.getAnswerFor(msg, getDefaultBatchSize());
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
@@ -66,7 +66,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
         List<Map<String, Object>> ret = new ArrayList<>();
         setMetaData("server", connection.getConnectedTo());
         long start = System.currentTimeMillis();
-        int msg = connection.sendCommand(asMap());
+        int msg = connection.sendCommand(this);
         MorphiumCursor crs = connection.getAnswerFor(msg, batchsize);
         long dur = System.currentTimeMillis() - start;
         setMetaData("duration", dur);

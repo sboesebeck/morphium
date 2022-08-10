@@ -304,4 +304,37 @@ public class HelloResult {
         this.helloOk = helloOk;
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "HelloResult{" +
+                "helloOk=" + helloOk +
+                ", isWritablePrimary=" + isWritablePrimary +
+                ", maxBsonObjectSize=" + maxBsonObjectSize +
+                ", maxMessageSizeBytes=" + maxMessageSizeBytes +
+                ", maxWriteBatchSize=" + maxWriteBatchSize +
+                ", localTime=" + localTime +
+                ", logicalSessionTimeoutMinutes=" + logicalSessionTimeoutMinutes +
+                ", connectionId=" + connectionId +
+                ", minWireVersion=" + minWireVersion +
+                ", maxWireVersion=" + maxWireVersion +
+                ", readOnly=" + readOnly +
+                ", compression='" + compression + '\'' +
+                ", saslSupportedMechs=" + saslSupportedMechs +
+                ", msg='" + msg + '\'' +
+                ", hosts=" + hosts +
+                ", me='" + me + '\'' +
+                ", primary='" + primary + '\'' +
+                ", setName='" + setName + '\'' +
+                ", setVersion=" + setVersion +
+                ", arbiterOnly=" + arbiterOnly +
+                ", secondary=" + secondary +
+                ", passive=" + passive +
+                ", hidden=" + hidden +
+                ", tags=" + tags +
+                ", electionId=" + electionId +
+                ", lastWrite=" + lastWrite +
+                ", ok=" + ok +
+                '}';
+    }
 }

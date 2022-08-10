@@ -18,7 +18,7 @@ public class DbStatsCommand extends MongoCommand<DbStatsCommand> {
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        var msgid = getConnection().sendCommand(asMap());
+        var msgid = getConnection().sendCommand(this);
         return getConnection().readSingleAnswer(msgid);
     }
 

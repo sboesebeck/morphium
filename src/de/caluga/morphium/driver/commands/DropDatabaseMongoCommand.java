@@ -43,7 +43,7 @@ public class DropDatabaseMongoCommand extends MongoCommand<DropDatabaseMongoComm
         return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
-            var msg = connection.sendCommand(asMap());
+            var msg = connection.sendCommand(this);
             var crs = connection.readSingleAnswer(msg);
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);

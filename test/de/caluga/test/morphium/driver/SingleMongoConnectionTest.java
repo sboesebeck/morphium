@@ -309,7 +309,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                 .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        var msg = con.sendCommand(Doc.of("hello", 1,"$db","local"));
+        var msg = new HelloCommand(con).setHelloOk(true).executeAsync();
         var result=con.readSingleAnswer(msg);
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
@@ -333,7 +333,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         cmd.execute();
 
         FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);
-        var msg = con.sendCommand(fnd.asMap());
+        var msg = con.sendCommand(fnd);
         var crs = con.getAnswerFor(msg, 100);
         int cnt = 0;
         while (crs.hasNext()) {
@@ -345,7 +345,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         }
         assertThat(cnt).isEqualTo(1000);
         //GEtAll
-        msg = con.sendCommand(fnd.asMap());
+        msg = con.sendCommand(fnd);
         crs = con.getAnswerFor(msg, 100);
         List<Map<String, Object>> lst = crs.getAll();
         assertThat(lst).isNotNull();

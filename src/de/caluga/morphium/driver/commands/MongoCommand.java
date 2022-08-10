@@ -223,7 +223,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
         return new NetworkCallHelper<Integer>().doCall(() -> {
             //long start = System.currentTimeMillis();
-            var result = getConnection().sendCommand(asMap());
+            var result = getConnection().sendCommand(this);
             // long dur = System.currentTimeMillis() - start;
             setMetaData("duration", 0); //not waiting!
             setMetaData("server", connection.getConnectedTo() + ":" + connection.getConnectedToPort());

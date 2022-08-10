@@ -68,7 +68,7 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         return new NetworkCallHelper<List<Object>>().doCall(() -> {
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
-            var msg = connection.sendCommand(asMap());
+            var msg = connection.sendCommand(this);
             var res = connection.readSingleAnswer(msg);
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
