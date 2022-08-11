@@ -3,6 +3,7 @@ package de.caluga.morphium.driver;/**
  */
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -74,6 +75,8 @@ public interface MorphiumDriver extends Closeable {
     boolean isConnected();
 
     boolean isReplicaset();
+
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType);
 
     List<String> listDatabases() throws MorphiumDriverException;
 

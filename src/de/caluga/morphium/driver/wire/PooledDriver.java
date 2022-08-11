@@ -2,6 +2,8 @@ package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
@@ -343,6 +345,11 @@ public class PooledDriver extends DriverBase {
             if (getTotalConnectionsToHost(c) != 0) return true;
         }
         return false;
+    }
+
+    @Override
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        return new AggregatorImpl<>(morphium, type, resultType);
     }
 
     @Override

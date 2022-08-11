@@ -15,6 +15,8 @@ import com.mongodb.connection.ClusterConnectionMode;
 import com.mongodb.event.*;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.*;
@@ -97,7 +99,10 @@ public class MongoDriver implements MorphiumDriver {
         return replicaset;
     }
 
-
+    @Override
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        return new AggregatorImpl<>(morphium, type, resultType);
+    }
 
     public MorphiumDriver setCredentials(String db, String login, String pwd) {
         String[] cred = new String[2];

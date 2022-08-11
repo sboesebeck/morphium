@@ -52,7 +52,6 @@ public class Query<T> implements Cloneable {
     private Map<String, Object> fieldList;
 
     private boolean autoValuesEnabled = true;
-    private Map<String, Object> additionalFields;
 
     private String tags;
     private AnnotationAndReflectionHelper arHelper;
@@ -60,11 +59,6 @@ public class Query<T> implements Cloneable {
     private String overrideDB;
     private Collation collation;
     private int batchSize = 0;
-
-    public Query() {
-
-    }
-
 
     public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
         this(m);
@@ -563,9 +557,7 @@ public class Query<T> implements Cloneable {
                 lst = new HashMap<>();
             }
         }
-        if (additionalFields != null) {
-            lst.putAll(additionalFields);
-        }
+
         return lst;
     }
 
@@ -686,7 +678,7 @@ public class Query<T> implements Cloneable {
         String cf;
         Class<?> clz = type;
         if (additionalDataPresent) {
-            MongoField<T> fld = morphium.createMongoField();
+            MongoField<T> fld = new MongoFieldImpl<>();
             fld.setFieldString(f);
             fld.setMapper(morphium.getMapper());
             fld.setQuery(this);
@@ -729,7 +721,7 @@ public class Query<T> implements Cloneable {
             cf = getARHelper().getMongoFieldName(clz, f);
 
         }
-        MongoField<T> fld = morphium.createMongoField();
+        MongoField<T> fld = new MongoFieldImpl<>();
         fld.setFieldString(cf);
         fld.setMapper(morphium.getMapper());
         fld.setQuery(this);

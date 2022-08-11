@@ -1,6 +1,8 @@
 package de.caluga.test;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.MultiResultCommand;
@@ -138,6 +140,11 @@ public class DriverMock implements MorphiumDriver {
     @Override
     public boolean isReplicaset() {
         return false;
+    }
+
+    @Override
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        return new AggregatorImpl<>(morphium, type, resultType);
     }
 
     @Override

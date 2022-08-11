@@ -98,7 +98,6 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
         assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
         assert (cfg.getHostSeed().size() != 0);
-        assert (cfg.getQueryClass() != null);
     }
 
     @Test
@@ -114,7 +113,6 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
         assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
         assert (cfg.getHostSeed().size() != 0);
-        assert (cfg.getQueryClass() != null);
     }
 
     @Test

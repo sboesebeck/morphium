@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import com.rits.cloning.Cloner;
 import de.caluga.morphium.*;
+import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
@@ -80,7 +81,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return database.get(dbn);
     }
 
-
     public InMemoryDriver() {
         try (ScanResult scanResult =
                      new ClassGraph()
@@ -121,6 +121,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             stats.put(k, new AtomicDecimal(0));
         }
 
+
+    }
+
+    @Override
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        return new InMemAggregator<>(morphium, type, resultType);
     }
 
     public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
@@ -637,12 +643,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-//    private int runCommand(CreateCommand cmd) {
-//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
-//        int ret = commandNumber.incrementAndGet();
-//        commandResults.put(ret,prepareResult( Arrays.asList(new HashMap<>())));
-//        return ret;
-//    }
+    private int runCommand(CreateCommand cmd) {
+        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+        int ret = commandNumber.incrementAndGet();
+
+        if (cmd.getCapped() != null && cmd.getCapped()) log.warn("Capped collections not supported in memory");
+        if (cmd.getTimeseries() != null) log.warn("Timeseries collections not supported in memory");
+        if (cmd.getPipeline() != null) log.warn("pipeline not supported in memory");
+
+        if (database.get(cmd.getDb()).get(cmd.getColl()) != null)
+            throw new IllegalArgumentException("Collection exists");
+        database.get(cmd.getDb()).put(cmd.getColl(), new ArrayList<>());
+        var m = prepareResult();
+        addCursor(cmd.getDb(), cmd.getColl(), m, Arrays.asList(Doc.of()));
+        commandResults.put(ret, m);
+        return ret;
+    }
 
     private int runCommand(CountMongoCommand cmd) throws MorphiumDriverException {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
@@ -716,12 +732,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-//    private int runCommand(AggregateMongoCommand cmd) {
-//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
-//        int ret = commandNumber.incrementAndGet();
-//        commandResults.put(ret,prepareResult( Arrays.asList(new HashMap<>())));
-//        return ret;
-//    }
+    private int runCommand(AggregateMongoCommand cmd) {
+        throw new IllegalArgumentException("pleas use morphium for aggregation in Memory!");
+    }
+
 
     private int runCommand(MongoCommand cmd) {
         throw new IllegalArgumentException("Unhandled command " + cmd.getCommandName() + " class: " + cmd.getClass().getSimpleName());
@@ -1048,7 +1062,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-//    
+
+//
 //    public Doc getDBStats(String db) {
 //        Doc ret = new ConcurrentHashMap<>();
 //        ret.put("collections", getDB(db).size());
@@ -2104,13 +2119,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return replacement;
     }
 
-
-    @SuppressWarnings("RedundantThrows")
-
-    public List<Map<String, Object>> aggregate(String db, String collection, List<Map<String, Object>> pipeline, boolean explain, boolean allowDiskUse, Collation collation, ReadPreference readPreference) throws MorphiumDriverException {
-        log.warn("Aggregate not possible yet in memory!");
-        return new CopyOnWriteArrayList<>();
-    }
 
 
     public void tailableIteration(String db, String collection, Doc query, Map<String, Object> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {

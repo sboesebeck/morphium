@@ -27,6 +27,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     private boolean explain = false;
     private Collation collation;
 
+    public InMemAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        this.morphium = morphium;
+        setSearchType(type);
+        setResultType(resultType);
+    }
 
     @Override
     public Collation getCollation() {
