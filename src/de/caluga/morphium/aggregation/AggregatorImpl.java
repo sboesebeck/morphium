@@ -38,6 +38,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     private Collation collation;
     private final Logger log = LoggerFactory.getLogger(AggregatorImpl.class);
 
+    public AggregatorImpl(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+        this.morphium = morphium;
+        setSearchType(type);
+        setResultType(resultType);
+    }
 
     @Override
     public Collation getCollation() {

@@ -15,18 +15,14 @@ import org.junit.Test;
 public class IDConversionTest extends MorphiumTestBase {
     @Test
     public void testIdConversion() {
-        Query qu = new Query();
-        qu.setMorphium(morphium);
-        qu.setType(UncachedObject.class);
+        Query qu = new Query(morphium, UncachedObject.class, null);
         qu.setCollectionName("uncached");
         qu.f("_id").eq(new MorphiumId().toString());
 
         System.out.println(qu.toQueryObject().toString());
         assert (qu.toQueryObject().toString().contains("_id="));
 
-        qu = new Query();
-        qu.setMorphium(morphium);
-        qu.setType(UncachedObject.class);
+        qu = new Query(morphium, UncachedObject.class, null);
         qu.setCollectionName("uncached");
         qu.f("str_value").eq(new MorphiumId());
         System.out.println(qu.toQueryObject().toString());

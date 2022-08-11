@@ -22,6 +22,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.MongoField;
 import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
@@ -44,7 +45,6 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -344,7 +344,7 @@ public class Morphium implements AutoCloseable {
 
         setValidationSupport();
         try {
-            objectMapper = config.getOmClass().getDeclaredConstructor().newInstance();
+            objectMapper = new ObjectMapperImpl();
             objectMapper.setMorphium(this);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -549,10 +549,9 @@ public class Morphium implements AutoCloseable {
     }
 
     public Query<Map<String, Object>> createMapQuery(String collection) {
-        Class qImpl = config.getQueryFact().getQueryImpl();
+
         try {
-            Query<Map<String, Object>> q = (Query<Map<String, Object>>) qImpl.getDeclaredConstructor().newInstance();
-            q.setMorphium(this);
+            Query<Map<String, Object>> q = new Query<>(this, null, getAsyncOperationsThreadPool());
             q.setCollectionName(collection);
             return q;
         } catch (Exception e) {
@@ -2249,8 +2248,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
-        Query<T> q = config.getQueryFact().createQuery(this, type);
-        //q.setMorphium(this);
+        Query<T> q = new Query<>(this, type, getAsyncOperationsThreadPool());
         q.setAutoValuesEnabled(isAutoValuesEnabledForThread());
         return q;
     }
@@ -3455,8 +3453,7 @@ public class Morphium implements AutoCloseable {
     ///
 
     public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
-        Aggregator<T, R> aggregator = config.getAggregatorFactory().createAggregator(type, resultType);
-        aggregator.setMorphium(this);
+        Aggregator<T, R> aggregator = getDriver().createAggregator(this, type, resultType);
         return aggregator;
     }
 
@@ -3466,18 +3463,6 @@ public class Morphium implements AutoCloseable {
         return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
     }
 
-    @SuppressWarnings("unchecked")
-    public <T> MongoField<T> createMongoField() {
-        if (config == null) {
-            return new MongoFieldImpl<>();
-        }
-        try {
-            return (MongoField<T>) config.getFieldImplClass().getDeclaredConstructor().newInstance();
-        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException |
-                 InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
 
     public int getWriteBufferCount() {

@@ -2,8 +2,6 @@ package de.caluga.morphium;
 
 
 import de.caluga.morphium.aggregation.Aggregator;
-import de.caluga.morphium.aggregation.AggregatorFactory;
-import de.caluga.morphium.aggregation.AggregatorFactoryImpl;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
@@ -85,14 +83,6 @@ public class MorphiumConfig {
     private boolean sslInvalidHostNameAllowed = false;
 
     @Transient
-    private Class<? extends Query> queryClass;
-    @Transient
-    private Class<? extends Aggregator> aggregatorClass;
-    @Transient
-    private QueryFactory queryFact;
-    @Transient
-    private AggregatorFactory aggregatorFactory;
-    @Transient
     private MorphiumCache cache;
     private int replicaSetMonitoringTimeout = 5000;
     private int retriesOnNetworkError = 1;
@@ -112,10 +102,6 @@ public class MorphiumConfig {
     //securitysettings
     //    private Class<? extends Object> userClass, roleClass, aclClass;
     private String mongoAdminUser, mongoAdminPwd; //THE superuser!
-    @Transient
-    private Class<? extends MorphiumObjectMapper> omClass = ObjectMapperImpl.class;
-    @Transient
-    private Class<? extends MongoField> fieldImplClass = MongoFieldImpl.class;
     @Transient
     private ReadPreference defaultReadPreference;
     @Transient
@@ -169,15 +155,6 @@ public class MorphiumConfig {
             String fName = prefix + f.getName();
             Object setting = resolver.resolveSetting(fName);
             if (setting ==null) continue;
-
-            if (f.isAnnotationPresent(Transient.class)) {
-                try {
-                    parseClassSettings(fName, setting,this );
-                } catch (InstantiationException | IllegalAccessException | NoSuchFieldException | ClassNotFoundException | NoSuchMethodException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                }
-                continue;
-            }
             f.setAccessible(true);
 
             try {
@@ -250,7 +227,6 @@ public class MorphiumConfig {
 
         for (Object ko : cfg.restoreData.keySet()) {
             @SuppressWarnings("CastCanBeRemovedNarrowingVariableType") String k = (String) ko;
-            parseClassSettings(k,cfg.restoreData.get(k), cfg);
             String value = cfg.restoreData.get(k).toString();
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
@@ -272,31 +248,6 @@ public class MorphiumConfig {
         this.messagingWindowSize = messagingWindowSize;
     }
 
-    private static void parseClassSettings(String k, Object value, MorphiumConfig cfg) throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException, InstantiationException, NoSuchMethodException, InvocationTargetException {
-        if (!k.endsWith("ClassName")) {
-            return;
-        }
-        if (k.contains(".")) {
-            k = k.substring(0, k.indexOf(".") + 1);
-        }
-        String[] n = k.split("_");
-        if (n.length != 3) {
-            return ;
-        }
-        Class cls = Class.forName((String)value);
-        Field f = MorphiumConfig.class.getDeclaredField(n[0]);
-        f.setAccessible(true);
-        if (n[1].equals("C")) {
-            f.set(cfg, cls);
-        } else if (n[1].equals("I")) {
-            //noinspection unchecked
-            f.set(cfg, cls.getDeclaredConstructor().newInstance());
-        }
-
-
-        cfg.getAggregatorFactory().setAggregatorClass(cfg.getAggregatorClass());
-        cfg.getQueryFact().setQueryImpl(cfg.getQueryClass());
-    }
 
     public static MorphiumConfig fromProperties(String prefix, Properties p) {
         return new MorphiumConfig(prefix, p);
@@ -445,14 +396,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public Class<? extends MorphiumObjectMapper> getOmClass() {
-        return omClass;
-    }
-
-    public MorphiumConfig setOmClass(Class<? extends MorphiumObjectMapper> omClass) {
-        this.omClass = omClass;
-        return this;
-    }
 
     public int getGlobalW() {
         return globalW;
@@ -477,56 +420,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig setGlobalJ(boolean globalJ) {
         this.globalJ = globalJ;
-        return this;
-    }
-
-    public Class<? extends Query> getQueryClass() {
-        if (queryClass == null) {
-            queryClass = Query.class;
-        }
-        return queryClass;
-    }
-
-    public MorphiumConfig setQueryClass(Class<? extends Query> queryClass) {
-        this.queryClass = queryClass;
-        return this;
-    }
-
-    public QueryFactory getQueryFact() {
-        if (queryFact == null) {
-            queryFact = new QueryFactoryImpl(getQueryClass());
-        }
-        return queryFact;
-    }
-
-    public MorphiumConfig setQueryFact(QueryFactory queryFact) {
-        this.queryFact = queryFact;
-        return this;
-    }
-
-    public AggregatorFactory getAggregatorFactory() {
-        if (aggregatorFactory == null) {
-            aggregatorFactory = new AggregatorFactoryImpl(getAggregatorClass());
-        } else {
-            aggregatorFactory.setAggregatorClass(getAggregatorClass());
-        }
-        return aggregatorFactory;
-    }
-
-    public MorphiumConfig setAggregatorFactory(AggregatorFactory aggregatorFactory) {
-        this.aggregatorFactory = aggregatorFactory;
-        return this;
-    }
-
-    public Class<? extends Aggregator> getAggregatorClass() {
-        if (aggregatorClass == null) {
-            aggregatorClass = AggregatorImpl.class;
-        }
-        return aggregatorClass;
-    }
-
-    public MorphiumConfig setAggregatorClass(Class<? extends Aggregator> aggregatorClass) {
-        this.aggregatorClass = aggregatorClass;
         return this;
     }
 
@@ -573,15 +466,6 @@ public class MorphiumConfig {
         return this;
     }
 
-
-    public Class<? extends MongoField> getFieldImplClass() {
-        return fieldImplClass;
-    }
-
-    public MorphiumConfig setFieldImplClass(Class<? extends MongoField> fieldImplClass) {
-        this.fieldImplClass = fieldImplClass;
-        return this;
-    }
 
     public int getMaxWaitTime() {
         return maxWaitTime;
@@ -834,64 +718,13 @@ public class MorphiumConfig {
      */
     @Override
     public String toString() {
-        updateAdditionals();
         try {
-            return Utils.toJsonString(getOmClass().getDeclaredConstructor().newInstance().serialize(this));
+            return Utils.toJsonString(new ObjectMapperImpl().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void updateAdditionals() {
-        restoreData = new HashMap<>();
-        addClassSettingsTo("", restoreData);
-
-
-    }
-
-    private void addClassSettingsTo(String prefix, Map p) {
-        MorphiumConfig defaults = new MorphiumConfig();
-        getWriter();
-        getBufferedWriter();
-        getAsyncWriter();
-
-        if (!defaults.getWriter().getClass().equals(getWriter().getClass())) {
-            //noinspection unchecked
-            p.put(prefix + "writer_I_ClassName", getWriter().getClass().getName());
-        }
-        if (!defaults.getBufferedWriter().getClass().equals(getBufferedWriter().getClass())) {
-            //noinspection unchecked
-            p.put(prefix + "bufferedWriter_I_ClassName", getBufferedWriter().getClass().getName());
-        }
-        if (!defaults.getAsyncWriter().getClass().equals(getAsyncWriter().getClass())) {
-            //noinspection unchecked
-            p.put(prefix + "asyncWriter_I_ClassName", getAsyncWriter().getClass().getName());
-        }
-        if ((getCache() != null)) {
-            //noinspection unchecked
-            p.put(prefix + "cache_I_ClassName", getCache().getClass().getName());
-        }
-        if (!defaults.getAggregatorClass().equals(getAggregatorClass())) {
-            //noinspection unchecked
-            p.put(prefix + "aggregatorClass_C_ClassName", getAggregatorClass().getName());
-        }
-        if (!defaults.getAggregatorFactory().getClass().equals(getAggregatorFactory().getClass())) {
-            //noinspection unchecked
-            p.put(prefix + "aggregatorFactory_I_ClassName", getAggregatorFactory().getClass().getName());
-        }
-        if (!defaults.getOmClass().equals(getOmClass())) {
-            //noinspection unchecked
-            p.put(prefix + "omClass_C_ClassName", getOmClass().getName());
-        }
-        if (!defaults.getQueryClass().equals(getQueryClass())) {
-            //noinspection unchecked
-            p.put(prefix + "queryClass_C_ClassName", getQueryClass().getName());
-        }
-        if (!defaults.getQueryFact().getClass().equals(getQueryFact().getClass())) {
-            //noinspection unchecked
-            p.put(prefix + "queryFact_I_ClassName", getQueryFact().getClass().getName());
-        }
-    }
 
     public MorphiumWriter getAsyncWriter() {
         if (asyncWriter == null) {
@@ -1000,7 +833,6 @@ public class MorphiumConfig {
                 throw new RuntimeException(e);
             }
         }
-        addClassSettingsTo(prefix, p);
 
         if (effectiveConfig) {
             Properties sysprop = System.getProperties();
