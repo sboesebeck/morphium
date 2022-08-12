@@ -1,18 +1,21 @@
 package de.caluga.morphium.changestream;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
-import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.ConnectionType;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -35,7 +38,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
     private final List<Map<String, Object>> pipeline;
-    private SingleMongoConnectDriver dedicatedConnection;
+    private MorphiumDriver dedicatedConnection;
 
     public ChangeStreamMonitor(Morphium m) {
         this(m, null, false, null);
@@ -67,14 +70,18 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object>> pipeline) {
         morphium = m;
         //dedicated connection
-        dedicatedConnection = new SingleMongoConnectDriver();
-        dedicatedConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
-        dedicatedConnection.setConnectionType(ConnectionType.PRIMARY);
-        dedicatedConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
-        dedicatedConnection.setHostSeed(morphium.getConfig().getHostSeed());
         try {
-            dedicatedConnection.connect();
-        } catch (MorphiumDriverException e) {
+            if (m.getDriver() instanceof InMemoryDriver) {
+                dedicatedConnection = m.getDriver();
+            } else {
+                dedicatedConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
+                dedicatedConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
+                dedicatedConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
+                dedicatedConnection.setHostSeed(morphium.getConfig().getHostSeed());
+
+                dedicatedConnection.connect();
+            }
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
         listeners = new ConcurrentLinkedDeque<>();
@@ -196,7 +203,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                con = dedicatedConnection.getConnection();
+                con = dedicatedConnection.getPrimaryConnection(null);
                 WatchCommand watchCommand = new WatchCommand(con);
                 watchCommand.setCb(callback);
                 watchCommand.setDb(morphium.getDatabase());
@@ -221,7 +228,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         if (con != null) {
             con.release();
         }
-        dedicatedConnection.close();
+        try {
+            dedicatedConnection.close();
+        } catch (IOException e) {
+            //Swallow
+        }
         log.debug("ChangeStreamMonitor finished gracefully!");
     }
 

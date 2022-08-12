@@ -5,6 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
@@ -110,8 +111,6 @@ public class MultiDriverTestBase {
     }
 
     public static Stream<Arguments> getMorphiumInstances() {
-
-
         //Diferent Drivers
         MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
         pooled.setDriverName(PooledDriver.driverName);
@@ -130,10 +129,10 @@ public class MultiDriverTestBase {
 //        log.info("Running test with DB morphium_test_" + number.get() + " for " + mongoDriver.getDriverName());
 //
 //
-//        MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
-//        inMemDriver.setDriverName(InMemoryDriver.driverName);
-//        inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
-//        log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
+        MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
+        inMemDriver.setDriverName(InMemoryDriver.driverName);
+        inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
+        log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
 
 
         Morphium pooledMorphium = new Morphium(pooled);
@@ -156,10 +155,9 @@ public class MultiDriverTestBase {
         }
 
         return Stream.of(Arguments.of(pooledMorphium),
-                Arguments.of(singleConMorphium)
-//                ,
+                Arguments.of(singleConMorphium),
 //                Arguments.of(new Morphium(mongoDriver)),
-//                Arguments.of(new Morphium(inMemDriver))
+                Arguments.of(new Morphium(inMemDriver))
         );
     }
 

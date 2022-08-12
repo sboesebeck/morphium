@@ -827,7 +827,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 lst.add(uc);
             }
             morphium.insert(lst);
-            Thread.sleep(1000);
+            Thread.sleep(100);
             long c = morphium.createQueryFor(UncachedObject.class).countAll();
             log.info("Found " + c);
             assertEquals(c, 100);
@@ -839,7 +839,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 lst2.add(uc);
             }
             lst2.add(lst.get(0));
-            Thread.sleep(1000);
+            Thread.sleep(100);
             boolean ex = false;
             try {
                 morphium.insert(lst2);
