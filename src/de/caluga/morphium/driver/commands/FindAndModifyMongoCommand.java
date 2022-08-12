@@ -9,37 +9,37 @@ import java.util.List;
 import java.util.Map;
 
 public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMongoCommand> {
-    private Doc query;
-    private Doc sort;
+    private Map<String, Object> query;
+    private Map<String, Object> sort;
     private boolean remove;
-    private Doc update;
-    private List<Doc> pipeline;
+    private Map<String, Object> update;
+    private List<Map<String, Object>> pipeline;
     private boolean newFlag;
     private boolean upsert;
-    private Doc fields;
+    private Map<String, Object> fields;
     private boolean bypassDocumentValidation;
-    private Doc collation;
+    private Map<String, Object> collation;
     private Object hint;
-    private Doc let;
+    private Map<String, Object> let;
 
     public FindAndModifyMongoCommand(MongoConnection d) {
         super(d);
     }
 
-    public Doc getQuery() {
+    public Map<String, Object> getQuery() {
         return query;
     }
 
-    public FindAndModifyMongoCommand setQuery(Doc query) {
+    public FindAndModifyMongoCommand setQuery(Map<String, Object> query) {
         this.query = query;
         return this;
     }
 
-    public Doc getSort() {
+    public Map<String, Object> getSort() {
         return sort;
     }
 
-    public FindAndModifyMongoCommand setSort(Doc sort) {
+    public FindAndModifyMongoCommand setSort(Map<String, Object> sort) {
         this.sort = sort;
         return this;
     }
@@ -53,20 +53,20 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
         return this;
     }
 
-    public Doc getUpdate() {
+    public Map<String, Object> getUpdate() {
         return update;
     }
 
-    public FindAndModifyMongoCommand setUpdate(Doc update) {
+    public FindAndModifyMongoCommand setUpdate(Map<String, Object> update) {
         this.update = update;
         return this;
     }
 
-    public List<Doc> getPipeline() {
+    public List<Map<String, Object>> getPipeline() {
         return pipeline;
     }
 
-    public FindAndModifyMongoCommand setPipeline(List<Doc> pipeline) {
+    public FindAndModifyMongoCommand setPipeline(List<Map<String, Object>> pipeline) {
         this.pipeline = pipeline;
         return this;
     }
@@ -89,11 +89,11 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
         return this;
     }
 
-    public Doc getFields() {
+    public Map<String, Object> getFields() {
         return fields;
     }
 
-    public FindAndModifyMongoCommand setFields(Doc fields) {
+    public FindAndModifyMongoCommand setFields(Map<String, Object> fields) {
         this.fields = fields;
         return this;
     }
@@ -107,11 +107,11 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
         return this;
     }
 
-    public Doc getCollation() {
+    public Map<String, Object> getCollation() {
         return collation;
     }
 
-    public FindAndModifyMongoCommand setCollation(Doc collation) {
+    public FindAndModifyMongoCommand setCollation(Map<String, Object> collation) {
         this.collation = collation;
         return this;
     }
@@ -125,11 +125,11 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
         return this;
     }
 
-    public Doc getLet() {
+    public Map<String, Object> getLet() {
         return let;
     }
 
-    public FindAndModifyMongoCommand setLet(Doc let) {
+    public FindAndModifyMongoCommand setLet(Map<String, Object> let) {
         this.let = let;
         return this;
     }
