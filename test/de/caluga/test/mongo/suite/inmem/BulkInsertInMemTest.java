@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-@RunWith(Theories.class)
+
 public class BulkInsertInMemTest extends MorphiumInMemTestBase {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;

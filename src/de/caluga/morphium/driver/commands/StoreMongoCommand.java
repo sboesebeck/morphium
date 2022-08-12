@@ -46,7 +46,7 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
             o.putIfAbsent("_id", new ObjectId());
             Map<String, Object> up = new LinkedHashMap<>();
             up.put("q", Doc.of("_id", o.get("_id")));
-            up.put("u", o);
+            up.put("u", Doc.of("$set", o));
             up.put("upsert", true);
             up.put("multi", false);
             up.put("collation", null);

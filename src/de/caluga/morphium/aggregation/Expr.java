@@ -79,9 +79,9 @@ public abstract class Expr {
                                 return (Expr) m.invoke(null, new Object[]{new Expr[]{(Expr) p}});
                             }
                             m.setAccessible(true);
-                            return (Expr) m.invoke(null, p);
+                            return (Expr) m.invoke(null, (Object[]) p);
                         } catch (Exception e) {
-                            //e.printStackTrace();
+                            e.printStackTrace();
                         }
                     }
                 }

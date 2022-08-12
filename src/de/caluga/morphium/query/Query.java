@@ -64,7 +64,7 @@ public class Query<T> implements Cloneable {
         this(m);
         setType(type);
         this.executor = executor;
-        if (m.getConfig().getDefaultTagSet() != null) {
+        if (m != null && m.getConfig().getDefaultTagSet() != null) {
             tags = m.getConfig().getDefaultTags();
         }
     }
@@ -173,10 +173,11 @@ public class Query<T> implements Cloneable {
 
     public void setMorphium(Morphium m) {
         morphium = m;
-        setARHelper(m.getARHelper());
         andExpr = new ArrayList<>();
         orQueries = new ArrayList<>();
         norQueries = new ArrayList<>();
+        if (m == null) return;
+        setARHelper(m.getARHelper());
     }
 
     public ReadPreferenceLevel getReadPreferenceLevel() {
@@ -1044,6 +1045,7 @@ public class Query<T> implements Cloneable {
 
     public void setType(Class<? extends T> type) {
         this.type = type;
+        if (morphium == null) return;
         DefaultReadPreference pr = getARHelper().getAnnotationFromHierarchy(type, DefaultReadPreference.class);
         if (pr != null) {
             setReadPreferenceLevel(pr.value());
