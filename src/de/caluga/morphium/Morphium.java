@@ -18,6 +18,7 @@ import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
@@ -285,7 +286,7 @@ public class Morphium implements AutoCloseable {
 //            morphiumDriver.setSslContext(config.getSslContext());
 //            morphiumDriver.setSslInvalidHostNameAllowed(config.isSslInvalidHostNameAllowed());
 
-            if (config.getHostSeed().isEmpty()) {
+            if (config.getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
@@ -3408,8 +3409,10 @@ public class Morphium implements AutoCloseable {
         }
 
         if (config != null) {
-            config.getCache().resetCache();
-            config.getCache().close();
+            if (config.getCache() != null) {
+                config.getCache().resetCache();
+                config.getCache().close();
+            }
             config.setBufferedWriter(null);
             config.setAsyncWriter(null);
             config.setWriter(null);

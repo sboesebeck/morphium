@@ -264,7 +264,7 @@ public class Query<T> implements Cloneable {
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
             FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con)
-                    .setQuery(Doc.of(toQueryObject()))
+                    .setQuery(toQueryObject())
                     .setRemove(true)
                     .setSort(new Doc(getSort()))
                     .setColl(getCollectionName())

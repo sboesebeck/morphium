@@ -212,7 +212,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     public List<String> listCollections(String db, String pattern) {
-
+        if (!database.containsKey(db)) return new ArrayList<>();
         Set<String> collections = database.get(db).keySet();
         List<String> ret = new ArrayList<>();
         if (pattern == null) {
@@ -589,8 +589,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private int runCommand(FindAndModifyMongoCommand cmd) throws MorphiumDriverException {
         log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
-        var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(), cmd.getCollation());
-        commandResults.put(ret, prepareResult(res));
+        if (cmd.isRemove()) {
+            var list = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getSort(), null, 0, 1);
+            var res = delete(cmd.getDb(), cmd.getColl(), Doc.of("_id", list.get(0).get("_id")), null, false, null, null);
+            commandResults.put(ret, prepareResult(Doc.of("value", list.get(0))));
+        } else {
+            var res = findAndOneAndUpdate(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getUpdate(), cmd.getSort(), cmd.getCollation());
+            commandResults.put(ret, prepareResult(Doc.of("value", res)));
+        }
         return ret;
     }
 
@@ -1136,16 +1142,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
 //
-//    public Doc getDBStats(String db) {
-//        Doc ret = new ConcurrentHashMap<>();
+//    public Map<String,Object> getDBStats(String db) {
+//        Map<String,Object> ret = new ConcurrentHashMap<>();
 //        ret.put("collections", getDB(db).size());
 //        return ret;
 //    }
 //
 //    @SuppressWarnings("RedundantThrows")
 //    
-//    public Doc getCollStats(String db, String coll) throws MorphiumDriverException {
-//        Doc ret = new ConcurrentHashMap<>();
+//    public Map<String,Object> getCollStats(String db, String coll) throws MorphiumDriverException {
+//        Map<String,Object> ret = new ConcurrentHashMap<>();
 //        ret.put("entries", getDB(db).get(coll).size());
 //        return null;
 //    }
@@ -1159,7 +1165,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public MorphiumCursor initIteration(String db, String collection, Doc query, Map<String, Object> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Doc findMetaData) throws MorphiumDriverException {
+    public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor() {
             @Override
             public Iterator<Map<String, Object>> iterator() {
@@ -1719,6 +1725,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     fields.append(k);
                 }
 //                IndexKey key = new IndexKey(indexValues);
+                indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
+                indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
                 indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields.toString(), new HashMap<>());
                 indexDataByDBCollection.get(db).get(collection).get(fields.toString()).putIfAbsent(bucketId, new ArrayList<>());
                 indexDataByDBCollection.get(db).get(collection).get(fields.toString()).get(bucketId).add(o);
@@ -1771,7 +1779,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @SuppressWarnings("ConstantConditions")
 
-    public Doc update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert, Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert, Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, sort, null, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         int count = 0;
@@ -2031,9 +2039,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc) throws MorphiumDriverException {
-        List<Map<String, Object>> toDel = find(db, collection, query, null, UtilsMap.of("_id", 1), 0, multiple ? 0 : 1);
+        List<Map<String, Object>> toDel = new ArrayList<>(find(db, collection, query, null, UtilsMap.of("_id", 1), 0, multiple ? 0 : 1));
         for (Map<String, Object> o : toDel) {
-            for (Map<String, Object> dat : getCollection(db, collection)) {
+            for (Map<String, Object> dat : new ArrayList<>(getCollection(db, collection))) {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
                     if (dat.get("_id").toString().equals(o.get("_id").toString())) {
                         getCollection(db, collection).remove(dat);
@@ -2211,7 +2219,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public Map<String, Object> findAndOneAndDelete(String db, String col, Doc query, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
+    public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1);
         if (r.size() == 0) {
             return null;
@@ -2221,14 +2229,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public Map<String, Object> findAndOneAndUpdate(String db, String col, Doc query, Doc update, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
+    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
         update(db, col, query, null, update, false, false, collation, null);
         return ret.get(0);
     }
 
 
-    public Doc findAndOneAndReplace(String db, String col, Doc query, Doc replacement, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
+    public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
         if (ret.get(0).get("_id") != null)
             replacement.put("_id", ret.get(0).get("_id"));
@@ -2239,7 +2247,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public void tailableIteration(String db, String collection, Doc query, Map<String, Object> sort, Doc projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("not possible in Mem yet");
     }
 
@@ -2412,12 +2420,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
 
-    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Doc query, Doc sorting, Collation collation) throws MorphiumDriverException {
+    public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
@@ -2510,7 +2518,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return projection;
         }
 
-        public void setProjection(Doc projection) {
+        public void setProjection(Map<String, Object> projection) {
             this.projection = projection;
         }
 

@@ -121,7 +121,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     public void close() {
-        executor.shutdownNow();
+        if (executor != null)
+            executor.shutdownNow();
     }
 
 

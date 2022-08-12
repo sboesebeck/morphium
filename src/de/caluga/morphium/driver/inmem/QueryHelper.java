@@ -26,7 +26,7 @@ public class QueryHelper {
         }
         if (query.containsKey("$where")) {
             System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
-            ScriptEngine engine = new ScriptEngineManager().getEngineByName("graal.js");
+            ScriptEngine engine = new ScriptEngineManager().getEngineByName("javascript");
             //engine.eval("print('Hello World!');");
             engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
             engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
