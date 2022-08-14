@@ -39,7 +39,7 @@ public class AggregationIteratorTest extends MultiDriverTestBase {
                 count++;
                 log.info(m.toString());
                 assertThat(m.get("number")).isNotNull();
-                assertThat(((Integer) m.get("number")).intValue()).isGreaterThan(0);
+                assertThat(((Number) m.get("number")).intValue()).isGreaterThan(0);
                 assertThat(count).isLessThanOrEqualTo(1000);
             }
 

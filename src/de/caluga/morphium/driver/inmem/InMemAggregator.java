@@ -4,7 +4,9 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.SingleBatchCursor;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
@@ -50,7 +52,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public AggregateMongoCommand getAggregateCmd() {
-        return null;
+        return new AggregateMongoCommand(null) {
+            @Override
+            public List<Map<String, Object>> execute() throws MorphiumDriverException {
+                return aggregateMap();
+            }
+
+            @Override
+            public MorphiumCursor executeIterable(int batchsize) throws MorphiumDriverException {
+                return new SingleBatchCursor(aggregateMap());
+            }
+        };
     }
 
     @Override
@@ -207,9 +219,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             }
             if (i.startsWith("$")) {
                 fld = fld.substring(1);
-            }
-            if (!fld.contains(".")) {
-                fld = morphium.getARHelper().getMongoFieldName(type, fld);
+                if (!fld.contains(".")) {
+                    fld = morphium.getARHelper().getMongoFieldName(type, fld);
+                }
             }
             m.put(fld, val);
         }
@@ -271,13 +283,16 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public long getCount() {
-        List<Map<String, Object>> pipeline = new ArrayList<>(getPipeline());
-        pipeline.add(UtilsMap.of("$count", "num"));
-        List<Map<String, Object>> res = null;
-        res = doAggregation();
+        var originalPipeline = new ArrayList<>(getPipeline());
+        addOperator(UtilsMap.of("$count", "num"));
+        List<Map<String, Object>> res = doAggregation();
         if (res.get(0).get("num") instanceof Integer) {
+            params.clear();
+            params.addAll(originalPipeline);
             return ((Integer) res.get(0).get("num")).longValue();
         }
+        params.clear();
+        params.addAll(originalPipeline);
         return (Long) res.get(0).get("num");
     }
 
@@ -854,6 +869,39 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 break;
             case "$project":
+                for (Map<String, Object> o : data) {
+                    Map<String, Object> obj = new HashMap<>(o);
+                    ret.add(obj);
+                    @SuppressWarnings("unchecked") Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+                    for (String k : op.keySet()) {
+                        Object value = op.get(k);
+                        if (value instanceof String && ((String) value).startsWith("$")) {
+                            obj.put(k, obj.get(((String) value).substring(1)));
+                        } else if (value instanceof Expr) {
+                            Object evaluate = ((Expr) value).evaluate(obj);
+                            if (evaluate instanceof Integer) {
+                                if (((Integer) evaluate) == 0) {
+                                    obj.remove(k);
+                                }
+                            }
+                        } else if (value instanceof Integer) {
+                            if (((Integer) value) == 0) {
+                                obj.remove(k);
+                            }
+                        } else if (value instanceof Map) {
+
+                            //noinspection unchecked
+                            for (String fld : ((Map<String, Object>) value).keySet()) {
+                                if (obj.get(fld) instanceof Expr) {
+                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
+                                } else {
+                                    log.error("InMemoryAggregation oly works with Expr");
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
             case "$set":
             case "$addFields":
                 for (Map<String, Object> o : data) {
@@ -893,110 +941,152 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     if (id instanceof Map) {
                         //deal with combined Group IDs
                         //and expressions in IDs
+                        if (((Map<?, ?>) id).keySet().toArray()[0].toString().startsWith("$")) {
+                            //expr?
+                            var expr = Expr.parse(id);
+                            var result = expr.evaluate(obj);
+                            res.putIfAbsent(result, new HashMap<>());
+                            res.get(result).putIfAbsent("_id", result);
+                            id = result;
+                        } else {
+                            log.info("ID is combined...");
+                            Map newIdMap = new HashMap<>();
+                            for (var e : ((Map<?, ?>) id).entrySet()) {
+                                var k = e.getKey();
+                                try {
+                                    var kEx = Expr.parse(e.getKey());
+                                    k = kEx.evaluate(o);
+                                } catch (Exception ex) {
+                                }
+                                var v = e.getValue();
+                                try {
+                                    var vEy = Expr.parse(e.getValue());
+                                    v = e.getValue();
+                                } catch (Exception ex) {
+                                }
+                                newIdMap.put(k, v);
+                            }
+                            id = newIdMap;
+                            res.putIfAbsent(id, new HashMap<>());
+                            res.get(id).putIfAbsent("_id", newIdMap);
+                        }
                     } else {
-                        if (id.toString().startsWith("$")) {
+                        if (id != null && id.toString().startsWith("$")) {
                             id = o.get(id.toString().substring(1));
                         }
                         res.putIfAbsent(id, new HashMap<>());
                         res.get(id).putIfAbsent("_id", id);
-                        for (String fld : group.keySet()) {
-                            Object opValue = group.get(fld);
-                            if (opValue instanceof Map) {
-                                //expression?
-                                @SuppressWarnings("unchecked") String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
-                                switch (op) {
-                                    case "$addToSet":
-                                    case "$push":
-                                        Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                        res.get(id).putIfAbsent(fld, new ArrayList<>());
-                                        if (op.equals("$push")) {
+                    }
+                    for (String fld : group.keySet()) {
+                        if (fld.equals("_id")) continue;
+                        Object opValue = group.get(fld);
+                        if (opValue instanceof Map) {
+                            //expression?
+                            @SuppressWarnings("unchecked") String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
+                            switch (op) {
+                                case "$addToSet":
+                                case "$push":
+                                    Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                    res.get(id).putIfAbsent(fld, new ArrayList<>());
+                                    if (op.equals("$push")) {
+                                        //noinspection unchecked
+                                        ((List) res.get(id).get(fld)).add(setValue);
+                                    } else {
+                                        //not using HashSet, it would break the contract
+                                        List l = ((List) res.get(id).get(fld));
+                                        if (!l.contains(setValue)) {
                                             //noinspection unchecked
-                                            ((List) res.get(id).get(fld)).add(setValue);
-                                        } else {
-                                            //not using HashSet, it would break the contract
-                                            List l = ((List) res.get(id).get(fld));
-                                            if (!l.contains(setValue)) {
-                                                //noinspection unchecked
-                                                l.add(setValue);
-                                            }
+                                            l.add(setValue);
                                         }
+                                    }
 
-                                        break;
+                                    break;
 
-                                    case "$avg":
-                                        res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
-                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                            //field reference
-                                            Number count = (Number) ((Map) res.get(id).get(fld)).get("count");
-                                            count = count.intValue() + 1;
-                                            //noinspection unchecked
-                                            ((Map) res.get(id).get(fld)).put("count", count);
-                                            Number current = (Number) ((Map) res.get(id).get(fld)).get("sum");
-                                            Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                            Number sum = current.doubleValue() + v.doubleValue();
-                                            //noinspection unchecked
-                                            ((Map) res.get(id).get(fld)).put("sum", sum);
-                                            //noinspection unchecked
-                                            ((Map) res.get(id).get(fld)).put("avg", (sum.doubleValue() / count.doubleValue()));
-                                        } else {
-                                            log.error("Average with no $-reference?");
+                                case "$avg":
+                                    res.get(id).putIfAbsent("$_calc_" + fld, UtilsMap.of("sum", 0, "count", 0));
+                                    //res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
+                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                        //field reference
+                                        Number count = (Number) ((Map) res.get(id).get("$_calc_" + fld)).get("count");
+                                        count = count.intValue() + 1;
+                                        //noinspection unchecked
+                                        ((Map) res.get(id).get("$_calc_" + fld)).put("count", count);
+                                        Number current = (Number) ((Map) res.get(id).get("$_calc_" + fld)).get("sum");
+                                        Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                        Number sum = current.doubleValue() + v.doubleValue();
+                                        //noinspection unchecked
+                                        ((Map) res.get(id).get("$_calc_" + fld)).put("sum", sum);
+                                        //noinspection unchecked
+                                        res.get(id).put(fld, sum.doubleValue() / count.doubleValue());
+                                    } else {
+                                        log.error("Average with no $-reference?");
+                                    }
+                                    break;
+                                case "$first":
+                                    res.get(id).putIfAbsent(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                                    break;
+                                case "$last":
+                                    res.get(id).put(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                                    break;
+                                case "$max":
+                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                        Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                        res.get(id).putIfAbsent(fld, oVal);
+                                        //noinspection unchecked
+                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
+                                            res.get(id).put(fld, oVal);
                                         }
-                                        break;
-                                    case "$first":
-                                        res.get(id).putIfAbsent(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
-                                        break;
-                                    case "$last":
-                                        res.get(id).put(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
-                                        break;
-                                    case "$max":
-                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                            Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                            res.get(id).putIfAbsent(fld, oVal);
-                                            //noinspection unchecked
-                                            if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
-                                                res.get(id).put(fld, oVal);
-                                            }
+                                    }
+                                    break;
+                                case "$min":
+                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                        Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                        res.get(id).putIfAbsent(fld, oVal);
+                                        //noinspection unchecked
+                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
+                                            res.get(id).put(fld, oVal);
                                         }
-                                        break;
-                                    case "$min":
-                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                            Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                            res.get(id).putIfAbsent(fld, oVal);
-                                            //noinspection unchecked
-                                            if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
-                                                res.get(id).put(fld, oVal);
-                                            }
+                                    }
+                                    break;
+                                case "$sum":
+                                    res.get(id).putIfAbsent(fld, 0);
+                                    Number current = (Number) res.get(id).get(fld);
+                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                        //field reference
+                                        Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                    } else if (((Map<?, ?>) opValue).get(op) instanceof Number) {
+                                        Number v = (Number) ((Map<?, ?>) opValue).get(op);
+                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                    } else if (((Map<?, ?>) opValue).get(op) instanceof Expr) {
+                                        Number v = (Number) (o.get(((Expr) ((Map<?, ?>) opValue).get(op)).evaluate(o)));
+                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                                    }
+                                    break;
+                                case "$accumulator":
+                                case "$mergeObjects":
+                                case "$stdDevPop":
+                                case "$stdDevSamp":
+                                    throw new RuntimeException(op + " not implemented yet,sorry");
+                                default:
+                                    if (opValue instanceof Map) {
+                                        Map<String, Object> opMap = (Map<String, Object>) opValue;
+                                        try {
+                                            Expr expr = Expr.parse(opMap);
+                                            res.get(id).put(fld, expr.evaluate(o));
+                                        } catch (Exception e) {
+                                            //swallow
                                         }
-                                        break;
-                                    case "$sum":
-                                        res.get(id).putIfAbsent(fld, 0);
-                                        Number current = (Number) res.get(id).get(fld);
-                                        if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                            //field reference
-                                            Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                        } else if (((Map<?, ?>) opValue).get(op) instanceof Number) {
-                                            Number v = (Number) ((Map<?, ?>) opValue).get(op);
-                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                        } else if (((Map<?, ?>) opValue).get(op) instanceof Expr) {
-                                            Number v = (Number) (o.get(((Expr) ((Map<?, ?>) opValue).get(op)).evaluate(o)));
-                                            res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                        }
-                                        break;
-                                    case "$accumulator":
-                                    case "$mergeObjects":
-                                    case "$stdDevPop":
-                                    case "$stdDevSamp":
-                                        throw new RuntimeException(op + " not implemented yet,sorry");
-                                    default:
-                                        log.error("unknown accumulator " + op);
-                                        break;
+                                    }
 
-                                }
-                            } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
-                                opValue = o.get(opValue.toString().substring(1));
-                                res.get(id).put(fld, opValue);
+
+                                    log.error("unknown accumulator " + op);
+                                    break;
+
                             }
+                        } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
+                            opValue = o.get(opValue.toString().substring(1));
+                            res.get(id).put(fld, opValue);
                         }
                     }
 
@@ -1012,7 +1102,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
                 int idx = ((Number) op).intValue();
                 if (stage.equals("$limit")) {
-                    ret.addAll(data.subList(0, idx));
+                    if (idx < data.size()) {
+                        ret.addAll(data.subList(0, idx));
+                    } else {
+                        ret.addAll(data);
+                    }
                 } else {
                     ret.addAll(data.subList(idx, data.size() - idx));
                 }
