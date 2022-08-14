@@ -368,14 +368,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(StepDownCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 0, "errmsg", "no replicaset - in Memory!")));
         return ret;
     }
 
     private int runCommand(AbortTransactionCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         abortTransaction();
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "aborted")));
@@ -384,7 +384,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     private int runCommand(CommitTransactionCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         commitTransaction();
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "committed")));
@@ -393,15 +393,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     private int runCommand(UpdateMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         Map<String, Object> stats = new HashMap<>();
 
         for (var update : cmd.getUpdates()) {
             // Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
+            boolean multi = false;
+            if (update.containsKey("multi")) multi = Boolean.TRUE.equals(update.get("multi"));
+            boolean upsert = false;
+            if (update.containsKey("upsert")) upsert = Boolean.TRUE.equals(update.get("upsert"));
+
             var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null,
                     (Map<String, Object>) update.get("u"),
-                    (boolean) update.get("multi"), (boolean) update.get("upsert"), null, cmd.getWriteConcern());
+                    multi, upsert, null, cmd.getWriteConcern());
             for (var e : res.entrySet()) {
                 if (!stats.containsKey(e.getKey())) {
                     stats.put(e.getKey(), (Integer) e.getValue());
@@ -410,19 +415,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
         }
+        stats.put("n", stats.get("inserted"));
         commandResults.put(ret, prepareResult(stats));
         return ret;
     }
 
     private int runCommand(WatchCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         watch(cmd);
         return ret;
     }
 
     private int runCommand(StoreMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var stats = store(cmd.getDb(), cmd.getColl(), cmd.getDocs(), null);
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "stats", stats)));
@@ -430,21 +436,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ShutdownCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "shutdown in memory not supported")));
         return ret;
     }
 
     private int runCommand(ReplicastStatusCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "no replicaset")));
         return ret;
     }
 
     private int runCommand(RenameCollectionCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         String target = cmd.getTo();
         String origin = cmd.getColl();
         var col = database.get(cmd.getDb()).remove(origin);
@@ -456,7 +462,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(MapReduceCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "MapReduce not possible inMem (yet)")));
         return ret;
@@ -471,7 +477,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return ret;
         }
         var idx = indexesForDB.get(cmd.getColl());
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         var indices = new ArrayList<Map<String, Object>>();
         if (idx != null)
             for (var i : idx) {
@@ -497,7 +503,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ListDatabasesCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         Map<String, Object> data = new HashMap<>();
         List<Map<String, Object>> dbList = new ArrayList<>();
@@ -520,7 +526,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ListCollectionsCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         var cursorData = new ArrayList<Map<String, Object>>();
@@ -538,14 +544,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(KillCursorsCommand cmd) {
-        log.error("Should not happen: " + cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.error("Should not happen: " + cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult());
         return ret;
     }
 
     private int runCommand(InsertMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         List<Map<String, Object>> writeErrors = insert(cmd.getDb(), cmd.getColl(), cmd.getDocuments(), cmd.getWriteConcern());
         var m = prepareResult();
@@ -558,7 +564,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(GetMoreMongoCommand cmd) {
-        log.error(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ") - should not be used inMem!");
+//        log.error(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ") - should not be used inMem!");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         m.put("ok", 0);
@@ -567,7 +573,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(FindCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         int limit = 0;
         if (cmd.getLimit() != null) {
@@ -587,7 +593,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(FindAndModifyMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         if (cmd.isRemove()) {
             var list = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), cmd.getSort(), null, 0, 1);
@@ -601,7 +607,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DropMongoCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), cmd.getColl(), null);
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped collection " + cmd.getColl())));
@@ -609,7 +615,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DropDatabaseMongoCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), null);
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped database " + cmd.getDb())));
@@ -617,7 +623,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DistinctMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var distinctResult = distinct(cmd.getDb(), cmd.getColl(), cmd.getKey(), cmd.getQuery(), cmd.getCollation());
         var m = prepareResult();
@@ -627,7 +633,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DeleteMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         //del.addDelete(Doc.of("q", new HashMap<>(), "limit", 0));
         for (var del : cmd.getDeletes()) {
@@ -638,7 +644,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(DbStatsCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         m.put("databases", database.size());
@@ -647,7 +653,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CurrentOpCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         m.put("ok", 0.0);
@@ -657,7 +663,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CreateIndexesCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
 
         for (var idx : cmd.getIndexes()) {
@@ -670,7 +676,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CreateCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
 
         if (cmd.getCapped() != null && cmd.getCapped()) {
@@ -692,7 +698,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(CountMongoCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         var cnt = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), null, null, 0, 0).size();
@@ -703,7 +709,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ConvertToCappedCommand cmd) throws MorphiumDriverException {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var collectionData = getCollection(cmd.getDb(), cmd.getColl());
         cappedCollections.putIfAbsent(cmd.getDb(), new HashMap<>());
@@ -734,7 +740,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
          *
          *     },
          */
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         m.put("ns", cmd.getDb() + "." + cmd.getColl());
@@ -764,7 +770,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ClearCollectionCommand cmd) {
-        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         database.get(cmd.getDb()).get(cmd.getColl()).clear();
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0)));

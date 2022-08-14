@@ -30,7 +30,9 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
         UpdateMongoCommand updateSettings = getUpdateMongoCommand();
-        return updateSettings.execute();
+
+        Map<String, Object> result = updateSettings.execute();
+        return result;
     }
 
     @Override

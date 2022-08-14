@@ -41,7 +41,7 @@ public abstract class Expr {
                 if (Modifier.isStatic(m.getModifiers())) {
                     if (k.equals("toString")) k = "toStr";
                     if (m.getName().equals(k) || m.getName().equals(k + "Expr")) {
-                        log.info("Got method for op: " + k + "  method: " + m.getName());
+//                        log.info("Got method for op: " + k + "  method: " + m.getName());
                         try {
                             Object p = ((Map) o).get("$" + k);
                             if (p instanceof List) {
@@ -52,7 +52,7 @@ public abstract class Expr {
                                 if (m.getParameterCount() == 1 && m.getParameterTypes()[0].equals(List.class)) {
                                     p = l;
                                 } else if (l.size() != m.getParameterCount() && !m.getParameterTypes()[0].isArray()) {
-                                    log.warn("wrong number of method params, maybe overloaded?");
+                                    //log.warn("wrong number of method params, maybe overloaded?");
                                     continue;
                                 } else if (l.size() == 1) {
                                     p = l.get(0);
@@ -725,9 +725,35 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) > 0;
+                Object eval1 = e1.evaluate(context);
+                Object eval2 = e2.evaluate(context);
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) > 0;
+                }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 > dv2);
             }
         };
+    }
+
+    private static double getDoubleValue(Object o) {
+        if (o instanceof Integer) {
+            return ((Integer) o).doubleValue();
+        }
+        if (o instanceof Long) {
+            return ((Long) o).doubleValue();
+        }
+        if (o instanceof Double) {
+            return ((Double) o).doubleValue();
+        }
+        if (o instanceof Float) {
+            return ((Float) o).doubleValue();
+        }
+        if (o instanceof Byte) {
+            return ((Byte) o).doubleValue();
+        }
+        return 0;
     }
 
     public static Expr lt(Expr e1) {
@@ -744,7 +770,14 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) < 0;
+                Object eval1 = e1.evaluate(context);
+                Object eval2 = e2.evaluate(context);
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) < 0;
+                }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 < dv2);
             }
         };
     }
@@ -763,7 +796,14 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) >= 0;
+                Object eval1 = e1.evaluate(context);
+                Object eval2 = e2.evaluate(context);
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) >= 0;
+                }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 >= dv2);
             }
         };
     }
@@ -782,7 +822,14 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                return ((Comparable) e1.evaluate(context)).compareTo(e2.evaluate(context)) <= 0;
+                Object eval1 = e1.evaluate(context);
+                Object eval2 = e2.evaluate(context);
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) <= 0;
+                }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 <= dv2);
             }
         };
     }

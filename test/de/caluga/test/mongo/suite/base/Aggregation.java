@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 /**
  * User: Stephan Bösebeck
  * Date: 31.08.12
@@ -75,7 +77,6 @@ public class Aggregation extends MultiDriverTestBase {
             //eingangsdaten reduzieren
             a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1), "cnt2", Expr.field("counter")));
             //Filtern
-//        a = a.match(morphium.createQueryFor(UncachedObject.class).f("counter").gt(100));
             a = a.match(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(100)));
             //Sortieren - für $first/$last
             a = a.sort("counter");
@@ -83,8 +84,6 @@ public class Aggregation extends MultiDriverTestBase {
             a = a.limit(15);
             //group by - in dem Fall alle, könnte auch beliebig sein
             a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
-            //a = a.group("null").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
-            //        a = a.group("a2").avg("schnitt", "$counter").sum("summe", "$counter").sum("anz", 1).last("letzter", "$counter").first("erster", "$counter").end();
 
             //ergebnis projezieren
             HashMap<String, Object> projection = new HashMap<>();
@@ -96,7 +95,7 @@ public class Aggregation extends MultiDriverTestBase {
             a = a.project(projection);
 
             List<Aggregate> lst = a.aggregate();
-            assert (lst.size() == 1) : "Size wrong: " + lst.size();
+            assertEquals(1, lst.size());
             log.info("Sum  : " + lst.get(0).getSumme());
             log.info("Avg  : " + lst.get(0).getSchnitt());
             log.info("Last :    " + lst.get(0).getLast());
@@ -199,7 +198,7 @@ public class Aggregation extends MultiDriverTestBase {
             a = a.sort("$counter");
             a = a.group(db).sum("summe", "$counter").sum("anzahl", 1).avg("schnitt", "$counter").end();
             List<Aggregate> lst = a.aggregate();
-            assert (lst.size() == 3);
+            assertEquals(3, lst.size());
             for (Aggregate ag : lst) {
                 log.info("ID: " + ag.getTheGeneratedId());
                 log.info(" sum:" + ag.getSumme());

@@ -78,9 +78,17 @@ public class QueryHelper {
                     return true;
 
                 }
+                case "$expr": {
+                    Expr expr = Expr.parse(query.get(key));
+                    var result = expr.evaluate(toCheck);
+                    if (result instanceof Expr) {
+                        result = ((Expr) result).evaluate(toCheck);
+                    }
+                    return Boolean.TRUE.equals(result);
+                }
                 default:
-
                     //field check
+
                     if (query.get(key) instanceof Map) {
                         //probably a query operand
                         @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
@@ -91,6 +99,7 @@ public class QueryHelper {
                         }
 
                         switch (k) {
+
                             case "$eq":
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
                                 if (toCheck.get(key) != null && q.get(k) == null) return false;
