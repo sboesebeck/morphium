@@ -701,11 +701,15 @@ public class Morphium implements AutoCloseable {
             var idxMaps = new ArrayList<Map<String, Object>>();
             for (IndexDescription i : idx) idxMaps.add(i.asMap());
             if (idx != null && !idx.isEmpty()) {
-                CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection)
-                        .setDb(getDatabase()).setColl(tmpColl)
-                        .setIndexes(idxMaps)
-                        .setComment("created by morphium");
-                idxCmd.execute();
+                try {
+                    CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection)
+                            .setDb(getDatabase()).setColl(tmpColl)
+                            .setIndexes(idxMaps)
+                            .setComment("created by morphium");
+                    idxCmd.execute();
+                } catch (Exception e) {
+                    //swallow
+                }
             }
             logger.info("indexes created... copying data");
             logger.warn("copying might take some time, as data is read and written ☹️");

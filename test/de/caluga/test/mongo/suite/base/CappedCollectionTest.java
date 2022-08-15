@@ -9,6 +9,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
  * Created by stephan on 08.08.14.
  */
@@ -61,8 +63,9 @@ public class CappedCollectionTest extends MultiDriverTestBase {
             }
 
             morphium.storeList(lst);
-            // assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
-            assert (morphium.createQueryFor(CappedCol.class).countAll() <= 10);
+            Thread.sleep(100);
+            assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "capped_col"));
+            assertThat(morphium.createQueryFor(CappedCol.class).countAll() <= 10);
             for (CappedCol cp : morphium.createQueryFor(CappedCol.class).sort("counter").asIterable(10)) {
                 log.info("Capped: " + cp.getCounter() + " - " + cp.getStrValue());
             }

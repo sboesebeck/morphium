@@ -666,11 +666,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             lst.addAll(es.getValue());
                             MongoConnection con = morphium.getDriver().getPrimaryConnection(wc);
                             try {
+
                                 StoreMongoCommand settings = new StoreMongoCommand(con)
                                         .setDb(morphium.getConfig().getDatabase())
                                         .setDocs(lst)
-                                        .setWriteConcern(wc.asMap())
                                         .setColl(coll);
+                                if (wc != null) {
+                                    settings.setWriteConcern(wc.asMap());
+
+                                }
                                 Map<String, Object> ret = settings.execute();
 
                                 morphium.getCache().clearCacheIfNecessary(c);
