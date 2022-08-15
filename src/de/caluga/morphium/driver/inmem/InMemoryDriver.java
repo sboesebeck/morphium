@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.inmem;
 import com.rits.cloning.Cloner;
 import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.Aggregator;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bulk.*;
 import de.caluga.morphium.driver.commands.*;
@@ -1655,9 +1656,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max") && cappedCollections.get(db).get(collection).get("max") > collectionData.size() + objs.size()) {
                 collectionData.remove(0);
             }
-            while (collectionData.size() > 0 && cappedCollections.get(db).get(collection).get("size") > VM.current().sizeOf(collectionData.size()) + VM.current().sizeOf(objs.size())) {
+            while (collectionData.size() > 0 && cappedCollections.get(db).get(collection).get("size") > VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs)) {
                 collectionData.remove(0);
             }
+
+            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("max") && collectionData.size() + objs.size() >= cappedCollections.get(db).get(collection).get("max")) {
+                objs.remove(0);
+            }
+
+            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("size") && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) >= cappedCollections.get(db).get(collection).get("size")) {
+                objs.remove(0);
+            }
+
         }
         collectionData.addAll(objs);
         for (int i = 0; i < objs.size(); i++) {
@@ -1808,9 +1818,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 switch (operand) {
                     case "$set":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            if (entry.getValue() != null)
-                                obj.put(entry.getKey(), entry.getValue());
-                            else
+                            if (entry.getValue() != null) {
+                                var v = entry.getValue();
+                                try {
+                                    v = Expr.parse(v).evaluate(obj);
+                                } catch (Exception e) {
+                                    //swallow
+                                }
+                                obj.put(entry.getKey(), v);
+                            } else
                                 obj.remove(entry.getKey());
                         }
                         break;
@@ -1872,6 +1888,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             else
                                 obj.remove(entry.getKey());
                         }
+                        break;
+                    case "$currentDate":
+//                        log.info("current date");
+                        obj.put((String) cmd.keySet().toArray()[0], new Date());
                         break;
                     case "$mul":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
@@ -2293,7 +2313,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     public boolean isCapped(String db, String coll) {
-        return false;
+        return cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(coll);
     }
 
     @Override
