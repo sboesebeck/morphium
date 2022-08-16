@@ -846,7 +846,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
 
-    private List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object>> data) {
+    public List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object>> data) {
         if (step.keySet().size() != 1) {
             throw new IllegalArgumentException("Pipeline start wrong");
         }

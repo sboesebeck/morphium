@@ -8,6 +8,8 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ChangeStreamTest extends MultiDriverTestBase {
     long start;
@@ -34,30 +37,35 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             morphium.dropCollection(ComplexObject.class);
             morphium.dropCollection(UncachedObject.class);
             count = 0;
-
+            Thread.sleep(1500);
             var runningFlag = morphium.watchDbAsync(morphium.getDatabase(), true, null, evt -> {
                 log.info("Incoming event!");
                 printevent(morphium, evt);
                 count++;
                 return true;
             });
-            Thread.sleep(100);
+            Thread.sleep(1000);
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-            Morphium morphium2 = new Morphium(cfg);
-            morphium2.store(new UncachedObject("test", 123));
+            Morphium m2 = morphium;
+            if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                m2 = new Morphium(cfg);
+            }
+            m2.store(new UncachedObject("test", 123));
             ComplexObject o = new ComplexObject();
             o.setEinText("Text");
-            morphium2.store(o);
+            m2.store(o);
 
             log.info("waiting for some time!");
             waitForCondidtionToBecomeTrue(15000, "count did not raise", () -> count > 1);
             runningFlag.set(false);
             assertThat(count).isGreaterThanOrEqualTo(2).isLessThanOrEqualTo(3);
             long cnt = count;
-            morphium2.set(morphium2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
+            m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
             Thread.sleep(550);
-            assert (cnt + 1 == count) : "Count wrong " + cnt + "!=" + count + "+1";
-            morphium2.close();
+            assertEquals(cnt + 1, count);
+            if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                m2.close();
+            }
             log.info("Finished!");
         }
     }
@@ -73,7 +81,11 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 final var written = new AtomicInteger(0);
                 new Thread(() -> {
                     try {
-                        Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                        Morphium m2 = morphium;
+                        if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                            m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                        }
+
                         while (run.get()) {
                             try {
                                 Thread.sleep(2500);
@@ -87,7 +99,9 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                             written.incrementAndGet();
                         }
                         log.info("Thread finished");
-                        m2.close();
+                        if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                            m2.close();
+                        }
                     } catch (Exception e) {
                         log.error("Error in Thread", e);
                     }
@@ -98,8 +112,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     printevent(morphium, evt);
                     return run.get();
                 });
-
-                Thread.sleep(3000);
+                waitForCondidtionToBecomeTrue(15000, "no writes?", () -> written.get() > 0);
+                Thread.sleep(8000);
                 log.info("Stopping thread");
                 run.set(false);
                 start = System.currentTimeMillis();
@@ -132,10 +146,16 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     } catch (InterruptedException e) {
                     }
                     log.info("Writing...");
-                    Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    Morphium m2 = morphium;
+                    //inMemoryDriver are distinct
+                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                        m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    }
                     m2.store(new UncachedObject("value", 123));
                     written.incrementAndGet();
-                    m2.close();
+                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                        m2.close();
+                    }
                 }
             }).start();
             start = System.currentTimeMillis();
@@ -182,9 +202,14 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                         run.set(false);
                     }
                     log.info("Setting to value " + i);
-                    Morphium m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    Morphium m2 = morphium;
+                    if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                        m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    }
                     m2.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
-                    m2.close();
+                    if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                        m2.close();
+                    }
                 }
                 log.info("Writing thread finished...");
             }).start();
@@ -326,7 +351,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
             morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
-            Thread.sleep(1500);
+            Thread.sleep(2500);
             assert (inserts.get() == 10) : "Wrong number of inserts: " + inserts.get();
             assert (updates.get() == 0);
             assert (deletes.get() == 0);
@@ -357,19 +382,20 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             });
             mon.start();
 
+            Thread.sleep(1000);
             for (int i = 0; i < 10; i++)
                 morphium.store(new UncachedObject("changeStreamPipelineTestOtherValue " + i, i), "uncached_object", null);
 
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
-            Thread.sleep(1000);
-            assert (inserts.get() == 0);
-            assert (updates.get() == 1);
-            assert (deletes.get() == 0);
+            Thread.sleep(2000);
+            assertEquals(0, inserts.get());
+            assertEquals(1, updates.get());
+            assertEquals(0, deletes.get());
 
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "str_value", "updated", false, true);
             Thread.sleep(1000);
 
-            assert (updates.get() == 10) : "Updates wrong: " + updates.get();
+            assert (updates.get() >= 10) : "Updates wrong: " + updates.get();
             mon.terminate();
         }
     }
@@ -380,10 +406,13 @@ public class ChangeStreamTest extends MultiDriverTestBase {
         try (morphium) {
             final AtomicInteger cnt = new AtomicInteger();
             morphium.dropCollection(StringIdEntity.class);
-            Thread.sleep(100);
+            Thread.sleep(1000);
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "string_id_entity", true, null);
             m.start();
             m.addListener(evt -> {
+                log.info("incoming event " + evt.getOperationType());
+                log.info(Utils.toJsonString(evt.getFullDocument()));
+                //printevent(morphium,evt);
                 cnt.incrementAndGet();
                 return true;
             });
@@ -395,7 +424,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
             morphium.store(i);
             Thread.sleep(1000);
-            assert (cnt.get() == 1);
+            assertEquals(1, cnt.get());
 
             i.name = "neuer Testt";
             morphium.store(i);
