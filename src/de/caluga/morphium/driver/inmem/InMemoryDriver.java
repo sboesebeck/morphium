@@ -909,17 +909,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         Runnable r = () -> {
             //Notification of watchers.
-            List<Runnable> current = eventQueue;
-            eventQueue = new CopyOnWriteArrayList<>();
-            Collections.shuffle(current);
-            for (Runnable r1 : current) {
-                try {
-                    r1.run();
-                } catch (Exception e) {
-                    e.printStackTrace();
+            try {
+                List<Runnable> current = eventQueue;
+                eventQueue = new CopyOnWriteArrayList<>();
+                Collections.shuffle(current);
+                for (Runnable r1 : current) {
+                    try {
+                        r1.run();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
-            }
 
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         };
         exec.scheduleWithFixedDelay(r, 100, 500, TimeUnit.MILLISECONDS); //check for events every 100ms
 
@@ -1269,6 +1273,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
 
             public void incomingData(Map<String, Object> data, long dur) {
+                if (pipeline != null && !pipeline.isEmpty()) {
+                    InMemAggregator agg = new InMemAggregator(null, Map.class, Map.class);
+
+                    for (var step : pipeline) {
+                        List<Map<String, Object>> lst = agg.execStep(step, Arrays.asList(data));
+                        if (lst == null || lst.isEmpty()) return;
+                        data = lst.get(0);
+                    }
+
+                }
                 cb.incomingData(data, dur);
                 if (!cb.isContinued()) {
                     synchronized (monitor) {
@@ -1283,13 +1297,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         };
         if (collection != null) {
-            String key = db + "." + collection;
-            watchersByDb.putIfAbsent(key, new CopyOnWriteArrayList<>());
-            watchersByDb.get(key).add(cback);
-        } else {
-            watchersByDb.putIfAbsent(db, new CopyOnWriteArrayList<>());
-            watchersByDb.get(db).add(cback);
+            db = db + "." + collection;
         }
+        watchersByDb.putIfAbsent(db, new CopyOnWriteArrayList<>());
+        watchersByDb.get(db).add(cback);
 
 
         //simulate blocking
@@ -1301,7 +1312,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } catch (InterruptedException e) {
         }
 
-        watchersByDb.remove(db);
+        watchersByDb.get(db).remove(cb);
         log.debug("Exiting");
     }
 
@@ -1972,7 +1983,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
             count++;
-            notifyWatchers(db, collection, "update", obj);
+            if (!insert)
+                notifyWatchers(db, collection, "update", obj);
         }
         if (insert) {
             store(db, collection, lst, wc);
@@ -2415,7 +2427,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!found) {
             indexes.add(index);
         } else {
-            throw new MorphiumDriverException("Index with those keys already exists");
+            // throw new MorphiumDriverException("Index with those keys already exists");
         }
         updateIndexData(db, collection, options);
     }

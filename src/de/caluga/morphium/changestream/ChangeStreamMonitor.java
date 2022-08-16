@@ -229,7 +229,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             con.release();
         }
         try {
-            dedicatedConnection.close();
+            if (!(dedicatedConnection instanceof InMemoryDriver)) {
+                dedicatedConnection.close();
+            }
         } catch (IOException e) {
             //Swallow
         }
