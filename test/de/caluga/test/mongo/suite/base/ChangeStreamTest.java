@@ -75,6 +75,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     public void changeStreamBackgroundTest(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
+
             final AtomicBoolean run = new AtomicBoolean(true);
             try {
                 final var count = new AtomicInteger(0);
@@ -99,7 +100,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                             written.incrementAndGet();
                         }
                         log.info("Thread finished");
-                        if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                        if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
                             m2.close();
                         }
                     } catch (Exception e) {
@@ -112,8 +113,10 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     printevent(morphium, evt);
                     return run.get();
                 });
-                waitForCondidtionToBecomeTrue(15000, "no writes?", () -> written.get() > 0);
-                Thread.sleep(8000);
+                Thread.sleep(500);
+                waitForCondidtionToBecomeTrue(5000, "no writes?", () -> written.get() > 0);
+                waitForCondidtionToBecomeTrue(5000, "no incoming events?", () -> count.get() > 1);
+                Thread.sleep(1000);
                 log.info("Stopping thread");
                 run.set(false);
                 start = System.currentTimeMillis();
@@ -224,7 +227,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 }
                 return true;
             });
-            assertThat(count.get()).isEqualTo(50);
+            assertThat(count.get()).isGreaterThanOrEqualTo(50);
             assertThat(run.get()).isFalse();
             log.info("Quitting");
 

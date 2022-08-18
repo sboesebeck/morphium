@@ -151,6 +151,7 @@ public class AnnotationAndReflectionHelper {
      * @return the Annotation
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class<? extends T> annotationClass) {
+        if (superClass == null) return null;
         final Class<?> aClass = getRealClass(superClass);
         Map<Class<? extends Annotation>, Annotation> cacheForClass = annotationCache.get(aClass);
         if (cacheForClass != null) {
@@ -757,6 +758,7 @@ public class AnnotationAndReflectionHelper {
 
     @SuppressWarnings("CommentedOutCode")
     public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
+        if (cls == null) return new ArrayList<>();
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
         for (Class<? extends Annotation> a : annotations) {
             stringBuilder.append("/");
@@ -1112,6 +1114,7 @@ public class AnnotationAndReflectionHelper {
     }
 
     private <T> boolean isProxy(Class<? extends T> aClass) {
+        if (aClass == null) return false;
         return aClass.getName().contains("$$EnhancerByCGLIB$$");
     }
 

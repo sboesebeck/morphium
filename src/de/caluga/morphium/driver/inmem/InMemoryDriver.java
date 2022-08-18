@@ -612,6 +612,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
         drop(cmd.getDb(), cmd.getColl(), null);
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "dropped collection " + cmd.getColl())));
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+
+        }
         return ret;
     }
 
@@ -905,7 +910,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public void connect() {
         if (exec.isShutdown()) {
-            exec = new ScheduledThreadPoolExecutor(1);
+            exec = new ScheduledThreadPoolExecutor(2);
         }
         Runnable r = () -> {
             //Notification of watchers.
@@ -925,7 +930,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 e.printStackTrace();
             }
         };
-        exec.scheduleWithFixedDelay(r, 100, 500, TimeUnit.MILLISECONDS); //check for events every 100ms
+        exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); //check for events every 500ms
 
 
         exec.scheduleWithFixedDelay(() -> {
