@@ -112,15 +112,15 @@ public class MultiDriverTestBase {
 
     public static Stream<Arguments> getMorphiumInstances() {
         //Diferent Drivers
-        MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
-        pooled.setDriverName(PooledDriver.driverName);
-        pooled.setDatabase("morphium_test_" + number.incrementAndGet());
-        log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
-
-        MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-        singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
-        singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
-        log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
+//        MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
+//        pooled.setDriverName(PooledDriver.driverName);
+//        pooled.setDatabase("morphium_test_" + number.incrementAndGet());
+//        log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
+//
+//        MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
+//        singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
+//        singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
+//        log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
 
 //
 //        MorphiumConfig mongoDriver = MorphiumConfig.fromProperties(getProps());
@@ -131,33 +131,37 @@ public class MultiDriverTestBase {
 //
         MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
         inMemDriver.setDriverName(InMemoryDriver.driverName);
+        inMemDriver.setReplicasetMonitoring(false);
         inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
+
         log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
 
 
-        Morphium pooledMorphium = new Morphium(pooled);
-        Morphium singleConMorphium = new Morphium(singleConnection);
         //dropping all existing test-dbs
-        for (String db : singleConMorphium.listDatabases()) {
-            if (db.startsWith("morphium")) {
-                log.info("Dropping db " + db);
-                try {
-                    DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(singleConMorphium.getDriver().getPrimaryConnection(null));
-                    cmd.setDb(db);
-                    cmd.setComment("Delete for testing");
+//        for (String db : singleConMorphium.listDatabases()) {
+//            if (db.startsWith("morphium")) {
+//                log.info("Dropping db " + db);
+//                try {
+//                    DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(singleConMorphium.getDriver().getPrimaryConnection(null));
+//                    cmd.setDb(db);
+//                    cmd.setComment("Delete for testing");
+//
+//                    cmd.execute();
+//                    cmd.getConnection().release();
+//                } catch (MorphiumDriverException e) {
+//                }
+//
+//            }
+//        }
 
-                    cmd.execute();
-                    cmd.getConnection().release();
-                } catch (MorphiumDriverException e) {
-                }
-
-            }
-        }
-
-        return Stream.of(Arguments.of(pooledMorphium),
-                Arguments.of(singleConMorphium),
+//        Morphium pooledMorphium = new Morphium(pooled);
+//        Morphium singleConMorphium = new Morphium(singleConnection);
+        var inMem = new Morphium(inMemDriver);
+        ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
+        return Stream.of(//Arguments.of(pooledMorphium),
+                //Arguments.of(singleConMorphium),
 //                Arguments.of(new Morphium(mongoDriver)),
-                Arguments.of(new Morphium(inMemDriver))
+                Arguments.of(inMem)
         );
     }
 

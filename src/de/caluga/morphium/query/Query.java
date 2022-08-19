@@ -2205,7 +2205,7 @@ public class Query<T> implements Cloneable {
                         break;
                     }
                 }
-                cursorId = (Long) cursor.get("id");
+                cursorId = ((Number) cursor.get("id")).longValue();
                 GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize)
                         .setColl(getCollectionName())
                         .setDb(cmd.getDb())

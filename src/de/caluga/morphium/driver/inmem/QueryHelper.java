@@ -275,6 +275,24 @@ public class QueryHelper {
 
 
                     } else {
+                        if (key.contains(".")) {
+                            //getting the proper value
+                            var path = key.split("\\.");
+                            var current = toCheck;
+                            Object value = null;
+                            for (var k : path) {
+                                if (current.get(k) == null) {
+                                    if (query.get(key) == null) return true;
+                                    return false;
+                                }
+                                if (Map.class.isAssignableFrom(current.get(k).getClass())) {
+                                    current = (Map<String, Object>) current.get(k);
+                                } else {
+                                    value = current.get(k);
+                                }
+                            }
+                            return value.equals(query.get(key));
+                        }
                         if (toCheck.get(key) == null && query.get(key) == null) return true;
                         if (toCheck.get(key) == null && query.get(key) != null) return false;
                         //value comparison - should only be one here
@@ -283,6 +301,7 @@ public class QueryHelper {
                         if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
                             return toCheck.get(key).toString().equals(query.get(key).toString());
                         }
+
                         return toCheck.get(key).equals(query.get(key));
 
                     }

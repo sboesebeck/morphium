@@ -31,10 +31,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
@@ -79,6 +76,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(2);
     private boolean running = true;
     private int expireCheck = 45000;
+    private ScheduledFuture<?> expire;
+    private String replicaSetName;
 
     public Map<String, List<Map<String, Object>>> getDatabase(String dbn) {
         return database.get(dbn);
@@ -230,12 +229,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public String getReplicaSetName() {
-        return null;
+        return replicaSetName;
     }
 
     @Override
     public void setReplicaSetName(String replicaSetName) {
-
+        this.replicaSetName = replicaSetName;
     }
 
     @Override
@@ -589,7 +588,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), skip, limit);
         var m = prepareResult();
         addCursor(cmd.getDb(), cmd.getColl(), m, result);
+        if (cmd.isTailable()) {
+            //tailable cursor
+            ((Map) m.get("cursor")).put("id", ret);
+            //TODO: tailable cursor info store
+            // have "getMore" block until some data comes in
+            //
+        }
         commandResults.put(ret, m);
+
         return ret;
     }
 
@@ -933,33 +940,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); //check for events every 500ms
 
 
-        exec.scheduleWithFixedDelay(() -> {
+        scheduleExpire();
+    }
+
+    private void scheduleExpire() {
+        expire = exec.scheduleWithFixedDelay(() -> {
             //checking indexes for expire options
-            for (String db : database.keySet()) {
-                for (String coll : database.get(db).keySet()) {
-                    var idx = getIndexes(db, coll);
-                    for (var i : idx) {
-                        Map<String, Object> options = (Map<String, Object>) i.get("$options");
-                        if (options != null && options.containsKey("expireAfterSeconds")) {
-                            log.info("Found collection candidate for expire..." + db + "." + coll);
-                            var k = new HashMap<>(i);
-                            k.remove("$options");
-                            var keys = k.keySet().toArray(new String[]{});
-                            if (keys.length > 1) {
-                                log.error("Too many keys for expire-index!!!");
-                            } else {
-                                try {
-                                    var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null, null, 0, 0);
-                                    for (Map<String, Object> o : candidates) {
-                                        getCollection(db, coll).remove(o);
+            try {
+                for (String db : database.keySet()) {
+                    for (String coll : database.get(db).keySet()) {
+                        var idx = getIndexes(db, coll);
+                        for (var i : idx) {
+                            Map<String, Object> options = (Map<String, Object>) i.get("$options");
+                            if (options != null && options.containsKey("expireAfterSeconds")) {
+                                log.info("Found collection candidate for expire..." + db + "." + coll);
+                                var k = new HashMap<>(i);
+                                k.remove("$options");
+                                var keys = k.keySet().toArray(new String[]{});
+                                if (keys.length > 1) {
+                                    log.error("Too many keys for expire-index!!!");
+                                } else {
+                                    try {
+                                        var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null, null, 0, 0, true);
+                                        for (Map<String, Object> o : candidates) {
+                                            getCollection(db, coll).remove(o);
+                                        }
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
                                     }
-                                } catch (MorphiumDriverException e) {
-                                    e.printStackTrace();
                                 }
                             }
                         }
                     }
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
@@ -970,6 +985,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public InMemoryDriver setExpireCheck(int expireCheck) {
         this.expireCheck = expireCheck;
+        expire.cancel(true);
+        scheduleExpire();
         return this;
     }
 
@@ -1100,18 +1117,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public MorphiumTransactionContext startTransaction(boolean autoCommit) {
-        return null;
+        if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
+        InMemTransactionContext ctx = new InMemTransactionContext();
+        Cloner cloner = new Cloner();
+        ctx.setDatabase(cloner.deepClone(database));
+        currentTransaction.set(ctx);
+        return currentTransaction.get();
     }
 
     @Override
     public boolean isTransactionInProgress() {
-        return false;
+        return currentTransaction.get() != null;
     }
 
+    @Override
+    public MorphiumTransactionContext getTransactionContext() {
+        return currentTransaction.get();
+    }
 
     @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
-        return null;
+        return new HelloResult().setHosts(Arrays.asList("inMem")).setHelloOk(true).setLocalTime(new Date()).setMaxBsonObjectSize(Integer.MAX_VALUE).setMe("inMem").setWritablePrimary(true);
     }
 
     @Override
@@ -1146,7 +1172,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //
 
     public Map<String, Object> getReplsetStatus() {
-        return new ConcurrentHashMap<>();
+        return prepareResult(Doc.of("ok", 0.0, "errmsg", "no replicaset"));
     }
 
     @Override
@@ -1177,7 +1203,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         Map<String, Object> ret = new ConcurrentHashMap<>();
         ret.put("entries", getDB(db).get(coll).size());
-        return null;
+        return ret;
     }
 
 
@@ -1795,12 +1821,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public boolean replyAvailableFor(int msgId) {
-        return false;
+        return commandResults.containsKey(msgId);
     }
 
     @Override
     public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
-        return null;
+        OpMsg msg = new OpMsg();
+        msg.setResponseTo(msgid);
+        msg.setMessageId(0);
+        Map<String, Object> o = new HashMap<>(commandResults.get(msgid));
+        msg.setFirstDoc(o);
+        return msg;
     }
 
     @Override
@@ -2448,6 +2479,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 b.setLength(0);
                 int bucketId = 0;
                 for (String k : idx.keySet()) {
+                    if (k.equals("$options")) continue;
                     bucketId = iterateBucketId(bucketId, doc.get(k));
                     b.append(k);
                 }
@@ -2473,14 +2505,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
 
-    public void startTransaction() {
-        if (currentTransaction.get() != null) throw new IllegalArgumentException("transaction in progress");
-        InMemTransactionContext ctx = new InMemTransactionContext();
-        Cloner cloner = new Cloner();
-        ctx.setDatabase(cloner.deepClone(database));
-        currentTransaction.set(ctx);
-    }
-
 
     public void commitTransaction() {
         if (currentTransaction.get() == null) throw new IllegalArgumentException("No transaction in progress");
@@ -2488,11 +2512,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         //noinspection unchecked
         database.putAll(ctx.getDatabase());
         currentTransaction.set(null);
-    }
-
-
-    public MorphiumTransactionContext getTransactionContext() {
-        return currentTransaction.get();
     }
 
 
