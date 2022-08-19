@@ -32,7 +32,7 @@ public class ExpireIndexTest extends MultiDriverTestBase {
             Thread.sleep(500);
             waitForCondidtionToBecomeTrue(1000, "Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 100);
             log.info("Waiting for mongo to clear it");
-            waitForCondidtionToBecomeTrue(62000, "Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
+            waitForCondidtionToBecomeTrue(62000, "Did not clear?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
             log.info("done.");
         }
     }
