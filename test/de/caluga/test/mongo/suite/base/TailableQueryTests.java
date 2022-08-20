@@ -27,7 +27,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
     public void tailableTest(Morphium m) throws Exception {
         try (m) {
             m.dropCollection(CappedCol.class);
-            CappedCol o = new CappedCol("Test1", 1);
+            CappedCol o = new CappedCol("Test 1", 1);
             m.store(o);
             m.store(new CappedCol("Test 2", 2));
             Thread.sleep(100);
@@ -48,6 +48,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
             waitForCondidtionToBecomeTrue(2500, "no result coming in?", () -> found.get() == 2);
             log.info("Storing 3...");
             m.store(new CappedCol("Test 3 - quit", 3));
+            log.info("Stored... waiting for event");
             waitForCondidtionToBecomeTrue(2500, "3rd result not coming in", () -> found.get() == 3);
         }
 

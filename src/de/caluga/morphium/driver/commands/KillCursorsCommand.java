@@ -28,6 +28,10 @@ public class KillCursorsCommand extends WriteMongoCommand<KillCursorsCommand> {
         return this;
     }
 
+    public List<Long> getCursorIds() {
+        return cursorIds;
+    }
+
     @Override
     public String getCommandName() {
         return "killCursors";
