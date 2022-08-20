@@ -518,8 +518,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
     public void checkListWriting() {
         List<CachedObject> lst = new ArrayList<>();
         try {
-            morphium.store(lst);
-            morphium.saveBuffered(lst);
+            morphium.save(lst);
+            morphium.storeBuffered(lst);
         } catch (Exception e) {
             log.info("Got exception, good!");
             return;
