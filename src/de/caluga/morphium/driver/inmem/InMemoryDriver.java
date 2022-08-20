@@ -574,7 +574,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
         List<Map<String, Object>> result = runFind(cmd);
         long cursorId = (long) 0;
-        if (cmd.isTailable()) {
+        if (cmd.isTailable() != null && cmd.isTailable()) {
             //tailable cursor
 
             cursorId = (long) ret;
@@ -1924,10 +1924,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             if (entry.getValue() != null) {
                                 var v = entry.getValue();
-                                try {
-                                    v = Expr.parse(v).evaluate(obj);
-                                } catch (Exception e) {
-                                    //swallow
+                                if (v instanceof Map) {
+                                    try {
+                                        v = Expr.parse(v).evaluate(obj);
+                                    } catch (Exception e) {
+                                        //swallow
+                                    }
                                 }
                                 obj.put(entry.getKey(), v);
                             } else

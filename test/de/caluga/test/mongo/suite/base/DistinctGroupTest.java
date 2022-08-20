@@ -57,7 +57,10 @@ public class DistinctGroupTest extends MultiDriverTestBase {
             morphium.storeList(lst);
             morphium.startTransaction();
             createCachedObjects(morphium, 2);
-            Thread.sleep(500);
+            waitForAsyncOperationsToStart(morphium, 1000);
+            waitForWrites(morphium);
+
+            Thread.sleep(1500);
             List values = morphium.distinct("counter", UncachedObject.class);
             assert (values.size() == 3) : "Size wrong: " + values.size();
             for (Object o : values) {
