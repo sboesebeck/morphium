@@ -11,7 +11,6 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.ConnectionType;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 import org.bson.BsonNull;

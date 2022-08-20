@@ -10,7 +10,6 @@ import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CappedCol;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
