@@ -591,7 +591,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             List<CachedObject> lst = new ArrayList<>();
             try {
                 morphium.store(lst);
-                morphium.saveBuffered(lst);
+                morphium.storeBuffered(lst);
             } catch (Exception e) {
                 log.info("Got exception, good!");
                 return;
