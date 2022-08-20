@@ -73,6 +73,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Class<? extends MongoCommand>> commandsCache = new HashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
     private final Map<DriverStatsKey, AtomicDecimal> stats = new ConcurrentHashMap<>();
+    private final Map<Long, FindCommand> cursors = new ConcurrentHashMap<>();
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(2);
     private boolean running = true;
     private int expireCheck = 45000;
@@ -310,7 +311,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
-    public synchronized int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
+    public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
         stats.get(DriverStatsKey.MSG_SENT).incrementAndGet();
         if (cmd.asMap().get("$db") == null) {
             throw new IllegalArgumentException("DB cannot be null");
@@ -545,7 +546,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private int runCommand(KillCursorsCommand cmd) {
 //        log.error("Should not happen: " + cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
+        log.info("Killing cursors");
         int ret = commandNumber.incrementAndGet();
+        for (Long id : cmd.getCursorIds()) {
+            cursors.remove(id);
+        }
         commandResults.put(ret, prepareResult());
         return ret;
     }
@@ -563,18 +568,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-    private int runCommand(GetMoreMongoCommand cmd) {
-//        log.error(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ") - should not be used inMem!");
-        int ret = commandNumber.incrementAndGet();
-        var m = prepareResult();
-        m.put("ok", 0);
-        commandResults.put(ret, m);
-        return ret;
-    }
 
     private int runCommand(FindCommand cmd) throws MorphiumDriverException {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
+        List<Map<String, Object>> result = runFind(cmd);
+        long cursorId = (long) 0;
+        if (cmd.isTailable()) {
+            //tailable cursor
+
+            cursorId = (long) ret;
+            cursors.put(cursorId, cmd);
+
+            if (result == null || result.isEmpty()) {
+                //waiting for some changes
+                watch(cmd.getDb(), cmd.getColl(), cmd.getMaxTimeMS(), true, Arrays.asList(Doc.of("$match", cmd.getFilter())), new DriverTailableIterationCallback() {
+                    @Override
+                    public void incomingData(Map<String, Object> data, long dur) {
+                        result.add(data);
+                    }
+
+                    @Override
+                    public boolean isContinued() {
+                        return false;
+                    }
+                });
+            }
+        }
+        var m = prepareResult();
+        addCursor(cmd.getDb(), cmd.getColl(), m, result);
+        if (cursorId != 0)
+            ((Map) m.get("cursor")).put("id", cursorId);
+        commandResults.put(ret, m);
+
+        return ret;
+    }
+
+    private List<Map<String, Object>> runFind(FindCommand cmd) throws MorphiumDriverException {
         int limit = 0;
         if (cmd.getLimit() != null) {
             limit = cmd.getLimit();
@@ -586,19 +616,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var filter = cmd.getFilter();
         if (filter == null) filter = Doc.of();
         var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), skip, limit);
+        return result;
+    }
+
+    private int runCommand(GetMoreMongoCommand cmd) throws MorphiumDriverException {
+//        log.error(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ") - should not be used inMem!");
+        int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
-        addCursor(cmd.getDb(), cmd.getColl(), m, result);
-        if (cmd.isTailable()) {
-            //tailable cursor
-            ((Map) m.get("cursor")).put("id", ret);
-            //TODO: tailable cursor info store
-            // have "getMore" block until some data comes in
-            //
+        m.put("ok", 0);
+        if (cursors.containsKey(cmd.getCursorId())) {
+            FindCommand fnd = cursors.get(cmd.getCursorId());
+            List<Map<String, Object>> result = new ArrayList<>();
+            if (result == null || result.isEmpty()) {
+                //waiting for some changes
+                watch(fnd.getDb(), fnd.getColl(), fnd.getMaxTimeMS(), true, Arrays.asList(Doc.of("$match", fnd.getFilter())), new DriverTailableIterationCallback() {
+                    @Override
+                    public void incomingData(Map<String, Object> data, long dur) {
+                        result.add((Map<String, Object>) data.get("fullDocument"));
+                    }
+
+                    @Override
+                    public boolean isContinued() {
+                        return false;
+                    }
+                });
+            }
+//            fnd.setLimit(fnd.getLimit()-result.size());
+//            long cursorId = cmd.getCursorId();
+//            if (fnd.getLimit()<=0){
+//                cursorId=0;
+//                cursors.remove(cmd.getCursorId());
+//            }
+            m.put("cursor", Doc.of("nextBatch", result, "ns", cmd.getDb() + "." + cmd.getColl(), "id", cmd.getCursorId()));
         }
         commandResults.put(ret, m);
-
         return ret;
     }
+
 
     private int runCommand(FindAndModifyMongoCommand cmd) throws MorphiumDriverException {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
@@ -1695,10 +1749,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         var collectionData = getCollection(db, collection);
         if (cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(collection)) {
-            while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max") && cappedCollections.get(db).get(collection).get("max") > collectionData.size() + objs.size()) {
+            while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max") && cappedCollections.get(db).get(collection).get("max") < collectionData.size() + objs.size()) {
                 collectionData.remove(0);
             }
-            while (collectionData.size() > 0 && cappedCollections.get(db).get(collection).get("size") > VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs)) {
+            while (collectionData.size() > 0 && cappedCollections.get(db).get(collection).get("size") < VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs)) {
                 collectionData.remove(0);
             }
 
@@ -1816,7 +1870,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public Map<String, Object> killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
-        return null;
+        for (long i : ids) {
+            cursors.remove(i);
+        }
+        return prepareResult();
     }
 
     @Override

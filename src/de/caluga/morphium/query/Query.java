@@ -2212,7 +2212,11 @@ public class Query<T> implements Cloneable {
                         .setCursorId(cursorId);
                 msgId = more.executeAsync();
             }
-
+            if (cursorId != 0) {
+                //killing cursors
+                KillCursorsCommand kill = new KillCursorsCommand(con).setCursorIds(cursorId).setColl(cmd.getColl()).setDb(cmd.getDb());
+                kill.execute();
+            }
             log.info("Tail ended!");
         } catch (Exception e) {
             throw new RuntimeException("Error running command", e);
