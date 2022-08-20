@@ -3113,12 +3113,12 @@ public class Morphium implements AutoCloseable {
     public <T> void save(T o) {
         if (o instanceof List) {
             //noinspection unchecked
-            storeList((List) o);
+            saveList((List) o);
         } else if (o instanceof Collection) {
             // noinspection unchecked
-            storeList(new ArrayList<>((Collection) o));
+            saveList(new ArrayList<>((Collection) o));
         } else {
-            store(o, null);
+            save(o, null);
         }
     }
 
@@ -3145,10 +3145,10 @@ public class Morphium implements AutoCloseable {
     public <T> void save(T o, String collection, final AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             //noinspection unchecked
-            storeList((List) o, collection, callback);
+            saveList((List) o, collection, callback);
         } else if (o instanceof Collection) {
             // noinspection unchecked
-            storeList(new ArrayList<>((Collection) o), collection, callback);
+            saveList(new ArrayList<>((Collection) o), collection, callback);
         }
         if (getARHelper().getId(o) != null) {
             getWriterForClass(o.getClass()).store(o, collection, callback);
@@ -3163,7 +3163,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void store(List<T> lst, AsyncOperationCallback<T> callback) {
-        save(lst, callback);
+        saveList(lst, callback);
     }
 
 
@@ -3217,7 +3217,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void saveList(List<T> lst) {
-        storeList(lst, (AsyncOperationCallback<T>) null);
+        saveList(lst, (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(Set<T> set) {
@@ -3225,7 +3225,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void saveList(Set<T> set) {
-        storeList(new ArrayList<>(set), (AsyncOperationCallback<T>) null);
+        saveList(new ArrayList<>(set), (AsyncOperationCallback<T>) null);
     }
 
     public <T> void storeList(List<T> lst, final AsyncOperationCallback<T> callback) {

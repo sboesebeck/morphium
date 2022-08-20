@@ -9,7 +9,6 @@ import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.MorphiumIterator;
@@ -520,7 +519,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         List<CachedObject> lst = new ArrayList<>();
         try {
             morphium.store(lst);
-            morphium.storeBuffered(lst);
+            morphium.saveBuffered(lst);
         } catch (Exception e) {
             log.info("Got exception, good!");
             return;

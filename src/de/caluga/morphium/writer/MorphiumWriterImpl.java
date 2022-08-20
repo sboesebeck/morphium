@@ -430,7 +430,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     private <T> void checkIndexAndCaps(Class type, String coll, AsyncOperationCallback<T> callback) throws MorphiumDriverException {
         if (coll == null) coll = morphium.getMapper().getCollectionName(type);
-        if (!morphium.getDriver().exists(getDbName(), coll)) {
+        if (!morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             switch (morphium.getConfig().getIndexCheck()) {
                 case CREATE_ON_WRITE_NEW_COL:
                     if (logger.isDebugEnabled()) {
