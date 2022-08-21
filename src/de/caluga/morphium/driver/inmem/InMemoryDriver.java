@@ -123,7 +123,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (DriverStatsKey k : DriverStatsKey.values()) {
             stats.put(k, new AtomicDecimal(0));
         }
-
+        database.put("local", new ConcurrentHashMap<>());
+        database.put("admin", new ConcurrentHashMap<>());
 
     }
 
@@ -486,7 +487,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 index.put("v", 2.0);
                 for (var e : i.entrySet()) {
                     if (e.getKey().startsWith("$")) continue;
-                    index.put("key", Doc.of(e.getKey(), e.getValue()));
+                    index.putIfAbsent("key", Doc.of());
+                    ((Doc) index.get("key")).add(e.getKey(), e.getValue());
                 }
                 Map opt = (Map) i.get("$options");
                 if (opt != null && opt.get("name") != null) {
@@ -2510,6 +2512,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         boolean found = true;
         for (var i : indexes) {
             found = true;
+            if (i.size() - 1 != indexDef.size()) {
+                //log.info("Index sizes differ - no match");
+                found = false;
+                continue;
+            }
             for (var e : indexDef.entrySet()) {
                 if (e.getKey().startsWith("$")) continue;
                 if (!i.containsKey(e.getKey()) || !i.get(e.getKey()).equals(e.getValue())) {
@@ -2522,6 +2529,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!found) {
             indexes.add(index);
         } else {
+            log.error("Index with those keys already exists");
             // throw new MorphiumDriverException("Index with those keys already exists");
         }
         updateIndexData(db, collection, options);
