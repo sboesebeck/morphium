@@ -124,6 +124,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void getDatabaseListTest(Morphium morphium) {
         try (morphium) {
+            morphium.save(new UncachedObject("str", 1));
             List<String> dbs = morphium.listDatabases();
             assertThat(dbs).isNotNull();
             assert (dbs.size() != 0);

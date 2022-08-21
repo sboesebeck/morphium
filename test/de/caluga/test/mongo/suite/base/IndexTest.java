@@ -123,7 +123,7 @@ public class IndexTest extends MultiDriverTestBase {
                     assert (i.getUnique() == null || !(Boolean) i.getUnique());
                 } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName = true;
-                    assert ((Boolean) i.getUnique());
+                    assert (i.getUnique() != null && (Boolean) i.getUnique());
 
                 }
             }
@@ -170,7 +170,7 @@ public class IndexTest extends MultiDriverTestBase {
                     assert (i.getUnique() == null || !(Boolean) i.getUnique());
                 } else if (key.get("timer") != null && key.get("timer").equals(1) && key.get("name") != null && key.get("name").equals(-1)) {
                     foundTimerName = true;
-                    assert ((Boolean) i.getUnique());
+                    assert (i.getUnique() == null || (Boolean) i.getUnique());
                 } else if (key.get("something") != null && key.get("some_other") != null && key.get("something").equals(1) && key.get("some_other").equals(1)) {
                     foundnew1 = true;
                 } else if (key.get("name") != null && key.get("something") != null && key.get("name").equals(1) && key.get("something").equals(-1)) {
