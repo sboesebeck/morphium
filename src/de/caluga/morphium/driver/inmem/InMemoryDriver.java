@@ -496,6 +496,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 } else {
                     index.put("name", "unknown");
                 }
+                if (opt != null && opt.get("unique") != null) {
+                    index.put("unique", opt.get("unique"));
+                }
+                if (opt != null && opt.get("sparse") != null) {
+                    index.put("sparse", opt.get("sparse"));
+                }
+                if (opt != null && opt.get("expireAfterSeconds") != null) {
+                    index.put("expireAfterSeconds", opt.get("expireAfterSeconds"));
+                }
+                if (opt != null && opt.get("bachground") != null) {
+                    index.put("background", opt.get("background"));
+                }
+                if (opt != null && opt.get("background") != null) {
+                    index.put("background", opt.get("background"));
+                }
+                if (opt != null && opt.get("hidden") != null) {
+                    index.put("hidden", opt.get("hidden"));
+                }
+                //todo: add index features
+
+
                 indices.add(index);
             }
 
@@ -2207,12 +2228,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public void drop(String db, String collection, WriteConcern wc) {
         getDB(db).remove(collection);
+        if (indexDataByDBCollection.containsKey(db)) {
+            indexDataByDBCollection.get(db).remove(collection);
+        }
+        if (indicesByDbCollection.containsKey(db)) {
+            indicesByDbCollection.get(db).remove(collection);
+        }
         notifyWatchers(db, collection, "drop", null);
     }
 
 
     public void drop(String db, WriteConcern wc) {
         database.remove(db);
+        if (indexDataByDBCollection.containsKey(db)) {
+            indexDataByDBCollection.remove(db);
+        }
+        if (indicesByDbCollection.containsKey(db)) {
+            indicesByDbCollection.remove(db);
+        }
         notifyWatchers(db, null, "drop", null);
     }
 
@@ -2529,7 +2562,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!found) {
             indexes.add(index);
         } else {
-            log.error("Index with those keys already exists");
+            if (index.size() == 2 && index.containsKey("_id") && index.containsKey("$options")) {
+                //ignoring attempt to re-create_id index
+            } else {
+                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
+            }
             // throw new MorphiumDriverException("Index with those keys already exists");
         }
         updateIndexData(db, collection, options);
