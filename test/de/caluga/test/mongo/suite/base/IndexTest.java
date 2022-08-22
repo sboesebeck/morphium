@@ -8,6 +8,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CappedCol;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,7 +62,12 @@ public class IndexTest extends MultiDriverTestBase {
             log.info("Got indexes");
             assertThat(missing.size()).isNotEqualTo(0);
             assertThat(missing.get(UncachedObject.class)).isNotNull();
-            assertThat(missing.get(IndexedObject.class)).isNull();
+            if (morphium.getDriver() instanceof InMemoryDriver) {
+                log.info("InMemoryDriver does not support text indexes (yet)");
+                assertThat(missing.get(IndexedObject.class).size()).isEqualTo(1);
+            } else {
+                assertThat(missing.get(IndexedObject.class)).isNull();
+            }
             assertThat(missing.get(CappedCol.class)).isNull(); //all indices created
             String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
             morphium.createIndex(UncachedObject.class, collectionName, missing.get(UncachedObject.class).get(0), null);
