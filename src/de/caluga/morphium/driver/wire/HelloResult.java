@@ -1,10 +1,12 @@
 package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +43,9 @@ public class HelloResult {
     private Map<String, Object> lastWrite;
     private Double ok;
 
+    private Map<String, Object> topologyVersion;
+    private Long operationTime;
+
     public static HelloResult fromMsg(Map<String, Object> msg) {
         var fields = an.getAllFields(HelloResult.class);
         var ret = new HelloResult();
@@ -52,6 +57,24 @@ public class HelloResult {
                 }
             } catch (Exception e) {
                 //something went wrong...
+                e.printStackTrace();
+            }
+        }
+        return ret;
+    }
+
+    public Map<String, Object> toMsg() {
+
+        var fields = an.getAllFields(HelloResult.class);
+        var ret = Doc.of();
+        for (Field f : fields) {
+            if (Modifier.isStatic(f.getModifiers())) continue;
+            try {
+                f.setAccessible(true);
+                if (f.get(this) != null) {
+                    ret.add(f.getName(), f.get(this));
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
@@ -100,6 +123,25 @@ public class HelloResult {
 
     public HelloResult setMaxWriteBatchSize(Integer maxWriteBatchSize) {
         this.maxWriteBatchSize = maxWriteBatchSize;
+        return this;
+    }
+
+
+    public Map<String, Object> getTopologyVersion() {
+        return topologyVersion;
+    }
+
+    public HelloResult setTopologyVersion(Map<String, Object> topologyVersion) {
+        this.topologyVersion = topologyVersion;
+        return this;
+    }
+
+    public Long getOperationTime() {
+        return operationTime;
+    }
+
+    public HelloResult setOperationTime(Long operationTime) {
+        this.operationTime = operationTime;
         return this;
     }
 

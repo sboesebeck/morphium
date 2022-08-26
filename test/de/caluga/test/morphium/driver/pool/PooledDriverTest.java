@@ -1,9 +1,11 @@
 package de.caluga.test.morphium.driver.pool;
 
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoClients;
 import com.mongodb.connection.ClusterConnectionMode;
+import com.mongodb.internal.connection.MongoCredentialWithCache;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
@@ -113,6 +115,7 @@ public class PooledDriverTest {
         MongoClientSettings.Builder o = MongoClientSettings.builder();
         o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000).toMongoWriteConcern());
         //read preference check
+        o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
         o.retryWrites(true);
         o.applyToSocketSettings(socketSettings -> {
@@ -174,6 +177,7 @@ public class PooledDriverTest {
 
     private PooledDriver getDriver() throws MorphiumDriverException {
         var drv = new PooledDriver();
+        drv.setCredentials("admin", "test", "test");
         drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");
         drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);

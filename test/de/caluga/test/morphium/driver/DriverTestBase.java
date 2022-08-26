@@ -26,6 +26,7 @@ public class DriverTestBase {
     protected SingleMongoConnectDriver getDriver() throws MorphiumDriverException {
         if (driver == null) {
             SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
+            drv.setCredentials("admin", "test", "test");
             drv.setMaxWaitTime(1000);
             drv.setHeartbeatFrequency(1000);
             drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");

@@ -87,11 +87,11 @@ public interface MorphiumDriver extends Closeable {
     void setReplicaSetName(String replicaSetName);
 
     @SuppressWarnings("unused")
-    Map<String, String[]> getCredentials();
+//    Map<String, String[]> getCredentials();
 
-    void setCredentials(Map<String, String[]> credentials);
+//    void setCredentials(Map<String, String[]> credentials);
 
-    void setCredentialsFor(String db, String user, String password);
+//    void setCredentialsFor(String db, String user, String password);
 
     int getRetriesOnNetworkError();
 
@@ -129,7 +129,7 @@ public interface MorphiumDriver extends Closeable {
 
     void setMaxConnectionsPerHost(int maxConnectionsPerHost);
 
-    MorphiumDriver setCredentials(String db, String login, String pwd);
+    void setCredentials(String db, String login, String pwd);
 
     boolean isCapped(String db, String coll) throws MorphiumDriverException;
 

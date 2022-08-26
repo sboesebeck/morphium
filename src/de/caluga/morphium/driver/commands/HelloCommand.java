@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -13,11 +14,33 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
     private Boolean helloOk = true;
     private boolean includeClient = true;
     private Boolean loadBalanced;
+    @Transient
+    private String authDb;
+    @Transient
+    private String user;
 
     public HelloCommand(MongoConnection d) {
         super(d);
         setDb("");
         setColl("");
+    }
+
+    public String getAuthDb() {
+        return authDb;
+    }
+
+    public HelloCommand setAuthDb(String authDb) {
+        this.authDb = authDb;
+        return this;
+    }
+
+    public String getUser() {
+        return user;
+    }
+
+    public HelloCommand setUser(String user) {
+        this.user = user;
+        return this;
     }
 
     public Boolean getLoadBalanced() {
@@ -71,9 +94,12 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
     public Map<String, Object> asMap() {
         var ret = super.asMap();
         ret.put(getCommandName(), 1);
+        if (authDb != null) {
+            ret.put("saslSupportedMechs", authDb + "." + user);
+        }
         ret.put("$db", "local");
         String driverName = "unknown";
-        if (getConnection() != null && getConnection()!=null && getConnection().getDriver()!=null) {
+        if (getConnection() != null && getConnection() != null && getConnection().getDriver() != null) {
             driverName = getConnection().getDriver().getName();
         }
         if (includeClient) {

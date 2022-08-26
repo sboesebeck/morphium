@@ -239,20 +239,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         this.replicaSetName = replicaSetName;
     }
 
-    @Override
-    public Map<String, String[]> getCredentials() {
-        return null;
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public void setCredentialsFor(String db, String user, String password) {
-
-    }
 
     public void resetData() {
         database.clear();
@@ -1187,8 +1173,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @Override
-    public MorphiumDriver setCredentials(String db, String login, String pwd) {
-        return this;
+    public void setCredentials(String db, String login, String pwd) {
 
     }
 

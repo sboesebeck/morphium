@@ -13,7 +13,6 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.geospatial.MultiLineString;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.assertj.core.internal.bytebuddy.implementation.bind.annotation.Morph;
 import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;

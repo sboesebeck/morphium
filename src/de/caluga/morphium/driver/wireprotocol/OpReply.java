@@ -31,7 +31,7 @@ public class OpReply extends WireProtocolMessage {
     private long cursorId;
     private int startFrom;
     private int numReturned;
-    private List<Doc> documents;
+    private List<Map<String, Object>> documents;
 
     public OpReply() {
         timestamp = System.currentTimeMillis();
@@ -107,16 +107,16 @@ public class OpReply extends WireProtocolMessage {
         this.numReturned = numReturned;
     }
 
-    public List<Doc> getDocuments() {
+    public List<Map<String, Object>> getDocuments() {
         return documents;
     }
 
     @SuppressWarnings("unused")
-    public void setDocuments(List<Doc> documents) {
+    public void setDocuments(List<Map<String, Object>> documents) {
         this.documents = documents;
     }
 
-    public void addDocument(Doc doc) {
+    public void addDocument(Map<String, Object> doc) {
         if (documents == null) documents = new ArrayList<>();
         documents.add(doc);
     }

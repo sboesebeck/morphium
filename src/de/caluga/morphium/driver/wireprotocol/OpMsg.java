@@ -64,8 +64,9 @@ public class OpMsg extends WireProtocolMessage {
         return firstDoc;
     }
 
-    public void setFirstDoc(Map<String, Object> o) {
+    public OpMsg setFirstDoc(Map<String, Object> o) {
         firstDoc = o;
+        return this;
     }
 
 
@@ -73,8 +74,9 @@ public class OpMsg extends WireProtocolMessage {
         return flags;
     }
 
-    public void setFlags(int flags) {
+    public OpMsg setFlags(int flags) {
         this.flags = flags;
+        return this;
     }
 
     @Override
