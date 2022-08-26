@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 public class DriverMock implements MorphiumDriver {
+
+    private int maxWaitTime = 1000;
+
     @Override
     public String getName() {
         return "mock";
@@ -83,12 +86,13 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public int getMaxWaitTime() {
-        return 1000;
+
+        return maxWaitTime;
     }
 
     @Override
     public void setMaxWaitTime(int maxWaitTime) {
-
+        this.maxWaitTime = maxWaitTime;
     }
 
     @Override
@@ -167,20 +171,7 @@ public class DriverMock implements MorphiumDriver {
 
     }
 
-    @Override
-    public Map<String, String[]> getCredentials() {
-        return null;
-    }
 
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-
-    }
-
-    @Override
-    public void setCredentialsFor(String db, String user, String password) {
-
-    }
 
     @Override
     public int getRetriesOnNetworkError() {
@@ -273,8 +264,8 @@ public class DriverMock implements MorphiumDriver {
     }
 
     @Override
-    public MorphiumDriver setCredentials(String db, String login, String pwd) {
-        return this;
+    public void setCredentials(String db, String login, String pwd) {
+
     }
 
     @Override

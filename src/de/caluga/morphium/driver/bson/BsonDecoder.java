@@ -22,7 +22,7 @@ public class BsonDecoder {
         return ret;
     }
 
-    public static int decodeDocumentIn(Doc ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
+    public static int decodeDocumentIn(Map<String, Object> ret, byte[] in, int startIndex) throws UnsupportedEncodingException {
         int sz = readInt(in, startIndex);
         if (sz > in.length) {
             throw new RuntimeException("error - size differs! read " + sz + " but buffer is " + in.length);

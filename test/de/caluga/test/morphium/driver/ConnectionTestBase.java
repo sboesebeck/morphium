@@ -15,8 +15,11 @@ public class ConnectionTestBase {
 
     protected SingleMongoConnection getConnection() throws MorphiumDriverException {
         SingleMongoConnection con = new SingleMongoConnection();
-        con.connect(new DriverMock(),"localhost",27017);
-
+        con.setCredentials("admin", "test", "test");
+        var hello = con.connect(new DriverMock(), "localhost", 27017);
+        if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
+            throw new MorphiumDriverException("Authentication failure!");
+        }
         return con;
     }
 

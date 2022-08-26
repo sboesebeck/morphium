@@ -1,10 +1,14 @@
 package de.caluga.morphium.driver.wire;
 
+import com.ongres.scram.common.exception.ScramInvalidServerSignatureException;
+import com.ongres.scram.common.exception.ScramParseException;
+import com.ongres.scram.common.exception.ScramServerErrorException;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.slf4j.Logger;
@@ -14,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +48,10 @@ public class SingleMongoConnection implements MongoConnection {
     private boolean connected;
     private MorphiumDriver driver;
 
+    private String authDb = null;
+    private String user = null;
+    private String password = null;
+
     public SingleMongoConnection() {
         stats = new HashMap<>();
         stats.put(MSG_SENT, new AtomicDecimal(0));
@@ -52,10 +61,17 @@ public class SingleMongoConnection implements MongoConnection {
 
 
     @Override
+    public void setCredentials(String authDb, String userName, String password) {
+        this.authDb = authDb;
+        this.user = userName;
+        this.password = password;
+    }
+
+    @Override
     public HelloResult connect(MorphiumDriver drv, String host, int port) throws MorphiumDriverException {
         driver = drv;
         try {
-           // log.info("Connecting to " + host + ":" + port);
+            // log.info("Connecting to " + host + ":" + port);
             s = new Socket(host, port);
             s.setKeepAlive(true);
             out = s.getOutputStream();
@@ -65,6 +81,10 @@ public class SingleMongoConnection implements MongoConnection {
         }
         startReaderThread();
         HelloCommand cmd = new HelloCommand(null);
+        if (authDb != null) {
+            cmd.setAuthDb(authDb);
+            cmd.setUser(user);
+        }
         cmd.setLoadBalanced(true);
         OpMsg msg = new OpMsg();
         msg.setMessageId(msgId.incrementAndGet());
@@ -72,6 +92,26 @@ public class SingleMongoConnection implements MongoConnection {
         var result = sendAndWaitForReply(msg);
         Map<String, Object> firstDoc = result.getFirstDoc();
         var hello = HelloResult.fromMsg(firstDoc);
+
+        if (authDb != null) {
+            SaslAuthCommand auth = new SaslAuthCommand(this);
+            auth.setDb("admin");
+            if (hello.getSaslSupportedMechs() == null && hello.getSaslSupportedMechs().isEmpty()) {
+                throw new MorphiumDriverException("Authentication failed - no mechanisms offered!");
+            }
+            auth.setUser(user).setDb(authDb).setPassword(password);
+            if (hello.getSaslSupportedMechs().contains("SCRAM-SHA-256")) {
+                auth.setMechanism("SCRAM-SHA-256");
+            } else {
+                auth.setMechanism("SCRAM-SHA-1");
+            }
+            try {
+                auth.execute();
+            } catch (Exception e) {
+                throw new MorphiumDriverException("Error Authenticating", e);
+            }
+//            log.info("No error up to here - we should be authenticated!");
+        }
         connectedTo = host;
         connectedToPort = port;
         //log.info("Connected to "+connectedTo+":"+port);

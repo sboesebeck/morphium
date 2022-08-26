@@ -41,7 +41,7 @@
         <java.version>1.8</java.version>
         <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mongodbDriver.version>[4.1.0,)</mongodbDriver.version>
+        <mongodbDriver.version>4.7.1</mongodbDriver.version>
     </properties>
 
     <build>
@@ -243,7 +243,7 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>5.8.1</version>
+            <version>5.9.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -254,30 +254,30 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>3.11.1</version>
+            <version>3.23.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.30</version>
+            <version>1.7.36</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-core</artifactId>
-            <version>1.2.9</version>
+            <version>1.2.11</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.2.9</version>
+            <version>1.2.11</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.colofabrix.scala</groupId>
             <artifactId>figlet4s-java</artifactId>
-            <version>[0.3.1,)</version>
+            <version>0.3.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -303,7 +303,11 @@
             <artifactId>mongodb-driver-core</artifactId>
             <version>${mongodbDriver.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.ongres.scram</groupId>
+            <artifactId>client</artifactId>
+            <version>2.1</version>
+        </dependency>
         <dependency>
             <groupId>com.googlecode.json-simple</groupId>
             <artifactId>json-simple</artifactId>

@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.annotations.Transient;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.HashMap;
@@ -22,6 +23,11 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
         return commandName;
     }
 
+    public GenericCommand setCommandName(String n) {
+        commandName = n;
+        return this;
+    }
+
     public GenericCommand setCmdData(Map<String, Object> cmd) {
         cmdData = cmd;
         return this;
@@ -35,9 +41,10 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
 
     @Override
     public Map<String, Object> asMap() {
-        var m = super.asMap();
+        var m = Doc.of();
         if (cmdData != null)
             m.putAll(cmdData);
+        m.putAll(super.asMap());
         return m;
     }
 

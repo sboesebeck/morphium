@@ -1,10 +1,18 @@
 package de.caluga.test.morphium.driver;
 
+import com.ongres.scram.client.ScramClient;
+import com.ongres.scram.client.ScramSession;
+import com.ongres.scram.common.ScramMechanisms;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import de.caluga.morphium.driver.wireprotocol.OpQuery;
+import de.caluga.morphium.driver.wireprotocol.OpReply;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -12,12 +20,16 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SingleMongoConnectionTest extends ConnectionTestBase {
@@ -236,8 +248,8 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                 }
             }
         }.start();
-        final AtomicInteger counter=new AtomicInteger(0);
-        final long waitStart=System.currentTimeMillis();
+        final AtomicInteger counter = new AtomicInteger(0);
+        final long waitStart = System.currentTimeMillis();
         con.watch(new WatchCommand(con).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
 
 
@@ -250,7 +262,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
             @Override
             public boolean isContinued() {
-                return System.currentTimeMillis()-waitStart < 5000;
+                return System.currentTimeMillis() - waitStart < 5000;
             }
         }).setBatchSize(1).setColl(coll).setDb(db).setMaxTimeMS(1000));
 
@@ -258,7 +270,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         assertThat(counter.get()).isLessThanOrEqualTo(2);
         con.close();
     }
-
 
 
     @Test
@@ -310,7 +321,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         cmd.execute();
 
         var msg = new HelloCommand(con).setHelloOk(true).executeAsync();
-        var result=con.readSingleAnswer(msg);
+        var result = con.readSingleAnswer(msg);
         assertThat(result != null).isTrue();
         assertThat(result.get("primary")).isEqualTo(result.get("me"));
         assertThat(result.get("secondary")).isEqualTo(false);
@@ -355,34 +366,119 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
     }
 
+
     @Test
-    public void pipeliningCheck() throws Exception {
-//        SynchronousMongoConnection con = getSynchronousMongoConnection();
-//        int deleted = con.clearCollection(new ClearCollectionSettings().setDb(db).setColl(coll));
-//        log.info("Deleted old data: " + deleted);
-//        List<Map<String, Object>> testList = new ArrayList<>();
-//        MorphiumObjectMapper om = new ObjectMapperImpl();
-//        for (int i = 0; i < 10000; i++) {
-//            testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
+    public void testHandshake() throws Exception {
+        Socket s = new Socket("localhost", 27017);
+        var in = s.getInputStream();
+        var out = s.getOutputStream();
+
+        OpQuery q = new OpQuery();
+        q.setMessageId(100);
+        q.setDoc(Doc.of("ismaster", true, "helloOk", true, "client",
+                Doc.of("driver", Doc.of("name", "morphium", "version", 1), "os", Doc.of("type", "darvin", "name", "macos", "architecture", "arm64"),
+                        "platform", "Java", "version", "0.0.1", "application", Doc.of("name", "Morphium-Test")
+                ),
+                "compression", Arrays.asList("none"),
+                "loadBalanced", false));
+        q.setColl("admin.$cmd");
+        q.setLimit(-1);
+        q.setDb(null);
+        out.write(q.bytes());
+        out.flush();
+
+        var incoming = WireProtocolMessage.parseFromStream(in);
+        log.info("incoming: " + incoming.getClass().getSimpleName());
+        var reply = (OpReply) incoming;
+        log.info(Utils.toJsonString(reply.getDocuments().get(0)));
+    }
+
+
+    @Test
+    public void testAuthSHA() throws Exception {
+        var con = getConnection();
+
+        InsertMongoCommand insert = new InsertMongoCommand(con);
+        insert.setDb("test");
+        insert.setDocuments(Arrays.asList(Doc.of("value", "test", "count", 1213)));
+        insert.setColl("testcoll");
+        insert.setOrdered(true);
+
+
+        var result = insert.execute();
+        log.info("InsertResult: " + Utils.toJsonString(result));
+
+        con.close();
+    }
+
+
+    @Test
+    public void testmanualAuthSHA1() throws Exception {
+        var con = getConnection();
+//        ScramClient scramClient = ScramClient
+//                .channelBinding(ScramClient.ChannelBinding.NO)
+//                .stringPreparation(NO_PREPARATION)
+//                .selectClientMechanism(ScramMechanisms.SCRAM_SHA_1)
+//                .nonceSupplier(() -> "fyko+d2lbbFgONRv9qkxdawL")
+//                .setup();
+//        ScramSession scramSession = scramClient.scramSession("test");
+//        var msg = scramSession.clientFirstMessage();
+//
+//
+//        byte[] data=msg.getBytes(StandardCharsets.UTF_8);
+//        GenericCommand cmd=new GenericCommand(con);
+//        cmd.setCmdData(Doc.of("saslStart",1,"mechanism","SCRAM-SHA-1","payload",data,"options",Doc.of("skipEmptyExchange",true)).add("$db","admin"));
+//        cmd.setCommandName("saslStart");
+//        cmd.setDb("admin");
+//
+//        var reply=con.readSingleAnswer(cmd.executeAsync());
+//        data= (byte[]) reply.get("payload");
+//        int id=(Integer) reply.get("conversationId");
+//        ScramSession.ServerFirstProcessor serverFirstProcessor = scramSession.receiveServerFirstMessage(new String(data));
+//        log.info("Salt: " + serverFirstProcessor.getSalt() + ", i: " + serverFirstProcessor.getIteration());
+//        String passwd="test";
+//        String user="test";
+//        String pwd=user+":mongo:"+passwd;
+//        MessageDigest md = MessageDigest.getInstance("MD5");
+//        md.update(pwd.getBytes(StandardCharsets.UTF_8));
+//        var md5=md.digest();
+//        StringBuilder hex=new StringBuilder();
+//        for (byte b:md5){
+//            hex.append(Utils.getHex(b).toLowerCase());
 //        }
-//        StoreMongoCommand cmd = new StoreMongoCommand()
-//                .setDb(db).setColl(coll).setDocs(testList);
-//        con.store(cmd);
-//        long start = System.currentTimeMillis();
-//        int id = con.sendCommand(db, cmd.asMap("errorMsg"));
-//        log.info((System.currentTimeMillis() - start) + ": sent " + id);
-//        id = con.sendCommand(db, new FindCommand().setDb(db).setColl(coll).setFilter(Doc.of("$where", "for (let i=0;i<1000000;i++){ var s=s+i;}; return true;")).asMap("find"));
-//        log.info((System.currentTimeMillis() - start) + ": sent " + id);
-//        id = con.sendCommand("admin", Doc.of("hello", true));
-//        log.info((System.currentTimeMillis() - start) + ": sent " + id);
+//        log.info("Hex: "+hex.toString());
+//        ScramSession.ClientFinalProcessor clientFinalProcessor
+//                = serverFirstProcessor.clientFinalProcessor(hex.toString());
+//        String s1 = clientFinalProcessor.clientFinalMessage();
+//        log.info("Sending: "+ s1);
 //
-//        var reply = con.getReplyFor();
+//        cmd=new GenericCommand(con);
+//        cmd.setCommandName("saslContinue");
+//        cmd.setCmdData(Doc.of("saslContinue",1,"conversationId",id,"payload",s1.getBytes(StandardCharsets.UTF_8)));
+//        cmd.setDb("admin");
+//        reply=con.readSingleAnswer(cmd.executeAsync());
 //
-//        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
-//        reply = con.getNextReply();
-//        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
-//        reply = con.getNextReply();
-//        log.info((System.currentTimeMillis() - start) + ": Reply for " + reply.getResponseTo());
+//        clientFinalProcessor.receiveServerFinalMessage(new String((byte[])reply.get("payload")));
+        SaslAuthCommand auth = new SaslAuthCommand(con);
+        auth.setMechanism("SCRAM-SHA-1").setUser("test").setDb("admin").setPassword("test");
+        auth.execute();
+        log.info("Authentication sucessful");
+        //try accessing something
+
+        InsertMongoCommand insert = new InsertMongoCommand(con);
+        insert.setDb("test");
+        insert.setDocuments(Arrays.asList(Doc.of("value", "test", "count", 1213)));
+        insert.setColl("testcoll");
+        insert.setOrdered(true);
+        var reply = insert.execute();
+//
+//        q=new OpMsg().setFirstDoc(insert.asMap());
+//        q.setMessageId(2002);
+//        con.sendQuery(q);
+
+        //reply=con.readSingleAnswer(2002);
+        log.info("Insert: " + Utils.toJsonString(reply));
+
     }
 
 

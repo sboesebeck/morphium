@@ -32,9 +32,9 @@ public class OpQuery extends WireProtocolMessage {
     private int limit = 1;
     private Doc doc;
 
-    private int reqId;
-    private int inReplyTo;
-    private int flags;
+//    private int reqId;
+//    private int inReplyTo;
+private int flags;
     private Doc returnFieldSelector;
 
 
@@ -81,23 +81,23 @@ public class OpQuery extends WireProtocolMessage {
     public void setDoc(Doc doc) {
         this.doc = doc;
     }
-
-    public int getReqId() {
-        return reqId;
-    }
-
-    public void setReqId(int reqId) {
-        this.reqId = reqId;
-    }
-
-    @SuppressWarnings("unused")
-    public int getInReplyTo() {
-        return inReplyTo;
-    }
-
-    public void setInReplyTo(int inReplyTo) {
-        this.inReplyTo = inReplyTo;
-    }
+//
+//    public int getReqId() {
+//        return reqId;
+//    }
+//
+//    public void setReqId(int reqId) {
+//        this.reqId = reqId;
+//    }
+//
+//    @SuppressWarnings("unused")
+//    public int getInReplyTo() {
+//        return inReplyTo;
+//    }
+//
+//    public void setInReplyTo(int inReplyTo) {
+//        this.inReplyTo = inReplyTo;
+//    }
 
     public byte[] getPayload() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -149,8 +149,6 @@ public class OpQuery extends WireProtocolMessage {
                 ", skip=" + skip +
                 ", limit=" + limit +
                 ", doc=" + Utils.toJsonString(doc) +
-                ", reqId=" + reqId +
-                ", inReplyTo=" + inReplyTo +
                 ", flags=" + flags +
                 ", returnFieldsSelector=" + Utils.toJsonString(returnFieldSelector) +
                 '}';

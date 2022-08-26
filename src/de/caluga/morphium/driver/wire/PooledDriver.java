@@ -74,6 +74,9 @@ public class PooledDriver extends DriverBase {
         int port = getPortFromHost(host);
 
         var con = new SingleMongoConnection();
+        if (getAuthDb() != null) {
+            con.setCredentials(getAuthDb(), getUser(), getPassword());
+        }
         long start = System.currentTimeMillis();
         var hello = con.connect(this, h, port);
         stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();

@@ -138,6 +138,9 @@ public class SingleMongoConnectDriver extends DriverBase {
                     port = Integer.parseInt(h[1]);
                 }
                 connection = new SingleMongoConnection();
+                if (getAuthDb() != null) {
+                    connection.setCredentials(getAuthDb(), getUser(), getPassword());
+                }
                 var hello = connection.connect(this, h[0], port);
                 //checking hosts
                 if (hello.getHosts() != null) {
@@ -716,6 +719,11 @@ public class SingleMongoConnectDriver extends DriverBase {
         @Override
         public int getSourcePort() {
             return 0;
+        }
+
+        @Override
+        public void setCredentials(String authDb, String userName, String password) {
+            delegate.setCredentials(authDb, userName, password);
         }
 
         @Override

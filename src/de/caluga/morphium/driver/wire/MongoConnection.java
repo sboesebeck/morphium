@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 public interface MongoConnection extends Closeable {
+    void setCredentials(String authDb, String userName, String password);
+
     HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException;
 
     MorphiumDriver getDriver();

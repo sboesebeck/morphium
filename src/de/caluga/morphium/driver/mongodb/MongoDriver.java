@@ -104,12 +104,11 @@ public class MongoDriver implements MorphiumDriver {
         return new AggregatorImpl<>(morphium, type, resultType);
     }
 
-    public MorphiumDriver setCredentials(String db, String login, String pwd) {
+    public void setCredentials(String db, String login, String pwd) {
         String[] cred = new String[2];
         cred[0] = login;
         cred[1] = pwd;
         credentials.put(db, cred);
-        return this;
     }
 
     @Override
@@ -275,11 +274,6 @@ public class MongoDriver implements MorphiumDriver {
     @Override
     public void setReplicaSetName(String replicaSetName) {
 
-    }
-
-    @Override
-    public Map<String, String[]> getCredentials() {
-        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -518,10 +512,6 @@ public class MongoDriver implements MorphiumDriver {
         this.credentials = credentials;
     }
 
-    @Override
-    public void setCredentialsFor(String db, String user, String password) {
-
-    }
 
     @SuppressWarnings("unused")
     public void setMongo(MongoClient mongo) {

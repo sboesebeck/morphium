@@ -62,8 +62,9 @@ public abstract class DriverBase implements MorphiumDriver {
     private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
 
 
-    private Map<String, String[]> credentials = new HashMap<>();
-
+    private String authDb = null;
+    private String user;
+    private String password;
 
     public DriverBase() {
         //startHousekeeping();
@@ -132,9 +133,10 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     @Override
-    public MorphiumDriver setCredentials(String db, String login, String pwd) {
-        credentials.put(db, new String[]{login, pwd});
-        return this;
+    public void setCredentials(String db, String login, String pwd) {
+        authDb = db;
+        user = login;
+        password = pwd;
     }
 
     @Override
@@ -142,6 +144,32 @@ public abstract class DriverBase implements MorphiumDriver {
         return maxConnectionsPerHost;
     }
 
+    public String getAuthDb() {
+        return authDb;
+    }
+
+    public DriverBase setAuthDb(String authDb) {
+        this.authDb = authDb;
+        return this;
+    }
+
+    public String getUser() {
+        return user;
+    }
+
+    public DriverBase setUser(String user) {
+        this.user = user;
+        return this;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public DriverBase setPassword(String password) {
+        this.password = password;
+        return this;
+    }
 
     @Override
     public MorphiumDriver setMaxConnections(int maxConnections) {
@@ -292,21 +320,6 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
 
-    @Override
-    @SuppressWarnings("unused")
-    public Map<String, String[]> getCredentials() {
-        return credentials;
-    }
-
-    @Override
-    public void setCredentials(Map<String, String[]> credentials) {
-        this.credentials = credentials;
-    }
-
-    @Override
-    public void setCredentialsFor(String db, String user, String password) {
-        credentials.putIfAbsent(db, new String[]{user, password});
-    }
 
 
     @Override
