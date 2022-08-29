@@ -22,10 +22,9 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
+import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
-import de.caluga.morphium.query.MongoField;
-import de.caluga.morphium.query.MongoFieldImpl;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.replicaset.ReplicaSetNode;
@@ -47,6 +46,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
@@ -96,6 +96,8 @@ public class Morphium implements AutoCloseable {
     private MorphiumDriver morphiumDriver;
 
     private JavaxValidationStorageListener lst;
+    private ValueEncryptionProvider valueEncryptionProvider;
+    private String CREDENTIAL_ENCRYPT_KEY_NAME;
 
     public Morphium() {
         profilingListeners = new CopyOnWriteArrayList<>();
@@ -290,12 +292,55 @@ public class Morphium implements AutoCloseable {
                 throw new RuntimeException("Error - no server address specified!");
             }
 
+            setValidationSupport();
+            try {
+                objectMapper = new ObjectMapperImpl();
+                objectMapper.setMorphium(this);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                encryptionKeyProvider = config.getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
+                if (config.getCredentialsEncryptionKey() != null) {
+                    encryptionKeyProvider.setEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, config.getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+                }
+                if (config.getCredentialsDecryptionKey() != null) {
+                    encryptionKeyProvider.setDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, config.getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            try {
+                valueEncryptionProvider = config.getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
-                morphiumDriver.setCredentials(config.getDatabase(), config.getMongoLogin(), config.getMongoPassword());
+                if (config.getCredentialsEncrypted() != null && config.getCredentialsEncrypted()) {
+                    var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
+                    valueEncryptionProvider.setEncryptionKey(getEncryptionKeyProvider().getEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+                    valueEncryptionProvider.setDecryptionKey(getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+                    if (key == null) {
+                        logger.error("Cannot decrypt - no key for mongodb_crendentials set!");
+                    }
+                    try {
+
+                        var user = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoLogin())));
+                        var passwd = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoPassword())));
+                        var authdb = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoAuthDb())));
+                        morphiumDriver.setCredentials(authdb, user, passwd);
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException("Credential decryption failed", e);
+                    }
+
+                } else {
+                    morphiumDriver.setCredentials(config.getMongoAuthDb(), config.getMongoLogin(), config.getMongoPassword());
+                }
             }
-            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
-                morphiumDriver.setCredentials("admin", config.getMongoAdminUser(), config.getMongoAdminPwd());
-            }
+//            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() != null) {
+//                morphiumDriver.setCredentials("admin", config.getMongoAdminUser(), config.getMongoAdminPwd());
+//            }
             String[] seed = new String[config.getHostSeed().size()];
             for (int i = 0; i < seed.length; i++) {
                 seed[i] = config.getHostSeed().get(i);
@@ -343,18 +388,7 @@ public class Morphium implements AutoCloseable {
         //            oplogMonitorThread.start();
         //        }
 
-        setValidationSupport();
-        try {
-            objectMapper = new ObjectMapperImpl();
-            objectMapper.setMorphium(this);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            encryptionKeyProvider = config.getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+
         if (isReplicaSet()) {
             rsMonitor = new RSMonitor(this);
             rsMonitor.start();
@@ -431,6 +465,9 @@ public class Morphium implements AutoCloseable {
         //logger.info("Initialization successful...");
     }
 
+    public ValueEncryptionProvider getValueEncrpytionProvider() {
+        return valueEncryptionProvider;
+    }
 
     public EncryptionKeyProvider getEncryptionKeyProvider() {
         return encryptionKeyProvider;

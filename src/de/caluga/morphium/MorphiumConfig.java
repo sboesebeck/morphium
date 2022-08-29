@@ -10,8 +10,10 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.mongodb.MongoDriver;
+import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
+import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.*;
@@ -76,8 +78,6 @@ public class MorphiumConfig {
     //ms for the pause of the main thread
     private int writeBufferTimeGranularity = 100;
 
-    private final boolean autoIndexAndCappedCreationOnWrite = true;
-
     private boolean useSSL = false;
     private SSLContext sslContext = null;
     private boolean sslInvalidHostNameAllowed = false;
@@ -90,7 +90,12 @@ public class MorphiumConfig {
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
-    private String mongoLogin = null, mongoPassword = null;
+    private String mongoLogin = null, mongoPassword = null, mongoAuthDb = null;
+    @Transient
+    private String credentialsEncryptionKey;
+    @Transient
+    private String credentialsDecryptionKey;
+    private Boolean credentialsEncrypted;
 
     private boolean autoValues = true;
     private boolean readCacheEnabled = true;
@@ -99,15 +104,14 @@ public class MorphiumConfig {
     private boolean camelCaseConversionEnabled = true;
     private boolean warnOnNoEntitySerialization = false;
 
-    //securitysettings
-    //    private Class<? extends Object> userClass, roleClass, aclClass;
-    private String mongoAdminUser, mongoAdminPwd; //THE superuser!
     @Transient
     private ReadPreference defaultReadPreference;
     @Transient
     private String defaultReadPreferenceType;
     @Transient
     private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
+    @Transient
+    private Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass = AESEncryptionProvider.class;
 
     private String driverName;
     private int threadPoolMessagingCoreSize = 0;
@@ -132,8 +136,8 @@ public class MorphiumConfig {
     private boolean retryReads = false;
     private boolean retryWrites = false;
     private String uuidRepresentation;
-    private IndexCheck indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
-    private CappedCheck cappedCheck = CappedCheck.CREATE_ON_WRITE_NEW_COL;
+    private IndexCheck indexCheck = IndexCheck.CREATE_ON_STARTUP;
+    private CappedCheck cappedCheck = CappedCheck.CREATE_ON_STARTUP;
 
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
@@ -279,12 +283,40 @@ public class MorphiumConfig {
         return this;
     }
 
+    public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
+        return valueEncryptionProviderClass;
+    }
+
+    public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+        this.valueEncryptionProviderClass = valueEncryptionProviderClass;
+        return this;
+    }
+
+
     public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
         return encryptionKeyProviderClass;
     }
 
     public void setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
         this.encryptionKeyProviderClass = encryptionKeyProviderClass;
+    }
+
+    public String getCredentialsEncryptionKey() {
+        return credentialsEncryptionKey;
+    }
+
+    public MorphiumConfig setCredentialsEncryptionKey(String credentialsEncryptionKey) {
+        this.credentialsEncryptionKey = credentialsEncryptionKey;
+        return this;
+    }
+
+    public String getCredentialsDecryptionKey() {
+        return credentialsDecryptionKey;
+    }
+
+    public MorphiumConfig setCredentialsDecryptionKey(String credentialsDecryptionKey) {
+        this.credentialsDecryptionKey = credentialsDecryptionKey;
+        return this;
     }
 
     public String getDriverName() {
@@ -505,6 +537,24 @@ public class MorphiumConfig {
         return this;
     }
 
+    public Boolean getCredentialsEncrypted() {
+        return credentialsEncrypted;
+    }
+
+    public MorphiumConfig setCredentialsEncrypted(Boolean credentialsEncrypted) {
+        this.credentialsEncrypted = credentialsEncrypted;
+        return this;
+    }
+
+    public String getMongoAuthDb() {
+        return mongoAuthDb;
+    }
+
+    public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
+        this.mongoAuthDb = mongoAuthDb;
+        return this;
+    }
+
     public String getMongoLogin() {
         return mongoLogin;
     }
@@ -555,23 +605,7 @@ public class MorphiumConfig {
         return this;
     }
 
-    public String getMongoAdminUser() {
-        return mongoAdminUser;
-    }
 
-    public MorphiumConfig setMongoAdminUser(String mongoAdminUser) {
-        this.mongoAdminUser = mongoAdminUser;
-        return this;
-    }
-
-    public String getMongoAdminPwd() {
-        return mongoAdminPwd;
-    }
-
-    public MorphiumConfig setMongoAdminPwd(String mongoAdminPwd) {
-        this.mongoAdminPwd = mongoAdminPwd;
-        return this;
-    }
 
     public int getWriteCacheTimeout() {
         return writeCacheTimeout;

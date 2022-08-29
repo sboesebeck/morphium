@@ -59,6 +59,7 @@ public class Query<T> implements Cloneable {
     private String overrideDB;
     private Collation collation;
     private int batchSize = 0;
+    private UtilsMap<String, UtilsMap<String, String>> additionalFields;
 
     public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
         this(m);
@@ -1982,107 +1983,111 @@ public class Query<T> implements Cloneable {
         return this;
     }
 
-    //
-//    public Query<T> text(String... text) {
-//        return text(null, null, text);
-//    }
-//
-//
-//    public Query<T> text(TextSearchLanguages lang, String... text) {
-//        return text(null, lang, text);
-//    }
-//
-//
-//    public Query<T> text(TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
-//        return text(null, lang, caseSensitive, diacriticSensitive, text);
-//    }
-//
-//
-//    public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
-//        FilterExpression f = new FilterExpression();
-//        f.setField("$text");
-//        StringBuilder b = new StringBuilder();
-//        for (String t : text) {
-//            b.append(t);
-//            b.append(" ");
-//        }
-//        Map<String, Object> srch = UtilsMap.of("$search", b.toString());
-//        srch.put("$caseSensitive", caseSensitive);
-//        srch.put("$diacriticSensitive", diacriticSensitive);
-//        f.setValue(srch);
-//        if (lang != null) {
-//            //noinspection unchecked
-//            ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
-//        }
-//        addChild(f);
-//        if (metaScoreField != null) {
-//            additionalFields = UtilsMap.of(metaScoreField, UtilsMap.of("$meta", "textScore"));
-//
-//        }
-//
-//        return this;
-//    }
-//
-//
-//    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text) {
-//        return text(metaScoreField, lang, true, true, text);
-//    }
-//
-//
-//    @Deprecated
-//    public List<T> textSearch(String... texts) {
-//        //noinspection deprecation
-//        return textSearch(TextSearchLanguages.mongo_default, texts);
-//    }
-//
-//    @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
-//
-//    @Deprecated
-//    public List<T> textSearch(TextSearchLanguages lang, String... texts) {
-//        if (texts.length == 0) {
-//            return new ArrayList<>();
-//        }
-//
-//        Map<String, Object> txt = new HashMap<>();
-//        txt.put("text", getCollectionName());
-//        StringBuilder b = new StringBuilder();
-//        for (String t : texts) {
-//            //            b.append("\"");
-//            b.append(t);
-//            b.append(" ");
-//            //            b.append("\" ");
-//        }
-//        txt.put("search", b.toString());
-//        txt.put("filter", toQueryObject());
-//        if (getLimit() > 0) {
-//            txt.put("limit", limit);
-//        }
-//        if (!lang.equals(TextSearchLanguages.mongo_default)) {
-//            txt.put("language", lang.name());
-//        }
-//
-//        Map<String, Object> result = null;
-//        try {
-//            result = morphium.getDriver().runCommand(getDB(), Doc.of(txt));
-//        } catch (MorphiumDriverException e) {
-//            //TODO: Implement Handling
-//            throw new RuntimeException(e);
-//        }
-//
-//
-//        @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
-//        List<T> ret = new ArrayList<>();
-//        for (Object o : lst) {
-//            @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
-//            T unmarshall = morphium.getMapper().deserialize(getType(), obj);
-//            if (unmarshall != null) {
-//                ret.add(unmarshall);
-//            }
-//        }
-//        return ret;
-//    }
-//
-//
+
+    public Query<T> text(String... text) {
+        return text(null, null, text);
+    }
+
+
+    public Query<T> text(TextSearchLanguages lang, String... text) {
+        return text(null, lang, text);
+    }
+
+
+    public Query<T> text(TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
+        return text(null, lang, caseSensitive, diacriticSensitive, text);
+    }
+
+
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String... text) {
+        FilterExpression f = new FilterExpression();
+        f.setField("$text");
+        StringBuilder b = new StringBuilder();
+        for (String t : text) {
+            b.append(t);
+            b.append(" ");
+        }
+        Map<String, Object> srch = UtilsMap.of("$search", b.toString());
+        srch.put("$caseSensitive", caseSensitive);
+        srch.put("$diacriticSensitive", diacriticSensitive);
+        f.setValue(srch);
+        if (lang != null) {
+            //noinspection unchecked
+            ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
+        }
+        addChild(f);
+        if (metaScoreField != null) {
+            additionalFields = UtilsMap.of(metaScoreField, UtilsMap.of("$meta", "textScore"));
+
+        }
+
+        return this;
+    }
+
+
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, String... text) {
+        return text(metaScoreField, lang, true, true, text);
+    }
+
+
+    @Deprecated
+    public List<T> textSearch(String... texts) {
+        //noinspection deprecation
+        return textSearch(TextSearchLanguages.mongo_default, texts);
+    }
+
+    @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
+
+    @Deprecated
+    public List<T> textSearch(TextSearchLanguages lang, String... texts) {
+        if (texts.length == 0) {
+            return new ArrayList<>();
+        }
+
+        Map<String, Object> txt = new HashMap<>();
+        txt.put("text", getCollectionName());
+        StringBuilder b = new StringBuilder();
+        for (String t : texts) {
+            //            b.append("\"");
+            b.append(t);
+            b.append(" ");
+            //            b.append("\" ");
+        }
+        txt.put("search", b.toString());
+        txt.put("filter", toQueryObject());
+        if (getLimit() > 0) {
+            txt.put("limit", limit);
+        }
+        if (!lang.equals(TextSearchLanguages.mongo_default)) {
+            txt.put("language", lang.name());
+        }
+
+        Map<String, Object> result = null;
+        try {
+            GenericCommand cmd = new GenericCommand(morphium.getDriver().getPrimaryConnection(null));
+            cmd.setDb(getDB());
+            cmd.setCmdData(Doc.of(txt));
+            result = cmd.getConnection().readSingleAnswer(cmd.executeAsync());
+            cmd.getConnection().release();
+        } catch (MorphiumDriverException e) {
+            //TODO: Implement Handling
+            throw new RuntimeException(e);
+        }
+
+
+        @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
+        List<T> ret = new ArrayList<>();
+        for (Object o : lst) {
+            @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
+            T unmarshall = morphium.getMapper().deserialize(getType(), obj);
+            if (unmarshall != null) {
+                ret.add(unmarshall);
+            }
+        }
+        return ret;
+    }
+
+
     public Query<T> setProjection(Enum... fl) {
         for (Enum f : fl) {
             addProjection(f);
@@ -2140,16 +2145,10 @@ public class Query<T> implements Cloneable {
     @SuppressWarnings("CommentedOutCode")
 
     public Query<T> hideFieldInProjection(String f) {
-        if (fieldList == null) {
+        if (fieldList == null || fieldList.isEmpty()) {
             fieldList = new LinkedHashMap<>();
 
         }
-        //        if (fieldList.size()==0){
-        //            for (Field fld:getARHelper().getAllFields(type)){
-        //                fieldList.put(getARHelper().getFieldName(type,fld.getName()),1); //enable all
-        //            }
-        //        }
-        //        fieldList.remove(f);
         fieldList.put(getARHelper().getMongoFieldName(type, f), 0);
         return this;
     }
@@ -2301,5 +2300,27 @@ public class Query<T> implements Cloneable {
                 .setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
         settings.setBatchSize(getBatchSize());
         return settings;
+    }
+
+
+    public enum TextSearchLanguages {
+        danish,
+        dutch,
+        english,
+        finnish,
+        french,
+        german,
+        hungarian,
+        italian,
+        norwegian,
+        portuguese,
+        romanian,
+        russian,
+        spanish,
+        swedish,
+        turkish,
+        mongo_default,
+        none,
+
     }
 }

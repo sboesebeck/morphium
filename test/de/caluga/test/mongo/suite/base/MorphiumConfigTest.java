@@ -1,19 +1,43 @@
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.encryption.AESEncryptionProvider;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Properties;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 
 /**
  * User: Stephan Bösebeck
  * Date: 30.07.13
  * Time: 14:31
  * <p/>
- *
  */
 @SuppressWarnings("AssertWithSideEffects")
 public class MorphiumConfigTest extends MorphiumTestBase {
+
+    @Test
+    public void credentialsEncrypted() {
+        var cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncrypted(true);
+        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+        var enc = new AESEncryptionProvider();
+        enc.setEncryptionKey("1234567890abcdef".getBytes());
+        cfg.setMongoAuthDb(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoAuthDb().getBytes(StandardCharsets.UTF_8))));
+        cfg.setMongoPassword(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoPassword().getBytes(StandardCharsets.UTF_8))));
+        cfg.setMongoLogin(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoLogin().getBytes(StandardCharsets.UTF_8))));
+
+        var m = new Morphium(cfg);
+        assertNotNull(m);
+        m.close();
+    }
+
     @Test
     public void testToString() throws Exception {
         String cfg = morphium.getConfig().toString();

@@ -8,6 +8,9 @@ import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.encryption.AESEncryptionProvider;
+import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
+import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -19,6 +22,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -114,20 +118,37 @@ public class MultiDriverTestBase {
         List<Arguments> morphiums = new ArrayList<>();
 
 
+        var enc = new AESEncryptionProvider();
+        enc.setEncryptionKey("1234567890abcdef".getBytes());
+        var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
+        var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
+        var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
+
+
         //Diferent Drivers
-//        MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
-//        pooled.setDriverName(PooledDriver.driverName);
-//        pooled.setDatabase("morphium_test_" + number.incrementAndGet());
-//        log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
-//        Morphium pooledMorphium = new Morphium(pooled);
-//        morphiums.add(Arguments.of(pooledMorphium));
-//
-//        MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-//        singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
-//        singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
-//        log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
-//        Morphium singleConMorphium = new Morphium(singleConnection);
-//        morphiums.add(Arguments.of(singleConMorphium));
+        MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
+        pooled.setCredentialsEncrypted(true);
+        pooled.setMongoAuthDb(authDb);
+        pooled.setMongoPassword(password);
+        pooled.setMongoLogin(user);
+        pooled.setDriverName(PooledDriver.driverName);
+        pooled.setDatabase("morphium_test_" + number.incrementAndGet());
+
+        log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
+
+        Morphium pooledMorphium = new Morphium(pooled);
+        morphiums.add(Arguments.of(pooledMorphium));
+
+        MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
+        singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
+        singleConnection.setCredentialsEncrypted(true);
+        singleConnection.setMongoAuthDb(authDb);
+        singleConnection.setMongoPassword(password);
+        singleConnection.setMongoLogin(user);
+        singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
+        log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
+        Morphium singleConMorphium = new Morphium(singleConnection);
+        morphiums.add(Arguments.of(singleConMorphium));
 
 
 //
@@ -177,7 +198,6 @@ public class MultiDriverTestBase {
     private void init() {
         log.info("in init!");
 
-
         Properties p = getProps();
         if (p.getProperty("database") == null) {
             MorphiumConfig cfg;
@@ -186,6 +206,13 @@ public class MultiDriverTestBase {
             cfg.addHostToSeed("localhost", 27017);
             cfg.addHostToSeed("localhost", 27018);
             cfg.addHostToSeed("localhost", 27019);
+            cfg.setDriverName(PooledDriver.driverName);
+            cfg.setMongoAuthDb("admin");
+            cfg.setCredentialsEncrypted(true);
+            cfg.setMongoLogin("test");
+            cfg.setMongoPassword("test");
+            cfg.setValueEncryptionProviderClass(AESEncryptionProvider.class);
+            cfg.setEncryptionKeyProviderClass(DefaultEncryptionKeyProvider.class);
             cfg.setWriteCacheTimeout(1000);
             cfg.setConnectionTimeout(2000);
             cfg.setRetryReads(false);

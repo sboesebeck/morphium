@@ -96,7 +96,7 @@ public class SingleMongoConnection implements MongoConnection {
         if (authDb != null) {
             SaslAuthCommand auth = new SaslAuthCommand(this);
             auth.setDb("admin");
-            if (hello.getSaslSupportedMechs() == null && hello.getSaslSupportedMechs().isEmpty()) {
+            if (hello.getSaslSupportedMechs() == null || hello.getSaslSupportedMechs().isEmpty()) {
                 throw new MorphiumDriverException("Authentication failed - no mechanisms offered!");
             }
             auth.setUser(user).setDb(authDb).setPassword(password);
