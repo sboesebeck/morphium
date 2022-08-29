@@ -121,6 +121,10 @@ public class MorphiumTestBase {
                 cfg.addHostToSeed("localhost", 27017);
                 cfg.addHostToSeed("localhost", 27018);
                 cfg.addHostToSeed("localhost", 27019);
+                cfg.setMongoAuthDb("admin");
+                cfg.setMongoPassword("test");
+                cfg.setMongoLogin("test");
+                cfg.setCredentialsEncrypted(false);
                 cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
                 cfg.setRetryReads(false);
