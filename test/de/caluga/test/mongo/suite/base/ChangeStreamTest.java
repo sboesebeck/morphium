@@ -8,7 +8,6 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -48,7 +47,10 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             Morphium m2 = morphium;
             if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                cfg.setCredentialsEncryptionKey("1234567890abcdef");
+                cfg.setCredentialsDecryptionKey("1234567890abcdef");
                 m2 = new Morphium(cfg);
+
             }
             m2.store(new UncachedObject("test", 123));
             ComplexObject o = new ComplexObject();
@@ -63,7 +65,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
             Thread.sleep(550);
             assertEquals(cnt + 1, count);
-            if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+            if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
                 m2.close();
             }
             log.info("Finished!");
@@ -82,10 +84,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 final var written = new AtomicInteger(0);
                 new Thread(() -> {
                     try {
+                        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                         Morphium m2 = morphium;
                         if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                            m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                            cfg.setCredentialsEncryptionKey("1234567890abcdef");
+                            cfg.setCredentialsDecryptionKey("1234567890abcdef");
+                            m2 = new Morphium(cfg);
+
                         }
+
 
                         while (run.get()) {
                             try {
@@ -149,10 +156,13 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     } catch (InterruptedException e) {
                     }
                     log.info("Writing...");
+                    MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     Morphium m2 = morphium;
-                    //inMemoryDriver are distinct
                     if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                        m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+                        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+                        m2 = new Morphium(cfg);
+
                     }
                     m2.store(new UncachedObject("value", 123));
                     written.incrementAndGet();
@@ -205,12 +215,16 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                         run.set(false);
                     }
                     log.info("Setting to value " + i);
+                    MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                     Morphium m2 = morphium;
-                    if (!(morphium.getDriver() instanceof InMemoryDriver)) {
-                        m2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
+                        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+                        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+                        m2 = new Morphium(cfg);
+
                     }
                     m2.set(morphium.createQueryFor(UncachedObject.class).f("counter").lte(50), "str_value", "new value " + i, false, true);
-                    if (!(morphium.getDriver() instanceof InMemoryDriver)) {
+                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
                         m2.close();
                     }
                 }

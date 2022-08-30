@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -17,17 +17,11 @@ public class MapReduceTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void mapReduce(Morphium morphium) throws Exception {
-        try (morphium) {
-            createUncachedObjects(morphium, 100);
-
-            doSimpleMRTest(morphium);
-//        doSimpleMRTest(morphiumMongodb);
-//
+    public void doSimpleMRTest(Morphium m) throws Exception {
+        if (m.getDriver() instanceof InMemoryDriver) {
+            log.error("InMemorydriver does not support MapReduce yet");
+            return;
         }
-    }
-
-    private void doSimpleMRTest(Morphium m) throws Exception {
         List<UncachedObject> result = m.mapReduce(UncachedObject.class, "function(){emit(this.counter%2==0,this);}", "function (key,values){var ret={_id:ObjectId(), str_value:\"\", counter:0}; if (key==true) {ret.str_value=\"even\";} else { ret.str_value=\"odd\";} for (var i=0; i<values.length;i++){ret.counter=ret.counter+values[i].counter;}return ret;}");
         assertThat(result.size()).isEqualTo(2);
         boolean odd = false;

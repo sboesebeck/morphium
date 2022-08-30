@@ -18,7 +18,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: Stephan Bösebeck
@@ -516,7 +515,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         KillCursorsCommand k = new KillCursorsCommand(connection)
-                .setCursorIds(cursorIds)
+                .setCursors(cursorIds)
                 .setDb(db)
                 .setColl(coll);
 

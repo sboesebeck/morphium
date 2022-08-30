@@ -565,8 +565,9 @@ public class Query<T> implements Cloneable {
 
 
     public List distinct(String field) {
-        MongoConnection con = morphium.getDriver().getReadConnection(getRP());
+        MongoConnection con = null;
         try {
+            con = morphium.getDriver().getPrimaryConnection(null);
             var cmd = new DistinctMongoCommand(con)
                     .setDb(getDB())
                     .setColl(getCollectionName())
@@ -580,7 +581,8 @@ public class Query<T> implements Cloneable {
             //TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            con.release();
+            if (con != null)
+                con.release();
         }
     }
 

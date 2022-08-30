@@ -10,8 +10,10 @@ import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import java.text.Collator;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
@@ -20,7 +22,7 @@ public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
 
 
-    public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck) {
+    public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
         }
@@ -45,7 +47,7 @@ public class QueryHelper {
                     //list of field queries
                     @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
-                        if (!matchesQuery(q, toCheck)) {
+                        if (!matchesQuery(q, toCheck, collation)) {
                             return false;
                         }
                     }
@@ -55,7 +57,7 @@ public class QueryHelper {
                     //list of or queries
                     @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
                     for (Map<String, Object> q : lst) {
-                        if (matchesQuery(q, toCheck)) {
+                        if (matchesQuery(q, toCheck, collation)) {
                             return true;
                         }
                     }
@@ -64,14 +66,14 @@ public class QueryHelper {
                 }
                 case "$not": {
                     //noinspection unchecked
-                    return (!matchesQuery((Map<String, Object>) query.get(key), toCheck));
+                    return (!matchesQuery((Map<String, Object>) query.get(key), toCheck, collation));
                 }
                 case "$nor": {
                     //list of or queries
                     @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
 
                     for (Map<String, Object> q : lst) {
-                        if (matchesQuery(q, toCheck)) {
+                        if (matchesQuery(q, toCheck, collation)) {
                             return false;
                         }
                     }
@@ -97,6 +99,21 @@ public class QueryHelper {
                             Expr e = Expr.parse(q);
                             return Boolean.TRUE.equals(e.evaluate(toCheck));
                         }
+                        Collator coll = null;
+                        if (collation != null && !collation.isEmpty()) {
+                            coll = Collator.getInstance(Locale.forLanguageTag((String) collation.get("locale")));
+                            if (collation.containsKey("strength"))
+                                coll.setStrength((Integer) collation.get("strength"));
+                            //add support for caseLevel: <boolean>,
+                            //   caseFirst: <string>,
+                            //   strength: <int>,
+                            //   numericOrdering: <boolean>,
+                            //   alternate: <string>,
+                            //   maxVariable: <string>,
+                            //   backwards: <boolean>
+
+
+                        }
 
                         switch (k) {
 
@@ -104,19 +121,30 @@ public class QueryHelper {
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
                                 if (toCheck.get(key) != null && q.get(k) == null) return false;
                                 if (toCheck.get(key) == null && q.get(k) != null) return false;
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.equals((String) toCheck.get(key), (String) q.get(k));
+
                                 //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) == 0;
                             case "$lt":
                                 //noinspection unchecked
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.compare(toCheck.get(key), q.get(k)) < 0;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) < 0;
                             case "$lte":
                                 //noinspection unchecked
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.compare(toCheck.get(key), q.get(k)) <= 0;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) <= 0;
                             case "$gt":
                                 //noinspection unchecked
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.compare(toCheck.get(key), q.get(k)) > 0;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
                             case "$gte":
                                 //noinspection unchecked
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.compare(toCheck.get(key), q.get(k)) >= 0;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
                             case "$mod":
                                 Number n = (Number) toCheck.get(key);
@@ -130,6 +158,13 @@ public class QueryHelper {
                                 if (toCheck.get(key) instanceof List) {
                                     @SuppressWarnings("unchecked") List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) toCheck.get(key)));
                                     for (Object o : chk) {
+                                        if (coll != null && (o instanceof String)) {
+                                            if (coll.equals((String) o, (String) q.get(k))) {
+                                                contains = true;
+                                                break;
+                                            }
+                                            ;
+                                        }
                                         if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                             contains = true;
                                             break;
@@ -140,6 +175,8 @@ public class QueryHelper {
                                 if (toCheck.get(key) == null && q.get(k) != null) return true;
                                 if (toCheck.get(key) == null && q.get(k) == null) return false;
                                 //noinspection unchecked
+                                if (coll != null && (toCheck.get(key) instanceof String))
+                                    return coll.compare(toCheck.get(key), q.get(k)) != 0;
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
                                 boolean exists = (toCheck.containsKey(key));
@@ -157,11 +194,20 @@ public class QueryHelper {
                                     if (toCheck.get(key) == null) {
                                         if (v == null) found = true;
                                     } else {
+                                        if (coll != null && toCheck.get(key) instanceof String && coll.equals((String) toCheck.get(key), (String) v)) {
+                                            found = true;
+                                            break;
+                                        }
                                         if (toCheck.get(key).equals(v)) {
                                             found = true;
+                                            break;
                                         }
                                         if (toCheck.get(key) instanceof List) {
                                             for (Object v2 : (List) toCheck.get(key)) {
+                                                if (coll != null && coll.equals((String) v2, (String) v)) {
+                                                    found = true;
+                                                    break;
+                                                }
                                                 if (v2.equals(v)) {
                                                     found = true;
                                                     break;
@@ -177,6 +223,9 @@ public class QueryHelper {
                                         v = new ObjectId(v.toString());
                                     }
                                     if (toCheck.get(key) == null && v == null) {
+                                        return true;
+                                    }
+                                    if (coll != null && toCheck.get(key) instanceof String && coll.equals((String) toCheck.get(key), (String) v)) {
                                         return true;
                                     }
                                     if (toCheck.get(key) != null && toCheck.get(key).equals(v)) {
