@@ -5,7 +5,10 @@ import de.caluga.morphium.driver.commands.FindCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -138,7 +141,7 @@ public class RSMonitor {
             try {
                 Map<String, Object> res = morphium.getDriver().getReplsetStatus();
                 de.caluga.morphium.replicaset.ReplicaSetStatus status = morphium.getMapper().deserialize(de.caluga.morphium.replicaset.ReplicaSetStatus.class, res);
-
+                if (status == null) return null;
                 if (full) {
 
                     FindCommand settings = new FindCommand(morphium.getDriver().getPrimaryConnection(null))
@@ -183,7 +186,9 @@ public class RSMonitor {
                 //                        "maxWriteBatchSize" : 1000,
                 return status;
             } catch (Exception e) {
-
+                if (e.getMessage() == null) {
+                    throw new RuntimeException(e);
+                }
                 if (e.getMessage().contains(" 'not running with --replSet'")) {
                     logger.warn("Mongo not configured for replicaset! Disabling monitoring for now");
                     morphium.getConfig().setReplicasetMonitoring(false);

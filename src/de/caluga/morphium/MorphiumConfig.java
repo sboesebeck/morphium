@@ -1,35 +1,29 @@
 package de.caluga.morphium;
 
 
-import de.caluga.morphium.aggregation.Aggregator;
-import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
-import de.caluga.morphium.driver.mongodb.MongoDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
-import de.caluga.morphium.query.*;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-
 import org.json.simple.parser.ParseException;
 import org.slf4j.LoggerFactory;
 
+import javax.net.ssl.SSLContext;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-
-import javax.net.ssl.SSLContext;
 
 /**
  * Stores the configuration for the MongoDBLayer.
@@ -158,7 +152,7 @@ public class MorphiumConfig {
         for (Field f : flds) {
             String fName = prefix + f.getName();
             Object setting = resolver.resolveSetting(fName);
-            if (setting ==null) continue;
+            if (setting == null) continue;
             f.setAccessible(true);
 
             try {
@@ -506,8 +500,7 @@ public class MorphiumConfig {
     /**
      * Sets the maximum time that a thread will block waiting for a connection.
      *
-     * @param maxWaitTime
-     *            the maximum wait time, in milliseconds
+     * @param maxWaitTime the maximum wait time, in milliseconds
      * @return {@code this}
      */
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
@@ -528,8 +521,7 @@ public class MorphiumConfig {
      * A value of 0 means that it will timeout immediately if no server is available. A negative value means to wait indefinitely.
      * </p>
      *
-     * @param serverSelectionTimeout
-     *            the server selection timeout, in milliseconds
+     * @param serverSelectionTimeout the server selection timeout, in milliseconds
      * @return {@code this}
      */
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
@@ -548,6 +540,55 @@ public class MorphiumConfig {
 
     public String getMongoAuthDb() {
         return mongoAuthDb;
+    }
+
+    public String decryptAuthDb() {
+        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+            return getMongoAuthDb();
+        }
+        try {
+
+            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+            var authdb = "admin";
+            if (getMongoAuthDb() != null) {
+                authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
+            }
+            return authdb;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String decryptMongoLogin() {
+        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+            return getMongoLogin();
+        }
+        try {
+
+            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+            return new String(ve.decrypt(Base64.getDecoder().decode(getMongoLogin())));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String decryptMongoPassword() {
+        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+            return getMongoLogin();
+        }
+        try {
+
+            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+            return new String(ve.decrypt(Base64.getDecoder().decode(getMongoPassword())));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
@@ -604,7 +645,6 @@ public class MorphiumConfig {
 
         return this;
     }
-
 
 
     public int getWriteCacheTimeout() {
@@ -1141,15 +1181,19 @@ public class MorphiumConfig {
         this.cursorBatchSize = cursorBatchSize;
         return this;
     }
+
     public SSLContext getSslContext() {
         return sslContext;
     }
+
     public void setSslContext(SSLContext sslContext) {
         this.sslContext = sslContext;
     }
+
     public boolean isUseSSL() {
         return useSSL;
     }
+
     public void setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
     }

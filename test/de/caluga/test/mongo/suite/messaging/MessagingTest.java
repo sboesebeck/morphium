@@ -1681,31 +1681,48 @@ public class MessagingTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
         sender.start();
-        Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+        cfg.setThreadPoolMessagingMaxSize(10);
+        cfg.setThreadPoolMessagingCoreSize(5);
+        cfg.setThreadPoolAsyncOpMaxSize(10);
+        Morphium morphium2 = new Morphium(cfg);
+
         Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
         receiver.start();
 
-        Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+        cfg.setThreadPoolMessagingMaxSize(10);
+        cfg.setThreadPoolMessagingCoreSize(5);
+        cfg.setThreadPoolAsyncOpMaxSize(10);
+        Morphium morphium3 = new Morphium(cfg);
+
         Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.start();
 
-        Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
-        morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
-        morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
+        cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+        cfg.setThreadPoolMessagingMaxSize(10);
+        cfg.setThreadPoolMessagingCoreSize(5);
+        cfg.setThreadPoolAsyncOpMaxSize(10);
+        Morphium morphium4 = new Morphium(cfg);
         Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.start();
 
-        Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg.setCredentialsDecryptionKey("1234567890abcdef");
+        cfg.setThreadPoolMessagingMaxSize(10);
+        cfg.setThreadPoolMessagingCoreSize(5);
+        cfg.setThreadPoolAsyncOpMaxSize(10);
+        Morphium morphium5 = new Morphium(cfg);
         morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);

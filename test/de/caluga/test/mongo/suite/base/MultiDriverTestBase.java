@@ -10,7 +10,6 @@ import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
-import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -115,11 +114,13 @@ public class MultiDriverTestBase {
     }
 
     public static Stream<Arguments> getMorphiumInstances() {
+        init();
         List<Arguments> morphiums = new ArrayList<>();
 
 
         var enc = new AESEncryptionProvider();
         enc.setEncryptionKey("1234567890abcdef".getBytes());
+        enc.setDecryptionKey("1234567890abcdef".getBytes());
         var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
@@ -128,6 +129,8 @@ public class MultiDriverTestBase {
         //Diferent Drivers
         MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
         pooled.setCredentialsEncrypted(true);
+        pooled.setCredentialsEncryptionKey("1234567890abcdef");
+        pooled.setCredentialsDecryptionKey("1234567890abcdef");
         pooled.setMongoAuthDb(authDb);
         pooled.setMongoPassword(password);
         pooled.setMongoLogin(user);
@@ -142,6 +145,8 @@ public class MultiDriverTestBase {
         MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
         singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
         singleConnection.setCredentialsEncrypted(true);
+        singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
+        singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
         singleConnection.setMongoAuthDb(authDb);
         singleConnection.setMongoPassword(password);
         singleConnection.setMongoLogin(user);
@@ -162,6 +167,9 @@ public class MultiDriverTestBase {
         MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
         inMemDriver.setDriverName(InMemoryDriver.driverName);
         inMemDriver.setReplicasetMonitoring(false);
+        inMemDriver.setMongoAuthDb(null);
+        inMemDriver.setMongoLogin(null);
+        inMemDriver.setMongoPassword(null);
         inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
         var inMem = new Morphium(inMemDriver);
         ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
@@ -195,7 +203,7 @@ public class MultiDriverTestBase {
         return morphiums.stream();
     }
 
-    private void init() {
+    private static void init() {
         log.info("in init!");
 
         Properties p = getProps();
@@ -236,6 +244,10 @@ public class MultiDriverTestBase {
             cfg.setThreadPoolMessagingCoreSize(50);
             cfg.setThreadPoolMessagingMaxSize(1500);
             cfg.setThreadPoolMessagingKeepAliveTime(10000);
+//            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP);
+//            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_STARTUP);
+            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_WRITE_NEW_COL);
+            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_WRITE_NEW_COL);
 
             cfg.setGlobalFsync(false);
             cfg.setGlobalJ(false);
@@ -322,11 +334,6 @@ public class MultiDriverTestBase {
         } catch (InterruptedException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         }
-    }
-
-    @org.junit.Before
-    public void setUp() {
-        init();
     }
 
     public void logStats(Morphium m) {

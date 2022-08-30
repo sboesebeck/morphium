@@ -42,6 +42,7 @@ public class MorphiumTestBase {
 
     public static Morphium morphium;
     private static Properties props;
+    private static File configDir;
     protected Logger log;
     public static AtomicInteger number = new AtomicInteger(0);
 
@@ -65,7 +66,11 @@ public class MorphiumTestBase {
     }
 
     private static File getFile() {
-        return new File(System.getProperty("user.home") + "/.morphiumtest.cfg");
+        configDir = new File(System.getProperty("user.home") + ".config/");
+        if (!configDir.exists()) {
+            configDir.mkdirs();
+        }
+        return new File(System.getProperty("user.home") + ".config/morphiumtest.cfg");
     }
 
     @org.junit.BeforeClass

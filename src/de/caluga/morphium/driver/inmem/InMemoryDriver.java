@@ -30,6 +30,7 @@ import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.text.Collator;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -242,12 +243,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public void resetData() {
         database.clear();
+        indexDataByDBCollection.clear();
+        indicesByDbCollection.clear();
+        cappedCollections.clear();
+        for (var o : monitors) {
+            o.notifyAll();
+        }
+        monitors.clear();
+        watchersByDb.clear();
+        eventQueue.clear();
+        cursors.clear();
+        commandResults.clear();
         currentTransaction.remove();
     }
 
 
     public void setCredentials(String db, String login, char[] pwd) {
-
+        //ignored for now
     }
 
 
@@ -557,7 +569,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //        log.error("Should not happen: " + cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         log.info("Killing cursors");
         int ret = commandNumber.incrementAndGet();
-        for (Long id : cmd.getCursorIds()) {
+        for (Long id : cmd.getCursors()) {
             cursors.remove(id);
         }
         commandResults.put(ret, prepareResult());
@@ -624,7 +636,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         var filter = cmd.getFilter();
         if (filter == null) filter = Doc.of();
-        var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), skip, limit);
+        var result = find(cmd.getDb(), cmd.getColl(), filter, cmd.getSort(), cmd.getProjection(), cmd.getCollation(), skip, limit, false);
         return result;
     }
 
@@ -914,7 +926,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMaxBsonObjectSize() {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -924,7 +936,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMaxMessageSize() {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -934,7 +946,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMaxWriteBatchSize() {
-        return 0;
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -1024,7 +1036,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     log.error("Too many keys for expire-index!!!");
                                 } else {
                                     try {
-                                        var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null, null, 0, 0, true);
+                                        var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null, null, null, 0, 0, true);
                                         for (Map<String, Object> o : candidates) {
                                             getCollection(db, coll).remove(o);
                                         }
@@ -1505,12 +1517,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit) throws MorphiumDriverException {
-        return find(db, collection, query, sort, projection, skip, limit, false);
+        return find(db, collection, query, sort, projection, null, skip, limit, false);
     }
 
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
-    private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, boolean internal) throws MorphiumDriverException {
+    private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip, int limit, boolean internal) throws MorphiumDriverException {
         List<Map<String, Object>> partialHitData = new ArrayList<>();
         if (query == null) query = Doc.of();
         if (query.containsKey("$and")) {
@@ -1556,18 +1568,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int count = 0;
 
         if (sort != null) {
-            data.sort((o1, o2) -> {
-                for (String f : sort.keySet()) {
-                    if (o1.get(f).equals(o2.get(f))) {
-                        continue;
+            if (collation != null) {
+                Collator col = Collator.getInstance(Locale.forLanguageTag((String) collation.get("locale")));
+                data.sort((o1, o2) -> col.compare(o1.toString(), o2.toString()));
+            } else {
+                data.sort((o1, o2) -> {
+                    for (String f : sort.keySet()) {
+                        if (o1.get(f).equals(o2.get(f))) {
+                            continue;
+                        }
+                        //noinspection unchecked
+                        if (sort.get(f) instanceof Integer) {
+                            return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
+                        }
                     }
-                    //noinspection unchecked
-                    if (sort.get(f) instanceof Integer) {
-                        return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
-                    }
-                }
-                return 0;
-            });
+                    return 0;
+                });
+            }
         }
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < data.size(); i++) {
@@ -1590,7 +1607,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 }
             }
-            if (QueryHelper.matchesQuery(query, o)) {
+            if (QueryHelper.matchesQuery(query, o, collation)) {
                 if (o == null) o = new HashMap<>();
 
                 ret.add(o);
@@ -1640,7 +1657,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     for (Map.Entry<Integer, List<Map<String, Object>>> k : indexDataForCollection.entrySet()) {
 
                         for (Map<String, Object> o : k.getValue()) {
-                            if (QueryHelper.matchesQuery(query, o)) {
+                            if (QueryHelper.matchesQuery(query, o, null)) {
                                 ret.add(o);
                             }
                         }
@@ -1669,7 +1686,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         long cnt = 0;
 
         for (Map<String, Object> o : data) {
-            if (QueryHelper.matchesQuery(query, o)) {
+            if (QueryHelper.matchesQuery(query, o, collation == null ? null : collation.toQueryObject())) {
                 cnt++;
             }
         }
@@ -1908,7 +1925,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @SuppressWarnings("ConstantConditions")
 
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert, Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
-        List<Map<String, Object>> lst = find(db, collection, query, sort, null, 0, multiple ? 0 : 1, true);
+        List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         int count = 0;
         if (lst == null) lst = new ArrayList<>();

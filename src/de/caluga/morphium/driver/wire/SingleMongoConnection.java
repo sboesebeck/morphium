@@ -1,8 +1,5 @@
 package de.caluga.morphium.driver.wire;
 
-import com.ongres.scram.common.exception.ScramInvalidServerSignatureException;
-import com.ongres.scram.common.exception.ScramParseException;
-import com.ongres.scram.common.exception.ScramServerErrorException;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
@@ -18,7 +15,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -175,7 +171,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         KillCursorsCommand k = new KillCursorsCommand(this)
-                .setCursorIds(cursorIds)
+                .setCursors(cursorIds)
                 .setDb(db)
                 .setColl(coll);
 
@@ -353,6 +349,9 @@ public class SingleMongoConnection implements MongoConnection {
         if (reply.hasCursor()) {
             return getSingleDocAndKillCursor(reply);
         }
+        if (reply.getFirstDoc().get("ok").equals(0.0)) {
+            throw new MorphiumDriverException((String) reply.getFirstDoc().get("errmsg"));
+        }
         return reply.getFirstDoc();
     }
 
@@ -429,7 +428,12 @@ public class SingleMongoConnection implements MongoConnection {
                 log.info("No/empty result");
             }
             if (!command.getCb().isContinued()) {
-                killCursors(command.getDb(), command.getColl(), cursorId);
+
+                String coll = command.getColl();
+                if (coll == null) {
+                    coll = "1";
+                }
+                killCursors(command.getDb(), coll, cursorId);
                 command.setMetaData("duration", System.currentTimeMillis() - start);
                 break;
             }

@@ -1113,7 +1113,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 break;
             case "$match":
                 //noinspection unchecked
-                ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc)).collect(Collectors.toList());
+
+                Map<String, Object> colMap = collation == null ? null : collation.toQueryObject();
+                ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc, colMap)).collect(Collectors.toList());
                 break;
             case "$unwind":
                 op = step.get(stage);

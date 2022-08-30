@@ -263,6 +263,9 @@ public class PooledDriver extends DriverBase {
                 int port = getPortFromHost(host);
 
                 var con = new SingleMongoConnection();
+                if (getAuthDb() != null) {
+                    con.setCredentials(getAuthDb(), getUser(), getPassword());
+                }
                 var hello = con.connect(this, h, port);
                 c = new Connection(con);
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
@@ -330,6 +333,7 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void releaseConnection(MongoConnection con) {
+        if (con == null) return;
         if (!(con instanceof SingleMongoConnection)) {
             throw new IllegalArgumentException("Got connection of wrong type back!");
         }
@@ -398,7 +402,7 @@ public class PooledDriver extends DriverBase {
         }
 
         KillCursorsCommand k = new KillCursorsCommand(null)
-                .setCursorIds(cursorIds)
+                .setCursors(cursorIds)
                 .setDb(db)
                 .setColl(coll);
 
