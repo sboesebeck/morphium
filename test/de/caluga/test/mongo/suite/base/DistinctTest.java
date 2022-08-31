@@ -2,7 +2,6 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 

@@ -1,21 +1,25 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import java.util.Map;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class StatisticsTest extends MorphiumTestBase {
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void statisticsTest() {
-        morphium.getStatistics().put("test", 0.2);
+        assertThrows(RuntimeException.class,()->{
+            morphium.getStatistics().put("test", 0.2);
+        });
+
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void putAll() {
-        morphium.getStatistics().putAll(UtilsMap.of("test", 0.2));
+        assertThrows(RuntimeException.class,()-> {
+            morphium.getStatistics().putAll(UtilsMap.of("test", 0.2));
+        });
     }
 
     @Test()
@@ -28,9 +32,11 @@ public class StatisticsTest extends MorphiumTestBase {
         assert (morphium.getStatistics().hashCode() != 0);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void remove() {
-        morphium.getStatistics().remove("test");
+        assertThrows(RuntimeException.class,()-> {
+            morphium.getStatistics().remove("test");
+        });
     }
 
 

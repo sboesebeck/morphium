@@ -9,7 +9,7 @@ import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.test.mongo.suite.data.CustomMappedObject;
 import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;

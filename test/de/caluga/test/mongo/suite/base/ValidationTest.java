@@ -4,12 +4,14 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ValidationTestObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import javax.validation.ConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * User: martinstolz
@@ -23,46 +25,58 @@ public class ValidationTest extends MorphiumTestBase {
         morphium.store(o);
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testNotNull() {
-        ValidationTestObject o = getValidObject();
-        o.setAnotherInt(null);
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setAnotherInt(null);
+            morphium.store(o);
+        });
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testMinMax() {
-        ValidationTestObject o = getValidObject();
-        o.setTheInt(2);
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setTheInt(2);
+            morphium.store(o);
+        });
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testMinMaxList() {
-        ValidationTestObject o = getValidObject();
-        o.getFriends().clear();
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.getFriends().clear();
+            morphium.store(o);
+        });
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testEmail() {
-        ValidationTestObject o = getValidObject();
-        o.setEmail("uh oh this won't validate...");
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setEmail("uh oh this won't validate...");
+            morphium.store(o);
+        });
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testDateFuture() {
-        ValidationTestObject o = getValidObject();
-        o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
+            morphium.store(o);
+        });
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testRegex() {
-        ValidationTestObject o = getValidObject();
-        o.setWhereever("at the beach");
-        morphium.store(o);
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setWhereever("at the beach");
+            morphium.store(o);
+        });
     }
 
     @Test
@@ -80,20 +94,21 @@ public class ValidationTest extends MorphiumTestBase {
 
     }
 
-    @Test(expected = ConstraintViolationException.class)
+    @Test
     public void testEmbeddedObjectsValidationErrors() {
-        ValidationTestObject o = getValidObject();
-        o.setWhereever("nix");
-        ListValidationTestObject lst = new ListValidationTestObject();
-        List<ValidationTestObject> obj = new ArrayList<>();
-        obj.add(o);
-        obj.add(getValidObject());
-        obj.add(getValidObject());
+        assertThrows(ConstraintViolationException.class,()-> {
+            ValidationTestObject o = getValidObject();
+            o.setWhereever("nix");
+            ListValidationTestObject lst = new ListValidationTestObject();
+            List<ValidationTestObject> obj = new ArrayList<>();
+            obj.add(o);
+            obj.add(getValidObject());
+            obj.add(getValidObject());
 
-        lst.setLst(obj);
+            lst.setLst(obj);
 
-        morphium.store(lst);
-
+            morphium.store(lst);
+        });
     }
 
     private ValidationTestObject getValidObject() {

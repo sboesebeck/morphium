@@ -1,7 +1,6 @@
 package de.caluga.test.morphium.driver.command;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.ReadPreference;
@@ -12,17 +11,21 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class MongoCommandTest {
     private Logger log= LoggerFactory.getLogger(MongoCommandTest.class);
@@ -99,7 +102,7 @@ public class MongoCommandTest {
                 commandName=m2.keySet().toArray(new String[1])[0];
                 assertEquals(commandName,cmd2.getCommandName());
                 for (var e:m.entrySet()) {
-                    assertEquals("Value differs: key = "+e.getKey(), e.getValue(), m2.get(e.getKey()));
+                    assertEquals( e.getValue(), m2.get(e.getKey()),"Value differs: key = "+e.getKey());
                 }
 
             }

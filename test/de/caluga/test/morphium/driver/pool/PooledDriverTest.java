@@ -5,8 +5,6 @@ import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoClients;
 import com.mongodb.connection.ClusterConnectionMode;
-import com.mongodb.internal.connection.MongoCredentialWithCache;
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -18,7 +16,7 @@ import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.Document;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,8 +28,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
@@ -80,7 +79,7 @@ public class PooledDriverTest {
                 ));
                 insert.setColl("uncached_object").setDb("morphium_test");
                 var m = insert.execute();
-                assertEquals("should insert 2 elements", 2, m.get("n"));
+                assertEquals( 2, m.get("n"),"should insert 2 elements");
                 //log.info(Utils.toJsonString(m));
                 con.release();
             }
@@ -100,7 +99,7 @@ public class PooledDriverTest {
                         .setFilter(Doc.of("counter", i));
                 var ret = fnd.execute();
                 assertNotNull(ret);
-                assertEquals("Should find exactly one element", ret.size(), 1);
+                assertEquals( ret.size(), 1,"Should find exactly one element");
 
             }
             c.release();
@@ -156,7 +155,7 @@ public class PooledDriverTest {
                     new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))),
                     new Document(om.serialize(new UncachedObject("value_" + i, i)))));
 
-            assertEquals("should insert 2 elements", 2, ret.getInsertedIds().size());
+            assertEquals(2, ret.getInsertedIds().size(),"should insert 2 elements");
         }
         long d = System.currentTimeMillis() - start;
         log.info("Writing took " + d);
@@ -253,12 +252,12 @@ public class PooledDriverTest {
             log.info("Thread finished...");
         }
         log.info("All threads finished!");
-        assertEquals("Too man errors", 0, error.get());
+        assertEquals(0, error.get(),"Too man errors");
         Map<MorphiumDriver.DriverStatsKey, Double> driverStats = drv.getDriverStats();
         for (var e : driverStats.entrySet()) {
             log.info(e.getKey() + "  =  " + e.getValue());
         }
-        assertEquals("Release vs. borrow do not match up!", driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED));
+        assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED),"Release vs. borrow do not match up!");
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_USE), 0);
         drv.close();
     }

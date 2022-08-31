@@ -5,7 +5,7 @@ package de.caluga.test.mongo.suite.base;/**
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * TODO: Add Documentation here

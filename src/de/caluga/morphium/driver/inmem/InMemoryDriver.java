@@ -1060,7 +1060,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public InMemoryDriver setExpireCheck(int expireCheck) {
         this.expireCheck = expireCheck;
-        expire.cancel(true);
+        if (expire!=null) {
+            expire.cancel(true);
+        }
         scheduleExpire();
         return this;
     }
@@ -1568,23 +1570,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int count = 0;
 
         if (sort != null) {
-            if (collation != null) {
-                Collator col = Collator.getInstance(Locale.forLanguageTag((String) collation.get("locale")));
-                data.sort((o1, o2) -> col.compare(o1.toString(), o2.toString()));
-            } else {
-                data.sort((o1, o2) -> {
-                    for (String f : sort.keySet()) {
-                        if (o1.get(f).equals(o2.get(f))) {
-                            continue;
-                        }
-                        //noinspection unchecked
-                        if (sort.get(f) instanceof Integer) {
-                            return ((Comparable) o1.get(f)).compareTo(o2.get(f)) * ((Integer) sort.get(f));
-                        }
+            Collator coll=QueryHelper.getCollator(collation);
+            data.sort((o1, o2) -> {
+                for (String f : sort.keySet()) {
+                    if (o1.get(f)==null && o2.get(f)==null){
+                        return 0;
                     }
-                    return 0;
-                });
-            }
+                    if (o1.get(f)==null && o2.get(f)!=null){
+                        return -1;
+                    }
+                    if (o1.get(f)!=null && o2.get(f)==null){
+                        return 1;
+                    }
+
+                    //noinspection unchecked
+                    if (sort.get(f) instanceof Integer) {
+                        if (coll!=null){
+                            return (coll.compare(o1.get(f).toString(),o2.get(f).toString())) * ((Integer) sort.get(f));
+                        }
+                        return ((Comparable) o1.get(f)).compareTo(o2.get( f)) * ((Integer) sort.get(f));
+                    } else {
+                        return (coll.compare(o1.toString(),o2.toString()));
+                    }
+                }
+                return 0;
+            });
+
         }
         //noinspection ForLoopReplaceableByForEach
         for (int i = 0; i < data.size(); i++) {
@@ -1781,11 +1792,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 collectionData.remove(0);
             }
 
-            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("max") && collectionData.size() + objs.size() >= cappedCollections.get(db).get(collection).get("max")) {
+            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("max") && collectionData.size() + objs.size() > cappedCollections.get(db).get(collection).get("max")) {
                 objs.remove(0);
             }
 
-            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("size") && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) >= cappedCollections.get(db).get(collection).get("size")) {
+            while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("size") && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) > cappedCollections.get(db).get(collection).get("size")) {
                 objs.remove(0);
             }
 
@@ -2567,9 +2578,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (index.size() == 2 && index.containsKey("_id") && index.containsKey("$options")) {
                 //ignoring attempt to re-create_id index
             } else {
-                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
+//                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
+                throw new MorphiumDriverException("Index with those keys already exists");
             }
-            // throw new MorphiumDriverException("Index with those keys already exists");
+            //
         }
         updateIndexData(db, collection, options);
     }

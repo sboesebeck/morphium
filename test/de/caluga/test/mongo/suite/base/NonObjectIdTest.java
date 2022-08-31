@@ -3,9 +3,11 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.test.mongo.suite.data.Person;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Date;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * User: Stephan Bösebeck
@@ -50,12 +52,15 @@ public class NonObjectIdTest extends MorphiumTestBase {
 
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void nonObjectIdTestFail() {
-        Tst t = new Tst();
-        t.str = "test-a-string";
+        assertThrows(IllegalArgumentException.class,()->{
+            Tst t = new Tst();
+            t.str = "test-a-string";
 
-        morphium.store(t); //will fail
+            morphium.store(t); //will fail
+        });
+
     }
 
     @Entity

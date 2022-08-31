@@ -1,27 +1,17 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.IgnoreFields;
-import de.caluga.morphium.annotations.Index;
-import de.caluga.morphium.annotations.LimitToFields;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.*;
-
 import net.sf.cglib.proxy.Enhancer;
 import net.sf.cglib.proxy.FixedValue;
-
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -34,7 +24,7 @@ public class AnnotationAndReflectionHelperTest {
 
     private AnnotationAndReflectionHelper helper;
 
-    @Before
+    @BeforeEach
     public void setup() {
         helper = new AnnotationAndReflectionHelper(true);
     }

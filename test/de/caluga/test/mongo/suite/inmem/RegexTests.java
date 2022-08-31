@@ -1,9 +1,8 @@
 package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.regex.Pattern;

@@ -2,7 +2,7 @@ package de.caluga.morphium.server;
 
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.test.DriverMock;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

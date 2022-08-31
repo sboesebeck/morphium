@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.FilterExpression;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +19,7 @@ public class FilterExpressionTest {
 
     private FilterExpression fe;
 
-    @Before
+    @BeforeEach
     public void setup() {
         fe = new FilterExpression();
         fe.setField("field");

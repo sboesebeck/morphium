@@ -4,7 +4,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
-import de.caluga.morphium.driver.inmem.InMemAggregator;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
@@ -12,6 +11,8 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +28,7 @@ public class MorphiumInMemTestBase {
 
     public Logger log = LoggerFactory.getLogger(MorphiumInMemTestBase.class);
 
-    @org.junit.Before
+    @BeforeEach
     public void setup() {
         System.gc();
         log.info("creating in Memory instance");
@@ -45,7 +46,7 @@ public class MorphiumInMemTestBase {
 
     }
 
-    @org.junit.After
+    @AfterEach
     public void tearDown() throws InterruptedException {
         log.info("Cleaning up...");
 

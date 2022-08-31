@@ -15,6 +15,10 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,12 +77,12 @@ public class MorphiumTestBase {
         return new File(System.getProperty("user.home") + ".config/morphiumtest.cfg");
     }
 
-    @org.junit.BeforeClass
+    @BeforeAll
     public static synchronized void setUpClass() {
         System.gc();
     }
 
-    @org.junit.AfterClass
+    @AfterAll
     public static void tearDownClass() {
         // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
@@ -204,7 +208,7 @@ public class MorphiumTestBase {
         log.info("Init complete");
     }
 
-    @org.junit.After
+    @AfterEach
     public void tearDown() throws InterruptedException {
         if (morphium == null) return;
         logStats(morphium);
@@ -342,7 +346,7 @@ public class MorphiumTestBase {
         }
     }
 
-    @org.junit.Before
+    @BeforeEach
     public void setUp() {
         init();
     }

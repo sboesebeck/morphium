@@ -2,12 +2,10 @@ package de.caluga.test.morphium.driver;
 
 import com.ongres.scram.client.ScramClient;
 import com.ongres.scram.client.ScramSession;
-import com.ongres.scram.common.ScramFunctions;
 import com.ongres.scram.common.ScramMechanisms;
 import com.ongres.scram.common.stringprep.StringPreparations;
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

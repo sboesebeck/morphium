@@ -1,35 +1,28 @@
 package de.caluga.test.morphium.driver;
 
-import com.ongres.scram.client.ScramClient;
-import com.ongres.scram.client.ScramSession;
-import com.ongres.scram.common.ScramMechanisms;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SingleMongoConnectionTest extends ConnectionTestBase {

@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.cache.CacheListener;
 import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Created with IntelliJ IDEA.

@@ -5,7 +5,7 @@ import de.caluga.morphium.ReadAccessType;
 import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * User: Stephan Bösebeck

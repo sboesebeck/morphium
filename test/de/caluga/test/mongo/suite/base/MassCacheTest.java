@@ -9,7 +9,7 @@ import de.caluga.morphium.ReadAccessType;
 import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

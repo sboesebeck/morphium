@@ -1,9 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.Morphium;
-import org.junit.Test;
-
-import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 /**
  * User: Stephan Bösebeck

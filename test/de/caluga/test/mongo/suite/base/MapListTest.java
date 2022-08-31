@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Embedded;
@@ -9,7 +8,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.MapListObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,11 +1,10 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.annotations.Entity;
-
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * User: Stephan Bösebeck

@@ -9,7 +9,7 @@ import de.caluga.morphium.replicaset.ReplicaSetNode;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
 import de.caluga.morphium.replicaset.ReplicasetStatusListener;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

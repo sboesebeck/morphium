@@ -1,10 +1,15 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.*;
-import de.caluga.morphium.driver.MorphiumId;
-import org.junit.Test;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.Sequence;
+import de.caluga.morphium.SequenceGenerator;
+import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**

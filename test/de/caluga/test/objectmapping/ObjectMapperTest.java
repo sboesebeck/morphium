@@ -1,18 +1,15 @@
 package de.caluga.test.objectmapping;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Map;
 
 public class ObjectMapperTest {

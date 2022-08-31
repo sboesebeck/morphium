@@ -6,7 +6,7 @@ import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +17,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 public class SingleConnectDriverTests extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
@@ -211,7 +213,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
                 .setFilter(Doc.of("_id", "123123"));
         var result = find.execute();
         assertNotNull(result);
-        assertTrue("did not find", result.size() > 0);
+        assertTrue(result.size() > 0,"did not find");
 
         var update = new UpdateMongoCommand(con).setDb("morphium_test").setColl("tests")
                 .addUpdate(Doc.of("_id", "123123"), Doc.of("value", "the value"), null, false, false, null, null, null);
@@ -227,7 +229,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
         result = find.execute();
         assertNotNull(result);
         assertTrue(result.size() == 1);
-        assertTrue("update failed", result.get(0).get("value").equals("the value"));
+        assertTrue( result.get(0).get("value").equals("the value"),"update failed");
         drv.releaseConnection(con);
     }
 

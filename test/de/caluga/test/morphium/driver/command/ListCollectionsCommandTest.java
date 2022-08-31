@@ -3,10 +3,8 @@ package de.caluga.test.morphium.driver.command;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import de.caluga.test.morphium.driver.ConnectionTestBase;
 import de.caluga.test.morphium.driver.DriverTestBase;
-import de.caluga.test.morphium.driver.SingleConnectDriverTests;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

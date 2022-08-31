@@ -7,12 +7,13 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.*;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.fail;
+
 
 /**
  * User: Stephan Bösebeck
@@ -190,7 +191,7 @@ public class ListTests extends MorphiumTestBase {
             ListWildcardContainer testObejectToLoadFromDB = (ListWildcardContainer) q.get();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            fail("error while restoring object from db | " + e.getMessage());
+            fail("error while restoring object from db | "+ e.getMessage(),e);
         }
     }
 

@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.aggregationStages;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
@@ -10,11 +9,10 @@ import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public class AddFieldAndSetTests extends MorphiumTestBase {
 

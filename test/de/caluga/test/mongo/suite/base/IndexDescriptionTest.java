@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.IndexDescription;
-import org.junit.Test;
+import de.caluga.morphium.driver.Doc;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

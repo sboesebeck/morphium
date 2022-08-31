@@ -8,7 +8,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.test.morphium.driver.connection.BaseTest;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
