@@ -1,13 +1,13 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.NameProvider;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
-import org.junit.Test;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;

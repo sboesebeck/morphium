@@ -5,10 +5,6 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.query.Query;
-import org.junit.Test;
-
-import java.util.List;
 
 /**
  * User: Stephan Bösebeck

@@ -3,11 +3,10 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

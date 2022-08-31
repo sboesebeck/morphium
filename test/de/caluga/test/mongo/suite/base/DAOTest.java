@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObjectDAO;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 

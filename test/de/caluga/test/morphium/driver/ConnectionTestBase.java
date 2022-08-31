@@ -4,7 +4,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.test.DriverMock;
-import org.junit.Before;
+import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +23,7 @@ public class ConnectionTestBase {
         return con;
     }
 
-    @Before
+    @BeforeEach
     public void prepare() throws Exception {
         try {
             log.info("Dropping database...");

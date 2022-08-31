@@ -10,7 +10,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class InMemDriverTest {
     private Logger log = LoggerFactory.getLogger(InMemDriverTest.class);
@@ -49,7 +49,7 @@ public class InMemDriverTest {
         } catch (MorphiumDriverException e) {
             exc = true;
         }
-        assertTrue("Creating the same index should throw an exception", exc);
+        assertTrue(exc, "Creating the same index should throw an exception");
 
         ShutdownCommand shutdownCommand = new ShutdownCommand(drv).setTimeoutSecs(10);
         var sh = shutdownCommand.execute();
@@ -78,11 +78,11 @@ public class InMemDriverTest {
         FindCommand fnd = new FindCommand(drv).setColl(coll).setDb(db);
         fnd.setFilter(Doc.of("value", 14));
         var found = fnd.execute();
-        assertEquals("Should only find 1", found.size(), 1);
+        assertEquals(1, found.size());
 
         fnd.setFilter(null);
         found = fnd.execute();
-        assertEquals("Should find 4", found.size(), 4);
+        assertEquals(4, found.size());
 
         DistinctMongoCommand distinct = new DistinctMongoCommand(drv).setKey("strVal");
         distinct.setDb(db).setColl(coll);
@@ -153,29 +153,31 @@ public class InMemDriverTest {
         drv.close();
     }
 
-    @Test(expected = MorphiumDriverException.class)
+    @Test
     public void testUniqueIndex() throws Exception {
-        InMemoryDriver drv = new InMemoryDriver().setExpireCheck(10000);
-        drv.connect();
-        try (drv) {
+        assertThrows(MorphiumDriverException.class, () -> {
+            InMemoryDriver drv = new InMemoryDriver().setExpireCheck(10000);
+            drv.connect();
+            try (drv) {
 
-            var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
-            insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
-                    Doc.of("_id", new MorphiumId(), "value", 14),
-                    Doc.of("_id", new MorphiumId(), "value", 15)
-            ));
-            var insertResult = insert.execute();
-            CreateIndexesCommand indexesCommand = new CreateIndexesCommand(drv)
-                    .setDb(db).setColl(coll)
-                    .addIndex(new IndexDescription().setKey(Doc.of("value", 1)).setUnique(true));
-            indexesCommand.execute();
-            insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
-            insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
-                    Doc.of("_id", new MorphiumId(), "value", 17),
-                    Doc.of("_id", new MorphiumId(), "value", 19)
-            ));
-            insert.execute();
-        }
+                var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
+                insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
+                        Doc.of("_id", new MorphiumId(), "value", 14),
+                        Doc.of("_id", new MorphiumId(), "value", 15)
+                ));
+                var insertResult = insert.execute();
+                CreateIndexesCommand indexesCommand = new CreateIndexesCommand(drv)
+                        .setDb(db).setColl(coll)
+                        .addIndex(new IndexDescription().setKey(Doc.of("value", 1)).setUnique(true));
+                indexesCommand.execute();
+                insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
+                insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
+                        Doc.of("_id", new MorphiumId(), "value", 17),
+                        Doc.of("_id", new MorphiumId(), "value", 19)
+                ));
+                insert.execute();
+            }
+        });
     }
 
 
@@ -229,7 +231,7 @@ public class InMemDriverTest {
         insertResult = insert.execute();
         var ret = drv.find(db, coll, Doc.of(), null, null, 0, 0);
         log.info("Got result: " + ret.size());
-        assertTrue(ret.size() == 5);
+        assertEquals(5, ret.size());
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
                 Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
                 Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),

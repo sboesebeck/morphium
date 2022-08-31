@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 

@@ -10,11 +10,11 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ExtendedEmbeddedObject;
 import de.caluga.test.mongo.suite.data.SetContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import java.util.*;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
-import static org.junit.Assert.fail;
 
 /**
  * User: Stephan Bösebeck

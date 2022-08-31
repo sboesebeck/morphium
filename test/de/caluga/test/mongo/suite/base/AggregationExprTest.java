@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
-import junit.framework.TestCase;
+import org.junit.platform.commons.annotation.Testable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +14,8 @@ import java.util.Map;
 
 import static de.caluga.morphium.aggregation.Expr.*;
 
-public class AggregationExprTest extends TestCase {
+@Testable
+public class AggregationExprTest  {
     Logger log = LoggerFactory.getLogger(AggregationExprTest.class);
 
     public void testAbs() {

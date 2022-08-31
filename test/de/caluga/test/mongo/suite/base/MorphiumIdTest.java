@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.MorphiumId;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;

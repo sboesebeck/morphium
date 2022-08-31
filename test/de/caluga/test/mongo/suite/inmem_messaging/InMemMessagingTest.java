@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite.inmem_messaging;
 
-import de.caluga.morphium.*;
+import de.caluga.morphium.ProfilingListener;
+import de.caluga.morphium.ReadAccessType;
+import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -8,7 +10,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

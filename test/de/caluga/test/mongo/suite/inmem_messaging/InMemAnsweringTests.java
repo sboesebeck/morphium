@@ -5,13 +5,15 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class InMemAnsweringTests extends MorphiumInMemTestBase {
     private final List<Msg> list = new ArrayList<>();
@@ -509,24 +511,26 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
     }
 
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void sendAndWaitforAnswerTestFailing() {
-        Messaging m1 = new Messaging(morphium, 100, false);
-        log.info("Upcoming Errormessage is expected!");
-        try {
-            m1.addMessageListener((msg, m) -> {
-                gotMessage1 = true;
-                return new Msg(m.getName(), "got message", "value", 5000);
-            });
+        assertThrows(RuntimeException.class,()-> {
+            Messaging m1 = new Messaging(morphium, 100, false);
+            log.info("Upcoming Errormessage is expected!");
+            try {
+                m1.addMessageListener((msg, m) -> {
+                    gotMessage1 = true;
+                    return new Msg(m.getName(), "got message", "value", 5000);
+                });
 
-            m1.start();
+                m1.start();
 
-            Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
-        } finally {
-            //cleaning up
-            m1.terminate();
-            morphium.dropCollection(Msg.class);
-        }
+                Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
+            } finally {
+                //cleaning up
+                m1.terminate();
+                morphium.dropCollection(Msg.class);
+            }
+        });
 
     }
 

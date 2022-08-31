@@ -4,7 +4,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import javax.jms.*;
 import java.util.Map;

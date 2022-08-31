@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 

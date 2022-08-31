@@ -5,15 +5,13 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.query.QueryIterator;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;

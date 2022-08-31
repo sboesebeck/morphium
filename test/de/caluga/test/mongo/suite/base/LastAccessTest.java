@@ -4,7 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * User: Stephan Bösebeck

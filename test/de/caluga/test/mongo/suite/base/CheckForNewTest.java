@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Date;
 

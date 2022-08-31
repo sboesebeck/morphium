@@ -7,10 +7,8 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.experimental.theories.Theories;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -23,7 +21,6 @@ import java.util.List;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-@RunWith(Theories.class)
 public class BulkInsertTest extends MultiDriverTestBase {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;

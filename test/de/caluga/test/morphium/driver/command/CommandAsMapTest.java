@@ -1,8 +1,6 @@
 package de.caluga.test.morphium.driver.command;
 
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
@@ -12,16 +10,14 @@ import de.caluga.test.DriverMock;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CommandAsMapTest {
     private Logger log = LoggerFactory.getLogger(CommandAsMapTest.class);

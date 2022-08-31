@@ -2,46 +2,27 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.MorphiumReference;
-import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.ComplexObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.ListContainer;
-import de.caluga.test.mongo.suite.data.MapListObject;
-
-import de.caluga.test.mongo.suite.data.UncachedObject;
-
+import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class ObjectMapperImplTest {

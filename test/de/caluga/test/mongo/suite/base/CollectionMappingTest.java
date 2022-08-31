@@ -2,8 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
-
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * User: Stephan Bösebeck

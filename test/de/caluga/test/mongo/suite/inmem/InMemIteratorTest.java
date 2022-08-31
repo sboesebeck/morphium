@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.inmem;
 
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -10,7 +9,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.*;
 

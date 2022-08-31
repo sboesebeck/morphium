@@ -5,7 +5,7 @@ import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;

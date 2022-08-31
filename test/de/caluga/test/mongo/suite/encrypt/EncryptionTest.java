@@ -5,7 +5,7 @@ import de.caluga.morphium.encryption.PropertyEncryptionKeyProvider;
 import de.caluga.morphium.encryption.RSAEncryptionProvider;
 import de.caluga.rsa.AES;
 import de.caluga.rsa.RSA;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Base64;

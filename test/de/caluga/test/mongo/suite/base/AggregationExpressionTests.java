@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Expr;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

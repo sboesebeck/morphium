@@ -218,51 +218,48 @@ public class Morphium implements AutoCloseable {
             });
 
 
-            try {
-                try (ScanResult scanResult =
-                             new ClassGraph()
-                                     .enableAllInfo()       // Scan classes, methods, fields, annotations
-                                     .scan()) {
-                    ClassInfoList entities =
-                            scanResult.getClassesImplementing(MorphiumDriver.class.getName());
-                    //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-                    log.info("Found " + entities.size() + " drivers in classpath");
-                    if (config.getDriverName() == null) {
-                        config.setDriverName(SingleMongoConnectDriver.driverName);
-                        morphiumDriver = new SingleMongoConnectDriver();
-                    } else {
-                        for (String cn : entities.getNames()) {
-                            try {
-                                Class c = Class.forName(cn);
-                                if (Modifier.isAbstract(c.getModifiers())) continue;
-                                var flds = annotationHelper.getAllFields(c);
-                                for (var f : flds) {
-                                    if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
-                                        String dn = (String) f.get(c);
-                                        log.info("Found driverName: " + dn);
-                                        if (dn.equals(config.getDriverName())) {
-                                            morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+            try (ScanResult scanResult =
+                         new ClassGraph()
+                                 .enableAllInfo()       // Scan classes, methods, fields, annotations
+                                 .scan()) {
+                ClassInfoList entities =
+                        scanResult.getClassesImplementing(MorphiumDriver.class.getName());
+                //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
+                log.info("Found " + entities.size() + " drivers in classpath");
+                if (config.getDriverName() == null) {
+                    config.setDriverName(SingleMongoConnectDriver.driverName);
+                    morphiumDriver = new SingleMongoConnectDriver();
+                } else {
+                    for (String cn : entities.getNames()) {
+                        try {
+                            Class c = Class.forName(cn);
+                            if (Modifier.isAbstract(c.getModifiers())) continue;
+                            var flds = annotationHelper.getAllFields(c);
+                            for (var f : flds) {
+                                if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
+                                    String dn = (String) f.get(c);
+                                    log.info("Found driverName: " + dn);
+                                    if (dn.equals(config.getDriverName())) {
+                                        morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
 
-                                        }
-                                        break;
                                     }
+                                    break;
                                 }
-                                if (morphiumDriver == null) {
-                                    var drv = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                    if (drv.getName().equals(config.getDriverName())) {
-                                        morphiumDriver = drv;
-                                        break;
-                                    }
-                                }
-                            } catch (ClassNotFoundException e) {
-                                throw new RuntimeException("Could not load driver " + config.getDriverName());
                             }
+                            if (morphiumDriver == null) {
+                                var drv = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                                if (drv.getName().equals(config.getDriverName())) {
+                                    morphiumDriver = drv;
+                                    break;
+                                }
+                            }
+                        } catch (Throwable e) {
+                            log.error("Could not load driver " + config.getDriverName(), e);
                         }
                     }
-                    if (morphiumDriver == null) {
-                        morphiumDriver = new SingleMongoConnectDriver(); //default
-                    }
-
+                }
+                if (morphiumDriver == null) {
+                    morphiumDriver = new SingleMongoConnectDriver(); //default
                 }
 
 

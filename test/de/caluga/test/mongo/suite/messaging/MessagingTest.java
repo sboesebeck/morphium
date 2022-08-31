@@ -8,15 +8,16 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /**
  * User: Stephan Bösebeck
@@ -204,7 +205,7 @@ public class MessagingTest extends MorphiumTestBase {
         messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
 
         Thread.sleep(1000);
-        assertFalse("Message recieved from self?!?!?!", gotMessage);
+        assertFalse(gotMessage,"Message recieved from self?!?!?!");
         ;
         log.info("Did not get own message - cool!");
 
@@ -217,12 +218,12 @@ public class MessagingTest extends MorphiumTestBase {
         long start = System.currentTimeMillis();
         while (!gotMessage) {
             Thread.sleep(100);
-            assertTrue("Message timeout?!?!?", System.currentTimeMillis() - start < 5000);
+            assertTrue(System.currentTimeMillis() - start < 5000,"Message timed out");
         }
         assertTrue(gotMessage);
         gotMessage = false;
         Thread.sleep(1000);
-        assertFalse("Got message again?!?!?!", gotMessage);
+        assertFalse(gotMessage,"Got message again?!?!?!");
 
         messaging.terminate();
     }
@@ -267,12 +268,12 @@ public class MessagingTest extends MorphiumTestBase {
         while (!gotMessage2) {
             Thread.sleep(100);
         }
-        assertTrue("Message not recieved yet?!?!?", gotMessage2);
+        assertTrue(gotMessage2,"Message not recieved yet?!?!?");
         gotMessage2 = false;
 
         m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
         Thread.sleep(1000);
-        assertTrue("Message not recieved yet?!?!?", gotMessage1);
+        assertTrue(gotMessage1,"Message not recieved yet?!?!?");
         gotMessage1 = false;
         assertFalse(error);
         m1.terminate();
@@ -330,9 +331,9 @@ public class MessagingTest extends MorphiumTestBase {
             Thread.sleep(100);
             //log.info("Still waiting for messages...");
         }
-        assertTrue("Message not recieved yet by m2?!?!?", gotMessage2);
-        assertTrue("Message not recieved yet by m3?!?!?", gotMessage3);
-        assertTrue("Message not recieved yet by m4?!?!?", gotMessage4);
+        assertTrue(gotMessage2,"Message not recieved yet by m2?!?!?" );
+        assertTrue(gotMessage3,"Message not recieved yet by m3?!?!?");
+        assertTrue(gotMessage4,"Message not recieved yet by m4?!?!?");
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -343,9 +344,9 @@ public class MessagingTest extends MorphiumTestBase {
             Thread.sleep(100);
             //log.info("Still waiting for messages...");
         }
-        assertTrue("Message not recieved yet by m1?!?!?", gotMessage1);
-        assertTrue("Message not recieved yet by m3?!?!?", gotMessage3);
-        assertTrue("Message not recieved yet by m4?!?!?", gotMessage4);
+        assertTrue(gotMessage1,"Message not recieved yet by m1?!?!?");
+        assertTrue(gotMessage3,"Message not recieved yet by m3?!?!?");
+        assertTrue(gotMessage4,"Message not recieved yet by m4?!?!?");
 
         gotMessage1 = false;
         gotMessage2 = false;
@@ -362,8 +363,8 @@ public class MessagingTest extends MorphiumTestBase {
         if (gotMessage3) cnt++;
         if (gotMessage4) cnt++;
 
-        assertTrue("Message was not received", cnt != 0);
-        assertTrue("Message was received too often: " + cnt, cnt == 1);
+        assertTrue(cnt!=0,"Message was not received");
+        assertTrue(cnt==1,"Message was received too often: " + cnt);
 
         m1.terminate();
         m2.terminate();

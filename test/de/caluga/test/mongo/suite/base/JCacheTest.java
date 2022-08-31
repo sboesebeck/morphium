@@ -9,7 +9,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.ehcache.jcache.JCacheCachingProvider;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

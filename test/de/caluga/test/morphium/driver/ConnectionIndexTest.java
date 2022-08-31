@@ -7,7 +7,7 @@ import de.caluga.morphium.driver.commands.CreateIndexesCommand;
 import de.caluga.morphium.driver.commands.DropMongoCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ListIndexesCommand;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

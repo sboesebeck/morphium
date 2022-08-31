@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.inmem;
 
+import de.caluga.morphium.Collation;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
@@ -11,10 +12,9 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.text.Collator;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.text.ParseException;
+import java.text.RuleBasedCollator;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
@@ -101,9 +101,7 @@ public class QueryHelper {
                         }
                         Collator coll = null;
                         if (collation != null && !collation.isEmpty()) {
-                            coll = Collator.getInstance(Locale.forLanguageTag((String) collation.get("locale")));
-                            if (collation.containsKey("strength"))
-                                coll.setStrength((Integer) collation.get("strength"));
+                            coll=getCollator(collation);
                             //add support for caseLevel: <boolean>,
                             //   caseFirst: <string>,
                             //   strength: <int>,
@@ -249,6 +247,7 @@ public class QueryHelper {
                                 Object ev = e.evaluate(toCheck);
                                 return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
                             case "$regex":
+                            case "$text":
                                 Object valtoCheck = null;
                                 if (key.contains(".")) {
                                     //path
@@ -293,16 +292,42 @@ public class QueryHelper {
 
                                 }
                                 if (valtoCheck == null) return false;
+                                if (k.equals("$text")){
+                                    String srch=q.get("$text").toString().toLowerCase();
+                                    String[] tokens=null;
+                                    if (srch.contains("\"")){
+                                        //phrase search
+                                        List<String> tks=new ArrayList<>();
+                                        Pattern p=Pattern.compile("\"([^\"]*)\"");
+                                        String t=p.matcher(srch).group(1);
+                                        srch=srch.replaceAll("\""+t+"\"","");
+                                        tks.add(t);
+                                        tks.addAll(Arrays.asList(srch.split(" ")));
+                                    } else {
+                                        srch=srch.replaceAll("[^a-zA-Z0-9 ]"," ");
+                                        tokens=srch.split(" ");
+                                    }
 
-                                String regex = q.get("$regex").toString();
-                                if (!regex.startsWith("^")) {
-                                    regex = ".*" + regex;
+                                    var v= valtoCheck.toString().toLowerCase();
+                                    found=true;
+                                    for (String s:tokens) {
+                                        if (s.isEmpty() || s.isBlank()) continue;
+                                        if (!v.contains(s)){
+                                            found=false;
+                                            break;
+                                        }
+                                    }
+                                    return found;
+                                } else {
+                                    String regex = q.get("$regex").toString();
+                                    if (!regex.startsWith("^")) {
+                                        regex = ".*" + regex;
+                                    }
+                                    Pattern p = Pattern.compile(regex, opts);
+                                    return p.matcher(valtoCheck.toString()).matches();
                                 }
-                                Pattern p = Pattern.compile(regex, opts);
-                                return p.matcher(valtoCheck.toString()).matches();
                             case "$jsonSchema":
                             case "$type":
-                            case "$text":
                             case "$geoIntersects":
                             case "$geoWithin":
                             case "$near":
@@ -357,6 +382,26 @@ public class QueryHelper {
             }
         }
         return false;
+    }
+
+    public static Collator getCollator(Map<String, Object> collation) {
+        Locale locale=Locale.ROOT;
+        if (collation.containsKey("locale") && !"simple".equals(collation.get("locale"))) {
+            locale = Locale.forLanguageTag((String) collation.get("locale"));
+        }
+        var coll = Collator.getInstance(locale);
+        if (collation.containsKey("caseFirst")){
+            if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))){
+                try {
+                    coll=new RuleBasedCollator(((RuleBasedCollator)coll).getRules()+",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
+                } catch (ParseException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+        if (collation.containsKey("strength"))
+            coll.setStrength((Integer) collation.get("strength"));
+        return coll;
     }
 
 }

@@ -13,6 +13,9 @@ import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.provider.Arguments;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,12 +70,12 @@ public class MultiDriverTestBase {
         return new File(System.getProperty("user.home") + "/.morphiumtest.cfg");
     }
 
-    @org.junit.BeforeClass
+    @BeforeAll
     public static synchronized void setUpClass() {
         System.gc();
     }
 
-    @org.junit.AfterClass
+    @AfterAll
     public static void tearDownClass() {
         // LoggerFactory.getLogger(MorphiumTestBase.class).info("NOT Shutting down - might be reused!");
         //        morphium.close();
@@ -281,7 +284,7 @@ public class MultiDriverTestBase {
 //        createUncachedObjects(morphiumInMemeory, amount);
 //    }
 
-    @org.junit.After
+    @AfterEach
     public void tearDown() throws InterruptedException {
 
     }
