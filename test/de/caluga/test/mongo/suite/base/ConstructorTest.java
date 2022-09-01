@@ -7,6 +7,8 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * TODO: Add Documentation here
  **/
@@ -54,7 +56,8 @@ public class ConstructorTest {
 
         assert (m2.createQueryFor(UncachedObject.class).countAll() >= 1);
 
-        assert (m2.findById(UncachedObject.class, o.getMorphiumId()) != null);
+        assertNotNull(m2.findById(UncachedObject.class, o.getMorphiumId()));
+        ;
 
         m2.close();
         assert (m.createQueryFor(UncachedObject.class).countAll() >= 1);

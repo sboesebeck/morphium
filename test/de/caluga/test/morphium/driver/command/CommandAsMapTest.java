@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Modifier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CommandAsMapTest {
@@ -42,8 +43,8 @@ public class CommandAsMapTest {
                     MongoCommand cmd = cls.getConstructor(MongoConnection.class).newInstance(new SingleMongoConnection().setDriver(new DriverMock()));
                     cmd.setColl("testcoll").setDb("testDB").setMetaData("test", true);
                     var m = cmd.asMap();
-                    assertThat(m).doesNotContainKey("test");
-                    assertThat(m).containsKey("$db");
+                    assertFalse(m.containsKey("test"));
+                    assertFalse(m.containsKey("$db"));
                     assertThat(m.get("$db")).isIn("testDB", "local", "admin");
                     assertThat(m).containsKey(cmd.getCommandName());
                 } catch (Exception e) {

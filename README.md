@@ -412,7 +412,7 @@ public class Aggregation extends MongoTest {
         createUncachedObjects(1000);
 
         Aggregator<UncachedObject, Aggregate> a = MorphiumSingleton.get().createAggregator(UncachedObject.class, Aggregate.class);
-        assert (a.getResultType() != null);
+        assertNotNull(a.getResultType());;
         //reduce input amount of data by reducing columns
         a = a.project("counter");
         //filter it more
@@ -481,7 +481,7 @@ public class Aggregation extends MongoTest {
         log.info("Starting test with Aggregation:");
         start = System.currentTimeMillis();
         Aggregator<UncachedObject, Aggregate> a = MorphiumSingleton.get().createAggregator(UncachedObject.class, Aggregate.class);
-        assert (a.getResultType() != null);
+        assertNotNull(a.getResultType());;
         BasicDBList params = new BasicDBList();
         params.add("$counter");
         params.add(3);

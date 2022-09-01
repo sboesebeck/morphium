@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class SingleMongoConnectionTest extends ConnectionTestBase {
 
@@ -74,8 +76,8 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         log.info("running find...");
         FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(10).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = fnd.execute();
-        assertThat(res.size()).isEqualTo(1);
-        assertThat(res.get(0).get("counter")).isEqualTo(123);
+        assertEquals(1, res.size());
+        assertEquals(123, res.get(0).get("counter"));
         log.info("done.");
 
         log.info("Updating...");
@@ -86,13 +88,13 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         update.setColl(coll);
 
         Map<String, Object> updateInfo = update.execute();
-        assertThat(updateInfo.get("nModified")).isEqualTo(1);
+        assertEquals(1, updateInfo.get("nModified"));
         log.info("...done");
         log.info("Re-Reading...");
         fnd.setFilter(Doc.of("_id", res.get(0).get("_id")));
         res = fnd.execute();
-        assertThat(res.size()).isEqualTo(1);
-        assertThat(res.get(0).get("counter")).isEqualTo(9999);
+        assertEquals(1, res.size());
+        assertEquals(9999, res.get(0).get("counter"));
         con.close();
 
         for (var e : con.getStats().entrySet()) {
@@ -119,8 +121,8 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         FindCommand fnd = new FindCommand(con).setColl(coll).setDb(db).setBatchSize(100).setFilter(Doc.of("counter", 123));
         List<Map<String, Object>> res = fnd.execute();
         log.info("got result");
-        assertThat(res.size()).isEqualTo(1);
-        assertThat(res.get(0).get("counter")).isEqualTo(123);
+        assertEquals(1, res.size());
+        assertEquals(123, res.get(0).get("counter"));
         log.info("done.");
 
         log.info("Updating...");
@@ -130,13 +132,13 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                 .addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
 
         Map<String, Object> updateInfo = update.execute();
-        assertThat(updateInfo.get("nModified")).isEqualTo(1);
+        assertEquals(1, updateInfo.get("nModified"));
         log.info("...done");
         log.info("Re-Reading...");
         fnd.setFilter(Doc.of("_id", res.get(0).get("_id")));
         res = fnd.execute();
-        assertThat(res.size()).isEqualTo(1);
-        assertThat(res.get(0).get("counter")).isEqualTo(9999);
+        assertEquals(1, res.size());
+        assertEquals(9999, res.get(0).get("counter"));
         con.close();
     }
 
@@ -291,10 +293,10 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         List<Map<String, Object>> res = settings.execute();
         res.sort((o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
         log.info("Got results");
-        assertThat(res.size()).isEqualTo(50);
-        assertThat(res.get(0).containsKey("_id")).isTrue();
+        assertEquals(50, res.size());
+        assertTrue(res.get(0).containsKey("_id"));
         assertThat(res.get(0).containsKey("value"));
-        assertThat(((List) res.get(14).get("value")).get(0)).isEqualTo(1.0);
+        assertEquals(1.0, ((List) res.get(14).get("value")).get(0));
         con.close();
     }
 
@@ -315,9 +317,9 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         var msg = new HelloCommand(con).setHelloOk(true).executeAsync();
         var result = con.readSingleAnswer(msg);
-        assertThat(result != null).isTrue();
-        assertThat(result.get("primary")).isEqualTo(result.get("me"));
-        assertThat(result.get("secondary")).isEqualTo(false);
+        assertTrue(result != null);
+        assertEquals(result.get("me"), result.get("primary"));
+        assertEquals(false, result.get("secondary"));
         con.close();
     }
 
@@ -343,18 +345,18 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         while (crs.hasNext()) {
             cnt++;
             var obj = crs.next();
-            assertThat(obj).isNotNull();
+            assertNotNull(obj);
             assertThat(obj).isNotEmpty();
-            assertThat(obj.get("_id")).isNotNull();
+            assertNotNull(obj.get("_id"));
         }
-        assertThat(cnt).isEqualTo(1000);
+        assertEquals(1000, cnt);
         //GEtAll
         msg = con.sendCommand(fnd);
         crs = con.getAnswerFor(msg, 100);
         List<Map<String, Object>> lst = crs.getAll();
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(1000);
-        assertThat(lst.get(0).get("_id")).isNotNull();
+        assertNotNull(lst);
+        assertEquals(1000, lst.size());
+        assertNotNull(lst.get(0).get("_id"));
 
         con.close();
     }

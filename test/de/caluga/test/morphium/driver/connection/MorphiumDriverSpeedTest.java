@@ -27,7 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 /**
  * TODO: Add Documentation here
@@ -114,8 +115,8 @@ public class MorphiumDriverSpeedTest {
             fnd.setColl("uncached_object").setDb("morphium_test").setFilter(Doc.of("counter", i));
             var it = fnd.executeIterable(con.getDefaultBatchSize());
             var d = it.next();
-            assertThat(d.get("counter")).isEqualTo(i);
-            assertThat(it.hasNext()).isEqualTo(Boolean.FALSE);
+            assertEquals(i, d.get("counter"));
+            assertEquals(Boolean.FALSE, it.hasNext());
         }
         dur = System.currentTimeMillis() - start;
         log.info(String.format("reading took %dms", dur));
@@ -172,8 +173,8 @@ public class MorphiumDriverSpeedTest {
             var result = client.getDatabase("morphium_test").getCollection("uncached_object").find().filter(new Document("counter", i));
             MongoCursor<Document> iterator = result.iterator();
             var document = iterator.next();
-            assertThat(document.get("counter")).isEqualTo(i);
-            assertThat(iterator.hasNext()).isEqualTo(Boolean.FALSE);
+            assertEquals(i, document.get("counter"));
+            assertEquals(Boolean.FALSE, iterator.hasNext());
         }
         dur = System.currentTimeMillis() - start;
 //        log.info(String.format("reading took %dms", dur));

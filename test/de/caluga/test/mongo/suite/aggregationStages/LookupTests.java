@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class LookupTests extends MorphiumTestBase {
 
     @Test
@@ -35,7 +37,8 @@ public class LookupTests extends MorphiumTestBase {
 
         for (Map m : lst) {
             log.info("Map: " + m.toString());
-            assert (m.get("inventory_docs") != null);
+            assertNotNull(m.get("inventory_docs"));
+            ;
             if (m.get("_id").equals(4)) {
                 assert (((List) m.get("inventory_docs")).size() == 0);
             } else {

@@ -15,7 +15,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /**
  * User: Stephan Bösebeck
@@ -110,12 +112,14 @@ public class MapListTest extends MorphiumTestBase {
         morphium.store(o);
 
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert (ml != null) : "Not Found?!?!?!?";
+        assertNotNull(ml, "Not Found?!?!?!?");
         assert (ml.getMapListValue().get("eins-fuenf-drei").size() == 3);
         assert (ml.getMapListValue().get("zweihundert").size() == 4);
-        assert (ml.getMapListValue().get("zweihundert").get(0) != null);
+        assertNotNull(ml.getMapListValue().get("zweihundert").get(0));
+        ;
 
-        assert (ml.getMap1().get("2nd").get(0).getTest() != null);
+        assertNotNull(ml.getMap1().get("2nd").get(0).getTest());
+        ;
         assert (ml.getMap2().get("test").getTest().equals("val"));
     }
 
@@ -139,7 +143,7 @@ public class MapListTest extends MorphiumTestBase {
         morphium.store(o);
 
         CMapListObject ml = morphium.findById(CMapListObject.class, o.getId());
-        assert (ml != null) : "Not Found?!?!?!?";
+        assertNotNull(ml, "Not Found?!?!?!?");
         assert (ml.getMap7().get(0).get("tst1").equals("bla"));
         assert (ml.getMap7().get(1).get("tst2-2").equals("blub"));
     }
@@ -348,7 +352,7 @@ public class MapListTest extends MorphiumTestBase {
         morphium.save(o);
 
         o = morphium.reread(o);
-        assertThat(o.getMapValue().containsKey("Testvalue")).isTrue();
+        assertTrue(o.getMapValue().containsKey("Testvalue"));
     }
 
     @Embedded

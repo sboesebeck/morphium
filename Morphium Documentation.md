@@ -97,10 +97,10 @@ When sending a message, you also may wait for the incoming answer. The Messaging
         Thread.sleep(2500);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
-        assert (answer != null);
+        assertNotNull(answer);;
         assert (answer.getName().equals("test"));
-        assert (answer.getInAnswerTo() != null);
-        assert (answer.getRecipient() != null);
+        assertNotNull(answer.getInAnswerTo());;
+        assertNotNull(answer.getRecipient());;
         assert (answer.getMsg().equals("got message"));
         m1.terminate();
         sender.terminate();
@@ -207,8 +207,8 @@ _Morphium_ messaging also implements the standard JMS-API to a certain extend an
         receiverThread.start();
         senderThread.start();
         Thread.sleep(5000);
-        assert (exchange.get("sent") != null);
-        assert (exchange.get("received") != null);
+        assertNotNull(exchange.get("sent"));;
+        assertNotNull(exchange.get("received"));;
     }
 ```
 
@@ -377,8 +377,8 @@ public void driverDumpTest() throws Exception {
     assert (morphium.createQueryFor(ComplexObject.class).countAll() == 100);
 
     for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
-        assert (co.getEinText() != null);
-        assert (co.getRef() != null);
+        assertNotNull(co.getEinText());;
+        assertNotNull(co.getRef());;
     }
 }
 ```
@@ -424,7 +424,7 @@ public void jsonDumpTest() throws Exception {
 
     morphium.dropCollection(UncachedObject.class);
     ExportContainer ex = morphium.getMapper().deserialize(ExportContainer.class, Utils.toJsonString(s));
-    assert (ex != null);
+    assertNotNull(ex);;
     ((InMemoryDriver) morphium.getDriver()).setDatabase(morphium.getDriver().listDatabases().get(0), ex.data);
 
     List<UncachedObject> result = morphium.createQueryFor(UncachedObject.class).asList();
@@ -2622,7 +2622,7 @@ here an Example with a simple pipeline:
 
 ```java
 Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-assert (a.getResultType() != null);
+assertNotNull(a.getResultType());;
 //reduce input
 a = a.project("counter");
 //Filter
@@ -2701,7 +2701,7 @@ This way you can create complex aggregation pipelines:
 
 ```java
 	 Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-	        assert (a.getResultType() != null);
+	        assertNotNull(a.getResultType());;
 	        a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1)).add("cnt2", Expr.field("counter")));
 	        a = a.match(Expr.gt(Expr.field("counter"), Expr.intExpr(100)));
 	        a = a.sort("counter");
@@ -2874,7 +2874,7 @@ There are some places, you also might want to look at for additional information
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                 log.info("got read answer");
-                assert (result != null) : "Error";
+                assertNotNull(result,"Error");
                 assert (result.size() == 100) : "Error";
                 asyncCall = true;
             }

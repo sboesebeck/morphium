@@ -10,6 +10,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * Created with IntelliJ IDEA.
  * User: stephan
@@ -76,11 +79,13 @@ public class AutoVariableTest extends MorphiumTestBase {
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
         morphium.store(ct);
-        assert (ct.created != null);
+        assertNotNull(ct.created);
+        ;
         assert (ct.timestamp != 0);
 
         morphium.reread(ct);
-        assert (ct.created != null);
+        assertNotNull(ct.created);
+        ;
         assert (ct.timestamp != 0);
 
 
@@ -88,28 +93,36 @@ public class AutoVariableTest extends MorphiumTestBase {
         lc.value = "a test";
         morphium.store(lc);
         assert (lc.lastChange != 0);
-        assert (lc.lastChangeDate != null);
-        assert (lc.lastChangeString != null);
+        assertNotNull(lc.lastChangeDate);
+        ;
+        assertNotNull(lc.lastChangeString);
+        ;
 
         lc.value = "updated";
         morphium.store(lc);
         assert (lc.lastChange != 0);
-        assert (lc.lastChangeDate != null);
-        assert (lc.lastChangeString != null);
+        assertNotNull(lc.lastChangeDate);
+        ;
+        assertNotNull(lc.lastChangeString);
+        ;
 
         morphium.set(lc, "value", "set", false, null);
         morphium.reread(lc);
         assert (lc.lastChange != 0);
-        assert (lc.lastChangeDate != null);
-        assert (lc.lastChangeString != null);
+        assertNotNull(lc.lastChangeDate);
+        ;
+        assertNotNull(lc.lastChangeString);
+        ;
         assert (lc.value.equals("set"));
 
 
         morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
         morphium.reread(lc);
         assert (lc.lastChange != 0);
-        assert (lc.lastChangeDate != null);
-        assert (lc.lastChangeString != null);
+        assertNotNull(lc.lastChangeDate);
+        ;
+        assertNotNull(lc.lastChangeString);
+        ;
 
 
         LATest la = new LATest();
@@ -184,7 +197,8 @@ public class AutoVariableTest extends MorphiumTestBase {
 
         morphium.store(ct);
         Thread.sleep(250);
-        assert (ct.created != null);
+        assertNotNull(ct.created);
+        ;
         assert (ct.timestamp != 0);
 
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
@@ -192,14 +206,16 @@ public class AutoVariableTest extends MorphiumTestBase {
         Thread.sleep(100);
         assert (q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert (q.get().timestamp != 0);
-        assert (q.get().created != null);
+        assertNotNull(q.get().created);
+        ;
         assert (q.get().value.equals("annother test"));
 
         q = morphium.createQueryFor(CTimeTest.class).f("value").eq("additional test");
         morphium.push(q, "lst", "value", true, true);
         assert (q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert (q.get().timestamp != 0);
-        assert (q.get().created != null);
+        assertNotNull(q.get().created);
+        ;
         assert (q.get().value.equals("additional test"));
         assert (q.get().lst.size() == 1);
 
@@ -215,8 +231,10 @@ public class AutoVariableTest extends MorphiumTestBase {
 
         for (CTimeTest tst : q.q().asIterable()) {
             assert (tst.timestamp != 0);
-            assert (tst.created != null);
-            assert (tst.createdString != null);
+            assertNotNull(tst.created);
+            ;
+            assertNotNull(tst.createdString);
+            ;
         }
     }
 
@@ -234,12 +252,12 @@ public class AutoVariableTest extends MorphiumTestBase {
 
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
         assert (la.lastAccess != 0);
-        assert (la.lastAccessDate != null);
+        assertNotNull(la.lastAccessDate);
         long lastAcc = la.lastAccess;
         Thread.sleep(1); //just to be sure
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
-        assert (la.lastAccess != lastAcc);
-        assert (la.lastAccessString != null);
+        assertNotEquals(lastAcc, la.lastAccess);
+        assertNotNull(la.lastAccessString);
 
     }
 
@@ -258,8 +276,8 @@ public class AutoVariableTest extends MorphiumTestBase {
 
         lst = morphium.createQueryFor(CTimeTest.class).asList();
         for (CTimeTest t : lst) {
-            assert (t.created != null);
-            assert (t.timestamp != 0);
+            assertNotNull(t.created);
+            assertNotEquals(0, t.timestamp);
         }
         log.info("Done");
 
@@ -286,7 +304,8 @@ public class AutoVariableTest extends MorphiumTestBase {
         lc.value = "different";
         morphium.store(lc);
         assert (lc.lastChange != 0);
-        assert (lc.lastChangeDate != null);
+        assertNotNull(lc.lastChangeDate);
+        ;
         assert (lc.lastChange > created);
 
         Query<LCTest> q = morphium.createQueryFor(LCTest.class);
@@ -298,8 +317,10 @@ public class AutoVariableTest extends MorphiumTestBase {
             }
             assert (tst.lastChange != 0);
             assert (tst.lastChange == cmp) : "Last change wrong cmp: " + cmp + " but is: " + tst.lastChange;
-            assert (tst.lastChangeDate != null);
-            assert (tst.lastChangeString != null);
+            assertNotNull(tst.lastChangeDate);
+            ;
+            assertNotNull(tst.lastChangeString);
+            ;
         }
 
 
@@ -335,7 +356,8 @@ public class AutoVariableTest extends MorphiumTestBase {
         Query<CTimeTestStringId> q = morphium.createQueryFor(CTimeTestStringId.class);
         q = q.f("value").eq("v1");
         record = q.get();
-        assert (record.created != null);
+        assertNotNull(record.created);
+        ;
         assert (record.timestamp != 0);
         long created = record.timestamp;
 
@@ -343,7 +365,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         morphium.store(record);
         Thread.sleep(250);
         record = q.q().f("value").eq("v1*").get();
-        assert (record != null) : "Not found!";
+        assertNotNull(record);
         assert (record.timestamp == created) : "Record timestamp " + record.timestamp;
 
         Thread.sleep(500);
@@ -367,7 +389,8 @@ public class AutoVariableTest extends MorphiumTestBase {
 
         for (CTimeTestStringId ct : q.q().asIterable()) {
             assert (ct.timestamp != 0);
-            assert (ct.created != null);
+            assertNotNull(ct.created);
+            ;
         }
     }
 

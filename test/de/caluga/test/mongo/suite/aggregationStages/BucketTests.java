@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static de.caluga.morphium.aggregation.Expr.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class BucketTests extends MorphiumTestBase {
 
@@ -38,7 +39,8 @@ public class BucketTests extends MorphiumTestBase {
         for (ArtistAggregation a : lst) {
             log.info(a.toString());
 
-            assert (a.artists != null);
+            assertNotNull(a.artists);
+            ;
             assert (a.artists.size() > 0);
             assert (a.count == a.artists.size());
             for (Artist artist : a.artists) {

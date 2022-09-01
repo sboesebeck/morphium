@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static de.caluga.morphium.aggregation.Expr.*;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Testable
 public class AggregationExprTest  {
@@ -870,7 +871,8 @@ public class AggregationExprTest  {
     public void testLetEvaluation() {
         Expr e = Expr.let(UtilsMap.of("var1", Expr.field("testField")), Expr.abs(Expr.field("var1")));
         Object result = e.evaluate(UtilsMap.of("testField", 100));
-        assert (result != null);
+        assertNotNull(result);
+        ;
         assert (result.equals(100.0));
     }
 

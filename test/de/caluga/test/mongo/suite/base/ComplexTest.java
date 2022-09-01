@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 29.03.12
@@ -208,7 +210,7 @@ public class ComplexTest extends MultiDriverTestBase {
             qc.f("ref").eq(o);
 
             ComplexObject fnd = qc.get();
-            assert (fnd != null) : "not found?!?!";
+            assertNotNull(fnd, "not found?!?!");
             assert (fnd.getEinText().equals(co.getEinText())) : "Text different?";
             assert (fnd.getRef().getCounter() == co.getRef().getCounter()) : "Reference broken?";
         }
@@ -240,8 +242,10 @@ public class ComplexTest extends MultiDriverTestBase {
             Thread.sleep(1000);
             Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
             co = qc.f("embed.name").eq("embedded1").get();
-            assert (co != null);
-            assert (co.getEmbed() != null);
+            assertNotNull(co);
+            ;
+            assertNotNull(co.getEmbed());
+            ;
             assert (co.getEmbed().getName().equals("embedded1"));
             assert (co.getEinText().equals("Text"));
         }

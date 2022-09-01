@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -100,7 +103,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.dec(uc, "counter", 1);
         Thread.sleep(300);
 
-        assertThat(uc.getCounter()).isEqualTo(4);
+        assertEquals(4, uc.getCounter());
 
         //inc without object - single update, no upsert
         q = morphium.createQueryFor(UncachedObject.class);
@@ -108,7 +111,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.dec(q, "counter", 40);
         Thread.sleep(100);
         uc = q.get();
-        assertThat(uc.getCounter()).isEqualTo(41);
+        assertEquals(41, uc.getCounter());
 
         //inc without object directly in DB - multiple update
         q = morphium.createQueryFor(UncachedObject.class);
@@ -141,7 +144,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         Thread.sleep(100);
         UncachedObject uc = q.get(); //should now work
 
-        assert (uc != null) : "Not found?!?!?";
+        assertNotNull(uc, "Not found?!?!?");
         assert (uc.getStrValue().equals("unexistent")) : "Value wrong: " + uc.getStrValue();
     }
 
@@ -199,7 +202,8 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         waitForWrites();
 
         ListContainer lc2 = lc.get();
-        assert (lc2.getEmbeddedObjectList() != null);
+        assertNotNull(lc2.getEmbeddedObjectList());
+        ;
         assert (lc2.getEmbeddedObjectList().size() == 2);
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }
@@ -269,7 +273,8 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         waitForWrites();
         Thread.sleep(2500);
         ListContainer lc2 = lc.get();
-        assert (lc2.getEmbeddedObjectList() != null);
+        assertNotNull(lc2.getEmbeddedObjectList());
+        ;
         assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }

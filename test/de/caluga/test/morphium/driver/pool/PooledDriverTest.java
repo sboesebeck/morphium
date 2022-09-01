@@ -27,9 +27,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 
 public class PooledDriverTest {
@@ -44,7 +42,7 @@ public class PooledDriverTest {
         log.info("Checking status");
         for (var e : drv.getNumConnectionsByHost().entrySet()) {
             log.info("Host: " + e.getKey() + " connections: " + e.getValue());
-            assertThat(e.getValue()).isLessThanOrEqualTo(10).isGreaterThanOrEqualTo(2);
+            assertTrue(e.getValue() <= 10 && e.getValue() >= 2);
         }
         drv.close();
     }

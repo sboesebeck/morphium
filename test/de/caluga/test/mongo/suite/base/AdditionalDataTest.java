@@ -10,6 +10,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 22.08.12
@@ -38,7 +40,8 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             Thread.sleep(2000);
             System.out.println("Stored some additional data!");
             AdditionalDataEntity d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
-            assert (d2.getAdditionals() != null);
+            assertNotNull(d2.getAdditionals());
+            ;
             assert (d2.getAdditionals().get("102-92-93").equals(3234));
             assert (((Map) d2.getAdditionals().get("test")).get("tst").equals("tst"));
             assert (d2.getAdditionals().get("_id") == null);
@@ -81,8 +84,10 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             Thread.sleep(2000);
             d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
 
-            assert (d2.getAdditionals() != null);
-            assert (d2.getAdditionals().get("object") != null);
+            assertNotNull(d2.getAdditionals());
+            ;
+            assertNotNull(d2.getAdditionals().get("object"));
+            ;
 
         }
     }
@@ -97,7 +102,8 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             morphium.store(d);
             Thread.sleep(500);
             AdditionalDataEntity d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
-            assert (d2 != null);
+            assertNotNull(d2);
+            ;
             assert (d2.getAdditionals() == null || d2.getAdditionals().isEmpty());
         }
 

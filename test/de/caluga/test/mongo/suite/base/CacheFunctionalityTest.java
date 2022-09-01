@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * TODO: Add Documentation here
  **/
@@ -27,7 +29,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         Thread.sleep(5000);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
-            assert (o != null) : "Not found: " + i;
+            assertNotNull(o, "Not found: " + i);
             if (i % 100 == 0) {
                 log.info("Read " + i);
                 log.info("Cached: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
@@ -108,7 +110,8 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
                 Thread.sleep(100);
                 assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
-            assert (morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get() != null);
+            assertNotNull(morphium.createQueryFor(SpecCachedOjbect.class).f("counter").eq(i).get());
+            ;
         }
         assert (morphium.getCache().getSizes().get("idCache|" + SpecCachedOjbect.class.getName()) > 0);
         Thread.sleep(hcTime + 100);
@@ -127,7 +130,7 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
         Thread.sleep(8500);
         for (int i = 0; i < amount; i++) {
             CachedObject o = morphium.createQueryFor(CachedObject.class).f("counter").eq(i + 1).get();
-            assert (o != null) : "Not found: " + i;
+            assertNotNull(o, "Not found: " + i);
             if (i % 500 == 0) {
                 log.info("Read " + i);
                 log.info("Cached: " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));

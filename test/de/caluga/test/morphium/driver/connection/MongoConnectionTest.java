@@ -20,7 +20,8 @@ import java.util.Map;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class MongoConnectionTest {
     private Logger log = LoggerFactory.getLogger(MongoConnectionTest.class);
@@ -35,9 +36,9 @@ public class MongoConnectionTest {
         var m = con.sendCommand(hello);
         var res = con.readSingleAnswer(m);
         log.info(Utils.toJsonString(res));
-        assertThat(res).isNotNull();
-        assertThat(res.get("ok")).isEqualTo((double) 1.0);
-        assertThat(res.get("helloOk")).isEqualTo(true);
+        assertNotNull(res);
+        assertEquals(1.0, res.get("ok"));
+        assertTrue((boolean) res.get("helloOk"));
 
         con.close();
     }
@@ -50,10 +51,10 @@ public class MongoConnectionTest {
         con.connect(new DriverMock(), "localhost", 27017);
 
         var m = con.getConnectedTo();
-        assertThat(m).isEqualTo("localhost:27017");
-        assertThat(con.getConnectedToHost()).isEqualTo("localhost");
-        assertThat(con.getConnectedToPort()).isEqualTo(27017);
-        assertThat(con.isConnected()).isTrue();
+        assertEquals("localhost:27017", m);
+        assertEquals("localhost", con.getConnectedToHost());
+        assertEquals(27017, con.getConnectedToPort());
+        assertTrue(con.isConnected());
         con.close();
     }
 
@@ -102,7 +103,7 @@ public class MongoConnectionTest {
         stack.push(fnd.executeAsync());
         Thread.sleep(200);
         running.set(false);
-        assertThat(stack.isEmpty());
+        assertTrue(stack.isEmpty());
         Thread.sleep(1000);
         con.close();
     }
@@ -128,14 +129,14 @@ public class MongoConnectionTest {
 
         var msg = con.sendCommand(insert);
         var ret = con.readSingleAnswer(msg);
-        assertThat(ret).doesNotContainKey("code");
+        assertTrue(!ret.containsKey("code"));
 
         log.info("Calling find...");
         FindCommand find = new FindCommand(con).setBatchSize(17)
                 .setDb("morphium_test").setColl("test");
         msg = con.sendCommand(find);
         var resultList = con.readAnswerFor(msg);
-        assertThat(resultList.size()).isEqualTo(1000);
+        assertEquals(1000, resultList.size());
 
         log.info("Calling find - as cursor");
         msg = con.sendCommand(find);
@@ -145,7 +146,7 @@ public class MongoConnectionTest {
             cnt++;
             crs.next();
         }
-        assertThat(cnt).isEqualTo(1000);
+        assertEquals(1000, cnt);
 
         con.close();
     }

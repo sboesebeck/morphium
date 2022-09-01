@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class WireProtocolTests {
 
     @Test
@@ -20,7 +22,8 @@ public class WireProtocolTests {
         byte[] data = msg.bytes();
 
         WireProtocolMessage wp = WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assert (wp != null);
+        assertNotNull(wp);
+        ;
         assert (wp instanceof OpMsg);
 
     }

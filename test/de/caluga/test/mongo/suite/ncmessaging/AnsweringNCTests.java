@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class AnsweringNCTests extends MorphiumTestBase {
     private final List<Msg> list = new ArrayList<>();
@@ -94,10 +94,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
                     error = true;
                 }
 
-                assert (m.getInAnswerTo() != null) : "was not an answer? " + m.toString();
+                assertNotNull(m.getInAnswerTo(), "was not an answer? " + m.toString());
 
                 log.info("M3 got answer " + m.toString());
-                assert (lastMsgId != null) : "Last message == null?";
+                assertNotNull(lastMsgId, "Last message == null?");
                 assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
                 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                 return null;
@@ -360,7 +360,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m.setExclusive(true);
         Msg answer = m1.sendAndAwaitFirstAnswer(m, 60000);
         Thread.sleep(500);
-        assert (answer != null);
+        assertNotNull(answer);
+        ;
         assert (answer.getProcessedBy().size() == 1) : "Size wrong: " + answer.getProcessedBy();
     }
 
@@ -392,11 +393,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
             m.setExclusive(true);
             log.info("Sending m1...");
             Msg answer1 = m1.sendAndAwaitFirstAnswer(m, 1000);
-            assert (answer1 != null);
+            assertNotNull(answer1);
+            ;
             m = new Msg("query", "a message", "a query");
             log.info("... got it. Sending m2");
             Msg answer2 = m2.sendAndAwaitFirstAnswer(m, 1000);
-            assert (answer2 != null);
+            assertNotNull(answer2);
+            ;
             log.info("... got it.");
         }
 
@@ -441,7 +444,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
         assert (answers != null && !answers.isEmpty());
         assert (answers.size() == 2) : "Got wrong number of answers: " + answers.size();
         for (Msg m : answers) {
-            assert (m.getInAnswerTo() != null);
+            assertNotNull(m.getInAnswerTo());
+            ;
             assert (m.getInAnswerTo().equals(question.getMsgId()));
         }
         m1.terminate();
@@ -473,7 +477,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             long start = System.currentTimeMillis();
             Msg answer = m1.sendAndAwaitFirstAnswer(question, 15000);
             long dur = System.currentTimeMillis() - start;
-            assert (answer != null && answer.getInAnswerTo() != null);
+            assertTrue(answer != null && answer.getInAnswerTo() != null);
             assert (answer.getInAnswerTo().equals(question.getMsgId()));
             log.info("... ok - took " + dur + " ms");
         }
@@ -496,7 +500,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
         Thread.sleep(1000);
 
         Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("question", "question", "a value"), 5000);
-        assert (answer != null);
+        assertNotNull(answer);
+        ;
         m1.terminate();
         m2.terminate();
 
@@ -526,7 +531,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
             @Override
             public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
                 gotMessage2 = true;
-                assert (m.getInAnswerTo() != null);
+                assertNotNull(m.getInAnswerTo());
+                ;
                 return null;
             }
         });
@@ -537,7 +543,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
         assert (gotMessage2);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
-        assert (answer != null);
+        assertNotNull(answer);
+        ;
         sender.terminate();
         recipient.terminate();
     }
@@ -587,10 +594,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
         Thread.sleep(2500);
 
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
-        assert (answer != null);
+        assertNotNull(answer);
+        ;
         assert (answer.getName().equals("test"));
-        assert (answer.getInAnswerTo() != null);
-        assert (answer.getRecipients() != null);
+        assertNotNull(answer.getInAnswerTo());
+        ;
+        assertNotNull(answer.getRecipients());
+        ;
         assert (answer.getMsg().equals("got message"));
         m1.terminate();
         sender.terminate();

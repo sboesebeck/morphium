@@ -13,7 +13,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -77,15 +79,15 @@ public class MorphiumCursorTest extends MorphiumTestBase {
         var crs = morphium.createQueryFor(SimpleEntity.class).sort("v1").setBatchSize(10).getFindCmd().executeIterable(10);
         crs.ahead(14);
         var n = crs.next();
-        assertThat(n).isNotNull();
-        assertThat(crs.getCursor()).isEqualTo(15);
-        assertThat(n.get("v1")).isEqualTo(14);
-        assertThat(crs.available()).isEqualTo(5);
+        assertNotNull(n);
+        assertEquals(15, crs.getCursor());
+        assertEquals(14, n.get("v1"));
+        assertEquals(5, crs.available());
         crs.back(2);
-        assertThat(crs.getCursor()).isEqualTo(13);
+        assertEquals(13, crs.getCursor());
         n = crs.next();
-        assertThat(n.get("v1")).isEqualTo(13);
-        assertThat(crs.getCursor()).isEqualTo(14);
+        assertEquals(13, n.get("v1"));
+        assertEquals(14, crs.getCursor());
 
 
     }

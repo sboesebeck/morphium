@@ -11,7 +11,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class TypeIdTests extends MorphiumTestBase {
 
@@ -26,7 +27,8 @@ public class TypeIdTests extends MorphiumTestBase {
         Thread.sleep(100);
         ad.setAdditionals(null);
         morphium.reread(ad);
-        assert (ad.getAdditionals() != null);
+        assertNotNull(ad.getAdditionals());
+        ;
         assert (ad.getAdditionals().containsKey("test"));
         assert (ad.getAdditionals().get("test") instanceof EmbeddedObject);
         assert (((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("name"));
@@ -46,7 +48,8 @@ public class TypeIdTests extends MorphiumTestBase {
         morphium.set(getIdQuery(ad), "test", new EmbeddedObject("emb", "key", 123));
         Thread.sleep(100);
         ad = morphium.reread(ad);
-        assert (ad.getAdditionals() != null);
+        assertNotNull(ad.getAdditionals());
+        ;
         assert (ad.getAdditionals().containsKey("test"));
         assert (ad.getAdditionals().get("test") instanceof EmbeddedObject);
         assert (((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("emb"));
@@ -58,8 +61,8 @@ public class TypeIdTests extends MorphiumTestBase {
     public void testSimple() throws Exception {
         UncachedObject uc = new UncachedObject("str", 123);
         morphium.store(uc);
-        assertThat(morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).asMapList().get(0)
-                .get("class_name")).isNull();
+        assertNull(morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).asMapList().get(0)
+                .get("class_name"));
     }
 
     @Test
@@ -76,7 +79,7 @@ public class TypeIdTests extends MorphiumTestBase {
         checkTypeId(EmbeddedObject.class, lc, "embedded_object_list.0");
         Map<String, Object> m = getMapForEntity(lc);
         String ref = (String) getValueInPath(m, "ref_list.0.referenced_class_name");
-        assertThat(ref).isEqualTo("uc");
+        assertEquals("uc", ref);
 
     }
 
@@ -102,16 +105,16 @@ public class TypeIdTests extends MorphiumTestBase {
 
         Map<String, Object> m = getMapForEntity(lc);
         String ref = (String) getValueInPath(m, "ref_list.0.referenced_class_name");
-        assertThat(ref).isEqualTo("uc");
+        assertEquals("uc", ref);
         ref = (String) getValueInPath(m, "ref_list.1.referenced_class_name");
-        assertThat(ref).isEqualTo("uc");
+        assertEquals("uc", ref);
 
         lc.getEmbeddedObjectList().clear();
         lc.getRefList().clear();
         lc = morphium.reread(lc);
 
-        assertThat(lc.getEmbeddedObjectList().size()).isEqualTo(2);
-        assertThat(lc.getRefList().size()).isEqualTo(2);
+        assertEquals(2, lc.getEmbeddedObjectList().size());
+        assertEquals(2, lc.getRefList().size());
     }
 
 
@@ -122,12 +125,12 @@ public class TypeIdTests extends MorphiumTestBase {
         co.setEmbed(new EmbeddedObject("name", "value", 123));
         morphium.store(co);
         //no type id there, as type is determined clearly
-        assertThat(getMapForEntity(co).get("embed")).isInstanceOf(Map.class);
-        assertThat(((Map) getMapForEntity(co).get("embed")).containsKey("class_name")).isFalse();
+        assertTrue(getMapForEntity(co).get("embed") instanceof Map);
+        assertFalse(((Map) getMapForEntity(co).get("embed")).containsKey("class_name"));
 
         //updating SETs type ID, as during update we do not know if the field has java representation that matches.
         morphium.set(co, ComplexObject.Fields.embed, new EmbeddedObject("new", "Value", 123123));
-        assertThat(getMapForEntity(co).get("embed")).isInstanceOf(Map.class);
+        assertTrue(getMapForEntity(co).get("embed") instanceof Map);
         checkTypeId(EmbeddedObject.class, co, "embed");
 
     }
@@ -142,9 +145,9 @@ public class TypeIdTests extends MorphiumTestBase {
 
         morphium.reread(co);
 
-        assertThat(co.getEmbed()).isInstanceOf(EmbSubClass.class);
+        assertTrue(co.getEmbed() instanceof EmbSubClass);
         checkTypeId(EmbSubClass.class, co, "embed");
-        assertThat(((Map) getMapForEntity(co).get("embed")).get("class_name")).isEqualTo(EmbSubClass.class.getName());
+        assertEquals(EmbSubClass.class.getName(), ((Map) getMapForEntity(co).get("embed")).get("class_name"));
     }
 
 
@@ -166,7 +169,7 @@ public class TypeIdTests extends MorphiumTestBase {
                 value = ((List) ((Map) value).get(fld)).get(idx);
                 i++;
             } else {
-                assertThat(!(m.get(fld) instanceof Map));
+                assertFalse((m.get(fld) instanceof Map));
                 value = ((Map) value).get(fld);
             }
         }
@@ -192,11 +195,11 @@ public class TypeIdTests extends MorphiumTestBase {
         }
         if (fieldName.contains(".")) {
             Map value = (Map) getValueInPath(m, fieldName);
-            assertThat(value.get("class_name")).isEqualTo(typeId);
+            assertEquals(typeId, value.get("class_name"));
 
         } else {
-            assertThat(m.get(fieldName)).isNotNull();
-            assertThat(((Map) m.get(fieldName)).get("class_name")).isEqualTo(typeId);
+            assertNotNull(m.get(fieldName));
+            assertEquals(typeId, ((Map) m.get(fieldName)).get("class_name"));
         }
     }
 

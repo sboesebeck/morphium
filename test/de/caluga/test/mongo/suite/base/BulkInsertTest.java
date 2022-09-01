@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 01.07.12
@@ -87,7 +89,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
             }
             log.info("List prepared...");
             morphium.storeList(lst);
-            assert (lst.get(0).getMorphiumId() != null);
+            assertNotNull(lst.get(0).getMorphiumId());
+            ;
             dur = System.currentTimeMillis() - start;
             if ((morphium.getWriteBufferCount() != 0)) {
                 throw new AssertionError("WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
@@ -169,7 +172,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
             morphium.storeList(prs);
 
             Thread.sleep(1000);
-            assert (prs.get(0).getId() != null);
+            assertNotNull(prs.get(0).getId());
+            ;
             long cnt = morphium.createQueryFor(Person.class).countAll();
             assert (cnt == 100);
         }

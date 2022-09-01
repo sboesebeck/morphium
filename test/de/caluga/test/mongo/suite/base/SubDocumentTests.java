@@ -15,6 +15,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 07.09.12
@@ -59,7 +61,8 @@ public class SubDocumentTests extends MultiDriverTestBase {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value");
             List<ComplexObject> lst = q.asList();
-            assert (lst != null);
+            assertNotNull(lst);
+            ;
             assert (lst.size() == 1) : "List size wrong: " + lst.size();
             assert (lst.get(0).getId().equals(co.getId()));
         }
@@ -98,7 +101,8 @@ public class SubDocumentTests extends MultiDriverTestBase {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value_not");
             List<ComplexObject> lst = q.asList();
-            assert (lst != null);
+            assertNotNull(lst);
+            ;
             assert (lst.isEmpty());
         }
     }
@@ -124,7 +128,8 @@ public class SubDocumentTests extends MultiDriverTestBase {
                 assert (System.currentTimeMillis() - st < 5000);
             }
             assert (lst.size() == 1);
-            assert (lst.get(0).additionals.get("sub") != null);
+            assertNotNull(lst.get(0).additionals.get("sub"));
+            ;
             assert (lst.get(0).additionals.get("sub") instanceof Map);
         }
     }

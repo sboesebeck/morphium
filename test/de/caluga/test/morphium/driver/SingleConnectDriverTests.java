@@ -75,8 +75,8 @@ public class SingleConnectDriverTests extends DriverTestBase {
         }
         assertThat(drv.isConnected());
         assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
-        assertThat(originalConnectedTo).isNotNull();
-        assertThat(con.getConnectedTo()).isNotNull();
+        assertNotNull(originalConnectedTo);
+        assertNotNull(con.getConnectedTo());
 
         log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
 
@@ -137,8 +137,8 @@ public class SingleConnectDriverTests extends DriverTestBase {
 
         assertThat(drv.isConnected());
         assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
-        assertThat(originalConnectedTo).isNotNull();
-        assertThat(con.getConnectedTo()).isNotNull();
+        assertNotNull(originalConnectedTo);
+        assertNotNull(con.getConnectedTo());
         log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
         con.release();
         log.info("HostSeed:");

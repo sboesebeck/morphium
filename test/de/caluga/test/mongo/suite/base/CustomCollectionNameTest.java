@@ -8,6 +8,8 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 14.01.16
@@ -38,7 +40,7 @@ public class CustomCollectionNameTest extends MorphiumTestBase {
         Query<EntityCollectionName> q2 = m.createQueryFor(EntityCollectionName.class).f("value").eq(2);
         q2.setCollectionName(collectionName);
         EntityCollectionName eFetched2 = q2.get();
-        assert (eFetched2 != null) : "fetchedd after update";
+        assertNotNull(eFetched2, "fetchedd after update");
 
     }
 

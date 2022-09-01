@@ -13,7 +13,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 public class CollationTest extends MultiDriverTestBase {
 
@@ -66,10 +68,13 @@ public class CollationTest extends MultiDriverTestBase {
             assert (col.getStrength().equals(Collation.Strength.SECONDARY));
             assert (col.getAlternate().equals(Collation.Alternate.NON_IGNORABLE));
             assert (col.getMaxVariable().equals(Collation.MaxVariable.PUNCT));
-            assert (col.getMaxVariable().getMongoText() != null);
-            assert (col.getAlternate().getMongoText() != null);
+            assertNotNull(col.getMaxVariable().getMongoText());
+            ;
+            assertNotNull(col.getAlternate().getMongoText());
+            ;
             assert (col.getStrength().getMongoValue() != 0);
-            assert (col.getCaseFirst().getMongoText() != null);
+            assertNotNull(col.getCaseFirst().getMongoText());
+            ;
             log.info("Query: " + Utils.toJsonString(col.toQueryObject()));
         }
     }
@@ -88,7 +93,7 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("c", 1));
             Thread.sleep(1000);
             long count = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("str_value").eq("a").countAll();
-            assertThat(count).isEqualTo(2);
+            assertEquals(2, count);
         }
     }
 

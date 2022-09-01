@@ -26,6 +26,8 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 /**
  * @author stephan
@@ -84,7 +86,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         UncachedObject o = new UncachedObject("value", 10);
         morphium.store(o);
         List<String> dbs = morphium.listDatabases();
-        assert (dbs != null);
+        assertNotNull(dbs);
+        ;
         assert (dbs.size() != 0);
         for (String s : dbs) {
             log.info("Got DB: " + s);
@@ -105,7 +108,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         morphium.store(u);
 
         List<String> cols = morphium.listCollections();
-        assert (cols != null);
+        assertNotNull(cols);
+        ;
     }
 
     @Test
@@ -338,10 +342,10 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             last = o;
         }
 
-        assert (last.getMorphiumId() != null) : "ID null?!?!?";
+        assertNotNull(last.getMorphiumId(), "ID null?!?!?");
         Thread.sleep(1000);
         UncachedObject uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
-        assert (uc != null) : "Not found?!?";
+        assertNotNull(uc, "Not found?!?");
         assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
 
     }
@@ -420,7 +424,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
         assert (e == null);
         Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
-        assert (em != null);
+        assertNotNull(em);
+        ;
     }
 
     @Test
@@ -455,7 +460,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             List<UncachedObject> l = q.asList();
             assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
             UncachedObject fnd = l.get(0);
-            assert (fnd != null) : "Error finding element with id " + i;
+            assertNotNull(fnd, "Error finding element with id " + i);
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
             assert (fnd.getStrValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i;
         }
@@ -478,7 +483,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             List<CachedObject> l = q.asList();
             assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? " + i;
             CachedObject fnd = l.get(0);
-            assert (fnd != null) : "Error finding element with id " + i;
+            assertNotNull(fnd, "Error finding element with id " + i);
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
             assert (fnd.getValue().equals("Cached " + i)) : "value not equal: " + fnd.getCounter() + " vs. " + i;
         }
@@ -707,11 +712,11 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 
         Map<String, List<Map<String, Object>>> database = ((InMemoryDriver) morphium.getDriver()).getDatabase(morphium.getConfig().getDatabase());
         List<Map<String, Object>> collection = database.get("uncached_object");
-        assertThat(collection.size()).isEqualTo(1);
+        assertEquals(1, collection.size());
         assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
         UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());
         assertThat(collection.get(0).get("_id")).isInstanceOf(ObjectId.class);
-        assertThat(uc2).isEqualTo(uc);
+        assertEquals(uc, uc2);
     }
 
     @Test
@@ -722,9 +727,11 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         uc.setStrValue("A value");
         log.info("Storing new value - no problem");
         morphium.insert(uc);
-        assert (uc.getMorphiumId() != null);
+        assertNotNull(uc.getMorphiumId());
+        ;
         Thread.sleep(200);
-        assert (morphium.findById(UncachedObject.class, uc.getMorphiumId()) != null);
+        assertNotNull(morphium.findById(UncachedObject.class, uc.getMorphiumId()));
+        ;
 
         log.info("Inserting again - exception expected");
         boolean ex = false;
@@ -734,14 +741,15 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             log.info("Got exception as expected " + e.getMessage());
             ex = true;
         }
-        assertThat(ex).isTrue();
+        assertTrue(ex);
         uc = new UncachedObject();
         uc.setStrValue("2");
         uc.setMorphiumId(new MorphiumId());
         uc.setCounter(3);
         morphium.insert(uc);
         Thread.sleep(200);
-        assert (morphium.findById(UncachedObject.class, uc.getMorphiumId()) != null);
+        assertNotNull(morphium.findById(UncachedObject.class, uc.getMorphiumId()));
+        ;
 
     }
 
@@ -900,12 +908,12 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         morphium.reread(uc);
         assertThat(uc.getStrValue()).isNull();
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq(null).get();
-        assertThat(o).isNotNull();
+        assertNotNull(o);
         assertThat(o.getStrValue()).isNull();
-        assertThat(o.getCounter()).isEqualTo(10);
+        assertEquals(10, o.getCounter());
 
         List<UncachedObject> list = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).in(Arrays.asList("null", null)).asList();
-        assertThat(list.size()).isEqualTo(2);
+        assertEquals(2, list.size());
         assert (list.get(0).getStrValue() == null || list.get(1).getStrValue() == null);
         assert (list.get(0).getCounter() == 10 || list.get(1).getCounter() == 10);
 

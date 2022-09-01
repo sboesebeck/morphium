@@ -22,6 +22,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class QueryTest extends MorphiumTestBase {
 
 
@@ -36,10 +38,10 @@ public class QueryTest extends MorphiumTestBase {
                 q.q().f("counter").lt(15).f("counter").gt(10).f("str_value").eq("hallo").f("strValue").ne("test")
         );
         Map<String, Object> dbObject = q.toQueryObject();
-        assert (dbObject != null) : "Map<String,Object> created is null?";
+        assertNotNull(dbObject, "Map<String,Object> created is null?");
 
         String str = Utils.toJsonString(dbObject);
-        assert (str != null) : "ToString is NULL?!?!?";
+        assertNotNull(str, "ToString is NULL?!?!?");
 
         System.out.println("Query: " + str);
         assert (str.trim().equals("{ \"$or\" :  [ { \"counter\" : { \"$lte\" : 15 }  } , { \"counter\" : { \"$gte\" : 10 }  } , { \"$and\" :  [ { \"counter\" : { \"$lt\" : 15 }  } , { \"counter\" : { \"$gt\" : 10 }  } , { \"str_value\" : \"hallo\" } , { \"str_value\" : { \"$ne\" : \"test\" }  } ] } ] }")) : "Query-Object wrong";
@@ -54,7 +56,7 @@ public class QueryTest extends MorphiumTestBase {
         q = q.f("counter").mod(10, 5);
         dbObject = q.toQueryObject();
         str = Utils.toJsonString(dbObject);
-        assert (str != null) : "ToString is NULL?!?!?";
+        assertNotNull(str, "ToString is NULL?!?!?");
 
         System.out.println("Query: " + str);
         assert (str.trim().equals("{ \"counter\" : { \"$mod\" :  [ 10, 5] }  }")) : "Query wrong";
@@ -64,7 +66,7 @@ public class QueryTest extends MorphiumTestBase {
         q.or(q.q().f("counter").eq(15), q.q().f(UncachedObject.Fields.counter).eq(22));
         dbObject = q.toQueryObject();
         str = Utils.toJsonString(dbObject);
-        assert (str != null) : "ToString is NULL?!?!?";
+        assertNotNull(str, "ToString is NULL?!?!?");
 
         log.info("Query: " + str);
     }
@@ -253,7 +255,8 @@ public class QueryTest extends MorphiumTestBase {
     public void testGetCollation() {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setCollation(new Collation());
-        assert (q.getCollation() != null);
+        assertNotNull(q.getCollation());
+        ;
     }
 
     @Test
@@ -264,10 +267,13 @@ public class QueryTest extends MorphiumTestBase {
         q.or(o1, o2);
 
         Map<String, Object> qo = q.toQueryObject();
-        assert (qo.get("$or") != null);
+        assertNotNull(qo.get("$or"));
+        ;
         assert (((List) qo.get("$or")).size() == 2);
-        assert (((List<Map>) qo.get("$or")).get(0).get("counter") != null);
-        assert (((List<Map>) qo.get("$or")).get(1).get("str_value") != null);
+        assertNotNull(((List<Map>) qo.get("$or")).get(0).get("counter"));
+        ;
+        assertNotNull(((List<Map>) qo.get("$or")).get(1).get("str_value"));
+        ;
     }
 
 
@@ -279,10 +285,13 @@ public class QueryTest extends MorphiumTestBase {
         q.nor(o1, o2);
 
         Map<String, Object> qo = q.toQueryObject();
-        assert (qo.get("$nor") != null);
+        assertNotNull(qo.get("$nor"));
+        ;
         assert (((List) qo.get("$nor")).size() == 2);
-        assert (((List<Map>) qo.get("$nor")).get(0).get("counter") != null);
-        assert (((List<Map>) qo.get("$nor")).get(1).get("str_value") != null);
+        assertNotNull(((List<Map>) qo.get("$nor")).get(0).get("counter"));
+        ;
+        assertNotNull(((List<Map>) qo.get("$nor")).get(1).get("str_value"));
+        ;
     }
 
     @Test
@@ -304,7 +313,8 @@ public class QueryTest extends MorphiumTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.sort(UncachedObject.Fields.counter, UncachedObject.Fields.strValue);
 
-        assert (q.getSort() != null);
+        assertNotNull(q.getSort());
+        ;
         assert (q.getSort().get("counter").equals(Integer.valueOf(1)));
         assert (q.getSort().get("str_value").equals(Integer.valueOf(1)));
 
@@ -322,7 +332,8 @@ public class QueryTest extends MorphiumTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.sortEnum(UtilsMap.of((Enum) UncachedObject.Fields.counter, -1, UncachedObject.Fields.strValue, 1));
 
-        assert (q.getSort() != null);
+        assertNotNull(q.getSort());
+        ;
         assert (q.getSort().get("counter").equals(Integer.valueOf(-1)));
         assert (q.getSort().get("str_value").equals(Integer.valueOf(1)));
 
@@ -547,7 +558,8 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
                 .push(UncachedObject.Fields.intData, 42);
         morphium.reread(uc);
-        assert (uc.getIntData() != null);
+        assertNotNull(uc.getIntData());
+        ;
         assert (uc.getIntData()[0] == 42);
     }
 
@@ -561,10 +573,12 @@ public class QueryTest extends MorphiumTestBase {
             assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
         morphium.push(uc, UncachedObject.Fields.intData, 42, false);
-        assert (uc.getIntData() != null);
+        assertNotNull(uc.getIntData());
+        ;
         assert (uc.getIntData()[0] == 42);
         morphium.push(uc, UncachedObject.Fields.intData, 123, false);
-        assert (uc.getIntData() != null);
+        assertNotNull(uc.getIntData());
+        ;
         assert (uc.getIntData()[0] == 42);
         assert (uc.getIntData()[1] == 123);
     }
@@ -584,7 +598,8 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pushAll(UncachedObject.Fields.intData, lst);
         Thread.sleep(500);
         morphium.reread(uc);
-        assert (uc.getIntData() != null);
+        assertNotNull(uc.getIntData());
+        ;
         assert (uc.getIntData()[0] == 42);
         assert (uc.getIntData()[1] == 123);
     }

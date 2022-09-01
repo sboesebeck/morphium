@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 03.06.12
@@ -109,16 +111,20 @@ public class ReferenceTest extends MorphiumTestBase {
 
         q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();
-        assert (rcRead != null);
+        assertNotNull(rcRead);
+        ;
         assert (rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0));
-        assert (rcRead.getCo() != null);
+        assertNotNull(rcRead.getCo());
+        ;
         assert (rcRead.getId().equals(rc.getId()));
 
         q = morphium.createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
         rcRead = q.get();
-        assert (rcRead != null);
+        assertNotNull(rcRead);
+        ;
         assert (rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0));
-        assert (rcRead.getCo() != null);
+        assertNotNull(rcRead.getCo());
+        ;
         assert (rcRead.getId().equals(rc.getId()));
     }
 
@@ -145,7 +151,8 @@ public class ReferenceTest extends MorphiumTestBase {
 
         assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
         ReferenceContainer container = morphium.createQueryFor(ReferenceContainer.class).get();
-        assert (container.uc != null);
+        assertNotNull(container.uc);
+        ;
         assert (container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
         assert (container.uc.getCounter() == referenced.getCounter());
 

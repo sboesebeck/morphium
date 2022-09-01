@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Date;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * Created with IntelliJ IDEA.
  * User: stephan
@@ -64,14 +66,16 @@ public class CheckForNewTest extends MorphiumTestBase {
         tst.theId = "1";
         tst.theValue = "value";
         morphium.store(tst);
-        assert (tst.created != null);
+        assertNotNull(tst.created);
+        ;
 
 
         tst = new TestID2();
         tst.theId = "2";
         tst.theValue = "value2";
         morphium.store(tst);
-        assert (tst.created != null);
+        assertNotNull(tst.created);
+        ;
 
 
         morphium.getConfig().setCheckForNew(false);

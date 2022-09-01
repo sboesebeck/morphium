@@ -14,9 +14,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 
 /**
@@ -677,8 +675,8 @@ public class MessagingTest extends MorphiumTestBase {
                     m = morphium.reread(m);
                     if (m.getProcessedBy() != null && m.getProcessedBy().size() != 0) break;
                 }
-                assertThat(m.getProcessedBy().size()).isEqualTo(1);
-                assertThat(m.getProcessedBy().contains("m3")).isTrue();
+                assertEquals(1, m.getProcessedBy().size());
+                assertTrue(m.getProcessedBy().contains("m3"));
             }
         } finally {
             m1.terminate();
@@ -714,7 +712,8 @@ public class MessagingTest extends MorphiumTestBase {
                         Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
                         Msg a = m1.sendAndAwaitFirstAnswer(m, 600000);
-                        assert (a != null);
+                        assertNotNull(a);
+                        ;
                         procCounter.incrementAndGet();
                     }
                 }.start();
@@ -1281,7 +1280,7 @@ public class MessagingTest extends MorphiumTestBase {
                 assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
-            assertThat(m1.getNumberOfMessages()).isEqualTo(0);
+            assertEquals(0, m1.getNumberOfMessages());
         } finally {
             m1.terminate();
             m2.terminate();

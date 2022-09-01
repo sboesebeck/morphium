@@ -10,6 +10,9 @@ import javax.jms.*;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 public class BasicJMSTests extends MorphiumTestBase {
 
     @Test
@@ -100,8 +103,10 @@ public class BasicJMSTests extends MorphiumTestBase {
         receiverThread.start();
         senderThread.start();
         Thread.sleep(5000);
-        assert (exchange.get("sent") != null);
-        assert (exchange.get("received") != null);
+        assertNotNull(exchange.get("sent"));
+        ;
+        assertNotNull(exchange.get("received"));
+        ;
 
         ctx1.close();
         ctx2.close();
@@ -119,7 +124,8 @@ public class BasicJMSTests extends MorphiumTestBase {
         producer.send(new JMSTopic("jmstopic_test"), "This is the body");
         Message msg = consumer.receive();
 
-        assert (msg != null);
+        assertNotNull(msg);
+        ;
 
         m.terminate();
         m2.terminate();
@@ -144,7 +150,8 @@ public class BasicJMSTests extends MorphiumTestBase {
         producer.send(new JMSQueue(), "This is the body");
         Message msg = consumer.receive(1000);
         Message msg2 = consumer2.receive(1000);
-        assert (msg != null || msg2 != null);
+        assertTrue(msg != null || msg2 != null);
+        ;
         assert (msg != msg2);
 
         m.terminate();

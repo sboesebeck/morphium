@@ -14,7 +14,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * User: Stephan Bösebeck
@@ -622,7 +622,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             m1.sendMessage(m);
             Thread.sleep(1000);
             m = morphium.reread(m);
-            assertThat(m.getProcessedBy().size()).isEqualTo(1); //is marked as processed, performance optimization
+            assertEquals(1, m.getProcessedBy().size()); //is marked as processed, performance optimization
         } finally {
             m1.terminate();
             m2.terminate();
@@ -655,8 +655,8 @@ public class MessagingNCTest extends MorphiumTestBase {
                 m1.sendMessage(m);
                 Thread.sleep(1000);
                 m = morphium.reread(m);
-                assertThat(m.getProcessedBy().size()).isEqualTo(1);
-                assertThat(m.getProcessedBy().contains("m3")).isTrue();
+                assertEquals(1, m.getProcessedBy().size());
+                assertTrue(m.getProcessedBy().contains("m3"));
             }
         } finally {
             m1.terminate();
@@ -695,7 +695,8 @@ public class MessagingNCTest extends MorphiumTestBase {
                         Msg m = new Msg("test", "nothing", "value");
                         m.setTtl(60000000);
                         Msg a = m1.sendAndAwaitFirstAnswer(m, 36000);
-                        assert (a != null);
+                        assertNotNull(a);
+                        ;
                         procCounter.incrementAndGet();
                     }
                 }.start();

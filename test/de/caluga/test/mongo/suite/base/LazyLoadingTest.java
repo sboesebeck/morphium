@@ -16,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 29.05.12
@@ -54,14 +56,16 @@ public class LazyLoadingTest extends MorphiumTestBase {
         q = q.f("name").eq("Lazy");
         LazyLoadingObject lzRead = q.get();
         Object id = morphium.getId(lzRead);
-        assert (id != null);
+        assertNotNull(id);
+        ;
         assert (lzRead.getLazyUncached().getCounter() == 15);
         assert (lzRead.getLazyUncached().getStrValue().equals("A uncached value"));
         co = lzRead.getLazyCached();
         Thread.sleep(1000);
         id = morphium.getId(co);
         assert (co.getCounter() == 22) : "Counter wrong.." + co.getCounter();
-        assert (id != null);
+        assertNotNull(id);
+        ;
 
     }
 
@@ -108,7 +112,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         q = q.f("name").eq("Lazy");
         LazyLoadingObject lzRead = q.get();
 
-        assert (lzRead != null) : "Not found????";
+        assertNotNull(lzRead, "Not found????");
         log.info("LZRead: " + lzRead.getClass().getName());
         assert (!lzRead.getClass().getName().contains("$EnhancerByCGLIB$")) : "Lazy loader in Root-Object?";
         Double rd = morphium.getStatistics().get(StatisticKeys.READS.name());

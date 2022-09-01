@@ -12,7 +12,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -69,11 +71,11 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
             uc.setCounter(i + 1);
             uc.setStrValue("nix " + i);
             morphium.store(uc);
-            assertThat(uc.getMorphiumId()).isNotNull();
+            assertNotNull(uc.getMorphiumId());
         }
         long dur = System.currentTimeMillis() - start;
         log.info("storing objects one by one took " + dur + " ms");
-        assertThat(q.countAll()).isEqualTo(1000);
+        assertEquals(1000, q.countAll());
         morphium.clearCollection(UncachedObject.class);
         log.info("Start storing list");
         List<UncachedObject> lst = new ArrayList<>();
@@ -86,7 +88,8 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         }
         log.info("List prepared...");
         morphium.storeList(lst);
-        assert (lst.get(0).getMorphiumId() != null);
+        assertNotNull(lst.get(0).getMorphiumId());
+        ;
         dur = System.currentTimeMillis() - start;
         if ((morphium.getWriteBufferCount() != 0)) {
             throw new AssertionError("WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
@@ -95,7 +98,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
 
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
 
-        assertThat(q.countAll()).isEqualTo(1000);
+        assertEquals(1000, q.countAll());
 
     }
 
@@ -147,7 +150,7 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         Thread.sleep(100);
-        assertThat(q.countAll()).isEqualTo(1000);
+        assertEquals(1000, q.countAll());
 
     }
 
@@ -164,7 +167,8 @@ public class BulkInsertInMemTest extends MorphiumInMemTestBase {
         morphium.storeList(prs);
 
         Thread.sleep(1000);
-        assert (prs.get(0).getId() != null);
+        assertNotNull(prs.get(0).getId());
+        ;
         long cnt = morphium.createQueryFor(Person.class).countAll();
         assert (cnt == 100);
     }

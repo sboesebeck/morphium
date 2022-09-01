@@ -4,6 +4,8 @@ import de.caluga.morphium.Utils;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 @SuppressWarnings("AssertWithSideEffects")
 public class FieldShadowingTest extends MorphiumTestBase {
 
@@ -15,7 +17,8 @@ public class FieldShadowingTest extends MorphiumTestBase {
         log.info(marshall);
         assert (marshall.contains("A test"));
 
-        assert (morphium.getMapper().deserialize(Shadowed.class, marshall).value != null);
+        assertNotNull(morphium.getMapper().deserialize(Shadowed.class, marshall).value);
+        ;
         assert (morphium.getMapper().deserialize(Shadowed.class, marshall).value.equals("A test"));
 
         ReShadowed rs = new ReShadowed();

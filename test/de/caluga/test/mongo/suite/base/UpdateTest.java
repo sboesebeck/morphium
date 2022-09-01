@@ -18,6 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 09.05.12
@@ -198,7 +200,7 @@ public class UpdateTest extends MultiDriverTestBase {
             Thread.sleep(220);
             UncachedObject uc = q.get(); //should now work
 
-            assert (uc != null) : "Not found?!?!?";
+            assertNotNull(uc, "Not found?!?!?");
             assert (uc.getStrValue().equals("unexistent")) : "Value wrong: " + uc.getStrValue();
         }
     }
@@ -264,7 +266,8 @@ public class UpdateTest extends MultiDriverTestBase {
             waitForWrites(morphium);
 
             ListContainer lc2 = lc.get();
-            assert (lc2.getEmbeddedObjectList() != null);
+            assertNotNull(lc2.getEmbeddedObjectList());
+            ;
             assert (lc2.getEmbeddedObjectList().size() == 2);
             assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
         }
@@ -339,7 +342,8 @@ public class UpdateTest extends MultiDriverTestBase {
             waitForWrites(morphium);
             Thread.sleep(2500);
             ListContainer lc2 = lc.get();
-            assert (lc2.getEmbeddedObjectList() != null);
+            assertNotNull(lc2.getEmbeddedObjectList());
+            ;
             assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
             assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
         }
@@ -364,7 +368,8 @@ public class UpdateTest extends MultiDriverTestBase {
             Thread.sleep(100);
             UncachedObject uc2 = morphium.findById(UncachedObject.class, uc.getMorphiumId());
             assert (uc2.getCounter() == 1001);
-            assert (uc2.getLongData() != null);
+            assertNotNull(uc2.getLongData());
+            ;
             assert (uc2.getLongData()[0] == 42);
             assert (uc2.getDval() == 0);
 

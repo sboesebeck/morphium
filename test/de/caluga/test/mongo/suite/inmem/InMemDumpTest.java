@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class InMemDumpTest extends MorphiumInMemTestBase {
 
     @Test
@@ -51,7 +53,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
 //
 //        morphium.dropCollection(UncachedObject.class);
 //        ExportContainer ex = morphium.getMapper().deserialize(ExportContainer.class, Utils.toJsonString(s));
-//        assert (ex != null);
+//        assertNotNull(ex);;
 //        ((InMemoryDriver) morphium.getDriver()).setDatabase(morphium.getDriver().listDatabases().get(0), ex.data);
 //
 //        List<UncachedObject> result = morphium.createQueryFor(UncachedObject.class).asList();
@@ -93,8 +95,10 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         assert (morphium.createQueryFor(ComplexObject.class).countAll() == 100);
 
         for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
-            assert (co.getEinText() != null);
-            assert (co.getRef() != null);
+            assertNotNull(co.getEinText());
+            ;
+            assertNotNull(co.getRef());
+            ;
         }
     }
 

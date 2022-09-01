@@ -11,6 +11,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class MapSubDocumentTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -27,7 +29,8 @@ public class MapSubDocumentTest extends MultiDriverTestBase {
 
             MapDoc d = morphium.findById(MapDoc.class, m.id);
             assert (d.value.equals("Val"));
-            assert (d.mapValue != null);
+            assertNotNull(d.mapValue);
+            ;
             assert (d.mapValue.get(42L).equals("life and universe and everything"));
             assert (d.mapValue.get(54322321L).equals("test 2"));
 

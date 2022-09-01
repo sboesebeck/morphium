@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * User: Stephan Bösebeck
@@ -30,7 +30,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferUpsert() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
 
-        assertThat(waitForAsyncOperationsToStart(morphium, 2000)).isTrue();
+        assertTrue(waitForAsyncOperationsToStart(morphium, 2000));
         waitForWrites();
         List<BufferedBySizeObject> lst = new ArrayList<>();
         for (int i = 0; i < 200; i++) {
@@ -44,7 +44,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             morphium.store(b);
         }
         Thread.sleep(3000);
-        assertThat(waitForAsyncOperationsToStart(morphium, 2000)).isTrue();
+        assertTrue(waitForAsyncOperationsToStart(morphium, 2000));
         waitForWrites();
         for (BufferedBySizeObject b : lst) {
             b.setStrValue(b.getStrValue() + 100);
@@ -53,7 +53,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         Thread.sleep(3000);
         waitForAsyncOperationsToStart(morphium, 2000);
         waitForWrites();
-        assertThat(morphium.createQueryFor(BufferedBySizeObject.class).countAll()).isEqualTo(200);
+        assertEquals(200, morphium.createQueryFor(BufferedBySizeObject.class).countAll());
 
     }
     @Test
@@ -322,7 +322,8 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
         Thread.sleep(500);
         ComplexObjectBuffered buf = m.createQueryFor(ComplexObjectBuffered.class).f("ein_text").eq("The text " + 0).get();
-        assert (buf != null);
+        assertNotNull(buf);
+        ;
         assert (m.createQueryFor(ComplexObjectBuffered.class).countAll() == 100);
     }
 

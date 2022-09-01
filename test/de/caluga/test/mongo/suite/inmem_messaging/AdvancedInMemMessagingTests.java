@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
@@ -180,7 +182,8 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
             });
 
             Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
-            assert (answer != null);
+            assertNotNull(answer);
+            ;
             assert (answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
         } finally {
             producer.terminate();

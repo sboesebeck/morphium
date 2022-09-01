@@ -4,7 +4,8 @@ import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.driver.Doc;
 import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 public class IndexDescriptionTest {
@@ -16,10 +17,10 @@ public class IndexDescriptionTest {
         idx.setName("Test");
 
         var m = idx.asMap();
-        assertThat(m.containsKey("key")).isTrue();
-        assertThat(m.containsKey("bits")).isTrue();
-        assertThat(m.containsKey("name")).isTrue();
-        assertThat(m.get("name")).isEqualTo("Test");
+        assertTrue(m.containsKey("key"));
+        assertTrue(m.containsKey("bits"));
+        assertTrue(m.containsKey("name"));
+        assertEquals("Test", m.get("name"));
     }
 
     @Test
@@ -35,11 +36,11 @@ public class IndexDescriptionTest {
 
         var m = idx.asMap();
         var idx2 = IndexDescription.fromMap(m);
-        assertThat(idx2.getName()).isEqualTo(idx.getName());
-        assertThat(idx2.getBits()).isEqualTo(idx.getBits());
-        assertThat(idx2.getCollation()).isEqualTo(idx.getCollation());
-        assertThat(idx2.getKey()).isEqualTo(idx.getKey());
-        assertThat(idx2.getHidden()).isEqualTo(idx.getHidden());
-        assertThat(idx2.getSparse()).isEqualTo(idx.getSparse());
+        assertEquals(idx.getName(), idx2.getName());
+        assertEquals(idx.getBits(), idx2.getBits());
+        assertEquals(idx.getCollation(), idx2.getCollation());
+        assertEquals(idx.getKey(), idx2.getKey());
+        assertEquals(idx.getHidden(), idx2.getHidden());
+        assertEquals(idx.getSparse(), idx2.getSparse());
     }
 }

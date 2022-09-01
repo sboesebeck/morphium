@@ -19,6 +19,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
  * User: Stephan Bösebeck
  * Date: 11.03.13
@@ -99,7 +102,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                     asyncCall = true;
                     log.info("got read answer");
-                    assert (result != null) : "Error";
+                    assertNotNull(result, "Error");
                     assert (result.size() == 100) : "Error";
                 }
 
@@ -133,7 +136,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
                     asyncCall = true;
                     log.info("got async callback!");
-                    assert (param != null && param[0] != null);
+                    assertTrue(param != null && param[0] != null);
+                    ;
                     assert (param[0].equals((long) 100));
                 }
 

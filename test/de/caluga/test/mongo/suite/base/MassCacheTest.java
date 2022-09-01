@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * @author stephan
  */
@@ -203,7 +205,7 @@ public class MassCacheTest extends MorphiumTestBase {
                     Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                     q.f("value").eq("Test " + i);
                     List<CachedObject> lst = q.asList();
-                    assert (lst != null) : "List is NULL????";
+                    assertNotNull(lst, "List is NULL????");
                     assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                     assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                     log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
@@ -221,7 +223,7 @@ public class MassCacheTest extends MorphiumTestBase {
                     Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                     q.f("value").eq("Test " + i);
                     List<CachedObject> lst = q.asList();
-                    assert (lst != null) : "List is NULL????";
+                    assertNotNull(lst, "List is NULL????");
                     assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                     assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                     log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
@@ -271,7 +273,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
                 q.f("value").eq("Test " + i);
                 List<CachedObject> lst = q.asList();
-                assert (lst != null) : "List is NULL????";
+                assertNotNull(lst, "List is NULL????");
                 assert (!lst.isEmpty()) : "Not found?!?!? Value: Test " + i;
                 assert (lst.get(0).getValue().equals("Test " + i)) : "Wrong value!";
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());

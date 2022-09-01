@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class OpTests {
 
@@ -28,10 +30,10 @@ public class OpTests {
         assertThat(data.length).isGreaterThan(0);
 
         OpGetMore op2 = (OpGetMore) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(op2.getCursorId()).isEqualTo(op.getCursorId());
-        assertThat(op2.getFullCollectionName()).isEqualTo(op.getFullCollectionName());
-        assertThat(op2.getResponseTo()).isEqualTo(op.getResponseTo());
-        assertThat(op2.getMessageId()).isEqualTo(op.getMessageId());
+        assertEquals(op.getCursorId(), op2.getCursorId());
+        assertEquals(op.getFullCollectionName(), op2.getFullCollectionName());
+        assertEquals(op.getResponseTo(), op2.getResponseTo());
+        assertEquals(op.getMessageId(), op2.getMessageId());
     }
 
 
@@ -51,12 +53,12 @@ public class OpTests {
 
         OpInsert parsed = (OpInsert) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
         assertThat(parsed.getDocuments()).hasSize(2);
-        assertThat(parsed.getFlags()).isEqualTo(op.getFlags());
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
+        assertEquals(op.getFlags(), parsed.getFlags());
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
         assertThat(parsed.getDocuments().get(0)).containsKey("test");
         assertThat(parsed.getDocuments().get(1)).containsKey("test");
-        assertThat(parsed.getDocuments().get(1).get("test")).isEqualTo("value2");
+        assertEquals("value2", parsed.getDocuments().get(1).get("test"));
 
     }
 
@@ -74,9 +76,9 @@ public class OpTests {
         assertThat(data).isNotEmpty();
 
         OpDelete parsed = (OpDelete) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(parsed.getFlags()).isEqualTo(op.getFlags());
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
+        assertEquals(op.getFlags(), parsed.getFlags());
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
         assertThat(parsed.getSelector()).containsKey("test");
         assertThat(parsed.getSelector()).containsKey("test2");
 
@@ -95,10 +97,10 @@ public class OpTests {
         assertThat(data).isNotEmpty();
 
         OpKillCursors parsed = (OpKillCursors) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
-        assertThat(parsed.getCursorIds().size()).isEqualTo(op.getCursorIds().size());
-        assertThat(parsed.getCursorIds()).isEqualTo(op.getCursorIds());
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
+        assertEquals(op.getCursorIds().size(), parsed.getCursorIds().size());
+        assertEquals(op.getCursorIds(), parsed.getCursorIds());
 
     }
 
@@ -118,13 +120,13 @@ public class OpTests {
         assertThat(data).isNotEmpty();
 
         OpReply parsed = (OpReply) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
-        assertThat(parsed.getCursorId()).isEqualTo(op.getCursorId());
-        assertThat(parsed.getFlags()).isEqualTo(op.getFlags());
-        assertThat(parsed.getDocuments().size()).isEqualTo(op.getDocuments().size());
-        assertThat(parsed.getNumReturned()).isEqualTo(op.getNumReturned());
-        assertThat(parsed.getDocuments().get(0).get("test")).isEqualTo(parsed.getDocuments().get(0).get("test"));
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
+        assertEquals(op.getCursorId(), parsed.getCursorId());
+        assertEquals(op.getFlags(), parsed.getFlags());
+        assertEquals(op.getDocuments().size(), parsed.getDocuments().size());
+        assertEquals(op.getNumReturned(), parsed.getNumReturned());
+        assertEquals(parsed.getDocuments().get(0).get("test"), parsed.getDocuments().get(0).get("test"));
 
     }
 
@@ -143,12 +145,12 @@ public class OpTests {
         assertThat(data).isNotEmpty();
 
         OpUpdate parsed = (OpUpdate) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
-        assertThat(parsed.getFlags()).isEqualTo(op.getFlags());
-        assertThat(parsed.getUpdate()).isEqualTo(op.getUpdate());
-        assertThat(parsed.getSelector()).isEqualTo(op.getSelector());
-        assertThat(parsed.getFullCollectionName()).isEqualTo(op.getFullCollectionName());
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
+        assertEquals(op.getFlags(), parsed.getFlags());
+        assertEquals(op.getUpdate(), parsed.getUpdate());
+        assertEquals(op.getSelector(), parsed.getSelector());
+        assertEquals(op.getFullCollectionName(), parsed.getFullCollectionName());
 
     }
 
@@ -167,9 +169,9 @@ public class OpTests {
         assertThat(data).isNotEmpty();
 
         OpMsg parsed = (OpMsg) WireProtocolMessage.parseFromStream(new ByteArrayInputStream(data));
-        assertThat(parsed.getMessageId()).isEqualTo(op.getMessageId());
-        assertThat(parsed.getResponseTo()).isEqualTo(op.getResponseTo());
-        assertThat(parsed.getFlags()).isEqualTo(op.getFlags());
+        assertEquals(op.getMessageId(), parsed.getMessageId());
+        assertEquals(op.getResponseTo(), parsed.getResponseTo());
+        assertEquals(op.getFlags(), parsed.getFlags());
         assertThat(parsed.getFirstDoc()).hasSize(op.getFirstDoc().size());
 
     }

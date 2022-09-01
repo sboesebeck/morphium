@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 public class StatsTest extends MorphiumTestBase {
 
@@ -36,8 +38,8 @@ public class StatsTest extends MorphiumTestBase {
     public void existsTest() throws Exception {
         createUncachedObjects(1);
         Thread.sleep(100);
-        assertThat(morphium.exists(morphium.getDatabase(), "uncached_object")).isTrue();
-        assertThat(morphium.exists(morphium.getDatabase(), "uncached_object_none")).isFalse();
+        assertTrue(morphium.exists(morphium.getDatabase(), "uncached_object"));
+        assertFalse(morphium.exists(morphium.getDatabase(), "uncached_object_none"));
     }
 }
 
