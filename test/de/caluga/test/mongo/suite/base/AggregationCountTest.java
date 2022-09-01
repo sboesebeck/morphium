@@ -11,7 +11,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class AggregationCountTest extends MultiDriverTestBase {
 
@@ -26,7 +27,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
                     .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
-            assertThat(agg.getCount()).isEqualTo(990);
+            assertEquals(990, agg.getCount());
         }
     }
 
@@ -41,7 +42,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
                     .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
-            assertThat(agg.getCount()).isEqualTo(0);
+            assertEquals(0, agg.getCount());
         }
     }
 //

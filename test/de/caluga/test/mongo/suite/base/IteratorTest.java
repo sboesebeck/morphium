@@ -17,7 +17,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 /**
  * User: Stephan Bösebeck
@@ -222,7 +223,8 @@ public class IteratorTest extends MultiDriverTestBase {
                     for (CachedObject co : otherIt) {
                         //                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
                         //                Thread.sleep(200);
-                        assert (co.getValue() != null);
+                        assertNotNull(co.getValue());
+                        ;
                         assert (co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
                     }
                     if (it.getCursor() % 100 == 0) {
@@ -267,31 +269,31 @@ public class IteratorTest extends MultiDriverTestBase {
             Query<UncachedObject> qu = getUncachedObjectQuery(morphium);
             long start = System.currentTimeMillis();
             MorphiumIterator<UncachedObject> it = qu.asIterable(2);
-            assertThat(it.hasNext());
+            assertTrue(it.hasNext());
             UncachedObject u = it.next();
-            assertThat(u.getCounter()).isEqualTo(1);
+            assertEquals(1, u.getCounter());
             log.info("Got one: " + u.getCounter() + "  / " + u.getStrValue());
             log.info("Current Buffersize: " + it.available());
             if (!(morphium.getDriver() instanceof InMemoryDriver)) {
-                assertThat(it.available()).isEqualTo(1);
+                assertEquals(1, it.available());
             }
             u = it.next();
-            assertThat(u.getCounter()).isEqualTo(2);
+            assertEquals(2, u.getCounter());
             u = it.next();
-            assertThat(u.getCounter()).isEqualTo(3);
-            assertThat(it.getCursor()).isEqualTo(3);
+            assertEquals(3, u.getCounter());
+            assertEquals(3, it.getCursor());
 
             u = it.next();
-            assertThat(u.getCounter()).isEqualTo(4);
+            assertEquals(4, u.getCounter());
             u = it.next();
-            assertThat(u.getCounter()).isEqualTo(5);
+            assertEquals(5, u.getCounter());
 
             while (it.hasNext()) {
                 u = it.next();
                 log.info("Object: " + u.getCounter());
             }
 
-            assertThat(u.getCounter()).isEqualTo(1000);
+            assertEquals(1000, u.getCounter());
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
 
             for (UncachedObject uc : qu.asIterable(100)) {
@@ -449,9 +451,9 @@ public class IteratorTest extends MultiDriverTestBase {
                 int cnt = 0;
                 for (UncachedObject u : it) {
                     cnt++;
-                    assertThat(u.getCounter()).isEqualTo(cnt);
+                    assertEquals(cnt, u.getCounter());
                 }
-                assertThat(cnt).isEqualTo(20);
+                assertEquals(20, cnt);
                 log.info("Took " + (System.currentTimeMillis() - start) + " ms");
             }
         }
@@ -470,7 +472,7 @@ public class IteratorTest extends MultiDriverTestBase {
             while (it.hasNext()) {
                 cnt++;
                 var u = it.next();
-                assertThat(u.getCounter()).isEqualTo(cnt);
+                assertEquals(cnt, u.getCounter());
             }
             it.close();
         }

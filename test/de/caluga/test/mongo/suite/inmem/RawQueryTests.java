@@ -8,7 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class RawQueryTests extends MorphiumInMemTestBase {
 
@@ -39,12 +40,12 @@ public class RawQueryTests extends MorphiumInMemTestBase {
         Map<String, Object> rawQuery = UtilsMap.of("str_value", UtilsMap.of("$regex", ".*[0-9]+.*", "$options", "i"));
         List<UncachedObject> lst;
         lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
-        assertThat(lst.size()).isEqualTo(1);
+        assertEquals(1, lst.size());
         rawQuery = UtilsMap.of("str_value", UtilsMap.of("$regex", ".*value.*", "$options", "i"));
         lst = morphium.createQueryFor(UncachedObject.class).rawQuery(rawQuery).asList();
-        assertThat(lst.size()).isEqualTo(3);
+        assertEquals(3, lst.size());
 
         lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).matches(Pattern.compile(".*value.*", Pattern.CASE_INSENSITIVE)).asList();
-        assertThat(lst.size()).isEqualTo(3);
+        assertEquals(3, lst.size());
     }
 }

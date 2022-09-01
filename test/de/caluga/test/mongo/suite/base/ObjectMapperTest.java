@@ -18,6 +18,9 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
 import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -63,7 +66,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> d = om.serialize(tst);
 
         BigInteger bi = om.deserialize(BigInteger.class, d);
-        assert (bi != null);
+        assertNotNull(bi);
+        ;
         assert (tst.equals(bi));
 
         BIObject bio = new BIObject();
@@ -71,8 +75,10 @@ public class ObjectMapperTest extends MorphiumTestBase {
         morphium.store(bio);
 
         BIObject bio2 = morphium.createQueryFor(BIObject.class).get();
-        assert (bio2 != null);
-        assert (bio2.biValue != null);
+        assertNotNull(bio2);
+        ;
+        assertNotNull(bio2.biValue);
+        ;
         assert (bio2.biValue.equals(tst));
     }
 
@@ -83,7 +89,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> m = morphium.getMapper().serialize(o);
         assert (m.get("_id") instanceof ObjectId);
         UncachedObject uc = morphium.getMapper().deserialize(UncachedObject.class, m);
-        assert (uc.getMorphiumId() != null);
+        assertNotNull(uc.getMorphiumId());
+        ;
     }
 
 
@@ -281,13 +288,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
         //Unmarshalling stuff
         co = om.deserialize(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
-        assert (co.getRef() != null);
+        assertNotNull(co.getRef());
+        ;
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
         co.getRef().setMorphiumId(o.getMorphiumId());
         //co.getcRef().setId(new MorphiumId());
         String st2 = Utils.toJsonString(co);
         assert (stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
-        assert (co.getEmbed() != null) : "Embedded value not found!";
+        assertNotNull(co.getEmbed(), "Embedded value not found!");
 
     }
 
@@ -308,7 +316,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         uc.setDval(123);
 
         Map<String, Object> map = morphium.getMapper().serialize(uc);
-        assert (map.get("_id") != null);
+        assertNotNull(map.get("_id"));
+        ;
         assert (map.get("str_value").equals("value"));
         assert (map.get("counter").equals(1234));
 
@@ -388,7 +397,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         MapListObject mo = om.deserialize(MapListObject.class, marshall);
         assert (mo.getName().equals("A map-value")) : "Name error";
-        assert (mo.getMapValue() != null) : "map value is null????";
+        assertNotNull(mo.getMapValue(), "map value is null????");
         for (String k : mo.getMapValue().keySet()) {
             Object v = mo.getMapValue().get(k);
             if (v == null) {
@@ -439,7 +448,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         morphium.getConfig().setReplicasetMonitoring(false);
         String json = "{ \"settings\" : { \"heartbeatTimeoutSecs\" : 10, \"catchUpTimeoutMillis\" : -1, \"catchUpTakeoverDelayMillis\" : 30000, \"getLastErrorModes\" : {  } , \"getLastErrorDefaults\" : { \"wtimeout\" : 0, \"w\" : 1 } , \"electionTimeoutMillis\" : 10000, \"chainingAllowed\" : true, \"replicaSetId\" : \"5adba61c986af770bb25454e\", \"heartbeatIntervalMillis\" : 2000 } , \"members\" :  [ { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27017\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 0, \"priority\" : 10.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : false, \"host\" : \"localhost:27018\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 1, \"priority\" : 5.0, \"tags\" : {  }  } , { \"hidden\" : false, \"buildIndexes\" : true, \"arbiterOnly\" : true, \"host\" : \"localhost:27019\", \"slaveDelay\" : 0, \"votes\" : 1, \"_id\" : 2, \"priority\" : 0.0, \"tags\" : {  }  } ], \"protocolVersion\" : 1, \"_id\" : \"tst\", \"version\" : 1 } ";
         ReplicaSetConf c = morphium.getMapper().deserialize(ReplicaSetConf.class, json);
-        assert (c != null);
+        assertNotNull(c);
+        ;
         assert (c.getMembers().size() == 3);
     }
 
@@ -450,11 +460,13 @@ public class ObjectMapperTest extends MorphiumTestBase {
         co.getEmbeddedObjectList().add(new EmbeddedObject("name", "test", System.currentTimeMillis()));
         co.getEmbeddedObjectList().add(new EmbeddedObject("name2", "test2", System.currentTimeMillis()));
         Map<String, Object> obj = morphium.getMapper().serialize(co);
-        assert (obj.get("embeddedObjectList") != null);
+        assertNotNull(obj.get("embeddedObjectList"));
+        ;
         assert (((List) obj.get("embeddedObjectList")).size() == 2);
         ComplexObject co2 = morphium.getMapper().deserialize(ComplexObject.class, obj);
         assert (co2.getEmbeddedObjectList().size() == 2);
-        assert (co2.getEmbeddedObjectList().get(0).getName() != null);
+        assertNotNull(co2.getEmbeddedObjectList().get(0).getName());
+        ;
 
     }
 
@@ -465,7 +477,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o.setBinaryData(new byte[]{1, 2, 3, 4, 5, 5});
 
         Map<String, Object> obj = morphium.getMapper().serialize(o);
-        assert (obj.get("binary_data") != null);
+        assertNotNull(obj.get("binary_data"));
+        ;
         assert (obj.get("binary_data").getClass().isArray());
         assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
     }
@@ -479,7 +492,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         log.info("Serialized... " + serialized);
 
         o = morphium.getMapper().deserialize(NoDefaultConstructorUncachedObject.class, serialized);
-        assert (o != null);
+        assertNotNull(o);
+        ;
         assert (o.getCounter() == 15);
         assert (o.getStrValue().equals("test"));
     }
@@ -497,7 +511,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> dbo = m.serialize(o);
         o = m.deserialize(MappedObject.class, Utils.toJsonString(dbo));
 
-        assert (o.aMap.get("test") != null);
+        assertNotNull(o.aMap.get("test"));
+        ;
     }
 
     @Test
@@ -508,7 +523,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         uc.setLongData(new long[]{1L, 2L});
         Map<String, Object> obj = map.serialize(uc);
 
-        assert (obj.get("str_value") != null);
+        assertNotNull(obj.get("str_value"));
+        ;
         assert (obj.get("str_value") instanceof String);
         assert (obj.get("counter") instanceof Integer);
         assert (obj.get("long_data") instanceof ArrayList);
@@ -520,7 +536,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         mo.aMap.put("Test", "value1");
         mo.aMap.put("test2", "value2");
         obj = map.serialize(mo);
-        assert (obj.get("uc") != null);
+        assertNotNull(obj.get("uc"));
+        ;
         assert (((Map) obj.get("uc")).get("_id") == null);
 
         BIObject bo = new BIObject();
@@ -562,13 +579,15 @@ public class ObjectMapperTest extends MorphiumTestBase {
         so.mapOfSetOfStrings.get("t2").add("test21");
 
         Map<String, Object> m = morphium.getMapper().serialize(so);
-        assert (m.get("set_of_strings") != null);
+        assertNotNull(m.get("set_of_strings"));
+        ;
         assert (m.get("set_of_strings") instanceof List);
         assert (((List) m.get("set_of_strings")).size() == 3);
         assert (((List) m.get("set_of_u_c")).size() == 1);
 
         SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
-        assert (so2 != null);
+        assertNotNull(so2);
+        ;
         so2.setOfStrings.contains("test");
         so2.setOfStrings.contains("test2");
         so2.setOfStrings.contains("test3");
@@ -612,12 +631,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst.list.add(new EmbeddedObject("nam", "val", System.currentTimeMillis()));
 
         Map<String, Object> obj = map.serialize(lst);
-        assert (obj.get("list") != null);
+        assertNotNull(obj.get("list"));
+        ;
         assert (obj.get("list") instanceof List);
         assert (((List) obj.get("list")).get(0) instanceof Map);
 
         ListOfEmbedded lst2 = map.deserialize(ListOfEmbedded.class, obj);
-        assert (lst2.list != null);
+        assertNotNull(lst2.list);
+        ;
         assert (lst2.list.size() == 4);
         assert (lst2.list.get(0).getName().equals("nam"));
 
@@ -676,8 +697,10 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
         assert (lst6.list.size() == 2);
-        assert (lst6.list.get(0) != null);
-        assert (lst6.list.get(0).get("tst1") != null);
+        assertNotNull(lst6.list.get(0));
+        ;
+        assertNotNull(lst6.list.get(0).get("tst1"));
+        ;
     }
 
     @Test
@@ -719,17 +742,20 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
 
         Map<String, Object> obj = morphium.getMapper().serialize(e);
-        assert (obj.get("an_enum") != null);
+        assertNotNull(obj.get("an_enum"));
+        ;
 
         MorphiumObjectMapper map = new ObjectMapperImpl();
         map.setMorphium(morphium);
         map.setAnnotationHelper(morphium.getARHelper());
         Map<String, Object> obj2 = map.serialize(e);
-        assert (obj2.get("an_enum") != null);
+        assertNotNull(obj2.get("an_enum"));
+        ;
 
         EnumTest e2 = map.deserialize(EnumTest.class, obj2);
 
-        assert (e2 != null);
+        assertNotNull(e2);
+        ;
         assert (e2.equals(e));
     }
 
@@ -737,10 +763,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
     public void referenceTest() {
         MorphiumReference r = new MorphiumReference("test", new MorphiumId());
         Map<String, Object> o = morphium.getMapper().serialize(r);
-        assert (o.get("refid") != null);
+        assertNotNull(o.get("refid"));
+        ;
 
         MorphiumReference r2 = morphium.getMapper().deserialize(MorphiumReference.class, o);
-        assert (r2.getId() != null);
+        assertNotNull(r2.getId());
+        ;
     }
 
     @Test
@@ -800,7 +828,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         Complex c2 = new ObjectMapperImpl().deserialize(Complex.class, seralized);
         log.info("Deserialized!");
-        assert (c2 != null);
+        assertNotNull(c2);
+        ;
         assert (c2.id.equals(c.id));
         assert (c2.structureK.size() == c.structureK.size());
         assert (c2.structureK.get(0).get("String") instanceof String);
@@ -810,7 +839,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         assert (c2.structureK.get(1).get("String") instanceof String);
         assert (c2.structureK.get(1).get("Integer") instanceof Integer);
         assert (c2.structureK.get(1).get("List") instanceof List);
-        assert (c2.structureK.get(1).get("Map") != null);
+        assertNotNull(c2.structureK.get(1).get("Map"));
+        ;
         assert (((Map) c2.structureK.get(1).get("Map")).get("key").equals(123));
 
         log.info("All fine!");

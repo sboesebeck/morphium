@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * Created with IntelliJ IDEA.
  * User: stephan
@@ -58,7 +60,8 @@ public class PolymorphismTest extends MorphiumTestBase {
         ((SubClass) pc.aSubClass).setSub("Subclass");
 
         Map<String, Object> obj = morphium.getMapper().serialize(pc);
-        assert (obj != null);
+        assertNotNull(obj);
+        ;
 
         pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
         assert (pc.aSubClass instanceof SubClass);
@@ -70,11 +73,13 @@ public class PolymorphismTest extends MorphiumTestBase {
         pc.aLotOfSubClasses.add(new SubClass("subclass"));
 
         obj = morphium.getMapper().serialize(pc);
-        assert (obj != null);
+        assertNotNull(obj);
+        ;
         assert (((List) obj.get("a_lot_of_sub_classes")).size() == 3);
 
         pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
-        assert (pc != null);
+        assertNotNull(pc);
+        ;
         assert (pc.aLotOfSubClasses.size() == 3);
 
         pc = new PolyContainer();
@@ -82,11 +87,14 @@ public class PolymorphismTest extends MorphiumTestBase {
         pc.aMapOfSubClasses.put("subClass", new SubClass("subclass"));
         pc.aMapOfSubClasses.put("other", new OtherSubClass("other"));
         obj = morphium.getMapper().serialize(pc);
-        assert (obj != null);
+        assertNotNull(obj);
+        ;
 
         pc = morphium.getMapper().deserialize(PolyContainer.class, obj);
-        assert (pc.aMapOfSubClasses.get("subClass") != null);
-        assert (pc.aMapOfSubClasses.get("other") != null);
+        assertNotNull(pc.aMapOfSubClasses.get("subClass"));
+        ;
+        assertNotNull(pc.aMapOfSubClasses.get("other"));
+        ;
     }
 
     @Entity

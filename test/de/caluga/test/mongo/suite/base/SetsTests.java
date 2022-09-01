@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -75,12 +77,12 @@ public class SetsTests extends MorphiumTestBase {
         Query<SetContainer> q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         SetContainer lst2 = q.get();
-        assert (lst2 != null) : "Error - not found?";
+        assertNotNull(lst2, "Error - not found?");
 
-        assert (lst2.getEmbeddedObjectsSet() != null) : "Embedded list null?";
-        assert (lst2.getLongSet() != null) : "Long list null?";
-        assert (lst2.getRefSet() != null) : "Ref list null?";
-        assert (lst2.getStringSet() != null) : "String list null?";
+        assertNotNull(lst2.getEmbeddedObjectsSet(), "Embedded list null?");
+        assertNotNull(lst2.getLongSet(), "Long list null?");
+        assertNotNull(lst2.getRefSet(), "Ref list null?");
+        assertNotNull(lst2.getStringSet(), "String list null?");
 
         for (int i = 0; i < count; i++) {
 
@@ -160,7 +162,8 @@ public class SetsTests extends MorphiumTestBase {
         morphium.storeList(lst);
         Thread.sleep(100);
 
-        assert (lst.toArray(new UncachedObject[]{})[0].getMorphiumId() != null);
+        assertNotNull(lst.toArray(new UncachedObject[]{})[0].getMorphiumId());
+        ;
 
         lst.toArray(new UncachedObject[]{})[0].setCounter(999);
 
@@ -236,7 +239,8 @@ public class SetsTests extends MorphiumTestBase {
 
         morphium.store(ilst);
         Thread.sleep(1000);
-        assert (ilst.id != null);
+        assertNotNull(ilst.id);
+        ;
 
         MyIdSetContainer ilst2 = morphium.createQueryFor(MyIdSetContainer.class).get();
         assert (ilst2.idList.size() == ilst.idList.size());

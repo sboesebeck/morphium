@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 04.05.12
@@ -27,11 +29,11 @@ public class EnumTest extends MorphiumTestBase {
         morphium.store(ent);
 
         ent = morphium.createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
-        assert (ent.getTst() != null) : "Enum is null!";
+        assertNotNull(ent.getTst(), "Enum is null!");
         assert (ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
         ent = morphium.createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
-        assert (ent.getTst() != null) : "Enum is null!";
+        assertNotNull(ent.getTst(), "Enum is null!");
         assert (ent.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
     }
@@ -50,11 +52,11 @@ public class EnumTest extends MorphiumTestBase {
         morphium.store(ent);
 
         EnumEntity ent2 = morphium.createQueryFor(EnumEntity.class).f("value").eq("ein Test").get();
-        assert (ent2.getTst() != null) : "Enum is null!";
+        assertNotNull(ent2.getTst(), "Enum is null!");
         assert (ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
         ent2 = morphium.createQueryFor(EnumEntity.class).f("tst").eq(TestEnum.TEST1).get();
-        assert (ent2.getTst() != null) : "Enum is null!";
+        assertNotNull(ent2.getTst(), "Enum is null!");
         assert (ent2.getTst().equals(TestEnum.TEST1)) : "Enum error!";
 
         assert (ent2.getTstLst().size() == 3) : "Size of testlist wrong: " + ent2.getTstLst().size();

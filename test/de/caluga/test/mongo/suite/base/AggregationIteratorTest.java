@@ -12,7 +12,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class AggregationIteratorTest extends MultiDriverTestBase {
 
@@ -38,14 +39,14 @@ public class AggregationIteratorTest extends MultiDriverTestBase {
             for (Map m : maps) {
                 count++;
                 log.info(m.toString());
-                assertThat(m.get("number")).isNotNull();
-                assertThat(((Number) m.get("number")).intValue()).isGreaterThan(0);
-                assertThat(count).isLessThanOrEqualTo(1000);
+                assertNotNull(m.get("number"));
+                assertTrue(((Number) m.get("number")).intValue() > 0);
+                assertTrue(count <= 1000);
             }
 
             //checking other methods
 
-            assertThat(maps.available()).isEqualTo(0);
+            assertEquals(0, maps.available());
 
 
             Aggregator<UncachedObject, AggRes> agg2 = morphium.createAggregator(UncachedObject.class, AggRes.class);

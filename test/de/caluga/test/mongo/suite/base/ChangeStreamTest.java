@@ -21,8 +21,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class ChangeStreamTest extends MultiDriverTestBase {
     long start;
@@ -60,7 +59,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             log.info("waiting for some time!");
             waitForCondidtionToBecomeTrue(15000, "count did not raise", () -> count > 1);
             runningFlag.set(false);
-            assertThat(count).isGreaterThanOrEqualTo(2).isLessThanOrEqualTo(3);
+            assertTrue(count >= 2 && count <= 3);
             long cnt = count;
             m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
             Thread.sleep(550);
@@ -241,8 +240,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 }
                 return true;
             });
-            assertThat(count.get()).isGreaterThanOrEqualTo(50);
-            assertThat(run.get()).isFalse();
+            assertTrue(count.get() >= 50);
+            assertFalse(run.get());
             log.info("Quitting");
 
 
@@ -263,7 +262,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
         log.info(Utils.toJsonString(evt.getFullDocument()));
         if (!evt.getOperationType().equals("invalidate")) {
             UncachedObject obj = evt.getEntityFromData(UncachedObject.class, morphium);
-            assert (obj != null);
+            assertNotNull(obj);
+            ;
         }
     }
 

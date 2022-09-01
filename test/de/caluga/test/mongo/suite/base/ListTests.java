@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 
@@ -74,12 +75,12 @@ public class ListTests extends MorphiumTestBase {
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = q.get();
-        assert (lst2 != null) : "Error - not found?";
+        assertNotNull(lst2, "Error - not found?");
 
-        assert (lst2.getEmbeddedObjectList() != null) : "Embedded list null?";
-        assert (lst2.getLongList() != null) : "Long list null?";
-        assert (lst2.getRefList() != null) : "Ref list null?";
-        assert (lst2.getStringList() != null) : "String list null?";
+        assertNotNull(lst2.getEmbeddedObjectList(), "Embedded list null?");
+        assertNotNull(lst2.getLongList(), "Long list null?");
+        assertNotNull(lst2.getRefList(), "Ref list null?");
+        assertNotNull(lst2.getStringList(), "String list null?");
 
         for (int i = 0; i < count; i++) {
 
@@ -157,7 +158,8 @@ public class ListTests extends MorphiumTestBase {
         morphium.storeList(lst);
         Thread.sleep(100);
 
-        assert (lst.get(0).getMorphiumId() != null);
+        assertNotNull(lst.get(0).getMorphiumId());
+        ;
 
         lst.get(0).setCounter(999);
 
@@ -260,7 +262,8 @@ public class ListTests extends MorphiumTestBase {
 
         morphium.store(ilst);
         Thread.sleep(1000);
-        assert (ilst.id != null);
+        assertNotNull(ilst.id);
+        ;
 
         MyIdListContainer ilst2 = morphium.createQueryFor(MyIdListContainer.class).get();
         assert (ilst2.idList.size() == ilst.idList.size());

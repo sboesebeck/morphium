@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 
 /**
@@ -100,17 +100,18 @@ public class BsonTest extends BaseTest {
         byte[] ret = BsonEncoder.encodeDocument(d);
 
         var res = BsonDecoder.decodeDocument(ret);
-        assertThat(res).isNotNull();
-        assertThat(res).isNotEmpty();
-        assertThat(res.get("uuid_value")).isInstanceOf(UUID.class);
-        assertThat(res.get("uuid_value")).isEqualTo(uuid);
+        assertNotNull(res);
+        assertFalse(res.isEmpty());
+        assertTrue(res.get("uuid_value") instanceof UUID);
+        assertEquals(uuid, res.get("uuid_value"));
 
         ret = BsonEncoder.encodeDocument(d, BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
         res = BsonDecoder.decodeDocument(ret);
-        assertThat(res).isNotNull();
-        assertThat(res).isNotEmpty();
-        assertThat(res.get("uuid_value")).isInstanceOf(UUID.class);
-        assertThat(res.get("uuid_value")).isEqualTo(uuid);
+        assertNotNull(res);
+        assertNotNull(res);
+        assertFalse(res.isEmpty());
+        assertTrue(res.get("uuid_value") instanceof UUID);
+        assertEquals(uuid, res.get("uuid_value"));
     }
 
     @Test
@@ -120,14 +121,14 @@ public class BsonTest extends BaseTest {
         BsonEncoder enc = new BsonEncoder();
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
-        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 04 00 11 22 33 44     .test-.---.-...D\n" +
+        assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 04 00 11 22 33 44     .test-.---.-...D\n" +
                 "00000010:  55 66 77 88 99 AA BB CC DD EE FF                    Ufw........\n");
         //LEGACY_JAVA
         enc = new BsonEncoder();
         enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
-        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 77 66 55 44 33     .test-.---.wfUD.\n" +
+        assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 77 66 55 44 33     .test-.---.wfUD.\n" +
                 "00000010:  22 11 00 FF EE DD CC BB AA 99 88                    ..-........\n");
 
         //PYTHON_LEGACY
@@ -135,7 +136,7 @@ public class BsonTest extends BaseTest {
         enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.PYTHON_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
-        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 00 11 22 33 44     .test-.---.-...D\n" +
+        assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 00 11 22 33 44     .test-.---.-...D\n" +
                 "00000010:  55 66 77 88 99 AA BB CC DD EE FF                    Ufw........\n");
 
         //CSHarp
@@ -143,7 +144,7 @@ public class BsonTest extends BaseTest {
         enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.C_SHARP_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
-        assertThat(Utils.getHex(enc.getBytes())).isEqualTo("00000000:  05 74 65 73 74 00 10 00 00 00 03 33 22 11 00 55     .test-.---....-U\n" +
+        assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 33 22 11 00 55     .test-.---....-U\n" +
                 "00000010:  44 77 66 88 99 AA BB CC DD EE FF                    Dwf........\n");
 
 

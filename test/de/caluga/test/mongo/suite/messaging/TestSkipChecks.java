@@ -10,7 +10,8 @@ import java.util.Map;
 
 import static de.caluga.morphium.StatisticKeys.PULLSKIP;
 import static de.caluga.morphium.StatisticKeys.SKIPPED_MSG_UPDATES;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestSkipChecks extends MorphiumTestBase {
     @Test
@@ -36,11 +37,11 @@ public class TestSkipChecks extends MorphiumTestBase {
         log.info("Pullskip (checks forced): " + stats.get(PULLSKIP.name()));
         log.info("Checks skipped          : " + stats.get(SKIPPED_MSG_UPDATES.name()));
 
-        assertThat(pullskip).isEqualTo(stats.get(PULLSKIP.name()));
-        assertThat(pullskip).isEqualTo(0);
+        assertEquals(stats.get(PULLSKIP.name()), pullskip);
+        assertEquals(0, pullskip);
 
-        assertThat(stats.get("SKIPPED_MSG_UPDATES")).isGreaterThan(0);
-        assertThat(stats.get("SKIPPED_MSG_UPDATES")).isGreaterThan(skips);
+        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > 0);
+        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > skips);
 
         m.terminate();
     }
@@ -80,10 +81,10 @@ public class TestSkipChecks extends MorphiumTestBase {
         log.info("Pullskip (checks forced): " + stats.get(PULLSKIP.name()));
         log.info("Checks skipped          : " + stats.get(SKIPPED_MSG_UPDATES.name()));
 
-        assertThat(pullskip).isEqualTo(stats.get(PULLSKIP.name()));
+        assertEquals(stats.get(PULLSKIP.name()), pullskip);
 
-        assertThat(stats.get("SKIPPED_MSG_UPDATES")).isGreaterThan(0);
-        assertThat(stats.get("SKIPPED_MSG_UPDATES")).isGreaterThan(skips);
+        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > 0);
+        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > skips);
 
         m.terminate();
         m2.terminate();

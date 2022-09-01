@@ -15,7 +15,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 
@@ -142,9 +143,11 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.group(Expr.field("_id")).first("modValue", Expr.field("mod_value"));
         List<Map> ret = agg.aggregate();
 
-        assert (ret != null);
+        assertNotNull(ret);
+        ;
         for (Map m : ret) {
-            assert (m.get("modValue") != null);
+            assertNotNull(m.get("modValue"));
+            ;
             assert (((Map) m.get("modValue")).get("mod_value").equals(m.get("counter")));
         }
     }
@@ -202,9 +205,9 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.unset(UncachedObject.Fields.strValue);
         List<Map<String, Object>> lst = agg.aggregateMap();
-        assertThat(lst.size()).isEqualTo(100);
+        assertEquals(100, lst.size());
         for (Map<String, Object> o : lst) {
-            assertThat (o.containsKey("value")).isFalse();
+            assertFalse(o.containsKey("value"));
         }
     }
 
@@ -248,9 +251,11 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.unwind(Expr.field(ListContainer.Fields.longList));
 
         List<Map<String, Object>> result = agg.aggregateMap();
-        assert (result != null);
+        assertNotNull(result);
+        ;
         assert (result.size() == 1000);
-        assert (result.get(0).get("long_list") != null);
+        assertNotNull(result.get(0).get("long_list"));
+        ;
         assert (!(result.get(1).get("long_list") instanceof List));
     }
 

@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
@@ -30,20 +31,20 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         sender.start();
         Thread.sleep(250);
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
-        assertThat(lst.size()).isEqualTo(2);
+        assertEquals(2, lst.size());
 
         m1.disableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
-        assertThat(lst.size()).isEqualTo(1);
+        assertEquals(1, lst.size());
         m2.disableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
 
-        assertThat(lst == null || lst.size() == 0).isTrue();
+        assertTrue(lst == null || lst.size() == 0);
 
         m1.enableStatusInfoListener();
         m2.enableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
-        assertThat(lst.size()).isEqualTo(2);
+        assertEquals(2, lst.size());
 
         m1.terminate();
         m2.terminate();
@@ -70,46 +71,46 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         sender.start();
         log.info("Getting standard stauts (should be Messaging only)");
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", "value"), 2, 5000);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(2);
+        assertNotNull(lst);
+        assertEquals(2, lst.size());
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumConfigKey)).isFalse();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey)).isFalse();
+            assertFalse(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
+            assertFalse(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
             checkMessagingStats(m, mapValue);
         }
         log.info("Getting all status");
 
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.ALL.name()), 2, 1000);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(2);
+        assertNotNull(lst);
+        assertEquals(2, lst.size());
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumConfigKey)).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey)).isTrue();
+            assertTrue(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
+            assertTrue(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
             checkMessagingStats(m, mapValue);
         }
         log.info("just ping");
 
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(2);
+        assertNotNull(lst);
+        assertEquals(2, lst.size());
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
-            assertThat(mapValue.size()).isEqualTo(0);
+            assertEquals(0, mapValue.size());
         }
 
         log.info("Getting morphium stats only");
 
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.MORPHIUM_ONLY.name()), 2, 1000);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(2);
+        assertNotNull(lst);
+        assertEquals(2, lst.size());
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumConfigKey)).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey)).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey)).isFalse();
-            assertThat(mapValue.containsKey(StatusInfoListener.globalListenersKey)).isFalse();
+            assertTrue(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
+            assertTrue(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
+            assertFalse(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
+            assertFalse(mapValue.containsKey(StatusInfoListener.globalListenersKey));
         }
         log.info("all fine... exiting");
 
@@ -150,22 +151,22 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     private void checkMessagingStats(Msg m, Map<String, Object> mapValue) {
         if (m.getSender().equals("m1")) {
-            assertThat(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey)).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.globalListenersKey)).isTrue();
-            assertThat(((List) mapValue.get(StatusInfoListener.globalListenersKey)).size()).isEqualTo(1);
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size()).isEqualTo(2); //own listener + statusinfo
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1")).isTrue();
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2")).isFalse();
-            assertThat(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey)).isTrue();
+            assertTrue(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
+            assertTrue(mapValue.containsKey(StatusInfoListener.globalListenersKey));
+            assertEquals(1, ((List) mapValue.get(StatusInfoListener.globalListenersKey)).size());
+            assertEquals(2, ((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size()); //own listener + statusinfo
+            assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
+            assertFalse(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));
+            assertTrue(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey));
 
         } else if (m.getSender().equals("m2")) {
-            assertThat(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey)).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.globalListenersKey)).isTrue();
-            assertThat(((List) mapValue.get(StatusInfoListener.globalListenersKey)).size()).isEqualTo(0);
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size()).isEqualTo(3);
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1")).isTrue();
-            assertThat(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2")).isTrue();
-            assertThat(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey)).isFalse();
+            assertTrue(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
+            assertTrue(mapValue.containsKey(StatusInfoListener.globalListenersKey));
+            assertEquals(0, ((List) mapValue.get(StatusInfoListener.globalListenersKey)).size());
+            assertEquals(3, ((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size());
+            assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
+            assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));
+            assertFalse(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey));
 
         } else {
             throw new RuntimeException("WRONG SENDER " + m.getSender());

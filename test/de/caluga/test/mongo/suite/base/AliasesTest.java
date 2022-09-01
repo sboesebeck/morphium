@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 
 /**
@@ -30,7 +32,7 @@ public class AliasesTest extends MultiDriverTestBase {
     public void aliasTest(Morphium morphium) throws Exception {
         try (morphium) {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
-            assert (q != null) : "Null Query?!?!?";
+            assertNotNull(q, "Null Query?!?!?");
             assert (q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
             log.info("All ok");
         }
@@ -45,13 +47,13 @@ public class AliasesTest extends MultiDriverTestBase {
                     "_id", id,
                     "einText", "A little text")
             );
-            assertThat(stats).isNotNull();
-            assertThat(stats.get("n")).isEqualTo(1);
+            assertNotNull(stats);
+            assertEquals(1, stats.get("n"));
 
             List<ComplexObject> lst = morphium.createQueryFor(ComplexObject.class).asList();
-            assertThat(lst.size()).isEqualTo(1);
-            assertThat(lst.get(0).getId()).isEqualTo(id);
-            assertThat(lst.get(0).getEinText()).isEqualTo("A little text");
+            assertEquals(1, lst.size());
+            assertEquals(id, lst.get(0).getId());
+            assertEquals("A little text", lst.get(0).getEinText());
             assertThat(lst.get(0).getChanged()).isNotEqualTo(0);
         }
     }
@@ -70,12 +72,12 @@ public class AliasesTest extends MultiDriverTestBase {
             morphium.storeMap(AliasesEntity.class, m);
 
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
-            assertThat(ae2.getValue()).isEqualTo("a value"); //if primary name is present, do not use aliases
-            assertThat(ae2.getValues()).isNotNull();
+            assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
+            assertNotNull(ae2.getValues());
             assertThat(ae2.getValues()).isNotEmpty();
-            assertThat(ae2.getValues().size()).isEqualTo(2);
-            assertThat(ae2.getValues().get(0)).isEqualTo("value1");
-            assertThat(ae2.getValues().get(1)).isEqualTo("v2");
+            assertEquals(2, ae2.getValues().size());
+            assertEquals("value1", ae2.getValues().get(0));
+            assertEquals("v2", ae2.getValues().get(1));
         }
     }
 
@@ -97,12 +99,12 @@ public class AliasesTest extends MultiDriverTestBase {
             morphium.storeMap(AliasesEntity.class, m);
 
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
-            assertThat(ae2.getValue()).isEqualTo("a value"); //if primary name is present, do not use aliases
-            assertThat(ae2.getValues()).isNotNull();
+            assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
+            assertNotNull(ae2.getValues());
             assertThat(ae2.getValues()).isNotEmpty();
-            assertThat(ae2.getValues().size()).isEqualTo(2);
-            assertThat(ae2.getValues().get(0)).isEqualTo("value1");
-            assertThat(ae2.getValues().get(1)).isEqualTo("v2");
+            assertEquals(2, ae2.getValues().size());
+            assertEquals("value1", ae2.getValues().get(0));
+            assertEquals("v2", ae2.getValues().get(1));
         }
     }
 
@@ -124,13 +126,13 @@ public class AliasesTest extends MultiDriverTestBase {
             morphium.storeMap(AliasesEntity.class, m);
 
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
-            assertThat(ae2.getValue()).isEqualTo("a value"); //if primary name is present, do not use aliases
-            assertThat(ae2.getReferences()).isNotNull();
+            assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
+            assertNotNull(ae2.getReferences());
             assertThat(ae2.getReferences()).isNotEmpty();
-            assertThat(ae2.getReferences().size()).isEqualTo(2);
+            assertEquals(2, ae2.getReferences().size());
             assertThat(ae2.getReferences().get(0)).isInstanceOf(UncachedObject.class);
             assertThat(ae2.getReferences().get(1)).isInstanceOf(UncachedObject.class);
-            assertThat(((UncachedObject) ae2.getReferences().get(1)).getStrValue()).isEqualTo("str2");
+            assertEquals("str2", ((UncachedObject) ae2.getReferences().get(1)).getStrValue());
         }
     }
 }

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * User: Stephan Bösebeck
@@ -32,7 +33,8 @@ public class Aggregation extends MultiDriverTestBase {
             createUncachedObjects(morphium, 1000);
 
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assert (a.getResultType() != null);
+            assertNotNull(a.getResultType());
+            ;
             //eingangsdaten reduzieren
             a = a.project("counter");
             //Filtern
@@ -73,7 +75,8 @@ public class Aggregation extends MultiDriverTestBase {
             createUncachedObjects(morphium, 1000);
 
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assert (a.getResultType() != null);
+            assertNotNull(a.getResultType());
+            ;
             //eingangsdaten reduzieren
             a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1), "cnt2", Expr.field("counter")));
             //Filtern
@@ -121,7 +124,8 @@ public class Aggregation extends MultiDriverTestBase {
             Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
             agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end().sort("sum_counts");
             List<AggregatePush> lst = agr.aggregate();
-            assert (lst != null);
+            assertNotNull(lst);
+            ;
             assert (lst.size() == 5);
             assert (lst.get(0).getCount() == 20);
             assert (lst.get(0).getSumCounts() == 19);
@@ -145,7 +149,8 @@ public class Aggregation extends MultiDriverTestBase {
             //Ending a group is not longer necessary... but the aggregator will warn!
             agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "$counter");
             List<AggregatePush> lst = agr.aggregate();
-            assert (lst != null);
+            assertNotNull(lst);
+            ;
             assert (lst.size() == 5);
             assert (lst.get(0).getValues().size() == 3);
             assert (lst.get(0).getSumCounts() >= 19);
@@ -189,7 +194,8 @@ public class Aggregation extends MultiDriverTestBase {
             log.info("Starting test with Aggregation:");
             start = System.currentTimeMillis();
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assert (a.getResultType() != null);
+            assertNotNull(a.getResultType());
+            ;
             ArrayList<Object> params = new ArrayList<>();
             params.add("$counter");
             params.add(3);

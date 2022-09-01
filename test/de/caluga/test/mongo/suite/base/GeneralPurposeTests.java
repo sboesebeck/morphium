@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.List;
 import java.util.Map;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 
 public class GeneralPurposeTests extends MultiDriverTestBase {
@@ -23,7 +23,7 @@ public class GeneralPurposeTests extends MultiDriverTestBase {
             createUncachedObjects(morphium, 100);
             Query<Map<String, Object>> q = morphium.createMapQuery(morphium.getMapper().getCollectionName(UncachedObject.class));
             List<Map<String, Object>> lst = q.asMapList();
-            assertThat(lst.size()).isEqualTo(100);
+            assertEquals(100, lst.size());
         }
     }
 
@@ -36,10 +36,10 @@ public class GeneralPurposeTests extends MultiDriverTestBase {
             int count = 0;
             for (Map<String, Object> o : q.asMapIterable()) {
                 count++;
-                assertThat(q != null).isTrue();
+                assertNotNull(q);
 
             }
-            assertThat(count).isEqualTo(100);
+            assertEquals(100, count);
         }
     }
 
@@ -56,9 +56,9 @@ public class GeneralPurposeTests extends MultiDriverTestBase {
 
             Thread.sleep(100);
             e = morphium.reread(e);
-            assertThat(e).isNotNull();
-            assertThat(e.getId()).isEqualTo("test1");
-            assertThat(((Long) e.get("ts"))).isGreaterThan(0);
+            assertNotNull(e);
+            assertEquals("test1", e.getId());
+            assertTrue(((Long) e.get("ts")) > 0);
         }
     }
 
@@ -74,11 +74,11 @@ public class GeneralPurposeTests extends MultiDriverTestBase {
             }
 
             long count = morphium.createQueryFor(SimpleEntity.class).countAll();
-            assertThat(count).isEqualTo(100);
+            assertEquals(100, count);
 
             List<SimpleEntity> lst = morphium.createQueryFor(SimpleEntity.class).f("counter_simple").eq(42).asList();
-            assertThat(lst.size()).isEqualTo(1);
-            assertThat(lst.get(0).get("counter_simple")).isEqualTo(42);
+            assertEquals(1, lst.size());
+            assertEquals(42, lst.get(0).get("counter_simple"));
         }
     }
 }

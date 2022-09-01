@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /**
  * User: Stephan Bösebeck
@@ -79,7 +81,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             c = c.f("counter").eq(i);
             c.asList();
         }
-        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assertNotNull(morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()), "Cache entries not set?");
         assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > 0) : "Cache entries not set? " + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
         Thread.sleep(2500);
         Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
@@ -116,7 +118,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             c.asList();
         }
         System.out.println("Stats " + morphium.getStatistics().toString());
-        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != null) : "Cache entries not set?";
+        assertNotNull(morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()), "Cache entries not set?");
         cs1.sendClearAllMessage("test");
         Thread.sleep(5500);
         if ((morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) != 0)) {
@@ -651,9 +653,9 @@ public class CacheSyncTest extends MorphiumTestBase {
             log.info("CachedObjects in cache: " + stat);
             if (stat < 1) break;
             Thread.sleep(1000);
-            assertThat(System.currentTimeMillis() - start).isLessThanOrEqualTo(150000);
+            assertTrue(System.currentTimeMillis() - start < 150000);
         }
-        assertThat(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject")).isLessThanOrEqualTo(1);
+        assertTrue(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") <= 1);
         sync.terminate();
 
     }

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     long start;
     long count;
@@ -192,7 +194,8 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         log.info(Utils.toJsonString(evt.getFullDocument()));
         if (!evt.getOperationType().equals("invalidate")) {
             UncachedObject obj = evt.getEntityFromData(UncachedObject.class, morphium);
-            assert (obj != null);
+            assertNotNull(obj);
+            ;
         }
     }
 

@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 11.05.12
@@ -147,7 +149,7 @@ public class SortingTest extends MorphiumTestBase {
         q = q.f("strValue").eq("Random value");
         q = q.sort("-counter");
         UncachedObject uc = q.get();
-        assert (uc != null) : "not found?!?";
+        assertNotNull(uc, "not found?!?");
         assert (uc.getCounter() == 7599) : "Highest value wrong, should be 7599, is " + uc.getCounter();
 
     }

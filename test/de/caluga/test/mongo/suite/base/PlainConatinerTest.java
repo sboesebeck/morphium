@@ -9,7 +9,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 public class PlainConatinerTest extends MultiDriverTestBase {
 
@@ -23,8 +25,8 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             morphium.store(pc);
 
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
-            assertThat(pc2.getId()).isEqualTo(pc.getId());
-            assertThat(pc2.getPlainList().size()).isEqualTo(2);
+            assertEquals(pc.getId(), pc2.getId());
+            assertEquals(2, pc2.getPlainList().size());
         }
     }
 
@@ -39,8 +41,8 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             morphium.store(pc);
 
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
-            assertThat(pc2.getId()).isEqualTo(pc.getId());
-            assertThat(pc2.getPlainMap().size()).isEqualTo(2);
+            assertEquals(pc.getId(), pc2.getId());
+            assertEquals(2, pc2.getPlainMap().size());
         }
     }
 
@@ -55,11 +57,11 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             morphium.store(pc);
 
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
-            assertThat(pc2.getId()).isEqualTo(pc.getId());
-            assertThat(pc2.getPlainMap().size()).isEqualTo(2);
-            assertThat(pc2.getPlainMap().get("test2")).isInstanceOf(List.class);
-            assertThat(((List) pc2.getPlainMap().get("test2")).size()).isEqualTo(2);
-            assertThat(((List) pc2.getPlainMap().get("test2")).get(0)).isEqualTo("str1");
+            assertEquals(pc.getId(), pc2.getId());
+            assertEquals(2, pc2.getPlainMap().size());
+            assertTrue(pc2.getPlainMap().get("test2") instanceof List);
+            assertEquals(2, ((List) pc2.getPlainMap().get("test2")).size());
+            assertEquals("str1", ((List) pc2.getPlainMap().get("test2")).get(0));
         }
     }
 }

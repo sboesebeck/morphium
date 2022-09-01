@@ -370,10 +370,10 @@ messaging.addMessageListener((messaging, msg) -&gt; {
     Thread.sleep(2500);
 
     Msg answer = sender.sendAndAwaitFirstAnswer(new Msg(&quot;test&quot;, &quot;Sender&quot;, &quot;sent&quot;, 15000), 15000);
-    assert (answer != null);
+    assertNotNull(answer);;
     assert (answer.getName().equals(&quot;test&quot;));
-    assert (answer.getInAnswerTo() != null);
-    assert (answer.getRecipient() != null);
+    assertNotNull(answer.getInAnswerTo());;
+    assertNotNull(answer.getRecipient());;
     assert (answer.getMsg().equals(&quot;got message&quot;));
     m1.terminate();
     sender.terminate();
@@ -536,8 +536,8 @@ messaging.addMessageListener((messaging, msg) -&gt; {
         receiverThread.start();
         senderThread.start();
         Thread.sleep(5000);
-        assert (exchange.get(&quot;sent&quot;) != null);
-        assert (exchange.get(&quot;received&quot;) != null);
+        assertNotNull(exchange.get(&quot;sent&quot;));;
+        assertNotNull(exchange.get(&quot;received&quot;));;
     }
 </code></pre>
 
@@ -739,8 +739,8 @@ public void driverDumpTest() throws Exception {
     assert (morphium.createQueryFor(ComplexObject.class).countAll() == 100);
 
     for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
-        assert (co.getEinText() != null);
-        assert (co.getRef() != null);
+        assertNotNull(co.getEinText());;
+        assertNotNull(co.getRef());;
     }
 }
 </code></pre>
@@ -786,7 +786,7 @@ public void jsonDumpTest() throws Exception {
 
     morphium.dropCollection(UncachedObject.class);
     ExportContainer ex = morphium.getMapper().deserialize(ExportContainer.class, Utils.toJsonString(s));
-    assert (ex != null);
+    assertNotNull(ex);;
     ((InMemoryDriver) morphium.getDriver()).setDatabase(morphium.getDriver().listDatabases().get(0), ex.data);
 
     List&lt;UncachedObject&gt; result = morphium.createQueryFor(UncachedObject.class).asList();
@@ -3607,7 +3607,7 @@ public class ReplicaSetNode {
 <p>here an Example with a simple pipeline:</p>
 
 <pre><code class="java">Aggregator&lt;UncachedObject, Aggregate&gt; a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-assert (a.getResultType() != null);
+assertNotNull(a.getResultType());;
 //reduce input
 a = a.project(&quot;counter&quot;);
 //Filter
@@ -3689,7 +3689,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
 <p>This way you can create complex aggregation pipelines:</p>
 
 <pre><code class="java">     Aggregator&lt;UncachedObject, Aggregate&gt; a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assert (a.getResultType() != null);
+            assertNotNull(a.getResultType());;
             a = a.project(UtilsMap.of(&quot;counter&quot;, (Object) Expr.intExpr(1)).add(&quot;cnt2&quot;, Expr.field(&quot;counter&quot;)));
             a = a.match(Expr.gt(Expr.field(&quot;counter&quot;), Expr.intExpr(100)));
             a = a.sort(&quot;counter&quot;);
@@ -3868,7 +3868,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
             @Override
             public void onOperationSucceeded(AsyncOperationType type, Query&lt;UncachedObject&gt; q, long duration, List&lt;UncachedObject&gt; result, UncachedObject entity, Object... param) {
                 log.info(&quot;got read answer&quot;);
-                assert (result != null) : &quot;Error&quot;;
+                assertNotNull(result); : &quot;Error&quot;;
                 assert (result.size() == 100) : &quot;Error&quot;;
                 asyncCall = true;
             }

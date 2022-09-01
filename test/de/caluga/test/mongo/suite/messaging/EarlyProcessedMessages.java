@@ -10,7 +10,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class EarlyProcessedMessages extends MorphiumTestBase {
 
@@ -106,11 +107,11 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
         for (AtomicInteger c : count.values()) sum = sum + c.get();
         if (exclusive) {
             log.info("Exclusive Message count: max 10");
-            assertThat(sum).isEqualTo(10);
+            assertEquals(10, sum);
         } else {
             log.info("NonExclusive Message count: max 10*num Nodes = 30");
 
-            assertThat(sum).isEqualTo(30);
+            assertEquals(30, sum);
         }
         m1.terminate();
         m2.terminate();

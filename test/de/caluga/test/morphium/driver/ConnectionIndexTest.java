@@ -15,6 +15,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 public class ConnectionIndexTest extends ConnectionTestBase {
     private Logger log = LoggerFactory.getLogger(ConnectionIndexTest.class);
@@ -38,7 +41,7 @@ public class ConnectionIndexTest extends ConnectionTestBase {
             log.info("Index: " + idx.toString());
             assertThat(idx.getName()).isIn("_id_", "tst1");
         }
-        assertThat(lst.size()).isEqualTo(2);
+        assertEquals(2, lst.size());
 
         //adding another index
 
@@ -54,11 +57,11 @@ public class ConnectionIndexTest extends ConnectionTestBase {
             log.info("Index: " + idx.toString());
             assertThat(idx.getName()).isIn("_id_", "tst1", "MyIdx", "ts_exp");
             if (idx.getName().equals("ts_exp")) {
-                assertThat(idx.getExpireAfterSeconds()).isNotNull();
-                assertThat(idx.getExpireAfterSeconds()).isEqualTo(10);
+                assertNotNull(idx.getExpireAfterSeconds());
+                assertEquals(10, idx.getExpireAfterSeconds());
             }
         }
-        assertThat(lst.size()).isEqualTo(4);
+        assertEquals(4, lst.size());
         con.close();
     }
 }

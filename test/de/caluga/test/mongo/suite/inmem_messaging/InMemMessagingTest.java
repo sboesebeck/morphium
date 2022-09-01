@@ -16,7 +16,9 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -659,7 +661,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                         Msg m = new Msg("multisystemtest", "nothing", "value");
                         m.setTtl(60000000);
                         Msg a = m1.sendAndAwaitFirstAnswer(m, 360000);
-                        assert (a != null);
+                        assertNotNull(a);
+                        ;
                         procCounter.incrementAndGet();
                     }
                 }.start();
@@ -1245,7 +1248,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m1.removeMessage(m);
         Thread.sleep(100);
 
-        assertThat(morphium.createQueryFor(Msg.class).countAll()).isEqualTo(0);
+        assertEquals(0, morphium.createQueryFor(Msg.class).countAll());
         m1.terminate();
     }
 

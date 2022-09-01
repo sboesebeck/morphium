@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * User: Stephan Bösebeck
  * Date: 28.05.12
@@ -31,7 +33,8 @@ public class CustomMapperTest extends MorphiumTestBase {
         Geo g = new Point(12.0, 13.0);
         Object marshalled = m.marshall(g);
         Geo res = m.unmarshall(marshalled);
-        assert (res.getType() != null);
+        assertNotNull(res.getType());
+        ;
         assert (res.getType().equals(GeoType.POINT));
         assert (((List) res.getCoordinates()).get(0).equals(12.0));
         assert (((List) res.getCoordinates()).get(1).equals(13.0));
@@ -56,11 +59,11 @@ public class CustomMapperTest extends MorphiumTestBase {
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ObjectWithCustomMappedObject readContainingObject = q.get();
 
-        assert (readContainingObject != null) : "Error - not found?";
+        assertNotNull(readContainingObject, "Error - not found?");
 
-        assert (readContainingObject.getCustomMappedObject() != null) : "Custom mapped object null?";
-        assert (readContainingObject.getCustomMappedObjectList() != null) : "List of custom mapped object null?";
-        assert (readContainingObject.getCustomMappedObjectMap() != null) : "Map with custom mapped object null?";
+        assertNotNull(readContainingObject.getCustomMappedObject(), "Custom mapped object null?");
+        assertNotNull(readContainingObject.getCustomMappedObjectList(), "List of custom mapped object null?");
+        assertNotNull(readContainingObject.getCustomMappedObjectMap(), "Map with custom mapped object null?");
 
         assert (readContainingObject.getCustomMappedObjectList().size() == 2) : "List of custom mapped objects has wrong size? size is " + readContainingObject.getCustomMappedObjectList().size();
         assert (readContainingObject.getCustomMappedObjectMap().size() == 2) : "Map with custom mapped objects as value has wrong size?";
@@ -70,7 +73,7 @@ public class CustomMapperTest extends MorphiumTestBase {
         for (int i = 0; i < 2; i++) {
             CustomMappedObject referenceObject = containingObject.getCustomMappedObjectList().get(i);
 
-            assert (readContainingObject.getCustomMappedObjectList().get(i) != null) : "Custom mapped object in list missing? - " + i;
+            assertNotNull(readContainingObject.getCustomMappedObjectList().get(i), "Custom mapped object in list missing? - " + i);
             assert (readContainingObject.getCustomMappedObjectList().get(i).equals(referenceObject)) : "Custom mapped objects in list differ? - " + i;
             assert (readContainingObject.getCustomMappedObjectMap().get(referenceObject.getName()).equals(map.get(referenceObject.getName()))) : "Custom mapped objects in map differ? - " + i;
         }
@@ -140,12 +143,12 @@ public class CustomMapperTest extends MorphiumTestBase {
 
         ComplexCustomMapperObject readContainingObject = q.get();
 
-        assert (readContainingObject != null) : "Error - not found?";
+        assertNotNull(readContainingObject, "Error - not found?");
 
-        assert (readContainingObject.getComplexList() != null) : "Complex list object null?";
-        assert (readContainingObject.getComplexMap() != null) : "Complex map object null?";
-        assert (readContainingObject.getComplexestList() != null) : "Complexest list object null?";
-        assert (readContainingObject.getComplexestMap() != null) : "Complexest map object null?";
+        assertNotNull(readContainingObject.getComplexList(), "Complex list object null?");
+        assertNotNull(readContainingObject.getComplexMap(), "Complex map object null?");
+        assertNotNull(readContainingObject.getComplexestList(), "Complexest list object null?");
+        assertNotNull(readContainingObject.getComplexestMap(), "Complexest map object null?");
 
         assert (readContainingObject.getComplexList().size() == 1) : "Complex list has wrong size?";
         assert (readContainingObject.getComplexMap().size() == 1) : "Complex map has wrong size?";

@@ -13,7 +13,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.*;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
+
 
 /**
  * User: Stephan Bösebeck
@@ -183,7 +184,8 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                 for (CachedObject co : otherIt) {
                     //                log.info("iterating otherIt: "+otherIt.getNumberOfThreads()+" "+co.getCounter());
                     //                Thread.sleep(200);
-                    assert (co.getValue() != null);
+                    assertNotNull(co.getValue());
+                    ;
                     assert (co.getCounter() > u.getCounter() % 100 && co.getCounter() < u.getCounter() % 100 + 10);
                 }
                 if (it.getCursor() % 100 == 0) {
@@ -383,7 +385,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
             morphium.store(u);
 
             waitForWrites();
-            assertThat(it.hasNext()).isTrue();
+            assertTrue(it.hasNext());
             Thread.sleep(1000);
             while (it.hasNext()) {
                 u = it.next();
@@ -391,7 +393,7 @@ public class InMemIteratorTest extends MorphiumInMemTestBase {
                 log.info("Object: " + u.getCounter() + "/" + u.getStrValue());
             }
 
-            assertThat(u.getCounter()).isEqualTo(17);
+            assertEquals(17, u.getCounter());
             //cannot check buffersize anymore
             log.info("Took " + (System.currentTimeMillis() - start) + " ms");
         }

@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 /**
  * Created by stephan on 18.11.14.
  */
@@ -47,7 +49,8 @@ public class NonEntitySerialization extends MorphiumTestBase {
         Map<String, Object> obj = morphium.getMapper().serialize(nc);
 
         NonEntityContainer nc2 = morphium.getMapper().deserialize(NonEntityContainer.class, obj);
-        assert (nc2.getList().get(0) != null);
+        assertNotNull(nc2.getList().get(0));
+        ;
         NonEntity ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
 
@@ -58,7 +61,8 @@ public class NonEntitySerialization extends MorphiumTestBase {
         Thread.sleep(1500);
 
         nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
-        assert (nc2.getList().get(0) != null);
+        assertNotNull(nc2.getList().get(0));
+        ;
         ne2 = (NonEntity) nc2.getList().get(0);
         assert (ne2.getInteger() == 42);
         assert (nc2.getList().get(1).equals("Some string")) : "Wrong Value: " + nc2.getList().get(1);
@@ -83,7 +87,8 @@ public class NonEntitySerialization extends MorphiumTestBase {
         Map<String, Object> obj = morphium.getMapper().serialize(nc);
 
         NonEntityContainer nc2 = morphium.getMapper().deserialize(NonEntityContainer.class, obj);
-        assert (nc2.getMap().get("Serialized") != null);
+        assertNotNull(nc2.getMap().get("Serialized"));
+        ;
         NonEntity ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);
 
@@ -94,7 +99,8 @@ public class NonEntitySerialization extends MorphiumTestBase {
         Thread.sleep(1500);
 
         nc2 = morphium.findById(NonEntityContainer.class, nc.getId());
-        assert (nc2.getMap().get("Serialized") != null);
+        assertNotNull(nc2.getMap().get("Serialized"));
+        ;
         ne2 = (NonEntity) nc2.getMap().get("Serialized");
         assert (ne2.getInteger() == 42);
     }

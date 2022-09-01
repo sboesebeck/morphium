@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 /**
  * User: Stephan Bösebeck
@@ -61,10 +64,10 @@ public class IndexTest extends MultiDriverTestBase {
             Map<Class<?>, List<IndexDescription>> missing = morphium.checkIndices();
             log.info("Got indexes");
             assertThat(missing.size()).isNotEqualTo(0);
-            assertThat(missing.get(UncachedObject.class)).isNotNull();
+            assertNotNull(missing.get(UncachedObject.class));
             if (morphium.getDriver() instanceof InMemoryDriver) {
                 log.info("InMemoryDriver does not support text indexes (yet)");
-                assertThat(missing.get(IndexedObject.class).size()).isEqualTo(1);
+                assertEquals(1, missing.get(IndexedObject.class).size());
             } else {
                 assertThat(missing.get(IndexedObject.class)).isNull();
             }
@@ -81,7 +84,7 @@ public class IndexTest extends MultiDriverTestBase {
 
             var lst = morphium.getIndexesFromMongo(UncachedObject.class);
             var lst2 = morphium.getIndexesFromEntity(UncachedObject.class);
-            assertThat(lst.size()).isEqualTo(lst2.size() + 1);
+            assertEquals(lst2.size() + 1, lst.size());
         }
     }
 

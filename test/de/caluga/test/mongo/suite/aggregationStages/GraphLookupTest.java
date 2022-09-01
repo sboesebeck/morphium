@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class GraphLookupTest extends MorphiumTestBase {
 
 
@@ -30,7 +32,8 @@ public class GraphLookupTest extends MorphiumTestBase {
 
         for (Map<String, Object> m : map) {
             log.info(m.toString());
-            assert (m.get("reportingHierarchy") != null);
+            assertNotNull(m.get("reportingHierarchy"));
+            ;
         }
     }
 

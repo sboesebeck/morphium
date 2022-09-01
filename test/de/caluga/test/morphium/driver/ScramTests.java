@@ -13,7 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATION;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 
 public class ScramTests {
 
@@ -84,7 +85,7 @@ public class ScramTests {
                 = serverFirstProcessor.clientFinalProcessor(pwd.toString());
         System.out.println(clientFinalProcessor.clientFinalMessage());
         //c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=
-        assertThat(clientFinalProcessor.clientFinalMessage()).isEqualTo("c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=");
+        assertEquals("c=biws,r=rOprNGfwEbeRWgbNEkqO%hvYDpWUa2RaTCAfuxFIlj)hNlF$k0,p=dHzbZapWIk4jUhN+Ute9ytag9zjfMHgsqmmiz7AndVQ=", clientFinalProcessor.clientFinalMessage());
         clientFinalProcessor.receiveServerFinalMessage("v=6rriTRBi23WpRR/wtup+mMhUZUn/dB5nLTJRsjl95G4=");
 
 

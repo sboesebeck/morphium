@@ -10,7 +10,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 
 public class ListCollectionsCommandTest extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(ListCollectionsCommandTest.class);
@@ -38,8 +40,8 @@ public class ListCollectionsCommandTest extends DriverTestBase {
                 .execute();
 
         var lst = drv.listCollections(db, null);
-        assertThat(lst).isNotNull();
-        assertThat(lst.size()).isEqualTo(3);
+        assertNotNull(lst);
+        assertEquals(3, lst.size());
         con.release();
 
     }

@@ -8,7 +8,9 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 
 public class InMemIndexTest extends MorphiumInMemTestBase {
 
@@ -16,14 +18,14 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
     public void indexCreationTest() throws Exception {
 //        createUncachedObjects(100);
 //        List<Map<String, Object>> idx = morphium.getDriver().getIndexes(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class));
-//        assertThat(idx).isNotNull();
+//        assertNotNull(idx);
 //        assertThat(idx.size()).isGreaterThan(1); //_id index + indexes for str_value etc.
 //        List<Map<String, Object>> indexDefinition = ((InMemoryDriver) morphium.getDriver()).getIndexes(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class));
 //        assertThat(indexDefinition.size()).isGreaterThan(0);
 //        Map idIndex = ((InMemoryDriver) morphium.getDriver()).getIndexDataForCollection(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), "_id");
-//        assertThat(idIndex.size()).isEqualTo(100);
+//        assertEquals(100,idIndex.size());
 //        Map counterIndex = ((InMemoryDriver) morphium.getDriver()).getIndexDataForCollection(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class), "counter");
-//        assertThat(idIndex.size()).isEqualTo(100);
+//        assertEquals(100,idIndex.size());
     }
 
 
@@ -42,9 +44,9 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
 
         for (int i = 0; i < 10000; i++) {
             lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(i * i).asList();
-            assertThat(lst.size()).isEqualTo(1);
+            assertEquals(1, lst.size());
             UncachedObject uc = lst.get(0);
-            assertThat(uc.getCounter()).isEqualTo(i * i);
+            assertEquals(i * i, uc.getCounter());
         }
         dur = System.currentTimeMillis() - start;
         log.info("Searching for 10000 ucs took " + dur + "ms");
@@ -65,8 +67,8 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         dur = System.currentTimeMillis() - start;
         log.info("Mod-Query took " + dur + "ms");
 
-        assertThat(lst).isNotEmpty();
-        assertThat(lst.get(1).getCounter() % 5).isEqualTo(0);
+        assertFalse(lst.isEmpty());
+        assertEquals(0, lst.get(1).getCounter() % 5);
         //forcing index miss
         ((InMemoryDriver) morphium.getDriver()).getIndexes(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class)).clear();
         start = System.currentTimeMillis();
@@ -89,7 +91,7 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(100)
                     .f(UncachedObject.Fields.strValue).in(Arrays.asList("str_1", "str_2", "str_5", "str_42", "str_245", "str_99", "str_58")).asList();
-            assertThat(lst.size()).isEqualTo(3);
+            assertEquals(3, lst.size());
         }
         long dur = System.currentTimeMillis() - start;
         log.info("No index: " + dur + " ms");
@@ -101,7 +103,7 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         for (int i = 0; i < 100; i++) {
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(100)
                     .f(UncachedObject.Fields.strValue).in(Arrays.asList("str_1", "str_2", "str_5", "str_42", "str_245", "str_99", "str_58")).asList();
-            assertThat(lst.size()).isEqualTo(3);
+            assertEquals(3, lst.size());
         }
         dur = System.currentTimeMillis() - start;
         log.info("with index: " + dur + " ms");

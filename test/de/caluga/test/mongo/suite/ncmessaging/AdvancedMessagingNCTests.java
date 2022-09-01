@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
+
     @Test
     public void testExclusiveXTimes() throws Exception {
 //        morphium.watchAsync("msg", true,new ChangeStreamListener(){
@@ -326,7 +329,8 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             });
 
             answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
-            assert (answer != null);
+            assertNotNull(answer);
+            ;
             assert (answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
         } finally {
 
