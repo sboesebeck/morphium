@@ -1,7 +1,9 @@
 package de.caluga.test.mongo.suite.inmem;
 
+import de.caluga.morphium.MongoType;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.QueryHelper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.GeoSearchTests;
@@ -19,7 +21,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class QueryHelperTest extends MorphiumInMemTestBase {
 
+    @Test
+    public void typeTest() {
+        UncachedObject uc = new UncachedObject("strVal", 12);
+        uc.setDval(12.0);
+        uc.setMorphiumId(new MorphiumId());
+        uc.setBinaryData(new byte[]{1, 2, 3, 4});
+        uc.setLongData(new long[]{12L, 10202L});
+        uc.setFloatData(new float[]{12.0f, 122f});
 
+        var query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).type(MongoType.OBJECT_ID).toQueryObject();
+        assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).type(MongoType.INTEGER).toQueryObject();
+        assertFalse(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).type(MongoType.INTEGER).toQueryObject();
+        assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).type(MongoType.STRING).toQueryObject();
+        assertFalse(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.binaryData).type(MongoType.BINARY_DATA).toQueryObject();
+        assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.longData).type(MongoType.LONG).toQueryObject();
+        assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.longData).type(MongoType.STRING).toQueryObject();
+        assertFalse(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+        query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).type(MongoType.NULL).toQueryObject();
+        assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
+
+
+    }
     @Test
     public void geoSearchWithinBoxTest() throws Exception {
         GeoSearchTests.Place p = new GeoSearchTests.Place();

@@ -271,7 +271,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
 
     @Override
     public Query<T> type(MongoType t) {
-        add("$type", t.getNumber());
+        add("$type", t.getId());
         return query;
     }
 

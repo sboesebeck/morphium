@@ -1,5 +1,9 @@
 package de.caluga.morphium;
 
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * User: Stpehan Bösebeck
  * Date: 26.03.12
@@ -9,49 +13,64 @@ package de.caluga.morphium;
  * see also: http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-ConditionalOperators
  */
 public enum MongoType {
-    @SuppressWarnings("unused")DOUBLE(1),
-    @SuppressWarnings("unused")STRING(2),
-    @SuppressWarnings("unused")OBJECT(3),
-    @SuppressWarnings("unused")ARRAY(4),
-    @SuppressWarnings("unused")BINARY(5),
-    @SuppressWarnings("unused")OBJECT_ID(7),
-    @SuppressWarnings("unused")BOOLEAN(8),
-    @SuppressWarnings("unused")DATE(9),
-    @SuppressWarnings("unused")NULL(10),
-    @SuppressWarnings("unused")REGEX(11),
-    @SuppressWarnings("unused")JS_CODE(13),
-    @SuppressWarnings("unused")SYMBOL(14),
-    @SuppressWarnings("unused")JS_CODE_W_SCOPE(15),
-    @SuppressWarnings("unused")INTEGER32(16),
-    @SuppressWarnings("unused")TIMESTAMP(17),
-    @SuppressWarnings("unused")INTEGER64(18),
-    @SuppressWarnings("unused")MIN_KEY(255),
-    @SuppressWarnings("unused")MAX_KEY(127);
+    DOUBLE("double", 1),
+    STRING("string", 2),
+    OBJECT("object", 3),
+    ARRAY("array", 4),
+    BINARY_DATA("binData", 5),
+    @Deprecated UNDEFINED("undefined", 6),
+    OBJECT_ID("objectId", 7),
+    BOOLEAN("bool", 8),
+    DATE("date", 9),
+    NULL("null", 10),
+    REGEX("regex", 11),
+    @Deprecated DB_PTR("dbPointer", 12),
+    JAVASCRIPT("javascript", 13),
+    @Deprecated SYMBOL("symbol", 14),
+    @Deprecated JAVASCRIPT_SCOPE("javascriptWithScope", 15),
+    INTEGER("int", 16),
+    TIMESTAMP("timestamp", 17),
+    LONG("long", 18),
+    DECIMAL("decimal", 19),
+    MIN_KEY("minKey", 255),
+    MAX_KEY("maxKey", 127);
 
-    private final int number;
+    private static final MongoType[] ID_CACHE = new MongoType[MIN_KEY.getId() + 1];
+    private static final Map<String, MongoType> NAME_CACHE = new ConcurrentHashMap<>();
 
-    MongoType(int nr) {
-        number = nr;
+    static {
+        MongoType[] var0 = values();
+        int var1 = var0.length;
+
+        for (int var2 = 0; var2 < var1; ++var2) {
+            MongoType cur = var0[var2];
+            ID_CACHE[cur.getId()] = cur;
+            NAME_CACHE.put(cur.getTxt(), cur);
+        }
+
     }
 
-    public int getNumber() {
-        return number;
+    String txt;
+    Integer id;
+
+    MongoType(String n, Integer id) {
+        this.txt = n;
+        this.id = id;
     }
-    //
-    //    Object	 3
-    //    Array	 4
-    //    Binary data	 5
-    //    Object id	 7
-    //    Boolean	 8
-    //    Date	 9
-    //    Null	 10
-    //    Regular expression	 11
-    //    JavaScript code	 13
-    //    Symbol	 14
-    //    JavaScript code with scope	 15
-    //            32-bit integer	 16
-    //    Timestamp	 17
-    //            64-bit integer	 18
-    //    Min key	 255
-    //    Max key	 127
+
+    public static MongoType findByValue(int value) {
+        return ID_CACHE[value & 255];
+    }
+
+    public static MongoType findByTxt(String txt) {
+        return NAME_CACHE.get(txt);
+    }
+
+    public String getTxt() {
+        return txt;
+    }
+
+    public Integer getId() {
+        return id;
+    }
 }
