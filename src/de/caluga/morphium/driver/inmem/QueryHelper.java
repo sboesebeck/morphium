@@ -1,6 +1,7 @@
 package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.MongoType;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
@@ -12,6 +13,7 @@ import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import java.math.BigDecimal;
 import java.text.Collator;
 import java.text.ParseException;
 import java.text.RuleBasedCollator;
@@ -327,16 +329,63 @@ public class QueryHelper {
                                     Pattern p = Pattern.compile(regex, opts);
                                     return p.matcher(valtoCheck.toString()).matches();
                                 }
-                            case "$jsonSchema":
                             case "$type":
+                                MongoType type = null;
+                                if (q.get(k) instanceof Integer) {
+                                    type = MongoType.findByValue((Integer) q.get(k));
+                                } else if (q.get(k) instanceof String) {
+                                    type = MongoType.findByTxt((String) q.get(k));
+                                } else {
+                                    log.error("Type specification needs to be either int or string - not " + q.get(k).getClass().getName());
+                                    return false;
+                                }
+                                List elements = new ArrayList();
+                                if (toCheck.get(key) instanceof List) {
+                                    elements = (List) toCheck.get(key);
+                                } else {
+                                    elements.add(toCheck.get(key));
+                                }
+
+                                boolean fnd = false;
+                                for (Object o : elements) {
+                                    if (o == null) {
+                                        fnd = type.equals(MongoType.NULL);
+                                    } else if (o instanceof byte[]) {
+                                        fnd = type.equals(MongoType.BINARY_DATA);
+                                    } else if ((o instanceof List) || (o.getClass().isArray())) {
+                                        fnd = type.equals(MongoType.ARRAY);
+                                    } else if (o instanceof Pattern) {
+                                        fnd = type.equals(MongoType.REGEX);
+                                    } else if (o instanceof Map) {
+                                        fnd = type.equals(MongoType.OBJECT);
+                                    } else if ((o instanceof Double)) {
+                                        fnd = type.equals(MongoType.DOUBLE);
+                                    } else if ((o instanceof Date)) {
+                                        fnd = type.equals(MongoType.DATE);
+                                    } else if ((o instanceof MorphiumId) || (o instanceof ObjectId)) {
+                                        fnd = type.equals(MongoType.OBJECT_ID);
+                                    } else if ((o instanceof BigDecimal)) {
+                                        fnd = type.equals(MongoType.DECIMAL);
+                                    } else if ((o instanceof String)) {
+                                        fnd = type.equals(MongoType.STRING);
+                                    } else if ((o instanceof Boolean)) {
+                                        fnd = type.equals(MongoType.BOOLEAN);
+                                    } else if ((o instanceof Float)) {
+                                        fnd = type.equals(MongoType.DOUBLE);
+                                    } else if ((o instanceof Long)) {
+                                        fnd = type.equals(MongoType.LONG);
+                                    } else if ((o instanceof Integer)) {
+                                        fnd = type.equals(MongoType.INTEGER);
+                                    }
+                                    if (fnd) break;
+                                }
+                                return fnd;
+                            case "$jsonSchema":
                             case "$geoIntersects":
                             case "$near":
                             case "$nearSphere":
                                 break;
                             case "$geoWithin":
-                                //db.places.find( {
-                                //   loc: { $geoWithin: { $box:  [ [ 0, 0 ], [ 100, 100 ] ] } }
-                                //} )
                                 if (!(toCheck.get(key) instanceof List)) {
                                     log.warn("No proper coordinates found");
                                     return false;
