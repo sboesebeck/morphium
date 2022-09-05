@@ -8,6 +8,7 @@ import de.caluga.morphium.query.geospatial.Polygon;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -20,6 +21,8 @@ import java.util.regex.Pattern;
 @SuppressWarnings("UnusedDeclaration")
 public interface MongoField<T> {
     Query<T> all(List<Object> val);
+
+    Query<T> all(Object... val);
 
     Query<T> eq(Object val);
 
@@ -54,6 +57,10 @@ public interface MongoField<T> {
     Query<T> nin(Collection<?> vals);
 
     Query<T> nearSphere(double x, double y);
+
+    Query<T> elemMatch(Map<String, Object> q);
+
+    Query<T> elemMatch(Query<?> q);
 
     Query<T> near(double x, double y);
 
@@ -114,4 +121,6 @@ public interface MongoField<T> {
     Query<T> geoIntersects(Geo shape);
 
     Query<T> geoWithin(Geo shape);
+
+    Query<T> geoWithinBox(Double x1, Double y1, Double x2, Double y2);
 }

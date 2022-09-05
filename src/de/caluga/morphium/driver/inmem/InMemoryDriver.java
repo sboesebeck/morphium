@@ -1028,7 +1028,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         for (var i : idx) {
                             Map<String, Object> options = (Map<String, Object>) i.get("$options");
                             if (options != null && options.containsKey("expireAfterSeconds")) {
-                                log.info("Found collection candidate for expire..." + db + "." + coll);
+//                                log.info("Found collection candidate for expire..." + db + "." + coll);
                                 var k = new HashMap<>(i);
                                 k.remove("$options");
                                 var keys = k.keySet().toArray(new String[]{});

@@ -78,6 +78,11 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     }
 
     @Override
+    public Query<T> all(Object... val) {
+        return all(Arrays.asList(val));
+    }
+
+    @Override
     public Query<T> eq(Object val) {
         // checking for Ids in references...
         val = checkValue(val);
@@ -330,6 +335,11 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
+    @Override
+    public Query<T> geoWithinBox(Double x1, Double y1, Double x2, Double y2) {
+        createGeoWithinFilterExpression(Arrays.asList(Arrays.asList(x1, y1), Arrays.asList(x2, y2)), "$box");
+        return query;
+    }
 
     @Override
     public Query<T> getQuery() {
@@ -400,7 +410,17 @@ public class MongoFieldImpl<T> implements MongoField<T> {
         return query;
     }
 
-    //Geospacial queries
+    @Override
+    public Query<T> elemMatch(Map<String, Object> q) {
+        add("$elemMatch", q);
+        return query;
+    }
+
+    @Override
+    public Query<T> elemMatch(Query<?> q) {
+        return elemMatch(q.toQueryObject());
+    }
+//Geospacial queries
 
     @Override
     public Query<T> near(double x, double y) {
@@ -426,19 +446,7 @@ public class MongoFieldImpl<T> implements MongoField<T> {
      * search for entries with geo coordinates wihtin the given rectancle - x,y upper left, x2,y2 lower right corner
      */
     public Query<T> box(double x, double y, double x2, double y2) {
-        List<Object> lst = new ArrayList<>();
-        List<Object> p1 = new ArrayList<>();
-        p1.add(x);
-        p1.add(y);
-        List<Object> p2 = new ArrayList<>();
-        p2.add(x2);
-        p2.add(y2);
-
-        lst.add(p1);
-        lst.add(p2);
-
-        createGeoWithinFilterExpression(lst, "$box");
-        return query;
+        return geoWithinBox(x, y, x2, y2);
     }
 
     @Override

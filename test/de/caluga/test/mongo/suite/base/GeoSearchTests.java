@@ -227,5 +227,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         public void setName(String name) {
             this.name = name;
         }
+
+        public enum Fields {name, position, id}
     }
 }
