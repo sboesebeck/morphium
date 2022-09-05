@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.inmem;
 
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.aggregation.Expr;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -101,7 +102,7 @@ public class QueryHelper {
                         }
                         Collator coll = null;
                         if (collation != null && !collation.isEmpty()) {
-                            coll=getCollator(collation);
+                            coll = getCollator(collation);
                             //add support for caseLevel: <boolean>,
                             //   caseFirst: <string>,
                             //   strength: <int>,
@@ -292,28 +293,28 @@ public class QueryHelper {
 
                                 }
                                 if (valtoCheck == null) return false;
-                                if (k.equals("$text")){
-                                    String srch=q.get("$text").toString().toLowerCase();
-                                    String[] tokens=null;
-                                    if (srch.contains("\"")){
+                                if (k.equals("$text")) {
+                                    String srch = q.get("$text").toString().toLowerCase();
+                                    String[] tokens = null;
+                                    if (srch.contains("\"")) {
                                         //phrase search
-                                        List<String> tks=new ArrayList<>();
-                                        Pattern p=Pattern.compile("\"([^\"]*)\"");
-                                        String t=p.matcher(srch).group(1);
-                                        srch=srch.replaceAll("\""+t+"\"","");
+                                        List<String> tks = new ArrayList<>();
+                                        Pattern p = Pattern.compile("\"([^\"]*)\"");
+                                        String t = p.matcher(srch).group(1);
+                                        srch = srch.replaceAll("\"" + t + "\"", "");
                                         tks.add(t);
                                         tks.addAll(Arrays.asList(srch.split(" ")));
                                     } else {
-                                        srch=srch.replaceAll("[^a-zA-Z0-9 ]"," ");
-                                        tokens=srch.split(" ");
+                                        srch = srch.replaceAll("[^a-zA-Z0-9 ]", " ");
+                                        tokens = srch.split(" ");
                                     }
 
-                                    var v= valtoCheck.toString().toLowerCase();
-                                    found=true;
-                                    for (String s:tokens) {
+                                    var v = valtoCheck.toString().toLowerCase();
+                                    found = true;
+                                    for (String s : tokens) {
                                         if (s.isEmpty() || s.isBlank()) continue;
-                                        if (!v.contains(s)){
-                                            found=false;
+                                        if (!v.contains(s)) {
+                                            found = false;
                                             break;
                                         }
                                     }
@@ -329,18 +330,159 @@ public class QueryHelper {
                             case "$jsonSchema":
                             case "$type":
                             case "$geoIntersects":
-                            case "$geoWithin":
                             case "$near":
                             case "$nearSphere":
+                                break;
+                            case "$geoWithin":
+                                //db.places.find( {
+                                //   loc: { $geoWithin: { $box:  [ [ 0, 0 ], [ 100, 100 ] ] } }
+                                //} )
+                                if (!(toCheck.get(key) instanceof List)) {
+                                    log.warn("No proper coordinates found");
+                                    return false;
+                                }
+                                if (!(q.get(k) instanceof Map)) {
+                                    log.warn("No proper geoWithin query for " + key);
+                                    return false;
+                                }
+                                Map<String, Object> geoQuery = (Map<String, Object>) q.get(k);
+                                List coordToCheckWithin = (List) toCheck.get(key);
+                                if (geoQuery.containsKey("$box")) {
+                                    //coordinates=list of 2 points
+                                    List coords = (List) geoQuery.get("$box");
+                                    if (coords.size() > 2) {
+                                        log.error("Box coordinates should be 2 Points!");
+                                    } else if (coords.size() < 2) {
+                                        log.error("No proper box coordinates");
+                                        return false;
+                                    }
+                                    //checking on a flat surface!
+                                    var upperLeftX = (Double) ((List) (coords.get(0))).get(0);
+                                    var upperLeftY = (Double) ((List) (coords.get(0))).get(1);
+                                    var lowerRightX = (Double) ((List) (coords.get(1))).get(0);
+                                    var lowerRightY = (Double) ((List) (coords.get(1))).get(1);
+
+                                    if (lowerRightX < upperLeftX) {
+                                        var tmp = upperLeftX;
+                                        upperLeftX = lowerRightX;
+                                        lowerRightX = tmp;
+                                    }
+                                    if (lowerRightY < upperLeftY) {
+                                        var tmp = upperLeftY;
+                                        upperLeftY = lowerRightY;
+                                        lowerRightY = tmp;
+                                    }
+
+                                    if (coordToCheckWithin.size() == 2 && coordToCheckWithin.get(0) instanceof Double) {
+                                        //single coordinate
+                                        var x = (Double) ((List) coordToCheckWithin).get(0);
+                                        var y = (Double) ((List) coordToCheckWithin).get(1);
+                                        if (x > lowerRightX || x < upperLeftX) return false;
+                                        if (y > lowerRightY || y < upperLeftY) return false;
+                                        return true;
+                                    }
+                                    for (Object o : coordToCheckWithin) {
+                                        for (List<Double> coord : ((List<List<Double>>) o)) {
+                                            var x = coord.get(0);
+                                            var y = coord.get(1);
+                                            if (x > lowerRightX || x < upperLeftX) return false;
+                                            if (y > lowerRightY || y < upperLeftY) return false;
+                                        }
+                                    }
+                                    return true;
+                                }
+                                break;
                             case "$all":
-                            case "$elemMatch":
+                                if (toCheck.get(key) == null) return false;
+                                if (!(toCheck.get(key) instanceof List)) {
+                                    log.warn("Trying $all on non-list value");
+                                    return false;
+                                }
+                                if (!(q.get(k) instanceof List)) {
+                                    log.warn("Syntax: $all: [ v1,v2,v3... ]");
+                                    return false;
+                                }
+                                List toCheckValList = (List) toCheck.get(key);
+                                List queryValues = (List) q.get(k);
+
+                                for (Object o : queryValues) {
+                                    if (!toCheckValList.contains(o)) return false;
+                                }
+                                return true;
                             case "$size":
+                                if (toCheck.get(key) == null) return q.get(k).equals(0);
+                                if (!(toCheck.get(key) instanceof List)) {
+                                    log.warn("Trying $size on non-list value");
+                                    return false;
+                                }
+                                return q.get(k).equals(((List) toCheck.get(key)).size());
+                            case "$elemMatch":
+                                if (toCheck.get(key) == null) return false;
+                                if (!(toCheck.get(key) instanceof List)) {
+                                    log.warn("Trying $elemMatch on non-list value");
+                                    return false;
+                                }
+                                if (!(q.get(k) instanceof Map)) {
+                                    log.warn("Syntax: $elemMatch { field: QUERYMAP}");
+                                    return false;
+                                }
+                                List valList = (List) toCheck.get(key);
+                                Map<String, Object> queryMap = (Map<String, Object>) q.get(k);
+
+                                for (Object o : valList) {
+                                    if (!(o instanceof Map)) {
+                                        o = Doc.of("value", o);
+                                    }
+                                    if (matchesQuery(queryMap, (Map<String, Object>) o, null) || matchesQuery(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
+                                        return true;
+                                    }
+                                }
+
+                                return false;
+
+                            case "$bitsAnySet":
                             case "$bitsAllClear":
                             case "$bitsAllSet":
                             case "$bitsAnyClear":
-                            case "$bitsAnySet":
-                                log.warn("Unsupported op " + k + " for in memory driver");
-                                break;
+                                if (toCheck.get(key) == null) return false;
+                                long value = 0;
+                                if (q.get(k) instanceof Integer) {
+                                    value = ((Integer) q.get(k)).longValue();
+                                } else if (q.get(k) instanceof Long) {
+                                    value = ((Long) q.get(k));
+                                } else if (q.get(k) instanceof List) {
+                                    for (Object o : ((List) q.get(k))) {
+                                        if (o instanceof Integer) {
+                                            value = value | 1L << ((Integer) o);
+                                        }
+                                    }
+                                } else if (q.get(k) instanceof byte[]) {
+                                    var b = (byte[]) q.get(k);
+
+                                    //long
+                                    var bits = 0;
+                                    for (int idx = b.length - 1; idx > 0; idx++) {
+                                        value = value | (b[idx] << bits);
+                                        bits += 8;
+                                    }
+                                }
+                                long chkVal = 0;
+                                if (toCheck.get(key) instanceof Integer) {
+                                    chkVal = ((Integer) toCheck.get(key)).longValue();
+                                } else if (toCheck.get(key) instanceof Long) {
+                                    chkVal = ((Long) toCheck.get(key));
+                                } else if (toCheck.get(key) instanceof Byte) {
+                                    chkVal = ((Byte) toCheck.get(key)).byteValue();
+                                }
+                                if (k.equals("$bitsAnySet")) {
+                                    return (value & chkVal) != 0;
+                                } else if (k.equals("$bitsAllSet")) {
+                                    return (value & chkVal) == value;
+                                } else if (k.equals("$bitsAnyClear")) {
+                                    return (value & chkVal) < value;
+                                } else { //if (k.equals("$bitsAllClear")
+                                    return (value & chkVal) == 0;
+                                }
                             case "$options":
                                 break;
                             default:
@@ -385,15 +527,15 @@ public class QueryHelper {
     }
 
     public static Collator getCollator(Map<String, Object> collation) {
-        Locale locale=Locale.ROOT;
+        Locale locale = Locale.ROOT;
         if (collation.containsKey("locale") && !"simple".equals(collation.get("locale"))) {
             locale = Locale.forLanguageTag((String) collation.get("locale"));
         }
         var coll = Collator.getInstance(locale);
-        if (collation.containsKey("caseFirst")){
-            if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))){
+        if (collation.containsKey("caseFirst")) {
+            if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))) {
                 try {
-                    coll=new RuleBasedCollator(((RuleBasedCollator)coll).getRules()+",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
+                    coll = new RuleBasedCollator(((RuleBasedCollator) coll).getRules() + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
