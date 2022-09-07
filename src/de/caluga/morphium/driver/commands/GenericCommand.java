@@ -42,9 +42,9 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     @Override
     public Map<String, Object> asMap() {
         var m = Doc.of();
+        m.putAll(super.asMap());
         if (cmdData != null)
             m.putAll(cmdData);
-        m.putAll(super.asMap());
         return m;
     }
 

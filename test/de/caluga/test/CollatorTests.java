@@ -14,6 +14,7 @@ public class CollatorTests {
     private Logger log= LoggerFactory.getLogger(CollatorTests.class);
     @Test
     public void collatorTests() throws Exception{
+        log.info("This should work");
         RuleBasedCollator r= (RuleBasedCollator) Collator.getInstance(Locale.forLanguageTag("de"));
 
 //        var rules="a<b<c<d<e<f<g<h<i<j<k<l<m<n<o<p<q<r<s<t<u<v<w<x<y<z";
