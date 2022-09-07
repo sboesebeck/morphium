@@ -1289,7 +1289,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 query.put("_id", morphium.getId(toInc));
                 Field f = morphium.getARHelper().getField(cls, field);
                 if (f == null) {
-                    throw new RuntimeException("Unknown field: " + field);
+                    throw new RuntimeException("Cannot inc unknown field: " + field);
                 }
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
 
@@ -1747,7 +1747,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Map<String, Object> query = new HashMap<>();
                 query.put("_id", morphium.getId(toSet));
                 Field f = morphium.getARHelper().getField(cls, field);
-                if (f == null) {
+                if (f == null && !morphium.getARHelper().isAnnotationPresentInHierarchy(cls, AdditionalData.class)) {
                     throw new RuntimeException("Unknown field: " + field);
                 }
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
@@ -2168,7 +2168,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.getCache().clearCacheIfNecessary(cls);
 
                 try {
-                    f.set(toSet, null);
+                    if (f != null)
+                        f.set(toSet, null);
                 } catch (IllegalAccessException e) {
                     //May happen, if null is not allowed for example
                 } finally {

@@ -262,6 +262,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         //ignored for now
     }
 
+    public Map<String, Object> getAnswer(int queryId) {
+        stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
+        var data = commandResults.remove(queryId);
+        return data;
+    }
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
@@ -271,6 +276,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+        log.info("Reading answer for id " + queryId);
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         var data = commandResults.remove(queryId);
         if (data.containsKey("results")) {
@@ -332,11 +338,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
-    private int runCommand(GenericCommand cmd) {
+    public int runCommand(GenericCommand cmd) {
         log.info("Trying to handle generic Command");
 
         Map<String, Object> cmdMap = cmd.asMap();
-        var commandName = cmdMap.keySet().toArray(new String[cmdMap.size()])[0];
+        var commandName = cmdMap.keySet().stream().findFirst().get();
         Class<? extends MongoCommand> commandClass = commandsCache.get(commandName);
         if (commandClass == null) {
             throw new IllegalArgumentException("Unknown kommand " + commandName);
@@ -543,6 +549,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         data.put("totalSize", 0);
         data.put("totalSizeMb", 0);
         data.put("totalEntries", sum);
+        log.info("Storing listDb Result for id: " + ret);
         commandResults.put(ret, prepareResult(data));
         return ret;
     }

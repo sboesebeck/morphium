@@ -285,6 +285,12 @@ public class BsonEncoder {
             cString(n);
             long val = (Long) v;
             writeLong(val);
+        } else if (v.getClass().isAssignableFrom(MongoTimestamp.class)) {
+            writeByte(0x11);
+            cString(n);
+            long val = ((MongoTimestamp) v).getValue();
+            writeLong(val);
+
         } else if (v.getClass().isAssignableFrom(MongoMinKey.class)) {
             writeByte(0xff);
             cString(n);

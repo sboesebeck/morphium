@@ -2,6 +2,9 @@ package de.caluga.morphium.server;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.bson.MongoTimestamp;
+import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
@@ -14,6 +17,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -21,9 +25,29 @@ public class MorphiumServer {
 
     Logger log = LoggerFactory.getLogger(MorphiumServer.class);
 
+    private static HelloResult getHelloResult() {
+        HelloResult res = new HelloResult();
+        res.setHelloOk(true);
+        res.setLocalTime(new Date());
+        res.setOk(1.0);
+        res.setHosts(Arrays.asList("localhost:17017"));
+        res.setConnectionId(1);
+        res.setMaxWireVersion(17);
+        res.setMinWireVersion(13);
+        res.setMaxMessageSizeBytes(100000);
+        res.setMaxBsonObjectSize(10000);
+        res.setWritablePrimary(true);
+        res.setMe("localhost:17017");
+        res.setMsg("ok");
+        return res;
+    }
+
     public void start(int port) throws IOException, InterruptedException {
         log.info("Opening port " + port);
         ServerSocket ssoc = new ServerSocket(port);
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.setHostSeed("localhost");
+
         while (true) {
             var s = ssoc.accept();
             log.info("Incoming connection");
@@ -49,6 +73,28 @@ public class MorphiumServer {
                             var q = (OpQuery) msg;
                             id = q.getMessageId();
                             doc = q.getDoc();
+                            if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
+                                //ismaster
+                                OpReply r = new OpReply();
+                                r.setFlags(2);
+                                r.setMessageId(msgId.incrementAndGet());
+                                r.setResponseTo(id);
+                                r.setNumReturned(1);
+
+                                HelloResult res = getHelloResult();
+
+//                                OpMsg reply=new OpMsg();
+//                                reply.setFirstDoc(res.toMsg());
+//                                reply.setMessageId(msgId.incrementAndGet());
+//                                reply.setResponseTo(id);
+//                                out.write(reply.bytes());
+
+                                r.setDocuments(Arrays.asList(res.toMsg()));
+                                out.write(r.bytes());
+                                out.flush();
+                                log.info("Sent hello result");
+                                continue;
+                            }
                             OpReply r = new OpReply();
                             Doc d = Doc.of("$err", "OP_QUERY is no longer supported. The client driver may require an upgrade.", "code", 5739101, "ok", 0.0);
                             r.setFlags(2);
@@ -59,58 +105,80 @@ public class MorphiumServer {
                             out.write(r.bytes());
                             out.flush();
                             log.info("Sent out error because OPQuery not allowed anymore!");
-                            Thread.sleep(1000);
+                            log.info(Utils.toJsonString(doc));
+                            //Thread.sleep(1000);
                             continue;
                         } else if (msg instanceof OpMsg) {
                             var m = (OpMsg) msg;
                             doc = ((OpMsg) msg).getFirstDoc();
                             id = m.getMessageId();
                         }
-                        log.info("Incoming: " + Utils.toJsonString(doc));
-                        HelloResult res = new HelloResult();
-                        res.setWritablePrimary(true);
-//                res.setArbiterOnly(false);
-                        res.setConnectionId(1);
-                        res.setOk(1.0);
-//                res.setSecondary(false);
-//                res.setSetName(null);
-//                res.setHidden(false);
-                        res.setMaxWireVersion(17);
-                        res.setMinWireVersion(0);
-//                res.setMe("localhost:17017");
-                        res.setHelloOk(true);
-                        res.setMaxBsonObjectSize(16777216);
-                        res.setMaxMessageSizeBytes(480000000);
-                        res.setLocalTime(new Date());
-//                res.setSetVersion(1);
-                        res.setReadOnly(false);
-
-                        Map<String, Object> firstDoc = res.toMsg();
-                        firstDoc.put("logicalSessionTimeoutMinutes", 30);
-//                firstDoc.put("topologyVersion", Doc.of("processId",new MorphiumId(),"counter",0));
-
-                        OpReply reply = new OpReply();
-                        reply.setDocuments(Arrays.asList(firstDoc));
-                        reply.setNumReturned(1);
+                        log.info("Incoming " + Utils.toJsonString(doc));
+                        String cmd = doc.keySet().stream().findFirst().get();
+                        log.info("Handling command " + cmd);
+                        OpMsg reply = new OpMsg();
+                        reply.setResponseTo(msg.getMessageId());
                         reply.setMessageId(msgId.incrementAndGet());
-                        reply.setResponseTo(id);
-                        ;
-//                            OpMsg outMsg = new OpMsg().setFirstDoc(firstDoc);
-//                            log.info("Sending out reply for " + id + ": " + Utils.toJsonString(outMsg.getFirstDoc()));
-//                            outMsg.setMessageId(msgId.incrementAndGet());
-//                            outMsg.setResponseTo(id);
-//                            outMsg.setFlags(OpMsg.EXHAUST_ALLOWED);
-//
-//                            out.write(outMsg.bytes());
+                        Map<String, Object> answer;
+                        switch (cmd) {
+                            case "getCmdLineOpts":
+                                answer = Doc.of("argv", List.of(), "parsed", Map.of());
+
+                                break;
+
+                            case "buildInfo":
+                                answer = Doc.of("version", "5.0.0-ALPHA", "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"));
+                                answer.put("ok", 1.0);
+                                reply.setFirstDoc(answer);
+                                break;
+                            case "ismaster":
+                            case "isMaster":
+                            case "hello":
+                                answer = getHelloResult().toMsg();
+                                reply.setFirstDoc(answer);
+                                break;
+                            case "getFreeMonitoringStatus":
+                                answer = Doc.of("state", "disabled", "message", "", "url", "", "userReminder", "");
+                                break;
+                            case "ping":
+                                answer = Doc.of();
+                                break;
+                            case "getLog":
+                                if (doc.get(cmd).equals("startupWarnings")) {
+                                    answer = Doc.of("totalLinesWritten", 0, "log", List.of(), "ok", 1.0);
+                                    break;
+                                } else {
+                                    log.warn("Unknown log " + doc.get(cmd));
+                                    answer = Doc.of("ok", 0, "errmsg", "unknown logr");
+                                }
+                                break;
+                            case "getParameter":
+                                if (Integer.valueOf(1).equals(doc.get("featureCompatibilityVersion"))) {
+                                    answer = Doc.of("version", "5.0", "ok", 1.0);
+                                } else {
+                                    answer = Doc.of("ok", 0, "errmsg", "no such parameter");
+                                }
+                                break;
+                            default:
+                                try {
+                                    int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
+                                    var crs = drv.getAnswer(msgid);
+                                    answer = Doc.of("ok", 1.0);
+                                    answer.putAll(crs);
+
+                                } catch (Exception e) {
+                                    answer = Doc.of("ok", 0, "errmsg", "no such command: '" + cmd + "'");
+                                    log.warn("errror running command " + cmd, e);
+                                }
+
+                                break;
+                        }
+                        answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
+                        answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
+                        reply.setFirstDoc(answer);
+
                         out.write(reply.bytes());
                         out.flush();
-                        Thread.sleep(100);
-                        if (in.available() != 0) {
-                            msg = OpMsg.parseFromStream(in);
-                        } else {
-                            log.info("Nothing incoming");
-                        }
-                        Thread.sleep(15000);
 
                     }
                     log.info("Thread finished!");

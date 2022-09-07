@@ -1,4 +1,4 @@
-<configuration scan="true">
+<configuration>
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <!-- encoders are assigned the type org.springframework.web.servlet.DispatcherServlet.render(DispatcherServlet.java:1266)
@@ -12,7 +12,7 @@
 
     <logger name="org.mongodb.driver" level="WARN"/>
     <logger name="org.mongodb.driver.connection" level="WARN"/>
-    <logger name="de.caluga" level="INFO"/>
+    <logger name="de.caluga" level="info"/>
     <logger name="de.caluga.morphium.driver" level="DEBUG"/>
     <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="DEBUG"/>
     <logger name="de.caluga.morphium.messaging.Messaging" level="DEBUG"/>
