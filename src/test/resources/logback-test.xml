@@ -1,0 +1,24 @@
+<configuration>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- encoders are assigned the type org.springframework.web.servlet.DispatcherServlet.render(DispatcherServlet.java:1266)
+             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+        <withJansi>false</withJansi>
+        <encoder>
+            <pattern>%highlight(%d{yyyy-MM-dd HH:mm:ss.SSS}) %5p - [%8.8t] %32.32C.%-22.22M\(%32F:%1.4L\) - %msg\n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.mongodb.driver" level="WARN"/>
+    <logger name="org.mongodb.driver.connection" level="WARN"/>
+    <logger name="de.caluga" level="info"/>
+    <logger name="de.caluga.morphium.driver" level="DEBUG"/>
+    <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="DEBUG"/>
+    <logger name="de.caluga.morphium.messaging.Messaging" level="DEBUG"/>
+    <logger name="de.caluga.test.mongo.suite" level="DEBUG"/>
+
+    <root level="info">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
