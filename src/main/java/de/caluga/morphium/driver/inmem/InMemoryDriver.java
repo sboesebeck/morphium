@@ -24,7 +24,6 @@ import org.openjdk.jol.vm.VM;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.el.MethodNotFoundException;
 import javax.net.ssl.SSLContext;
 import java.io.*;
 import java.lang.reflect.Constructor;
@@ -215,8 +214,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
 
     public List<String> listCollections(String db, String pattern) {
-        if (!database.containsKey(db)) return new ArrayList<>();
-        Set<String> collections = database.get(db).keySet();
+        Set<String> collections = new HashSet<>();
+        if (db.equals("1")) {
+            for (String k : database.keySet()) {
+                collections.addAll(database.get(k).keySet());
+            }
+        } else if (database.containsKey(db)) {
+            collections.addAll(database.get(db).keySet());
+        } else return new ArrayList<>();
+
         List<String> ret = new ArrayList<>();
         if (pattern == null) {
             ret.addAll(collections);
@@ -329,7 +335,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (o instanceof Integer) {
                     return (Integer) o;
                 }
-            } catch (MethodNotFoundException ex) {
+            } catch (NoSuchMethodException ex) {
                 log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
             }
         } catch (Exception e) {
@@ -362,7 +368,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     log.error("THIS CANNOT HAPPEN!");
                     return 0; //executed, but did not return int?!?!?
                 }
-            } catch (MethodNotFoundException ex) {
+            } catch (NoSuchMethodException ex) {
                 log.error("No method for command " + commandClass.getSimpleName() + " - " + mongoCommand.getCommandName());
             }
         } catch (Exception e) {
@@ -442,7 +448,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(ShutdownCommand cmd) {
-//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         commandResults.put(ret, prepareResult(Doc.of("ok", 0.0, "errmsg", "shutdown in memory not supported")));
         return ret;
@@ -559,7 +564,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
         var cursorData = new ArrayList<Map<String, Object>>();
-
+        if (!database.containsKey(cmd.getDb())) {
+            m.put("ok", 0.0);
+            m.put("errmsg", "no such database");
+            commandResults.put(ret, m);
+            return ret;
+        }
         for (String coll : database.get(cmd.getDb()).keySet()) {
             cursorData.add(Doc.of("name", coll,
                     "type", "collection", "options", new Doc(),

@@ -15,7 +15,7 @@ public class TestServer {
 
             MorphiumServer srv = new MorphiumServer();
             try {
-                srv.start(17017);
+                srv.start();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             } catch (InterruptedException e) {

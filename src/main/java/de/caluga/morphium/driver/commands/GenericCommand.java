@@ -51,10 +51,14 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
     @Override
     public GenericCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        cmdData=new HashMap<>();
+        cmdData = new HashMap<>();
         cmdData.putAll(m);
-        commandName=m.keySet().toArray(new String[m.size()])[0];
-        cmdData.remove(commandName);
+        commandName = m.keySet().toArray(new String[m.size()])[0];
+        if (cmdData.get(commandName) instanceof String) {
+            setColl((String) cmdData.remove(commandName));
+        } else {
+            setColl(cmdData.remove(commandName).toString());
+        }
 
         return this;
     }
