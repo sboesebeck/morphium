@@ -97,7 +97,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         if (authDb != null) {
             ret.put("saslSupportedMechs", authDb + "." + user);
         }
-        ret.put("$db", "local");
+        ret.put("$db", "admin");
         String driverName = "unknown";
         if (getConnection() != null && getConnection() != null && getConnection().getDriver() != null) {
             driverName = getConnection().getDriver().getName();

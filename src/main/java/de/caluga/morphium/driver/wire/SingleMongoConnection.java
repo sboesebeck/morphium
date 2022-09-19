@@ -279,9 +279,11 @@ public class SingleMongoConnection implements MongoConnection {
                 }
             } catch (InterruptedException e) {
                 //throw new RuntimeException("Interrupted", e);
-                 //swallow
+                //swallow
             }
-            if (System.currentTimeMillis() - start > timeout) {
+            if (!running) return null;
+            if (System.currentTimeMillis() - start > 2 * timeout) {
+
                 throw new MorphiumDriverException("server did not answer in time: " + timeout + "ms");
             }
         }

@@ -70,11 +70,11 @@ public class MorphiumTestBase {
     }
 
     private static File getFile() {
-        configDir = new File(System.getProperty("user.home") + ".config/");
+        configDir = new File(System.getProperty("user.home") + "/.config/");
         if (!configDir.exists()) {
             configDir.mkdirs();
         }
-        return new File(System.getProperty("user.home") + ".config/morphiumtest.cfg");
+        return new File(System.getProperty("user.home") + "/.config/morphiumtest.cfg");
     }
 
     @BeforeAll

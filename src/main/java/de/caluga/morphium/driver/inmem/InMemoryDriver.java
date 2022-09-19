@@ -85,47 +85,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public InMemoryDriver() {
-        try (ScanResult scanResult =
-                     new ClassGraph()
-                             //                     .verbose()             // Enable verbose logging
-                             .enableAnnotationInfo()
-//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-                             .scan()) {
-            ClassInfoList entities =
-                    scanResult.getSubclasses(MongoCommand.class.getName());
-            for (ClassInfo info : entities) {
-                try {
-                    String n = info.getName();
-                    Class cls = Class.forName(n);
-                    if (Modifier.isAbstract(cls.getModifiers())) continue;
-                    if (cls.isInterface()) continue;
-
-                    Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
-                    declaredConstructor.setAccessible(true);
-                    var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
-                    commandsCache.put(mongoCommand.getCommandName(), cls);
-
-                    //checking method
-                    try {
-                        Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
-
-                    } catch (NoSuchMethodException e) {
-                        log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / " + mongoCommand.getClass().getSimpleName());
-                    } catch (SecurityException e) {
-                        log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / " + mongoCommand.getClass().getSimpleName() + " not accessible!");
-                    }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-
-        for (DriverStatsKey k : DriverStatsKey.values()) {
-            stats.put(k, new AtomicDecimal(0));
-        }
-        database.put("local", new ConcurrentHashMap<>());
-        database.put("admin", new ConcurrentHashMap<>());
-
     }
 
     @Override
@@ -1008,6 +967,47 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void connect() {
+        try (ScanResult scanResult =
+                     new ClassGraph()
+                             //                     .verbose()             // Enable verbose logging
+                             .enableAnnotationInfo()
+//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+                             .scan()) {
+            ClassInfoList entities =
+                    scanResult.getSubclasses(MongoCommand.class.getName());
+            for (ClassInfo info : entities) {
+                try {
+                    String n = info.getName();
+                    Class cls = Class.forName(n);
+                    if (Modifier.isAbstract(cls.getModifiers())) continue;
+                    if (cls.isInterface()) continue;
+
+                    Constructor declaredConstructor = cls.getDeclaredConstructor(MongoConnection.class);
+                    declaredConstructor.setAccessible(true);
+                    var mongoCommand = (MongoCommand<MongoCommand>) declaredConstructor.newInstance(this);
+                    commandsCache.put(mongoCommand.getCommandName(), cls);
+
+                    //checking method
+                    try {
+                        Method m = InMemoryDriver.class.getDeclaredMethod("runCommand", mongoCommand.getClass());
+
+                    } catch (NoSuchMethodException e) {
+                        log.error("No runcommand-Method for Command " + mongoCommand.getCommandName() + " / " + mongoCommand.getClass().getSimpleName());
+                    } catch (SecurityException e) {
+                        log.error("runcommand-Method for Command " + mongoCommand.getCommandName() + " / " + mongoCommand.getClass().getSimpleName() + " not accessible!");
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+
+        for (DriverStatsKey k : DriverStatsKey.values()) {
+            stats.put(k, new AtomicDecimal(0));
+        }
+        database.put("local", new ConcurrentHashMap<>());
+        database.put("admin", new ConcurrentHashMap<>());
+
         if (exec.isShutdown()) {
             exec = new ScheduledThreadPoolExecutor(2);
         }
