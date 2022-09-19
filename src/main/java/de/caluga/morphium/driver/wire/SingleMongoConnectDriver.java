@@ -194,7 +194,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
             }
         }
-        incStat(DriverStatsKey.CONNECTIONS_IN_USE);
+        incStat(DriverStatsKey.CONNECTIONS_IN_POOL);
         // log.info("Connected! "+connection.getConnectedTo()+" / "+getHostSeed().get(connectToIdx));
     }
 
@@ -214,7 +214,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                         log.warn("wanted primary connection, changed to secondary, retrying");
                         incStat(DriverStatsKey.FAILOVERS);
                         connection.close();
-                        decStat(DriverStatsKey.CONNECTIONS_IN_USE);
+                        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
                         connection = null;
                         incStat(DriverStatsKey.CONNECTIONS_CLOSED);
                         Thread.sleep(1000);
@@ -223,7 +223,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
                         log.warn("state changed, wanted secondary, got something differnt now -reconnecting");
                         connection.close();
-                        decStat(DriverStatsKey.CONNECTIONS_IN_USE);
+                        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
                         incStat(DriverStatsKey.CONNECTIONS_CLOSED);
                         connection = null;
                         incStat(DriverStatsKey.FAILOVERS);
@@ -312,7 +312,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     @Override
     public void close() {
         incStat(DriverStatsKey.CONNECTIONS_CLOSED);
-        decStat(DriverStatsKey.CONNECTIONS_IN_USE);
+        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
         try {
             if (connection != null)
                 connection.close();
