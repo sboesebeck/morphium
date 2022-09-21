@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -14,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 
@@ -148,7 +150,7 @@ public class MessagingTest extends MorphiumTestBase {
 
     @Test
     public void mutlithreaddingTestMultiple() throws Exception {
-        int amount = 650;
+        int amount = 2650;
         Messaging producer = new Messaging(morphium, 500, false);
         producer.start();
         log.info("now multithreadded and multiprocessing");
@@ -173,6 +175,16 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("Messages processed: " + count.get() + "/" + amount);
             Thread.sleep(1000);
             if (System.currentTimeMillis() - start > 20000) throw new RuntimeException("Timeout!");
+//            for (var e:morphium.getDriver().getDriverStats().entrySet()){
+//                log.info("Stats: "+e.getKey()+" - " + e.getValue());
+//            }
+            var stats = morphium.getDriver().getDriverStats();
+            log.info("Connections in Pool : " + stats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL));
+            log.info("Connections opened  : " + stats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED));
+            log.info("Connections borrowed: " + stats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED));
+            log.info("Connections released: " + stats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED));
+            log.info("Connections in use  : " + stats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_USE));
+            log.info("-------------------------------------");
         }
         long dur = System.currentTimeMillis() - start;
         log.info("processing " + amount + " multithreaded and multiprocessing messages took " + dur + "ms == " + (amount / (dur / 1000)) + " msg/sec");
@@ -673,6 +685,7 @@ public class MessagingTest extends MorphiumTestBase {
                 while (true) {
                     Thread.sleep(1000);
                     m = morphium.reread(m);
+                    assertNotNull(m);
                     if (m.getProcessedBy() != null && m.getProcessedBy().size() != 0) break;
                 }
                 assertEquals(1, m.getProcessedBy().size());
@@ -1142,7 +1155,7 @@ public class MessagingTest extends MorphiumTestBase {
             m2.start();
             m3.start();
             m4.start();
-            Thread.sleep(200);
+            Thread.sleep(2200);
 
 
             //Sending exclusive Message
@@ -1159,7 +1172,8 @@ public class MessagingTest extends MorphiumTestBase {
             long s = System.currentTimeMillis();
             while (!gotMessage1 && !gotMessage2) {
                 Thread.sleep(200);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                log.info("Still did not get all messages: m1=" + gotMessage1 + " m2=" + gotMessage2);
+                assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
             }
 
             int rec = 0;
@@ -1276,8 +1290,9 @@ public class MessagingTest extends MorphiumTestBase {
                     rec++;
                 }
                 if (rec == 1) break;
+                assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
             }
 
             assertEquals(0, m1.getNumberOfMessages());

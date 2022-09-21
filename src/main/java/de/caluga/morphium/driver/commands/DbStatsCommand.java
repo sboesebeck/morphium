@@ -9,7 +9,16 @@ public class DbStatsCommand extends MongoCommand<DbStatsCommand> {
 
     public DbStatsCommand(MongoConnection d) {
         super(d);
-        setColl("1");
+        setColl("ALL");
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        var ret = super.asMap();
+        if (getColl().equals("ALL")) {
+            ret.put(getCommandName(), 1);
+        }
+        return ret;
     }
 
     @Override

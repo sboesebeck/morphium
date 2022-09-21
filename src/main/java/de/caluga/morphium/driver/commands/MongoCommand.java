@@ -56,6 +56,10 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return this;
     }
 
+    public void releaseConnection() {
+        getConnection().release();
+    }
+
     public int getDefaultBatchSize() {
         return defaultBatchSize;
     }
@@ -203,6 +207,9 @@ public abstract class MongoCommand<T extends MongoCommand> {
     public void clear() {
         for (Field f : an.getAllFields(this.getClass())) {
             if (Modifier.isStatic(f.getModifiers())) {
+                continue;
+            }
+            if (f.getType().equals(MongoConnection.class)) {
                 continue;
             }
             f.setAccessible(true);
