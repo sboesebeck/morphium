@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
+import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
@@ -107,7 +108,7 @@ public class MorphiumConfig {
     @Transient
     private Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass = AESEncryptionProvider.class;
 
-    private String driverName;
+    private String driverName = PooledDriver.driverName;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
@@ -318,7 +319,9 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig setDriverName(String driverName) {
-        this.driverName = driverName;
+        if (driverName != null) {
+            this.driverName = driverName;
+        }
         return this;
     }
 
@@ -543,7 +546,7 @@ public class MorphiumConfig {
     }
 
     public String decryptAuthDb() {
-        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoAuthDb();
         }
         try {
@@ -562,7 +565,7 @@ public class MorphiumConfig {
     }
 
     public String decryptMongoLogin() {
-        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoLogin();
         }
         try {
@@ -577,7 +580,7 @@ public class MorphiumConfig {
     }
 
     public String decryptMongoPassword() {
-        if (getCredentialsEncrypted() == null && !getCredentialsEncrypted()) {
+        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoLogin();
         }
         try {

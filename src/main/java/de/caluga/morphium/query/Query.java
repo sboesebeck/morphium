@@ -1385,12 +1385,15 @@ public class Query<T> implements Cloneable {
         List<Map<String, Object>> srch = null;
         int lim = getLimit();
         limit(1);
+        FindCommand settings = null;
         try {
-            FindCommand settings = getFindCmd();
+            settings = getFindCmd();
             srch = settings.execute();
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            settings.getConnection().release();
         }
         limit(lim);
         if (srch.isEmpty()) {
@@ -1473,15 +1476,18 @@ public class Query<T> implements Cloneable {
 
 
         List<Map<String, Object>> query;
+        FindCommand settings = null;
         try {
 
-            FindCommand settings = getFindCmd();
+            settings = getFindCmd();
             settings.setProjection(Doc.of("_id", 1));
             query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
         } catch (MorphiumDriverException e) {
             //TODO: Implement Handling
             throw new RuntimeException(e);
+        } finally {
+            if (settings != null) settings.getConnection().release();
         }
 
         //noinspection unchecked

@@ -1879,8 +1879,10 @@ public class Morphium implements AutoCloseable {
                     .setDb(config.getDatabase()).setColl(collection)
                     .setFilter(Doc.of(srch))
                     .setBatchSize(1).setLimit(1);
+
             List<Map<String, Object>> found = settings.execute();
             con.release();
+//            log.info("Reread took: "+settings.getMetaData().get("duration"));
 
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
@@ -2704,7 +2706,15 @@ public class Morphium implements AutoCloseable {
                             optionsMap = options.get(cnt);
                         }
                         if (optionsMap != null && optionsMap.containsKey("")) optionsMap = null;
-                        wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
+                        try {
+                            wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
+                        } catch (Exception e) {
+                            if (e.getMessage().contains("Index already exists with a different name:")) {
+                                log.info("Index already exists");
+                            } else {
+                                throw e;
+                            }
+                        }
                         cnt++;
                     }
                 }
@@ -2726,26 +2736,58 @@ public class Morphium implements AutoCloseable {
                 if (createIndexKeyMapFrom(i.options()) != null) {
                     optionsMap = createIndexKeyMapFrom(i.options()).get(0);
                 }
-                wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
+                try {
+                    wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
+                } catch (Exception e) {
+                    if (e.getMessage().contains("Index already exists with a different name:")) {
+                        log.info("Index already exists");
+                    } else {
+                        throw (e);
+                    }
+                }
             }
         }
     }
 
     @Deprecated
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
-        getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls), IndexDescription.fromMaps(index, null), null);
+        try {
+            getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls), IndexDescription.fromMaps(index, null), null);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
     @Deprecated
     @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
-        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
     @Deprecated
     @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
-        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
 
@@ -2769,7 +2811,15 @@ public class Morphium implements AutoCloseable {
             String f = e.name();
             m.put(f, 1);
         }
-        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
     @Deprecated
@@ -2781,7 +2831,15 @@ public class Morphium implements AutoCloseable {
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
         List<Map<String, Object>> m = createIndexKeyMapFrom(fldStr);
         for (Map<String, Object> idx : m) {
-            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
+            try {
+                getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
+            } catch (Exception e) {
+                if (e.getMessage().contains("Index already exists with a different name:")) {
+                    log.info("Index already exists");
+                } else {
+                    throw (e);
+                }
+            }
         }
     }
 
@@ -2792,16 +2850,40 @@ public class Morphium implements AutoCloseable {
 
     @Deprecated
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
     @Deprecated
     public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
     public <T> void createIndex(Class<T> cls, String collection, IndexDescription index, AsyncOperationCallback<T> callback) {
-        getWriterForClass(cls).createIndex(cls, collection, index, callback);
+        try {
+            getWriterForClass(cls).createIndex(cls, collection, index, callback);
+        } catch (Exception e) {
+            if (e.getMessage().contains("Index already exists with a different name:")) {
+                log.info("Index already exists");
+            } else {
+                throw (e);
+            }
+        }
     }
 
 
