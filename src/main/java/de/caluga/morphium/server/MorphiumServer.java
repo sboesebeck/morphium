@@ -2,7 +2,6 @@ package de.caluga.morphium.server;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -56,6 +55,11 @@ public class MorphiumServer {
         int minThreads = 10;
         while (idx < args.length) {
             switch (args[idx]) {
+                case "-p":
+                case "--port":
+                    port = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
                 case "-mt":
                 case "--maxThreads":
                     maxThreads = Integer.parseInt(args[idx + 1]);
