@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +40,13 @@ public class MorphiumServer {
         this.drv = new InMemoryDriver();
         this.port = port;
         this.host = host;
-        executor = new ThreadPoolExecutor(minThreads, maxThreads, 10000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(maxThreads));
+        executor =
+                new ThreadPoolExecutor(
+                        minThreads,
+                        maxThreads,
+                        10000,
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<>(maxThreads));
     }
 
     public MorphiumServer() {
@@ -84,7 +91,6 @@ public class MorphiumServer {
         log.info("Starting server...");
         var srv = new MorphiumServer(port, host, maxThreads, minThreads);
         srv.start();
-
     }
 
     private HelloResult getHelloResult() {
@@ -131,7 +137,7 @@ public class MorphiumServer {
                     id = q.getMessageId();
                     doc = q.getDoc();
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
-                        //ismaster
+                        // ismaster
                         log.info("OpMsg->isMaster");
                         OpReply r = new OpReply();
                         r.setFlags(2);
@@ -141,11 +147,12 @@ public class MorphiumServer {
 
                         HelloResult res = getHelloResult();
 
-//                                OpMsg reply=new OpMsg();
-//                                reply.setFirstDoc(res.toMsg());
-//                                reply.setMessageId(msgId.incrementAndGet());
-//                                reply.setResponseTo(id);
-//                                out.write(reply.bytes());
+                        //                                OpMsg reply=new OpMsg();
+                        //                                reply.setFirstDoc(res.toMsg());
+                        //
+                        // reply.setMessageId(msgId.incrementAndGet());
+                        //                                reply.setResponseTo(id);
+                        //                                out.write(reply.bytes());
 
                         r.setDocuments(Arrays.asList(res.toMsg()));
                         out.write(r.bytes());
@@ -154,7 +161,15 @@ public class MorphiumServer {
                         continue;
                     }
                     OpReply r = new OpReply();
-                    Doc d = Doc.of("$err", "OP_QUERY is no longer supported. The client driver may require an upgrade.", "code", 5739101, "ok", 0.0);
+                    Doc d =
+                            Doc.of(
+                                    "$err",
+                                    "OP_QUERY is no longer supported. The client driver may require"
+                                        + " an upgrade.",
+                                    "code",
+                                    5739101,
+                                    "ok",
+                                    0.0);
                     r.setFlags(2);
                     r.setMessageId(msgId.incrementAndGet());
                     r.setResponseTo(id);
@@ -164,7 +179,7 @@ public class MorphiumServer {
                     out.flush();
                     log.info("Sent out error because OPQuery not allowed anymore!");
                     log.info(Utils.toJsonString(doc));
-                    //Thread.sleep(1000);
+                    // Thread.sleep(1000);
                     continue;
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
@@ -183,7 +198,12 @@ public class MorphiumServer {
                         answer = Doc.of("argv", List.of(), "parsed", Map.of());
                         break;
                     case "buildInfo":
-                        answer = Doc.of("version", "5.0.0-ALPHA", "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"));
+                        answer =
+                                Doc.of(
+                                        "version",
+                                        "5.0.0-ALPHA",
+                                        "buildEnvironment",
+                                        Doc.of("distarch", "java", "targetarch", "java"));
                         answer.put("ok", 1.0);
                         reply.setFirstDoc(answer);
                         break;
@@ -194,7 +214,16 @@ public class MorphiumServer {
                         reply.setFirstDoc(answer);
                         break;
                     case "getFreeMonitoringStatus":
-                        answer = Doc.of("state", "disabled", "message", "", "url", "", "userReminder", "");
+                        answer =
+                                Doc.of(
+                                        "state",
+                                        "disabled",
+                                        "message",
+                                        "",
+                                        "url",
+                                        "",
+                                        "userReminder",
+                                        "");
                         break;
                     case "ping":
                         answer = Doc.of();
@@ -229,7 +258,9 @@ public class MorphiumServer {
 
                         break;
                 }
-                answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
+                answer.put(
+                        "$clusterTime",
+                        Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                 answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                 reply.setFirstDoc(answer);
 
@@ -237,10 +268,9 @@ public class MorphiumServer {
                 out.flush();
                 log.info("Sent answer!");
             }
-//            log.info("Thread finished!");
+            //            log.info("Thread finished!");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
     }
 }
