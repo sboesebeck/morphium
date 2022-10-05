@@ -6,6 +6,7 @@ package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -96,10 +97,10 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 
     @Test
     public void exprQueryTest() {
-//        createUncachedObjects(100);
-//        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).expr(Expr.eq(Expr.field(UncachedObject.Fields.counter, UncachedObject.class, morphium), Expr.intExpr(42)));
-//        List<UncachedObject> lst = q.asList();
-//        assert (lst.size() == 1);
+       createUncachedObjects(100);
+       Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).expr(Expr.eq(Expr.field(UncachedObject.Fields.counter, UncachedObject.class, morphium), Expr.intExpr(42)));
+       List<UncachedObject> lst = q.asList();
+       assert (lst.size() == 1);
     }
 
     @Test
@@ -138,6 +139,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
             log.info("Counter " + uc.getCounter() + " Value: " + uc.getStrValue());
             if (!lastV.equals(uc.getStrValue())) {
                 assert (lastV.compareTo(uc.getStrValue()) <= 0 || lastV.equals(""));
+                assertNotNull(uc);
                 lastV = uc.getStrValue();
                 last = 99999;
             }
