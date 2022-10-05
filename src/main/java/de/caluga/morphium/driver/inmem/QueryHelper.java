@@ -5,14 +5,11 @@ import de.caluga.morphium.MongoType;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
+
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import java.math.BigDecimal;
 import java.text.Collator;
 import java.text.ParseException;
@@ -21,18 +18,23 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Pattern;
 
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+
 public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
 
-
-    public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
+    public static boolean matchesQuery(
+            Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
         if (query.isEmpty()) {
             return true;
         }
         if (query.containsKey("$where")) {
             System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("javascript");
-            //engine.eval("print('Hello World!');");
+            // engine.eval("print('Hello World!');");
             engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
             engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
             try {
@@ -46,57 +48,68 @@ public class QueryHelper {
         for (String key : query.keySet()) {
 
             switch (key) {
-                case "$and": {
-                    //list of field queries
-                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
-                    for (Map<String, Object> q : lst) {
-                        if (!matchesQuery(q, toCheck, collation)) {
-                            return false;
+                case "$and":
+                    {
+                        // list of field queries
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> lst =
+                                ((List<Map<String, Object>>) query.get(key));
+                        for (Map<String, Object> q : lst) {
+                            if (!matchesQuery(q, toCheck, collation)) {
+                                return false;
+                            }
                         }
+                        return true;
                     }
-                    return true;
-                }
-                case "$or": {
-                    //list of or queries
-                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
-                    for (Map<String, Object> q : lst) {
-                        if (matchesQuery(q, toCheck, collation)) {
-                            return true;
+                case "$or":
+                    {
+                        // list of or queries
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> lst =
+                                ((List<Map<String, Object>>) query.get(key));
+                        for (Map<String, Object> q : lst) {
+                            if (matchesQuery(q, toCheck, collation)) {
+                                return true;
+                            }
                         }
+                        return false;
                     }
-                    return false;
+                case "$not":
+                    {
+                        //noinspection unchecked
+                        return (!matchesQuery(
+                                (Map<String, Object>) query.get(key), toCheck, collation));
+                    }
+                case "$nor":
+                    {
+                        // list of or queries
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> lst =
+                                ((List<Map<String, Object>>) query.get(key));
 
-                }
-                case "$not": {
-                    //noinspection unchecked
-                    return (!matchesQuery((Map<String, Object>) query.get(key), toCheck, collation));
-                }
-                case "$nor": {
-                    //list of or queries
-                    @SuppressWarnings("unchecked") List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(key));
-
-                    for (Map<String, Object> q : lst) {
-                        if (matchesQuery(q, toCheck, collation)) {
-                            return false;
+                        for (Map<String, Object> q : lst) {
+                            if (matchesQuery(q, toCheck, collation)) {
+                                return false;
+                            }
                         }
+                        return true;
                     }
-                    return true;
-
-                }
-                case "$expr": {
-                    Expr expr = Expr.parse(query.get(key));
-                    var result = expr.evaluate(toCheck);
-                    if (result instanceof Expr) {
-                        result = ((Expr) result).evaluate(toCheck);
+                case "$expr":
+                    {
+                        Expr expr = Expr.parse(query.get(key));
+                        var result = expr.evaluate(toCheck);
+                        if (result instanceof Expr) {
+                            result = ((Expr) result).evaluate(toCheck);
+                        }
+                        return Boolean.TRUE.equals(result);
                     }
-                    return Boolean.TRUE.equals(result);
-                }
                 default:
-                    //field check
+                    // field check
 
                     if (query.get(key) instanceof Map) {
-                        //probably a query operand
-                        @SuppressWarnings("unchecked") Map<String, Object> q = (Map<String, Object>) query.get(key);
+                        // probably a query operand
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> q = (Map<String, Object>) query.get(key);
                         String k = q.keySet().iterator().next();
                         if (key.equals("$expr")) {
                             Expr e = Expr.parse(q);
@@ -105,7 +118,7 @@ public class QueryHelper {
                         Collator coll = null;
                         if (collation != null && !collation.isEmpty()) {
                             coll = getCollator(collation);
-                            //add support for caseLevel: <boolean>,
+                            // add support for caseLevel: <boolean>,
                             //   caseFirst: <string>,
                             //   strength: <int>,
                             //   numericOrdering: <boolean>,
@@ -113,17 +126,16 @@ public class QueryHelper {
                             //   maxVariable: <string>,
                             //   backwards: <boolean>
 
-
                         }
 
                         switch (k) {
-
                             case "$eq":
                                 if (toCheck.get(key) == null && q.get(k) == null) return true;
                                 if (toCheck.get(key) != null && q.get(k) == null) return false;
                                 if (toCheck.get(key) == null && q.get(k) != null) return false;
                                 if (coll != null && (toCheck.get(key) instanceof String))
-                                    return coll.equals((String) toCheck.get(key), (String) q.get(k));
+                                    return coll.equals(
+                                            (String) toCheck.get(key), (String) q.get(k));
 
                                 //noinspection unchecked
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) == 0;
@@ -157,7 +169,11 @@ public class QueryHelper {
                                 //noinspection unchecked
                                 boolean contains = false;
                                 if (toCheck.get(key) instanceof List) {
-                                    @SuppressWarnings("unchecked") List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) toCheck.get(key)));
+                                    @SuppressWarnings("unchecked")
+                                    List chk =
+                                            Collections.synchronizedList(
+                                                    new CopyOnWriteArrayList(
+                                                            (List) toCheck.get(key)));
                                     for (Object o : chk) {
                                         if (coll != null && (o instanceof String)) {
                                             if (coll.equals((String) o, (String) q.get(k))) {
@@ -181,7 +197,9 @@ public class QueryHelper {
                                 return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) != 0;
                             case "$exists":
                                 boolean exists = (toCheck.containsKey(key));
-                                if (q.get(k).equals(Boolean.TRUE) || q.get(k).equals("true") || q.get(k).equals(1)) {
+                                if (q.get(k).equals(Boolean.TRUE)
+                                        || q.get(k).equals("true")
+                                        || q.get(k).equals(1)) {
                                     return exists;
                                 } else {
                                     return !exists;
@@ -195,7 +213,10 @@ public class QueryHelper {
                                     if (toCheck.get(key) == null) {
                                         if (v == null) found = true;
                                     } else {
-                                        if (coll != null && toCheck.get(key) instanceof String && coll.equals((String) toCheck.get(key), (String) v)) {
+                                        if (coll != null
+                                                && toCheck.get(key) instanceof String
+                                                && coll.equals(
+                                                        (String) toCheck.get(key), (String) v)) {
                                             found = true;
                                             break;
                                         }
@@ -205,7 +226,8 @@ public class QueryHelper {
                                         }
                                         if (toCheck.get(key) instanceof List) {
                                             for (Object v2 : (List) toCheck.get(key)) {
-                                                if (coll != null && coll.equals((String) v2, (String) v)) {
+                                                if (coll != null
+                                                        && coll.equals((String) v2, (String) v)) {
                                                     found = true;
                                                     break;
                                                 }
@@ -226,20 +248,22 @@ public class QueryHelper {
                                     if (toCheck.get(key) == null && v == null) {
                                         return true;
                                     }
-                                    if (coll != null && toCheck.get(key) instanceof String && coll.equals((String) toCheck.get(key), (String) v)) {
+                                    if (coll != null
+                                            && toCheck.get(key) instanceof String
+                                            && coll.equals((String) toCheck.get(key), (String) v)) {
                                         return true;
                                     }
                                     if (toCheck.get(key) != null && toCheck.get(key).equals(v)) {
                                         return true;
                                     }
-                                    if (toCheck.get(key) != null && toCheck.get(key) instanceof List) {
+                                    if (toCheck.get(key) != null
+                                            && toCheck.get(key) instanceof List) {
                                         for (Object v2 : (List) toCheck.get(key)) {
                                             if (v2.equals(v)) {
                                                 return true;
                                             }
                                         }
                                     }
-
                                 }
                                 return false;
 
@@ -248,23 +272,26 @@ public class QueryHelper {
                             case "$expr":
                                 Expr e = (Expr) q.get(k);
                                 Object ev = e.evaluate(toCheck);
-                                return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
+                                return ev != null
+                                        && (ev.equals(Boolean.TRUE)
+                                                || ev.equals(1)
+                                                || ev.equals("true"));
                             case "$regex":
                             case "$text":
                                 Object valtoCheck = null;
                                 if (key.contains(".")) {
-                                    //path
+                                    // path
                                     String[] b = key.split("\\.");
                                     Map<String, Object> val = toCheck;
                                     for (int i = 0; i < b.length; i++) {
                                         String el = b[i];
                                         Object candidate = val.get(el);
                                         if (candidate == null) {
-                                            //did not find path in object
+                                            // did not find path in object
                                             return false;
                                         }
                                         if (!(candidate instanceof Map) && i < b.length - 1) {
-                                            //found path element, but it is not a map
+                                            // found path element, but it is not a map
                                             return false;
                                         } else if (i < b.length - 1) {
                                             val = (Map) candidate;
@@ -289,17 +316,19 @@ public class QueryHelper {
                                         opts = opts | Pattern.DOTALL;
                                     }
                                     if (opt.contains("x")) {
-                                        log.warn("There is no proper equivalent for the 'x' option in mongodb!");
-//                                        opts=opts|Pattern.COMMENTS;
+                                        log.warn(
+                                                "There is no proper equivalent for the 'x' option"
+                                                    + " in mongodb!");
+                                        //
+                                        // opts=opts|Pattern.COMMENTS;
                                     }
-
                                 }
                                 if (valtoCheck == null) return false;
                                 if (k.equals("$text")) {
                                     String srch = q.get("$text").toString().toLowerCase();
                                     String[] tokens = null;
                                     if (srch.contains("\"")) {
-                                        //phrase search
+                                        // phrase search
                                         List<String> tks = new ArrayList<>();
                                         Pattern p = Pattern.compile("\"([^\"]*)\"");
                                         String t = p.matcher(srch).group(1);
@@ -336,7 +365,10 @@ public class QueryHelper {
                                 } else if (q.get(k) instanceof String) {
                                     type = MongoType.findByTxt((String) q.get(k));
                                 } else {
-                                    log.error("Type specification needs to be either int or string - not " + q.get(k).getClass().getName());
+                                    log.error(
+                                            "Type specification needs to be either int or string -"
+                                                + " not "
+                                                    + q.get(k).getClass().getName());
                                     return false;
                                 }
                                 List elements = new ArrayList();
@@ -362,7 +394,8 @@ public class QueryHelper {
                                         fnd = type.equals(MongoType.DOUBLE);
                                     } else if ((o instanceof Date)) {
                                         fnd = type.equals(MongoType.DATE);
-                                    } else if ((o instanceof MorphiumId) || (o instanceof ObjectId)) {
+                                    } else if ((o instanceof MorphiumId)
+                                            || (o instanceof ObjectId)) {
                                         fnd = type.equals(MongoType.OBJECT_ID);
                                     } else if ((o instanceof BigDecimal)) {
                                         fnd = type.equals(MongoType.DECIMAL);
@@ -397,7 +430,7 @@ public class QueryHelper {
                                 Map<String, Object> geoQuery = (Map<String, Object>) q.get(k);
                                 List coordToCheckWithin = (List) toCheck.get(key);
                                 if (geoQuery.containsKey("$box")) {
-                                    //coordinates=list of 2 points
+                                    // coordinates=list of 2 points
                                     List coords = (List) geoQuery.get("$box");
                                     if (coords.size() > 2) {
                                         log.error("Box coordinates should be 2 Points!");
@@ -405,7 +438,7 @@ public class QueryHelper {
                                         log.error("No proper box coordinates");
                                         return false;
                                     }
-                                    //checking on a flat surface!
+                                    // checking on a flat surface!
                                     var upperLeftX = (Double) ((List) (coords.get(0))).get(0);
                                     var upperLeftY = (Double) ((List) (coords.get(0))).get(1);
                                     var lowerRightX = (Double) ((List) (coords.get(1))).get(0);
@@ -422,8 +455,9 @@ public class QueryHelper {
                                         lowerRightY = tmp;
                                     }
 
-                                    if (coordToCheckWithin.size() == 2 && coordToCheckWithin.get(0) instanceof Double) {
-                                        //single coordinate
+                                    if (coordToCheckWithin.size() == 2
+                                            && coordToCheckWithin.get(0) instanceof Double) {
+                                        // single coordinate
                                         var x = (Double) ((List) coordToCheckWithin).get(0);
                                         var y = (Double) ((List) coordToCheckWithin).get(1);
                                         if (x > lowerRightX || x < upperLeftX) return false;
@@ -482,7 +516,11 @@ public class QueryHelper {
                                     if (!(o instanceof Map)) {
                                         o = Doc.of("value", o);
                                     }
-                                    if (matchesQuery(queryMap, (Map<String, Object>) o, null) || matchesQuery(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
+                                    if (matchesQuery(queryMap, (Map<String, Object>) o, null)
+                                            || matchesQuery(
+                                                    Doc.of("value", queryMap),
+                                                    (Map<String, Object>) o,
+                                                    null)) {
                                         return true;
                                     }
                                 }
@@ -508,7 +546,7 @@ public class QueryHelper {
                                 } else if (q.get(k) instanceof byte[]) {
                                     var b = (byte[]) q.get(k);
 
-                                    //long
+                                    // long
                                     var bits = 0;
                                     for (int idx = b.length - 1; idx > 0; idx++) {
                                         value = value | (b[idx] << bits);
@@ -529,7 +567,7 @@ public class QueryHelper {
                                     return (value & chkVal) == value;
                                 } else if (k.equals("$bitsAnyClear")) {
                                     return (value & chkVal) < value;
-                                } else { //if (k.equals("$bitsAllClear")
+                                } else { // if (k.equals("$bitsAllClear")
                                     return (value & chkVal) == 0;
                                 }
                             case "$options":
@@ -538,10 +576,9 @@ public class QueryHelper {
                                 throw new RuntimeException("Unknown Operator " + k);
                         }
 
-
                     } else {
                         if (key.contains(".")) {
-                            //getting the proper value
+                            // getting the proper value
                             var path = key.split("\\.");
                             var current = toCheck;
                             Object value = null;
@@ -560,15 +597,15 @@ public class QueryHelper {
                         }
                         if (toCheck.get(key) == null && query.get(key) == null) return true;
                         if (toCheck.get(key) == null && query.get(key) != null) return false;
-                        //value comparison - should only be one here
+                        // value comparison - should only be one here
                         assert (query.size() == 1);
 
-                        if (toCheck.get(key) instanceof MorphiumId || toCheck.get(key) instanceof ObjectId) {
+                        if (toCheck.get(key) instanceof MorphiumId
+                                || toCheck.get(key) instanceof ObjectId) {
                             return toCheck.get(key).toString().equals(query.get(key).toString());
                         }
 
                         return toCheck.get(key).equals(query.get(key));
-
                     }
             }
         }
@@ -577,7 +614,7 @@ public class QueryHelper {
 
     public static Collator getCollator(Map<String, Object> collation) {
         Locale locale = Locale.ROOT;
-        if (collation==null){
+        if (collation == null) {
             return null;
         }
         if (collation.containsKey("locale") && !"simple".equals(collation.get("locale"))) {
@@ -587,7 +624,10 @@ public class QueryHelper {
         if (collation.containsKey("caseFirst")) {
             if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))) {
                 try {
-                    coll = new RuleBasedCollator(((RuleBasedCollator) coll).getRules() + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
+                    coll =
+                            new RuleBasedCollator(
+                                    ((RuleBasedCollator) coll).getRules()
+                                            + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
@@ -597,5 +637,4 @@ public class QueryHelper {
             coll.setStrength((Integer) collation.get("strength"));
         return coll;
     }
-
 }
