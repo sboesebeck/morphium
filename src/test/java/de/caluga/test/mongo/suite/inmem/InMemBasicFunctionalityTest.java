@@ -115,7 +115,8 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
 
     @Test
     public void sortTest() throws Exception {
-        for (int i = 1; i <= NO_OBJECTS; i++) {
+        for (int j = 1; j <= NO_OBJECTS; j++) {
+            int i= (int) (Math.random()*NO_OBJECTS);
             UncachedObject o = new UncachedObject();
             o.setCounter(i);
             o.setStrValue("Uncached " + (i % 2));
@@ -126,13 +127,6 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q = q.f(UncachedObject.Fields.counter).gt(0).sort("strValue", "-counter");
         List<UncachedObject> lst = q.asList();
-//        lst.sort(((o1, o2) -> {
-//            if (o1.getCounter()==o2.getCounter()){
-//                return o1.getValue().compareTo(o2.getValue());
-//            }
-//            return o1.getCounter()<o2.getCounter()?1:-1;
-//
-//        }));
         int last = 9999;
         String lastV = "";
         for (UncachedObject uc : lst) {
@@ -143,7 +137,7 @@ public class InMemBasicFunctionalityTest extends MorphiumInMemTestBase {
                 lastV = uc.getStrValue();
                 last = 99999;
             }
-            assert (last > uc.getCounter());
+            assertThat(last >= uc.getCounter());
             last = uc.getCounter();
         }
 
