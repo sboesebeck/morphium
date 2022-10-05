@@ -318,7 +318,7 @@ public class QueryHelper {
                                     if (opt.contains("x")) {
                                         log.warn(
                                                 "There is no proper equivalent for the 'x' option"
-                                                    + " in mongodb!");
+                                                        + " in mongodb!");
                                         //
                                         // opts=opts|Pattern.COMMENTS;
                                     }
@@ -367,7 +367,7 @@ public class QueryHelper {
                                 } else {
                                     log.error(
                                             "Type specification needs to be either int or string -"
-                                                + " not "
+                                                    + " not "
                                                     + q.get(k).getClass().getName());
                                     return false;
                                 }
