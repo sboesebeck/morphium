@@ -121,14 +121,7 @@ public class MorphiumServer {
         try {
             var in = s.getInputStream();
             var out = s.getOutputStream();
-            MAIN:
             while (true) {
-//                while (in.available() == 0) {
-//                    if (!s.isConnected() || s.isClosed()) {
-//                        break MAIN;
-//                    }
-//                    Thread.yield();
-//                }
                 var msg = WireProtocolMessage.parseFromStream(in);
                 log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
