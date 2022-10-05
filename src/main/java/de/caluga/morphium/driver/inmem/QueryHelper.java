@@ -577,6 +577,9 @@ public class QueryHelper {
 
     public static Collator getCollator(Map<String, Object> collation) {
         Locale locale = Locale.ROOT;
+        if (collation==null){
+            return null;
+        }
         if (collation.containsKey("locale") && !"simple".equals(collation.get("locale"))) {
             locale = Locale.forLanguageTag((String) collation.get("locale"));
         }
