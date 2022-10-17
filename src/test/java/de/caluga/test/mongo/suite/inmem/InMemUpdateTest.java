@@ -6,6 +6,9 @@ import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -179,7 +182,27 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void pushEntityTest() {
+    public void addToSetTest() throws Exception {
+        morphium.dropCollection(ListContainer.class);       
+        for (int i =1 ; i<=50;i++){
+            ListContainer lc=new ListContainer();
+            lc.addLong(12+i);
+            lc.addString("string");
+            lc.setName("LC"+i);
+            morphium.store(lc);
+        }
+        Thread.sleep(50);
+        Query<ListContainer> lc=morphium.createQueryFor(ListContainer.class);
+        lc=lc.f("name").eq("LC15");
+        morphium.addToSet(lc,"long_list", 12345L);
+        morphium.addToSet(lc,"long_list", 12345L);
+        ListContainer cont=lc.get();
+        assertTrue(cont.getLongList().contains(12345L));
+        assertEquals(cont.getLongList().size(),2);
+    }
+
+    @Test
+    public void pushEntityTest() throws Exception {
         morphium.dropCollection(ListContainer.class);
 
         for (int i = 1; i <= 50; i++) {
