@@ -840,38 +840,41 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void pushPullAll(final boolean push, final Query<T> q, final String field, final List<?> value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void pushPullAll(final MorphiumStorageListener.UpdateTypes type, final Query<T> q, final String field, final List<?> value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
         morphium.inc(StatisticKeys.WRITES_CACHED);
         addToWriteQueue(q.getType(), q.getCollectionName(), ctx -> {
             //                directWriter.pushPull(push, query, field, value, upsert, multiple, callback);
-
-
             morphium.getCache().clearCacheIfNecessary(q.getType());
             String fld = morphium.getARHelper().getMongoFieldName(q.getType(), field);
-            String cmd = "";
-            if (push) {
-                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            } else {
-                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-
-            }
+            morphium.firePreUpdateEvent(q.getType(), type);
             for (Object o : value) {
                 UpdateBulkRequest r = ctx.addUpdateBulkRequest();
                 r.setQuery(Doc.of(q.toQueryObject()));
                 r.setUpsert(upsert);
                 r.setMultiple(multiple);
-                r.setCmd(Doc.of("$push", Doc.of(fld, o)));
+                switch(type){
+                    case PUSH:
+                        r.setCmd(Doc.of("$push", Doc.of(fld, o)));
+                    break;
+                    case PULL:
+                        r.setCmd(Doc.of("$push", Doc.of(fld, o)));
+                    break;
+                    case ADD_TO_SET:
+                        r.setCmd(Doc.of("$add_to_set", Doc.of(fld, o)));
+                    break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported operation "+type.name());
+
+
+
+                }
                 //                        ctx.addRequest(r);
             }
-            if (push) {
-                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            } else {
-                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-            }
-        }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
+                morphium.firePostUpdateEvent(q.getType(), type);
+        }, c, type.equals(MorphiumStorageListener.UpdateTypes.PULL) ? AsyncOperationType.PULL : AsyncOperationType.PUSH);
     }
 
     @Override
