@@ -104,7 +104,7 @@ public interface MorphiumWriter {
 
     <T> void pushPull(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
-    <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> void pushPullAll(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
