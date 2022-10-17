@@ -807,7 +807,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void pushPull(final boolean push, final Query<T> q, final String field, final Object value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> void pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> q, final String field, final Object value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -819,18 +819,31 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             r.setMultiple(multiple);
 
             morphium.getCache().clearCacheIfNecessary(q.getType());
-            String fld = morphium.getARHelper().getMongoFieldName(q.getType(), field);
-            if (push) {
-                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
-                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-            } else {
-                morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
-                morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+            // String fld = morphium.getARHelper().getMongoFieldName(q.getType(), field);
+            switch (type) {
+                case PUSH:
+                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
+                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
+                    break;
+                case PULL:
+                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+                    r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
+                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
+                    break;
+                case ADD_TO_SET:
+                    morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
+                    r.setCmd(Utils.getMap("$add_to_set", Utils.getMap(field, value)));
+                    morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("Unsupported push type "+type.name());
             }
+                
+           
             //                ctx.addRequest(r);
-        }, c, push ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
+        }, c, type.equals(MorphiumStorageListener.UpdateTypes.PUSH) ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
     }
 
     @Override

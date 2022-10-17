@@ -1,6 +1,7 @@
 package de.caluga.morphium.writer;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.query.Query;
 
@@ -100,7 +101,7 @@ public interface MorphiumWriter {
      */
     <T> void remove(Query<T> q, AsyncOperationCallback<T> callback);
 
-    <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> void pushPull(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
