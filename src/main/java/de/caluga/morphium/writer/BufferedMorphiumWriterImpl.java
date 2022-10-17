@@ -816,17 +816,17 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             switch (type) {
                 case PUSH:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
-                    r.setCmd(Utils.getMap("$push", Utils.getMap(field, value)));
+                    r.setCmd(Doc.of("$push", Doc.of(field, value)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     break;
                 case PULL:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
-                    r.setCmd(Utils.getMap("$pull", Utils.getMap(field, value)));
+                    r.setCmd(Doc.of("$pull", Doc.of(field, value)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.PULL);
                     break;
                 case ADD_TO_SET:
                     morphium.firePreUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
-                    r.setCmd(Utils.getMap("$add_to_set", Utils.getMap(field, value)));
+                    r.setCmd(Doc.of("$add_to_set", Doc.of(field, value)));
                     morphium.firePostUpdateEvent(q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
                     break;
 
