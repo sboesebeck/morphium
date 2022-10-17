@@ -1834,23 +1834,23 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Object v = marshallIfNecessary(value);
 
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
-                Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
+                Map<String, Object> set = Doc.of(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
                 Map<String, Object> update = null;
                 switch (type){
                     case PUSH:
-                        update=Utils.getMap("$push", set);
+                        update=Doc.of("$push", set);
                     break;
                     case PULL:
-                        update=Utils.getMap("$pull",set);
+                        update=Doc.of("$pull",set);
                     break;
                     case ADD_TO_SET:
-                        update=Utils.getMap("$add_to_set",set);
+                        update=Doc.of("$add_to_set",set);
                     break;
                     default:
                         throw new IllegalArgumentException("Unsupported type "+type.name());
 
                 }
-                // Utils.getMap(push ? "$push" : "$pull", set);
+                // Doc.of(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
 

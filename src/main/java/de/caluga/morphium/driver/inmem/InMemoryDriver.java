@@ -2104,6 +2104,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             }
                         }
                         break;
+                    case "$add_to_set":
                     case "$push":
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                             List v = (List) obj.get(entry.getKey());
@@ -2115,13 +2116,27 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                             if (entry.getValue() instanceof Map) {
                                 if (((Map) entry.getValue()).get("$each") != null) {
                                     //noinspection unchecked
-                                    v.addAll((List) ((Map) entry.getValue()).get("$each"));
+                                    if (operand.equals("$add_to_set")){
+                                        for (Object elem:(List)((Map) entry.getValue()).get("$each")){
+                                            if (!v.contains(elem)){
+                                                v.add(elem);
+                                            }
+                                        }
+                                    } else {
+                                        v.addAll((List) ((Map) entry.getValue()).get("$each"));
+                                    }
                                 } else {
                                     //noinspection unchecked
+                                    if (operand.equals("$add_to_set") && v.contains(entry.getValue())){
+                                        break;
+                                    }
                                     v.add(entry.getValue());
                                 }
                             } else {
                                 //noinspection unchecked
+                                if (operand.equals("$add_to_set") && v.contains(entry.getValue())){
+                                   break;
+                                }
                                 v.add(entry.getValue());
                             }
                         }
@@ -2595,8 +2610,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (index.size() == 2 && index.containsKey("_id") && index.containsKey("$options")) {
                 //ignoring attempt to re-create_id index
             } else {
-//                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
-                throw new MorphiumDriverException("Index with those keys already exists");
+                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
+//                throw new MorphiumDriverException("Index with those keys already exists");
             }
             //
         }
