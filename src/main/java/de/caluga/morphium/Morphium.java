@@ -4,6 +4,11 @@
  */
 package de.caluga.morphium;
 
+import com.mongodb.event.ClusterListener;
+import com.mongodb.event.CommandListener;
+import com.mongodb.event.ConnectionPoolListener;
+
+import de.caluga.morphium.MorphiumStorageListener.UpdateTypes;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
@@ -87,7 +92,7 @@ public class Morphium implements AutoCloseable {
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
-    private List<MorphiumStorageListener> listeners = new CopyOnWriteArrayList<>();
+    private List<MorphiumStorageListener<?>> listeners = new CopyOnWriteArrayList<>();
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumObjectMapper objectMapper;
     private EncryptionKeyProvider encryptionKeyProvider;
@@ -451,7 +456,7 @@ public class Morphium implements AutoCloseable {
                 config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
             Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo -> !classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
-                for (Class cls : missing.keySet()) {
+                for (Class<?> cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
                         try {
                             if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
@@ -573,14 +578,14 @@ public class Morphium implements AutoCloseable {
         setConfig(cfg);
     }
 
-    public void addListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<>(listeners);
+    public void addListener(MorphiumStorageListener<?> lst) {
+        List<MorphiumStorageListener<?>> newList = new ArrayList<>(listeners);
         newList.add(lst);
         listeners = newList;
     }
 
-    public void removeListener(MorphiumStorageListener lst) {
-        List<MorphiumStorageListener> newList = new ArrayList<>(listeners);
+    public void removeListener(MorphiumStorageListener<?> lst) {
+        List<MorphiumStorageListener<?>> newList = new ArrayList<>(listeners);
         newList.remove(lst);
         listeners = newList;
     }
@@ -627,8 +632,24 @@ public class Morphium implements AutoCloseable {
     }
 
 
+    /**
+     * search for objects similar to template concerning all given fields.
+     * If no fields are specified, all NON Null-Fields are taken into account
+     * if specified, field might also be null
+     *
+     * @param template - what to search for
+     * @param fields   - fields to use for searching
+     * @param <T>      - type
+     * @return result of search
+     */
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public <T> void unset(T toSet, Enum field) {
+    public <T> List<T> findByTemplate(T template, String... fields) {
+
+        return createQueryByTemplate(template, fields).asList();
+    }
+
+    @SuppressWarnings({"unchecked", "UnusedDeclaration"})
+    public <T> void unset(T toSet, Enum<?> field) {
         unset(toSet, field.name(), (AsyncOperationCallback) null);
     }
 
@@ -637,16 +658,16 @@ public class Morphium implements AutoCloseable {
         unset(toSet, field, (AsyncOperationCallback) null);
     }
 
-    public <T> void unset(final T toSet, final Enum field, final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, field.name(), callback);
     }
 
-    public <T> void unset(final T toSet, String collection, final Enum field) {
+    public <T> void unset(final T toSet, String collection, final Enum<?> field) {
         unset(toSet, collection, field.name(), null);
     }
 
     @SuppressWarnings("unused")
-    public <T> void unset(final T toSet, String collection, final Enum field, final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, String collection, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, collection, field.name(), callback);
     }
 
@@ -884,11 +905,11 @@ public class Morphium implements AutoCloseable {
         return q;
     }
 
-    public <T> void set(Query<T> query, Enum field, Object val) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val) {
         set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void set(Query<T> query, Enum field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
@@ -914,12 +935,12 @@ public class Morphium implements AutoCloseable {
         set(query, toSet, upsert, multiple);
     }
 
-    public void push(final Query<?> query, final Enum field, final Object value) {
+    public void push(final Query<?> query, final Enum<?> field, final Object value) {
         push(query, field, value, false, true);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pull(Query<?> query, Enum field, Object value) {
+    public void pull(Query<?> query, Enum<?> field, Object value) {
         pull(query, field.name(), value, false, true);
     }
 
@@ -933,17 +954,17 @@ public class Morphium implements AutoCloseable {
     }
 
 
-    public void push(Query<?> query, Enum field, Object value, boolean upsert, boolean multiple) {
+    public void push(Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
         push(query, field.name(), value, upsert, multiple);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pull(Query<?> query, Enum field, Object value, boolean upsert, boolean multiple) {
+    public void pull(Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pushAll(Query<?> query, Enum field, List<Object> value, boolean upsert, boolean multiple) {
+    public void pushAll(Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
         pushAll(query, field.name(), value, upsert, multiple);
     }
 
@@ -1003,16 +1024,17 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public void push(Object entity, String collection, Enum field, Object value, boolean upsert) {
+    public void push(Object entity, String collection, Enum<?> field, Object value, boolean upsert) {
         push(entity, collection, field.name(), value, upsert);
     }
 
-    public void push(Object entity, Enum field, Object value, boolean upsert) {
+    public void push(Object entity, Enum<?> field, Object value, boolean upsert) {
         push(entity, field.name(), value, upsert);
     }
 
+
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pullAll(Query<?> query, Enum field, List<Object> value, boolean upsert, boolean multiple) {
+    public void pullAll(Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
 
@@ -1037,8 +1059,24 @@ public class Morphium implements AutoCloseable {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
-        getWriterForClass(query.getType()).pushPull(true, query, field, value, upsert, multiple, null);
+        getWriterForClass(query.getType()).pushPull(MorphiumStorageListener.UpdateTypes.PUSH, query, field, value, upsert, multiple, null);
 
+    }
+
+    public <T> void addToSet(final Query<T> query,final String field, final Object value){
+        addToSet(query,field,value,false,false,null);
+    }
+    public <T> void addToSet(final Query<T> query,final String field, final Object value,final boolean multiple){
+        addToSet(query,field,value,false,multiple,null);
+    }
+    public <T> void addToSet(final Query<T> query,final String field, final Object value, final boolean upsert,final boolean multiple){
+        addToSet(query,field,value,upsert,multiple,null);
+    }
+    public <T> void addToSet(final Query<T> query,final String field, final Object value, final boolean upsert,final boolean multiple, final AsyncOperationCallback<T> callback){
+        if (query==null || field == null){
+            throw new IllegalArgumentException("Cannot update null");
+        }
+        getWriterForClass(query.getType()).pushPull(UpdateTypes.ADD_TO_SET, query, field, value, upsert, multiple, callback);
     }
 
     public <T> void pull(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
@@ -1061,7 +1099,7 @@ public class Morphium implements AutoCloseable {
             throw new RuntimeException("Cannot update null!");
         }
         MorphiumWriter wr = getWriterForClass(query.getType());
-        wr.pushPull(false, query, field, value, upsert, multiple, callback);
+        wr.pushPull(MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     public <T> void pull(final T entity, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1075,7 +1113,7 @@ public class Morphium implements AutoCloseable {
             throw new RuntimeException("Cannot update null!");
         }
         MorphiumWriter wr = getWriterForClass(query.getType());
-        wr.pushPull(false, query, field, value, upsert, multiple, callback);
+        wr.pushPull(MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean upsert, final boolean multiple) {
@@ -1111,12 +1149,12 @@ public class Morphium implements AutoCloseable {
      * @param multiple - update several documents, if false, only first hit will be updated
      */
     @SuppressWarnings("unused")
-    public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
         set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
-    public <T> void set(Query<T> query, Enum field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         set(query, field.name(), val, upsert, multiple, callback);
     }
 
@@ -1170,20 +1208,20 @@ public class Morphium implements AutoCloseable {
     // SET with object
     //
     @SuppressWarnings("unused")
-    public <T> void set(T toSet, Enum field, Object value, AsyncOperationCallback<T> callback) {
+    public <T> void set(T toSet, Enum<?> field, Object value, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, callback);
     }
 
-    public <T> void set(T toSet, Enum field, Object value) {
+    public <T> void set(T toSet, Enum<?> field, Object value) {
         set(toSet, field.name(), value, null);
     }
 
     @SuppressWarnings("unused")
-    public <T> void set(T toSet, String collection, Enum field, Object value) {
+    public <T> void set(T toSet, String collection, Enum<?> field, Object value) {
         set(toSet, collection, field.name(), value, false, null);
     }
 
-    public <T> void set(final T toSet, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, final Enum<?> field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, upserts, callback);
     }
 
@@ -1293,22 +1331,22 @@ public class Morphium implements AutoCloseable {
     //
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, long amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, Number amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, int amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), amount, upsert, multiple);
     }
 
@@ -1349,22 +1387,22 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void dec(Query<?> query, Enum field, double amount) {
+    public void dec(Query<?> query, Enum<?> field, double amount) {
         inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, long amount) {
+    public void dec(Query<?> query, Enum<?> field, long amount) {
         inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, int amount) {
+    public void dec(Query<?> query, Enum<?> field, int amount) {
         inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum field, Number amount) {
+    public void dec(Query<?> query, Enum<?> field, Number amount) {
         inc(query, field, -amount.doubleValue(), false, false);
     }
 
@@ -1388,38 +1426,38 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void inc(Query<?> query, Enum field, double amount) {
+    public void inc(Query<?> query, Enum<?> field, double amount) {
         inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum field, long amount) {
+    public void inc(Query<?> query, Enum<?> field, long amount) {
         inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum field, int amount) {
+    public void inc(Query<?> query, Enum<?> field, int amount) {
         inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum field, Number amount) {
+    public void inc(Query<?> query, Enum<?> field, Number amount) {
         inc(query, field, amount, false, false);
     }
 
-    public void inc(Query<?> query, Enum field, double amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum field, long amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum field, int amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum field, Number amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
@@ -1469,7 +1507,7 @@ public class Morphium implements AutoCloseable {
         inc(query, name, amount, upsert, multiple, null);
     }
 
-    public <T> void inc(final Query<T> query, final Enum field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1480,7 +1518,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Enum field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1491,7 +1529,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Enum field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1503,7 +1541,7 @@ public class Morphium implements AutoCloseable {
 
     }
 
-    public <T> void inc(final Query<T> query, final Enum field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1515,7 +1553,7 @@ public class Morphium implements AutoCloseable {
 
     }
 
-    public <T> void dec(final Query<T> query, final Enum field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1526,7 +1564,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1537,7 +1575,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1549,7 +1587,7 @@ public class Morphium implements AutoCloseable {
 
     }
 
-    public <T> void dec(final Query<T> query, final Enum field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
@@ -1578,7 +1616,7 @@ public class Morphium implements AutoCloseable {
      * calles <code>inc(toDec,field,-amount);</code>
      */
     @SuppressWarnings("unused")
-    public void dec(Object toDec, Enum field, double amount) {
+    public void dec(Object toDec, Enum<?> field, double amount) {
         dec(toDec, field.name(), amount);
     }
 
@@ -1586,7 +1624,7 @@ public class Morphium implements AutoCloseable {
         inc(toDec, field, -amount);
     }
 
-    public void dec(Object toDec, Enum field, int amount) {
+    public void dec(Object toDec, Enum<?> field, int amount) {
         dec(toDec, field.name(), amount);
     }
 
@@ -1595,7 +1633,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public void dec(Object toDec, Enum field, long amount) {
+    public void dec(Object toDec, Enum<?> field, long amount) {
         dec(toDec, field.name(), amount);
     }
 
@@ -1604,7 +1642,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public void dec(Object toDec, Enum field, Number amount) {
+    public void dec(Object toDec, Enum<?> field, Number amount) {
         dec(toDec, field.name(), amount);
     }
 
@@ -1612,7 +1650,7 @@ public class Morphium implements AutoCloseable {
         inc(toDec, field, -amount.doubleValue());
     }
 
-    public void inc(final Object toSet, final Enum field, final long i) {
+    public void inc(final Object toSet, final Enum<?> field, final long i) {
         inc(toSet, field.name(), i, null);
     }
 
@@ -1620,7 +1658,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, field, i, null);
     }
 
-    public void inc(final Object toSet, final Enum field, final int i) {
+    public void inc(final Object toSet, final Enum<?> field, final int i) {
         inc(toSet, field.name(), i, null);
 
     }
@@ -1629,7 +1667,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, field, i, null);
     }
 
-    public void inc(final Object toSet, final Enum field, final double i) {
+    public void inc(final Object toSet, final Enum<?> field, final double i) {
         inc(toSet, field.name(), i, null);
     }
 
@@ -1638,7 +1676,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public void inc(final Object toSet, final Enum field, final Number i) {
+    public void inc(final Object toSet, final Enum<?> field, final Number i) {
         inc(toSet, field.name(), i, null);
     }
 
@@ -1646,7 +1684,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, field, i, null);
     }
 
-    public <T> void inc(final T toSet, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
@@ -1654,7 +1692,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(final T toSet, final Enum field, final int i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
@@ -1662,7 +1700,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(final T toSet, final Enum field, final long i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
@@ -1670,7 +1708,7 @@ public class Morphium implements AutoCloseable {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(final T toSet, final Enum field, final Number i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
@@ -1678,11 +1716,11 @@ public class Morphium implements AutoCloseable {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(final T toSet, Enum collection, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, Enum<?> collection, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(final T toSet, String collection, final Enum field, final double i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
@@ -1699,7 +1737,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(final T toSet, String collection, final Enum field, final int i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
@@ -1716,7 +1754,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(final T toSet, String collection, final Enum field, final long i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
@@ -1733,7 +1771,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(final T toSet, String collection, final Enum field, final Number i, final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
@@ -1818,7 +1856,7 @@ public class Morphium implements AutoCloseable {
 
     public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final Enum... fields) {
         List<String> g = new ArrayList<>();
-        for (Enum e : fields) g.add(e.name());
+        for (Enum<?> e : fields) g.add(e.name());
         updateUsingFields(ent, collection, callback, g.toArray(new String[]{}));
     }
 
@@ -2319,7 +2357,7 @@ public class Morphium implements AutoCloseable {
 
 
     @SuppressWarnings("unused")
-    public List<Object> distinct(Enum key, Class c) {
+    public List<Object> distinct(Enum<?> key, Class c) {
         return distinct(key.name(), c);
     }
 
@@ -2328,7 +2366,7 @@ public class Morphium implements AutoCloseable {
      * Attention: these values are not unmarshalled, you might get MongoMap<String,Object>s
      */
     @SuppressWarnings("unused")
-    public List<Object> distinct(Enum key, Query q) {
+    public List<Object> distinct(Enum<?> key, Query q) {
         return distinct(key.name(), q);
     }
 
@@ -2437,7 +2475,7 @@ public class Morphium implements AutoCloseable {
         return q.asList();
     }
 
-    public <T> List<T> findByField(Class<? extends T> cls, Enum fld, Object val) {
+    public <T> List<T> findByField(Class<? extends T> cls, Enum<?> fld, Object val) {
         return findByField(cls, fld.name(), val);
     }
 
@@ -2807,7 +2845,7 @@ public class Morphium implements AutoCloseable {
     @Deprecated
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
         Map<String, Object> m = new LinkedHashMap<>();
-        for (Enum e : fldStr) {
+        for (Enum<?> e : fldStr) {
             String f = e.name();
             m.put(f, 1);
         }
@@ -3415,7 +3453,7 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings("unused")
     public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
-        getWriterForClass(query.getType()).pushPull(push, query, field, value, upsert, multiple, callback);
+        getWriterForClass(query.getType()).pushPull(push?MorphiumStorageListener.UpdateTypes.PUSH:MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     @SuppressWarnings("unused")

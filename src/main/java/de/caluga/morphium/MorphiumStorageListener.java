@@ -58,7 +58,7 @@ public interface MorphiumStorageListener<T> {
     void postUpdate(Morphium m, Class<? extends T> cls, Enum updateType);
 
     enum UpdateTypes {
-        SET, UNSET, PUSH, PULL, INC, @SuppressWarnings("unused")DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
+        SET, UNSET, PUSH, PULL, ADD_TO_SET,INC, @SuppressWarnings("unused")DEC, MUL, MIN, MAX, RENAME, POP, CURRENTDATE, CUSTOM,
     }
 
 }
