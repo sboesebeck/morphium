@@ -1700,7 +1700,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void pushPull(final boolean push, final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> void pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
 
@@ -1712,7 +1712,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             @Override
             public void run() {
                 Class<?> cls = query.getType();
-                morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL);
+                morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), type);
 
                 String coll = query.getCollectionName();
 
@@ -1724,11 +1724,27 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 String fieldName = morphium.getARHelper().getMongoFieldName(cls, field);
                 Map<String, Object> set = Utils.getMap(fieldName, v instanceof Enum ? ((Enum) v).name() : v);
-                Map<String, Object> update = Utils.getMap(push ? "$push" : "$pull", set);
+                Map<String, Object> update = null;
+                switch (type){
+                    case PUSH:
+                        update=Utils.getMap("$push", set);
+                    break;
+                    case PULL:
+                        update=Utils.getMap("$pull",set);
+                    break;
+                    case ADD_TO_SET:
+                        update=Utils.getMap("$add_to_set",set);
+                    break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported type "+type.name());
+
+                }
+                // Utils.getMap(push ? "$push" : "$pull", set);
 
                 long start = System.currentTimeMillis();
 
                 try {
+                    boolean push=type.equals(MorphiumStorageListener.UpdateTypes.PUSH) || type.equals(MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
                     pushIt(push, upsert, multiple, cls, coll, qobj, update, query.getCollation());
                     morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
                     if (callback != null) {
