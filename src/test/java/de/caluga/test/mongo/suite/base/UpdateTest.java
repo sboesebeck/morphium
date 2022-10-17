@@ -40,7 +40,7 @@ public class UpdateTest extends MultiDriverTestBase {
                 o.setCounter2((double) i / 2.0);
                 morphium.store(o);
             }
-            Thread.sleep(150);
+           Thread.sleep(150);
             Query<UncachedMultipleCounter> q = morphium.createQueryFor(UncachedMultipleCounter.class);
             q = q.f("strValue").eq("Uncached " + 5);
 
