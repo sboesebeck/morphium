@@ -1,5 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
@@ -10,6 +12,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -18,12 +21,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 /**
- * User: Stephan Bösebeck
- * Date: 09.05.12
- * Time: 10:46
+ * User: Stephan Bösebeck Date: 09.05.12 Time: 10:46
+ *
  * <p>
  */
 @SuppressWarnings("Duplicates")
@@ -40,8 +40,9 @@ public class UpdateTest extends MultiDriverTestBase {
                 o.setCounter2((double) i / 2.0);
                 morphium.store(o);
             }
-           Thread.sleep(150);
-            Query<UncachedMultipleCounter> q = morphium.createQueryFor(UncachedMultipleCounter.class);
+            Thread.sleep(150);
+            Query<UncachedMultipleCounter> q =
+                    morphium.createQueryFor(UncachedMultipleCounter.class);
             q = q.f("strValue").eq("Uncached " + 5);
 
             Map<String, Number> toInc = new HashMap<>();
@@ -76,7 +77,7 @@ public class UpdateTest extends MultiDriverTestBase {
 
             assert (uc.getCounter() == 6) : "Counter is not correct: " + uc.getCounter();
 
-            //inc without object - single update, no upsert
+            // inc without object - single update, no upsert
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
             morphium.inc(q, "counter", 100);
@@ -84,16 +85,19 @@ public class UpdateTest extends MultiDriverTestBase {
             uc = q.get();
             assert (uc.getCounter() == 11) : "Counter is wrong: " + uc.getCounter();
 
-            //inc without object directly in DB - multiple update
+            // inc without object directly in DB - multiple update
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(10).f("counter").lte(25);
             morphium.inc(q, "counter", 100, false, true);
 
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(110).f("counter").lte(125);
-            List<UncachedObject> lst = q.asList(); //read the data after update
+            List<UncachedObject> lst = q.asList(); // read the data after update
             for (UncachedObject u : lst) {
-                assert (u.getCounter() > 110 && u.getCounter() <= 125 && u.getStrValue().equals("Uncached " + (u.getCounter() - 100))) : "Counter wrong: " + u.getCounter();
+                assert (u.getCounter() > 110
+                                && u.getCounter() <= 125
+                                && u.getStrValue().equals("Uncached " + (u.getCounter() - 100)))
+                        : "Counter wrong: " + u.getCounter();
             }
         }
     }
@@ -117,7 +121,7 @@ public class UpdateTest extends MultiDriverTestBase {
 
             assert (uc.getCounter() == 4) : "Counter is not correct: " + uc.getCounter();
 
-            //inc without object - single update, no upsert
+            // inc without object - single update, no upsert
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
             morphium.dec(q, "counter", 40);
@@ -125,7 +129,7 @@ public class UpdateTest extends MultiDriverTestBase {
             uc = q.get();
             assert (uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
 
-            //inc without object directly in DB - multiple update
+            // inc without object directly in DB - multiple update
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(40).f("counter").lte(55);
             morphium.dec(q, "counter", 40, false, true);
@@ -133,15 +137,15 @@ public class UpdateTest extends MultiDriverTestBase {
 
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(0).f("counter").lte(55);
-            List<UncachedObject> lst = q.asList(); //read the data after update
+            List<UncachedObject> lst = q.asList(); // read the data after update
             for (UncachedObject u : lst) {
-                assert (u.getCounter() > 0 && u.getCounter() <= 55) : "Counter wrong: " + u.getCounter();
-                //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
+                assert (u.getCounter() > 0 && u.getCounter() <= 55)
+                        : "Counter wrong: " + u.getCounter();
+                //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value
+                // wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
             }
         }
-
     }
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -175,13 +179,15 @@ public class UpdateTest extends MultiDriverTestBase {
         }
     }
 
-    private void checkValue(Morphium morphium, UncachedObject uc, String value) throws InterruptedException {
+    private void checkValue(Morphium morphium, UncachedObject uc, String value)
+            throws InterruptedException {
         Thread.sleep(100);
-        assert (uc.getStrValue().equals(value)) : "Value wrong: " + uc.getStrValue() + " but should be " + value;
+        assert (uc.getStrValue().equals(value))
+                : "Value wrong: " + uc.getStrValue() + " but should be " + value;
         uc = morphium.reread(uc);
-        assert (uc.getStrValue().equals(value)) : "Value after reread wrong: " + uc.getStrValue() + ", expected " + value;
+        assert (uc.getStrValue().equals(value))
+                : "Value after reread wrong: " + uc.getStrValue() + ", expected " + value;
     }
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -198,7 +204,7 @@ public class UpdateTest extends MultiDriverTestBase {
             q = q.f("strValue").eq("unexistent");
             morphium.set(q, "counter", 999, true, false);
             Thread.sleep(220);
-            UncachedObject uc = q.get(); //should now work
+            UncachedObject uc = q.get(); // should now work
 
             assertNotNull(uc, "Not found?!?!?");
             assert (uc.getStrValue().equals("unexistent")) : "Value wrong: " + uc.getStrValue();
@@ -278,7 +284,8 @@ public class UpdateTest extends MultiDriverTestBase {
     public void unsetTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 100);
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
+            Query<UncachedObject> q =
+                    morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
             morphium.unsetQ(q, "strValue");
             Thread.sleep(300);
             UncachedObject uc = q.get();
@@ -337,18 +344,17 @@ public class UpdateTest extends MultiDriverTestBase {
             em.setTest(3);
             obj.add(em);
 
-
             morphium.pushAll(lc, "embedded_object_list", obj, false, true);
             waitForWrites(morphium);
             Thread.sleep(2500);
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());
             ;
-            assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
+            assert (lc2.getEmbeddedObjectList().size() == 3)
+                    : "Size wrong, should be 3 is " + lc2.getEmbeddedObjectList().size();
             assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
         }
     }
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -361,7 +367,7 @@ public class UpdateTest extends MultiDriverTestBase {
             uc.setStrValue("new Value");
             uc.setCounter(0);
             uc.setDval(4.0d);
-            uc.setLongData(new long[]{42l});
+            uc.setLongData(new long[] {42l});
 
             morphium.updateUsingFields(uc, "str_value", "longData");
 
@@ -372,10 +378,8 @@ public class UpdateTest extends MultiDriverTestBase {
             ;
             assert (uc2.getLongData()[0] == 42);
             assert (uc2.getDval() == 0);
-
         }
     }
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -387,8 +391,14 @@ public class UpdateTest extends MultiDriverTestBase {
 
             morphium.reread(uc);
             assert (uc.theString.equals("not set"));
-            //uc.theString="it is set";
-            morphium.set(uc, morphium.getMapper().getCollectionName(UncachedSubClass.class), "THE_STRING", "it is set", false, null);
+            // uc.theString="it is set";
+            morphium.set(
+                    uc,
+                    morphium.getMapper().getCollectionName(UncachedSubClass.class),
+                    "THE_STRING",
+                    "it is set",
+                    false,
+                    null);
             Thread.sleep(100);
             assert (uc.theString.equals("it is set"));
             morphium.reread(uc);
@@ -400,7 +410,6 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.reread(uc);
             assert (uc.theString.equals("another value"));
 
-
             for (UncachedSubClass u : morphium.createQueryFor(UncachedSubClass.class).asList()) {
                 log.info(Utils.toJsonString(u));
             }
@@ -408,7 +417,9 @@ public class UpdateTest extends MultiDriverTestBase {
     }
 
     public enum Value {
-        v1, v2, v3
+        v1,
+        v2,
+        v3
     }
 
     public static class EnumUC extends UncachedObject {
@@ -429,8 +440,8 @@ public class UpdateTest extends MultiDriverTestBase {
 
     @Entity
     public static class UncachedSubClass {
-        @Id
-        private MorphiumId id;
+        @Id private MorphiumId id;
+
         @Property(fieldName = "THE_STRING")
         private String theString;
 
@@ -444,10 +455,7 @@ public class UpdateTest extends MultiDriverTestBase {
 
         @Override
         public String toString() {
-            return "UncachedSubClass{" +
-                    "id=" + id +
-                    ", theString='" + theString + '\'' +
-                    '}';
+            return "UncachedSubClass{" + "id=" + id + ", theString='" + theString + '\'' + '}';
         }
     }
 }
