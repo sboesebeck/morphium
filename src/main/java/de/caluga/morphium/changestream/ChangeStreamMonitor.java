@@ -217,12 +217,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                 };
                 con = dedicatedConnection.getPrimaryConnection(null);
-                WatchCommand watchCommand = new WatchCommand(con);
-                watchCommand.setCb(callback);
-                watchCommand.setDb(morphium.getDatabase());
-                watchCommand.setMaxTimeMS(morphium.getConfig().getMaxWaitTime());
-                watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue);
-                watchCommand.setPipeline(pipeline);
+                WatchCommand watchCommand = new WatchCommand(con)
+                    .setCb(callback)
+                    .setDb(morphium.getDatabase())
+                    .setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
+                    .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
+                    .setPipeline(pipeline);
 
                 if (!dbOnly) {
                     watchCommand.setColl(collectionName);
