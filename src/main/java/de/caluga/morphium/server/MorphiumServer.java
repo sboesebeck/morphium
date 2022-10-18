@@ -42,12 +42,12 @@ public class MorphiumServer {
         this.host = host;
         drv.connect();
         executor =
-                new ThreadPoolExecutor(
-                        minThreads,
-                        maxThreads,
-                        10000,
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(maxThreads));
+            new ThreadPoolExecutor(
+            minThreads,
+            maxThreads,
+            10000,
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(maxThreads));
     }
 
     public MorphiumServer() {
@@ -61,6 +61,7 @@ public class MorphiumServer {
         int port = 17017;
         int maxThreads = 1000;
         int minThreads = 10;
+
         while (idx < args.length) {
             switch (args[idx]) {
                 case "-p":
@@ -68,21 +69,25 @@ public class MorphiumServer {
                     port = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
+
                 case "-mt":
                 case "--maxThreads":
                     maxThreads = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
+
                 case "-mint":
                 case "--minThreads":
                     minThreads = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
+
                 case "-h":
                 case "--host":
                     host = args[idx + 1];
                     idx += 2;
                     break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -117,6 +122,7 @@ public class MorphiumServer {
         drv.setHostSeed(host + ":" + port);
         executor.prestartAllCoreThreads();
         log.info("Port opened, waiting for incoming connections");
+
         while (true) {
             var s = ssoc.accept();
             log.info("Incoming connection");
@@ -128,15 +134,18 @@ public class MorphiumServer {
         try {
             var in = s.getInputStream();
             var out = s.getOutputStream();
+
             while (true) {
                 var msg = WireProtocolMessage.parseFromStream(in);
                 log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
                 int id = 0;
+
                 if (msg instanceof OpQuery) {
                     var q = (OpQuery) msg;
                     id = q.getMessageId();
                     doc = q.getDoc();
+
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
                         // ismaster
                         log.info("OpMsg->isMaster");
@@ -145,32 +154,22 @@ public class MorphiumServer {
                         r.setMessageId(msgId.incrementAndGet());
                         r.setResponseTo(id);
                         r.setNumReturned(1);
-
                         HelloResult res = getHelloResult();
-
                         //                                OpMsg reply=new OpMsg();
                         //                                reply.setFirstDoc(res.toMsg());
                         //
                         // reply.setMessageId(msgId.incrementAndGet());
                         //                                reply.setResponseTo(id);
                         //                                out.write(reply.bytes());
-
                         r.setDocuments(Arrays.asList(res.toMsg()));
                         out.write(r.bytes());
                         out.flush();
                         log.info("Sent hello result");
                         continue;
                     }
+
                     OpReply r = new OpReply();
-                    Doc d =
-                            Doc.of(
-                                    "$err",
-                                    "OP_QUERY is no longer supported. The client driver may require"
-                                        + " an upgrade.",
-                                    "code",
-                                    5739101,
-                                    "ok",
-                                    0.0);
+                    Doc d = Doc.of("$err", "OP_QUERY is no longer supported. The client driver may require an upgrade.", "code", 5739101, "ok", 0.0);
                     r.setFlags(2);
                     r.setMessageId(msgId.incrementAndGet());
                     r.setResponseTo(id);
@@ -185,10 +184,10 @@ public class MorphiumServer {
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
-                    log.info("Message flags: "+m.getFlags());
-                
+                    log.info("Message flags: " + m.getFlags());
                     id = m.getMessageId();
                 }
+
                 log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
                 log.info("Handling command " + cmd);
@@ -196,41 +195,33 @@ public class MorphiumServer {
                 reply.setResponseTo(msg.getMessageId());
                 reply.setMessageId(msgId.incrementAndGet());
                 Map<String, Object> answer;
+
                 switch (cmd) {
                     case "getCmdLineOpts":
                         answer = Doc.of("argv", List.of(), "parsed", Map.of());
                         break;
+
                     case "buildInfo":
-                        answer =
-                                Doc.of(
-                                        "version",
-                                        "5.0.0-ALPHA",
-                                        "buildEnvironment",
-                                        Doc.of("distarch", "java", "targetarch", "java"));
+                        answer = Doc.of("version", "5.0.0-ALPHA", "buildEnvironment", Doc.of("distarch", "java", "targetarch", "java"));
                         answer.put("ok", 1.0);
                         reply.setFirstDoc(answer);
                         break;
+
                     case "ismaster":
                     case "isMaster":
                     case "hello":
                         answer = getHelloResult().toMsg();
                         reply.setFirstDoc(answer);
                         break;
+
                     case "getFreeMonitoringStatus":
-                        answer =
-                                Doc.of(
-                                        "state",
-                                        "disabled",
-                                        "message",
-                                        "",
-                                        "url",
-                                        "",
-                                        "userReminder",
-                                        "");
+                        answer = Doc.of("state", "disabled", "message", "", "url", "", "userReminder", "");
                         break;
+
                     case "ping":
                         answer = Doc.of();
                         break;
+
                     case "getLog":
                         if (doc.get(cmd).equals("startupWarnings")) {
                             answer = Doc.of("totalLinesWritten", 0, "log", List.of(), "ok", 1.0);
@@ -239,21 +230,24 @@ public class MorphiumServer {
                             log.warn("Unknown log " + doc.get(cmd));
                             answer = Doc.of("ok", 0, "errmsg", "unknown logr");
                         }
+
                         break;
+
                     case "getParameter":
                         if (Integer.valueOf(1).equals(doc.get("featureCompatibilityVersion"))) {
                             answer = Doc.of("version", "5.0", "ok", 1.0);
                         } else {
                             answer = Doc.of("ok", 0, "errmsg", "no such parameter");
                         }
+
                         break;
+
                     default:
                         try {
                             int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
                             var crs = drv.getAnswer(msgid);
                             answer = Doc.of("ok", 1.0);
                             answer.putAll(crs);
-
                         } catch (Exception e) {
                             answer = Doc.of("ok", 0, "errmsg", "no such command: '" + cmd + "'");
                             log.warn("errror running command " + cmd, e);
@@ -261,16 +255,15 @@ public class MorphiumServer {
 
                         break;
                 }
-                answer.put(
-                        "$clusterTime",
-                        Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
+
+                answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                 answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                 reply.setFirstDoc(answer);
-
                 out.write(reply.bytes());
                 out.flush();
                 log.info("Sent answer!");
             }
+
             //            log.info("Thread finished!");
         } catch (Exception e) {
             throw new RuntimeException(e);
