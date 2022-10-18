@@ -310,7 +310,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var commandName = cmdMap.keySet().stream().findFirst().get();
         Class<? extends MongoCommand> commandClass = commandsCache.get(commandName);
         if (commandClass == null) {
-            throw new IllegalArgumentException("Unknown kommand " + commandName);
+            throw new IllegalArgumentException("Unknown command " + commandName);
         }
 
         try {
@@ -1007,6 +1007,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         database.put("local", new ConcurrentHashMap<>());
         database.put("admin", new ConcurrentHashMap<>());
+        database.put("test", new ConcurrentHashMap<>());
 
         if (exec.isShutdown()) {
             exec = new ScheduledThreadPoolExecutor(2);
