@@ -1,25 +1,25 @@
 package de.caluga.test.mongo.suite.inmem;
 
-import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.ListContainer;
-import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.EmbeddedObject;
+import de.caluga.test.mongo.suite.data.ListContainer;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * User: Stephan Bösebeck
- * Date: 09.05.12
- * Time: 10:46
+ * User: Stephan Bösebeck Date: 09.05.12 Time: 10:46
+ *
  * <p>
  */
 @SuppressWarnings("Duplicates")
@@ -47,7 +47,6 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.inc(q, toInc, false, true, null);
         assert (q.get().getCounter() == 25) : "counter is:" + q.get().getCounter();
         assert (q.get().getCounter2() == 3.5);
-
     }
 
     @Test
@@ -66,7 +65,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
 
         assert (uc.getCounter() == 6) : "Counter is not correct: " + uc.getCounter();
 
-        //inc without object - single update, no upsert
+        // inc without object - single update, no upsert
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(10).f("counter").lte(25).sort("counter");
         morphium.inc(q, "counter", 100);
@@ -74,18 +73,20 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         uc = q.get();
         assert (uc.getCounter() == 11) : "Counter is wrong: " + uc.getCounter();
 
-        //inc without object directly in DB - multiple update
+        // inc without object directly in DB - multiple update
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(10).f("counter").lte(25);
         morphium.inc(q, "counter", 100, false, true);
 
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(110).f("counter").lte(125);
-        List<UncachedObject> lst = q.asList(); //read the data after update
+        List<UncachedObject> lst = q.asList(); // read the data after update
         for (UncachedObject u : lst) {
-            assert (u.getCounter() > 110 && u.getCounter() <= 125 && u.getStrValue().equals("Uncached " + (u.getCounter() - 100))) : "Counter wrong: " + u.getCounter();
+            assert (u.getCounter() > 110
+                            && u.getCounter() <= 125
+                            && u.getStrValue().equals("Uncached " + (u.getCounter() - 100)))
+                    : "Counter wrong: " + u.getCounter();
         }
-
     }
 
     @Test
@@ -105,7 +106,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
 
         assertEquals(4, uc.getCounter());
 
-        //inc without object - single update, no upsert
+        // inc without object - single update, no upsert
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
         morphium.dec(q, "counter", 40);
@@ -113,7 +114,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         uc = q.get();
         assertEquals(41, uc.getCounter());
 
-        //inc without object directly in DB - multiple update
+        // inc without object directly in DB - multiple update
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(40).f("counter").lte(55);
         morphium.dec(q, "counter", 40, false, true);
@@ -121,12 +122,12 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
 
         q = morphium.createQueryFor(UncachedObject.class);
         q = q.f("counter").gt(0).f("counter").lte(55);
-        List<UncachedObject> lst = q.asList(); //read the data after update
+        List<UncachedObject> lst = q.asList(); // read the data after update
         for (UncachedObject u : lst) {
             assertThat(u.getCounter()).isGreaterThan(0).isLessThanOrEqualTo(55);
-            //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong: Counter: "+u.getCounter()+" Value;: "+u.getValue();
+            //            assert(u.getValue().equals("Uncached "+(u.getCounter()-40))):"Value wrong:
+            // Counter: "+u.getCounter()+" Value;: "+u.getValue();
         }
-
     }
 
     @Test
@@ -142,7 +143,7 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         q = q.f("str_value").eq("unexistent");
         morphium.set(q, "counter", 999, true, false);
         Thread.sleep(100);
-        UncachedObject uc = q.get(); //should now work
+        UncachedObject uc = q.get(); // should now work
 
         assertNotNull(uc, "Not found?!?!?");
         assert (uc.getStrValue().equals("unexistent")) : "Value wrong: " + uc.getStrValue();
@@ -156,7 +157,6 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.store(u);
 
         morphium.set(u, "val", Value.v2);
-
     }
 
     @Test
@@ -175,27 +175,46 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         morphium.push(lc, "long_list", 12345L);
         ListContainer cont = lc.get();
         assert (cont.getLongList().contains(12345L)) : "No push?";
+    }
 
+    @Test
+    public void addAllToSetTest() throws Exception {
+        morphium.dropCollection(ListContainer.class);
+        for (int i = 1; i <= 50; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
+            lc.addString("string");
+            lc.setName("LC" + i);
+            morphium.store(lc);
+        }
+        Thread.sleep(50);
+        Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
+        lc = lc.f("name").eq("LC15");
+        morphium.addAllToSet(lc, "long_list", Arrays.asList(12345L, 12345L, 12346L, 12L), false);
+        morphium.addToSet(lc, "long_list", 12345L);
+        ListContainer cont = lc.get();
+        assertThat(cont.getLongList().contains(12345L));
+        assertEquals(cont.getLongList().size(), 4);
     }
 
     @Test
     public void addToSetTest() throws Exception {
-        morphium.dropCollection(ListContainer.class);       
-        for (int i =1 ; i<=50;i++){
-            ListContainer lc=new ListContainer();
-            lc.addLong(12+i);
+        morphium.dropCollection(ListContainer.class);
+        for (int i = 1; i <= 50; i++) {
+            ListContainer lc = new ListContainer();
+            lc.addLong(12 + i);
             lc.addString("string");
-            lc.setName("LC"+i);
+            lc.setName("LC" + i);
             morphium.store(lc);
         }
         Thread.sleep(50);
-        Query<ListContainer> lc=morphium.createQueryFor(ListContainer.class);
-        lc=lc.f("name").eq("LC15");
-        morphium.addToSet(lc,"long_list", 12345L);
-        morphium.addToSet(lc,"long_list", 12345L);
-        ListContainer cont=lc.get();
+        Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
+        lc = lc.f("name").eq("LC15");
+        morphium.addToSet(lc, "long_list", 12345L);
+        morphium.addToSet(lc, "long_list", 12345L);
+        ListContainer cont = lc.get();
         assertThat(cont.getLongList().contains(12345L));
-        assertEquals(cont.getLongList().size(),2);
+        assertEquals(cont.getLongList().size(), 2);
     }
 
     @Test
@@ -254,7 +273,6 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         for (UncachedObject u : lst) {
             assert (u.getStrValue() == null);
         }
-
     }
 
     @Test
@@ -288,19 +306,21 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
         em.setTest(3);
         obj.add(em);
 
-
         morphium.pushAll(lc, "embedded_object_list", obj, false, true);
         waitForWrites();
         Thread.sleep(2500);
         ListContainer lc2 = lc.get();
         assertNotNull(lc2.getEmbeddedObjectList());
         ;
-        assert (lc2.getEmbeddedObjectList().size() == 3) : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
+        assert (lc2.getEmbeddedObjectList().size() == 3)
+                : "Size wrong should be 3 is " + lc2.getEmbeddedObjectList().size();
         assert (lc2.getEmbeddedObjectList().get(0).getTest() == 1L);
     }
 
     public enum Value {
-        v1, v2, v3
+        v1,
+        v2,
+        v3
     }
 
     public static class EnumUC extends UncachedObject {
@@ -318,5 +338,4 @@ public class InMemUpdateTest extends MorphiumInMemTestBase {
             this.counter2 = counter2;
         }
     }
-
 }

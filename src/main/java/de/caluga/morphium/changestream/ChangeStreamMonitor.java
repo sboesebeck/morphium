@@ -69,6 +69,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object>> pipeline) {
         morphium = m;
+
         //dedicated connection
         try {
             if (m.getDriver() instanceof InMemoryDriver) {
@@ -86,11 +87,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
         listeners = new ConcurrentLinkedDeque<>();
         morphium.addShutdownListener(this);
         this.pipeline = pipeline;
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;
+
         if (maxWait != 0) {
             this.maxWait = maxWait;
         } else {
@@ -118,6 +121,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         if (changeStreamThread != null) {
             throw new RuntimeException("Already running!");
         }
+
         changeStreamThread = new Thread(this);
         changeStreamThread.setDaemon(true);
         changeStreamThread.setName("changeStream");
@@ -132,22 +136,27 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     @SuppressWarnings("deprecation")
     public void terminate() {
         running = false;
+
         try {
             long start = System.currentTimeMillis();
+
             while (changeStreamThread != null && changeStreamThread.isAlive()) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
                     //ignoring it
                 }
+
                 if (System.currentTimeMillis() - start > morphium.getConfig().getReadTimeout()) {
                     log.debug("Changestream monitor did not finish before max wait time is over! Interrupting");
                     changeStreamThread.interrupt();
+
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
+
                     if (changeStreamThread.isAlive()) {
                         try {
                             changeStreamThread.stop();
@@ -155,15 +164,16 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                             e.printStackTrace();
                         }
                     }
+
                     break;
                 }
             }
+
             changeStreamThread = null;
         } finally {
             listeners.clear();
             morphium.removeShutdownListener(this);
         }
-
     }
 
     public String getcollectionName() {
@@ -173,8 +183,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     @Override
     public void run() {
         MongoConnection con = null;
-        while (running) {
 
+        while (running) {
             try {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
                     @Override
@@ -182,12 +192,13 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         if (!ChangeStreamMonitor.this.running) {
                             return;
                         }
+
                         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                         data.remove("fullDocument");
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
-
                         evt.setFullDocument(obj);
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
+
                         for (ChangeStreamListener lst : listeners) {
                             try {
                                 if (!lst.incomingData(evt)) {
@@ -197,9 +208,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                                 log.error("listener threw exception", e);
                             }
                         }
+
                         listeners.removeAll(toRemove);
                     }
-
                     @Override
                     public boolean isContinued() {
                         return ChangeStreamMonitor.this.running;
@@ -212,10 +223,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 watchCommand.setMaxTimeMS(morphium.getConfig().getMaxWaitTime());
                 watchCommand.setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue);
                 watchCommand.setPipeline(pipeline);
+
                 if (!dbOnly) {
                     watchCommand.setColl(collectionName);
-//                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
+                    //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 }
+
                 watchCommand.watch();
             } catch (Exception e) {
                 if (e.getMessage().contains("Network error error: state should be: open")) {
@@ -227,9 +240,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 }
             }
         }
+
         if (con != null) {
             con.release();
         }
+
         try {
             if (!(dedicatedConnection instanceof InMemoryDriver)) {
                 dedicatedConnection.close();
@@ -237,6 +252,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         } catch (IOException e) {
             //Swallow
         }
+
         log.debug("ChangeStreamMonitor finished gracefully!");
     }
 

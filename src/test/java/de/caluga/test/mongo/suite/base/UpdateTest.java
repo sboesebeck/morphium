@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
@@ -223,6 +225,53 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.set(u, "val", Value.v2);
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void addAllToSetTest(Morphium morphium) throws Exception {
+        try (morphium) {
+            morphium.dropCollection(ListContainer.class);
+            for (int i = 1; i <= 50; i++) {
+                ListContainer lc = new ListContainer();
+                lc.addLong(12 + i);
+                lc.addString("string");
+                lc.setName("LC" + i);
+                morphium.store(lc);
+            }
+            Thread.sleep(150);
+            Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
+            lc = lc.f("name").eq("LC15");
+            morphium.addAllToSet(lc, "long_list", Arrays.asList(12345L,12345L,123L,42L);
+            ListContainer cont = lc.get();
+            assertTrue(cont.getLongList().contains(12345L));
+            assertEquals(cont.getLongList().size(),4);
+        }
+    }
+
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void addToSetTest(Morphium morphium) throws Exception {
+        try (morphium) {
+            morphium.dropCollection(ListContainer.class);
+            for (int i = 1; i <= 50; i++) {
+                ListContainer lc = new ListContainer();
+                lc.addLong(12 + i);
+                lc.addString("string");
+                lc.setName("LC" + i);
+                morphium.store(lc);
+            }
+            Thread.sleep(150);
+            Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
+            lc = lc.f("name").eq("LC15");
+            morphium.addToSet(lc, "long_list", 12345L);
+            morphium.addToSet(lc, "long_list", 12345L);
+            ListContainer cont = lc.get();
+            assertTrue(cont.getLongList().contains(12345L));
+            assertEquals(cont.getLongList().size(),2);
+        }
+    }
+
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
