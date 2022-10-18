@@ -1,14 +1,9 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.wire.MongoConnection;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 public class ListCollectionsCommand extends ReadMongoCommand<ListCollectionsCommand> {
     private Map<String, Object> filter;
@@ -51,6 +46,7 @@ public class ListCollectionsCommand extends ReadMongoCommand<ListCollectionsComm
         if (filter == null) {
             filter = new HashMap<>();
         }
+
         filter.put(k, v);
         return this;
     }
