@@ -1,12 +1,108 @@
 package de.caluga.morphium.driver.inmem;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.text.Collator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.ConcurrentModificationException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
+
+import javax.net.ssl.SSLContext;
+
+import org.bson.types.ObjectId;
+import org.json.simple.parser.ParseException;
+import org.openjdk.jol.vm.VM;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.rits.cloning.Cloner;
-import de.caluga.morphium.*;
+
+import de.caluga.morphium.Collation;
+import de.caluga.morphium.IndexDescription;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.Utils;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.bulk.*;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.FunctionNotSupportedException;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.SingleBatchCursor;
+import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bulk.BulkRequest;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
+import de.caluga.morphium.driver.bulk.InsertBulkRequest;
+import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
+import de.caluga.morphium.driver.commands.AbortTransactionCommand;
+import de.caluga.morphium.driver.commands.AggregateMongoCommand;
+import de.caluga.morphium.driver.commands.ClearCollectionCommand;
+import de.caluga.morphium.driver.commands.CollStatsCommand;
+import de.caluga.morphium.driver.commands.CommitTransactionCommand;
+import de.caluga.morphium.driver.commands.ConvertToCappedCommand;
+import de.caluga.morphium.driver.commands.CountMongoCommand;
+import de.caluga.morphium.driver.commands.CreateCommand;
+import de.caluga.morphium.driver.commands.CreateIndexesCommand;
+import de.caluga.morphium.driver.commands.CurrentOpCommand;
+import de.caluga.morphium.driver.commands.DbStatsCommand;
+import de.caluga.morphium.driver.commands.DeleteMongoCommand;
+import de.caluga.morphium.driver.commands.DistinctMongoCommand;
+import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
+import de.caluga.morphium.driver.commands.DropMongoCommand;
+import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
+import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.commands.GetMoreMongoCommand;
+import de.caluga.morphium.driver.commands.HelloCommand;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.KillCursorsCommand;
+import de.caluga.morphium.driver.commands.ListCollectionsCommand;
+import de.caluga.morphium.driver.commands.ListDatabasesCommand;
+import de.caluga.morphium.driver.commands.ListIndexesCommand;
+import de.caluga.morphium.driver.commands.MapReduceCommand;
+import de.caluga.morphium.driver.commands.MongoCommand;
+import de.caluga.morphium.driver.commands.RenameCollectionCommand;
+import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
+import de.caluga.morphium.driver.commands.ShutdownCommand;
+import de.caluga.morphium.driver.commands.StepDownCommand;
+import de.caluga.morphium.driver.commands.StoreMongoCommand;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wire.AtomicDecimal;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -18,24 +114,6 @@ import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import org.bson.types.ObjectId;
-import org.json.simple.parser.ParseException;
-import org.openjdk.jol.vm.VM;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.net.ssl.SSLContext;
-import java.io.*;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.text.Collator;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * User: Stephan Bösebeck
@@ -50,19 +128,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
-    private final Map<String, Map<String, List<Map<String, Object>>>> database = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>> >> database = new ConcurrentHashMap<>();
 
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
      */
-    private final Map<String, Map<String, List<Map<String, Object>>>> indicesByDbCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object>> >> indicesByDbCollection = new ConcurrentHashMap<>();
 
     /**
      * Map DB->Collection->FieldNames->Keys....
      */
 //    private final Map<String, Map<String, Map<String, Map<IndexKey, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>>>>>> indexDataByDBCollection = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object>> >> >> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
     private final Map<String, List<DriverTailableIterationCallback>> watchersByDb = new ConcurrentHashMap<>();
@@ -95,7 +173,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void setDatabase(String dbn, Map<String, List<Map<String, Object>>> db) {
         if (db != null) database.put(dbn, db);
     }
-
 
     public void restore(InputStream in) throws IOException, ParseException {
         GZIPInputStream gzin = new GZIPInputStream(in);
@@ -150,19 +227,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
         return new MorphiumTypeMapper<ObjectId>() {
-            @Override
-            public Object marshall(ObjectId o) {
-                Map<String, String> m = new ConcurrentHashMap<>();
-                m.put("value", o.toHexString());
-                m.put("class_name", o.getClass().getName());
-                return m;
+                   @Override
+                   public Object marshall(ObjectId o) {
+                       Map<String, String> m = new ConcurrentHashMap<>();
+                       m.put("value", o.toHexString());
+                       m.put("class_name", o.getClass().getName());
+                       return m;
 
-            }
+                   }
 
-            @Override
-            public ObjectId unmarshall(Object d) {
-                return new ObjectId(((Map) d).get("value").toString());
-            }
+                   @Override
+                   public ObjectId unmarshall(Object d) {
+                       return new ObjectId(((Map<?,?>) d).get("value").toString());
+                   }
         };
     }
 
@@ -170,7 +247,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public List<String> listDatabases() {
         return new ArrayList<>(database.keySet());
     }
-
 
     public List<String> listCollections(String db, String pattern) {
         Set<String> collections = new HashSet<>();
@@ -205,7 +281,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         this.replicaSetName = replicaSetName;
     }
 
-
     public void resetData() {
         database.clear();
         indexDataByDBCollection.clear();
@@ -222,7 +297,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         currentTransaction.remove();
     }
 
-
     public void setCredentials(String db, String login, char[] pwd) {
         //ignored for now
     }
@@ -236,7 +310,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
         watch(settings.getDb(), settings.getColl(), settings.getMaxTimeMS(), settings.getFullDocument().equals(WatchCommand.FullDocumentEnum.updateLookup),
-                settings.getPipeline(), settings.getCb());
+         settings.getPipeline(), settings.getCb());
     }
 
     @Override
@@ -353,7 +427,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-
     private int runCommand(CommitTransactionCommand cmd) {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
         commitTransaction();
@@ -361,7 +434,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         commandResults.put(ret, prepareResult(Doc.of("ok", 1.0, "msg", "committed")));
         return ret;
     }
-
 
     private int runCommand(UpdateMongoCommand cmd) throws MorphiumDriverException {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
@@ -376,8 +448,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (update.containsKey("upsert")) upsert = Boolean.TRUE.equals(update.get("upsert"));
 
             var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null,
-                    (Map<String, Object>) update.get("u"),
-                    multi, upsert, null, cmd.getWriteConcern());
+              (Map<String, Object>) update.get("u"),
+              multi, upsert, null, cmd.getWriteConcern());
             for (var e : res.entrySet()) {
                 if (!stats.containsKey(e.getKey())) {
                     stats.put(e.getKey(), (Integer) e.getValue());
@@ -484,10 +556,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
                 //todo: add index features
 
-
                 indices.add(index);
             }
-
 
         commandResults.put(ret, prepareResult(Doc.of("cursor", Doc.of("firstBatch", indices), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
         return ret;
@@ -504,9 +574,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (var k : database.keySet()) {
             sum += database.get(k).size();
             Map<String, Object> db = Doc.of("name", k,
-                    "sizeOnDisk", 0,
-                    "entries", database.get(k).size(),
-                    "empty", database.get(k).isEmpty());
+              "sizeOnDisk", 0,
+              "entries", database.get(k).size(),
+              "empty", database.get(k).isEmpty());
             dbList.add(db);
         }
         data.put("ok", 1.0);
@@ -531,9 +601,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         for (String coll : database.get(cmd.getDb()).keySet()) {
             cursorData.add(Doc.of("name", coll,
-                    "type", "collection", "options", new Doc(),
-                    "info", Doc.of("readonly", false, "UUID", UUID.randomUUID())
-            ).add("idIndex", Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns", cmd.getDb() + "." + coll)));
+             "type", "collection", "options", new Doc(),
+             "info", Doc.of("readonly", false, "UUID", UUID.randomUUID())
+             ).add("idIndex", Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns", cmd.getDb() + "." + coll)));
 
         }
         addCursor(cmd.getDb(), "$cmd.listCollections", m, cursorData);
@@ -564,7 +634,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         commandResults.put(ret, m);
         return ret;
     }
-
 
     private int runCommand(FindCommand cmd) throws MorphiumDriverException {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
@@ -649,7 +718,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         commandResults.put(ret, m);
         return ret;
     }
-
 
     private int runCommand(FindAndModifyMongoCommand cmd) throws MorphiumDriverException {
 //        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
@@ -821,7 +889,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             String idxName = (String) ((Map) idx.get("$options")).get("name");
             indexDetails.put(idxName, idx);
             long sz = VM.current().sizeOf(indexDataByDBCollection.get(cmd.getDb()).get(cmd.getColl()))
-                    + VM.current().sizeOf(idx);
+             + VM.current().sizeOf(idx);
             indexSizes.put(idxName, sz);
             totalSize += sz;
 
@@ -845,7 +913,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         throw new IllegalArgumentException("pleas use morphium for aggregation in Memory!");
     }
 
-
     private int runCommand(MongoCommand cmd) {
         throw new IllegalArgumentException("Unhandled command " + cmd.getCommandName() + " class: " + cmd.getClass().getSimpleName());
     }
@@ -855,7 +922,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
         //{ "ok" : 1.0, "$clusterTime" : { "clusterTime" : 7129872915129958401, "signature" : { "hash" :  [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "keyId" : 0 }  } , "operationTime" : 7129872915129958401 }
         var m = addCursor(cmd.getDb(), cmd.getColl(), prepareResult(), Arrays.asList(Doc.of("helloOk", true,
-                "isWritablePrimary", true, "maxBsonObjectSize", 128 * 1024 * 1024, "msg", driverName + " - ok")));
+          "isWritablePrimary", true, "maxBsonObjectSize", 128 * 1024 * 1024, "msg", driverName + " - ok")));
         commandResults.put(ret, m);
 
         return ret;
@@ -955,7 +1022,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     }
 
-
     @Override
     public void setHostSeed(String... host) {
 
@@ -968,13 +1034,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public void connect() {
         try (ScanResult scanResult =
-                     new ClassGraph()
-                             //                     .verbose()             // Enable verbose logging
-                             .enableAnnotationInfo()
+         new ClassGraph()
+         //                     .verbose()             // Enable verbose logging
+         .enableAnnotationInfo()
 //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-                             .scan()) {
+         .scan()) {
             ClassInfoList entities =
-                    scanResult.getSubclasses(MongoCommand.class.getName());
+             scanResult.getSubclasses(MongoCommand.class.getName());
             for (ClassInfo info : entities) {
                 try {
                     String n = info.getName();
@@ -1012,7 +1078,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (exec.isShutdown()) {
             exec = new ScheduledThreadPoolExecutor(2);
         }
-        Runnable r = () -> {
+        Runnable r = ()->{
             //Notification of watchers.
             try {
                 List<Runnable> current = eventQueue;
@@ -1032,12 +1098,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         };
         exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); //check for events every 500ms
 
-
         scheduleExpire();
     }
 
     private void scheduleExpire() {
-        expire = exec.scheduleWithFixedDelay(() -> {
+        expire = exec.scheduleWithFixedDelay(()->{
             //checking indexes for expire options
             try {
                 for (String db : database.keySet()) {
@@ -1049,7 +1114,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //                                log.info("Found collection candidate for expire..." + db + "." + coll);
                                 var k = new HashMap<>(i);
                                 k.remove("$options");
-                                var keys = k.keySet().toArray(new String[]{});
+                                var keys = k.keySet().toArray(new String[] {});
                                 if (keys.length > 1) {
                                     log.error("Too many keys for expire-index!!!");
                                 } else {
@@ -1089,7 +1154,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         connect();
     }
 
-
     public boolean isConnected() {
         return true;
     }
@@ -1109,21 +1173,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
-
     public int getRetriesOnNetworkError() {
         return 0;
     }
-
 
     public MorphiumDriver setRetriesOnNetworkError(int r) {
         return this;
     }
 
-
     public int getSleepBetweenErrorRetries() {
         return 0;
     }
-
 
     public MorphiumDriver setSleepBetweenErrorRetries(int s) {
         return this;
@@ -1276,7 +1336,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-
 //
 //    public Map<String,Object> getDBStats(String db) {
 //        Map<String,Object> ret = new ConcurrentHashMap<>();
@@ -1285,7 +1344,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 //    }
 //
 //    @SuppressWarnings("RedundantThrows")
-//    
+//
 //    public Map<String,Object> getCollStats(String db, String coll) throws MorphiumDriverException {
 //        Map<String,Object> ret = new ConcurrentHashMap<>();
 //        ret.put("entries", getDB(db).get(coll).size());
@@ -1299,7 +1358,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ret.put("entries", getDB(db).get(coll).size());
         return ret;
     }
-
 
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor() {
@@ -1416,7 +1474,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-
             public boolean isContinued() {
                 return cb.isContinued();
             }
@@ -1426,7 +1483,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         watchersByDb.putIfAbsent(db, new CopyOnWriteArrayList<>());
         watchersByDb.get(db).add(cback);
-
 
         //simulate blocking
         try {
@@ -1440,7 +1496,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         watchersByDb.get(db).remove(cb);
         log.debug("Exiting");
     }
-
 
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         MorphiumCursor next = new MorphiumCursor() {
@@ -1535,11 +1590,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return next;
     }
 
-
     public List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit) throws MorphiumDriverException {
         return find(db, collection, query, sort, projection, null, skip, limit, false);
     }
-
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip, int limit, boolean internal) throws MorphiumDriverException {
@@ -1589,21 +1642,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (sort != null) {
             Collator coll=QueryHelper.getCollator(collation);
-            data.sort((o1, o2) -> {
+            data.sort((o1, o2)->{
                 for (String f : sort.keySet()) {
-                    if (o1.get(f)==null && o2.get(f)==null){
+                    if (o1.get(f)==null && o2.get(f)==null) {
                         return 0;
                     }
-                    if (o1.get(f)==null && o2.get(f)!=null){
+                    if (o1.get(f)==null && o2.get(f)!=null) {
                         return -1;
                     }
-                    if (o1.get(f)!=null && o2.get(f)==null){
+                    if (o1.get(f)!=null && o2.get(f)==null) {
                         return 1;
                     }
 
                     //noinspection unchecked
                     if (sort.get(f) instanceof Integer) {
-                        if (coll!=null){
+                        if (coll!=null) {
                             return (coll.compare(o1.get(f).toString(),o2.get(f).toString())) * ((Integer) sort.get(f));
                         }
                         return ((Comparable) o1.get(f)).compareTo(o2.get( f)) * ((Integer) sort.get(f));
@@ -1722,7 +1775,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return cnt;
     }
 
-
     public long estimatedDocumentCount(String db, String collection, ReadPreference rp) throws MorphiumDriverException {
         return getCollection(db, collection).size();
     }
@@ -1736,7 +1788,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 continue;
             }
             if ((obj.get(field) == null && value == null)
-                    || obj.get(field).equals(value)) {
+             || obj.get(field).equals(value)) {
                 ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
                 if (add.get("_id") instanceof ObjectId) {
                     add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
@@ -1754,7 +1806,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         indexDataByDBCollection.get(db).get(collection).putIfAbsent(fields, new HashMap<>());
         return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
-
 
     public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs, Map<String, Object> wc) throws MorphiumDriverException {
         int errors = 0;
@@ -1824,7 +1875,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> o = objs.get(i);
 
             List<Map<String, Object>> idx = indexes;
-            Map<String, Map<Integer, List<Map<String, Object>>>> indexData = indexDataByDBCollection.get(db).get(collection);
+            Map<String, Map<Integer, List<Map<String, Object>> >> indexData = indexDataByDBCollection.get(db).get(collection);
             for (Map<String, Object> ix : idx) {
                 int bucketId = 0;
                 StringBuilder fieldNames = new StringBuilder();
@@ -1845,7 +1896,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indexData.get("_id").putIfAbsent(buckedId, new ArrayList<>());
             indexData.get("_id").get(buckedId).add(o);
 
-
             notifyWatchers(db, collection, "insert", o);
         }
         return writeErrors;
@@ -1857,7 +1907,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         return (bucketId + o.hashCode());
     }
-
 
     public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs, Map<String, Object> wc) throws MorphiumDriverException {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
@@ -1903,7 +1952,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret;
     }
 
-
     private Map<String, List<Map<String, Object>>> getDB(String db) {
         if (currentTransaction.get() == null) {
 
@@ -1916,7 +1964,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             return (Map<String, List<Map<String, Object>>>) currentTransaction.get().getDatabase().get(db);
         }
     }
-
 
     public void closeIteration(MorphiumCursor crs) {
 
@@ -1950,7 +1997,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return commandResults.remove(id);
     }
 
-
     @SuppressWarnings("ConstantConditions")
 
     public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert, Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
@@ -1974,176 +2020,176 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked") Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
                 switch (operand) {
-                    case "$set":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            if (entry.getValue() != null) {
-                                var v = entry.getValue();
-                                if (v instanceof Map) {
-                                    try {
-                                        v = Expr.parse(v).evaluate(obj);
-                                    } catch (Exception e) {
-                                        //swallow
-                                    }
+                case "$set":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        if (entry.getValue() != null) {
+                            var v = entry.getValue();
+                            if (v instanceof Map) {
+                                try {
+                                    v = Expr.parse(v).evaluate(obj);
+                                } catch (Exception e) {
+                                    //swallow
                                 }
-                                obj.put(entry.getKey(), v);
-                            } else
-                                obj.remove(entry.getKey());
-                        }
-                        break;
-                    case "$unset":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            }
+                            obj.put(entry.getKey(), v);
+                        } else
                             obj.remove(entry.getKey());
-                        }
-                        break;
-                    case "$inc":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            Object value = obj.get(entry.getKey());
-                            if (value instanceof Integer) {
-                                if (entry.getValue() instanceof Integer) {
-                                    value = (Integer) value + ((Integer) entry.getValue());
-                                } else if (entry.getValue() instanceof Float) {
-                                    value = (Integer) value + ((Float) entry.getValue());
-                                } else if (entry.getValue() instanceof Double) {
-                                    value = (Integer) value + ((Double) entry.getValue());
-                                } else if (entry.getValue() instanceof Long) {
-                                    value = (Integer) value + ((Long) entry.getValue());
-                                }
-                            } else if (value instanceof Double) {
-                                if (entry.getValue() instanceof Integer) {
-                                    value = (Double) value + ((Integer) entry.getValue());
-                                } else if (entry.getValue() instanceof Float) {
-                                    value = (Double) value + ((Float) entry.getValue());
-                                } else if (entry.getValue() instanceof Double) {
-                                    value = (Double) value + ((Double) entry.getValue());
-                                } else if (entry.getValue() instanceof Long) {
-                                    value = (Double) value + ((Long) entry.getValue());
-                                }
-                            } else if (value instanceof Float) {
-                                if (entry.getValue() instanceof Integer) {
-                                    value = (Float) value + ((Integer) entry.getValue());
-                                } else if (entry.getValue() instanceof Float) {
-                                    value = (Float) value + ((Float) entry.getValue());
-                                } else if (entry.getValue() instanceof Double) {
-                                    value = (Float) value + ((Double) entry.getValue());
-                                } else if (entry.getValue() instanceof Long) {
-                                    value = (Float) value + ((Long) entry.getValue());
-                                }
-                            } else if (value instanceof Long) {
-                                if (entry.getValue() instanceof Integer) {
-                                    value = (Long) value + ((Integer) entry.getValue());
-                                } else if (entry.getValue() instanceof Float) {
-                                    value = (Long) value + ((Float) entry.getValue());
-                                } else if (entry.getValue() instanceof Double) {
-                                    value = (Long) value + ((Double) entry.getValue());
-                                } else if (entry.getValue() instanceof Long) {
-                                    value = (Long) value + ((Long) entry.getValue());
-                                }
+                    }
+                    break;
+                case "$unset":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        obj.remove(entry.getKey());
+                    }
+                    break;
+                case "$inc":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        Object value = obj.get(entry.getKey());
+                        if (value instanceof Integer) {
+                            if (entry.getValue() instanceof Integer) {
+                                value = (Integer) value + ((Integer) entry.getValue());
+                            } else if (entry.getValue() instanceof Float) {
+                                value = (Integer) value + ((Float) entry.getValue());
+                            } else if (entry.getValue() instanceof Double) {
+                                value = (Integer) value + ((Double) entry.getValue());
+                            } else if (entry.getValue() instanceof Long) {
+                                value = (Integer) value + ((Long) entry.getValue());
+                            }
+                        } else if (value instanceof Double) {
+                            if (entry.getValue() instanceof Integer) {
+                                value = (Double) value + ((Integer) entry.getValue());
+                            } else if (entry.getValue() instanceof Float) {
+                                value = (Double) value + ((Float) entry.getValue());
+                            } else if (entry.getValue() instanceof Double) {
+                                value = (Double) value + ((Double) entry.getValue());
+                            } else if (entry.getValue() instanceof Long) {
+                                value = (Double) value + ((Long) entry.getValue());
+                            }
+                        } else if (value instanceof Float) {
+                            if (entry.getValue() instanceof Integer) {
+                                value = (Float) value + ((Integer) entry.getValue());
+                            } else if (entry.getValue() instanceof Float) {
+                                value = (Float) value + ((Float) entry.getValue());
+                            } else if (entry.getValue() instanceof Double) {
+                                value = (Float) value + ((Double) entry.getValue());
+                            } else if (entry.getValue() instanceof Long) {
+                                value = (Float) value + ((Long) entry.getValue());
+                            }
+                        } else if (value instanceof Long) {
+                            if (entry.getValue() instanceof Integer) {
+                                value = (Long) value + ((Integer) entry.getValue());
+                            } else if (entry.getValue() instanceof Float) {
+                                value = (Long) value + ((Float) entry.getValue());
+                            } else if (entry.getValue() instanceof Double) {
+                                value = (Long) value + ((Double) entry.getValue());
+                            } else if (entry.getValue() instanceof Long) {
+                                value = (Long) value + ((Long) entry.getValue());
+                            }
 
-                            }
-                            if (!obj.get(entry.getKey()).equals(value)) {
-                                modified.add(obj.get("_id"));
-                            }
-                            if (value != null)
-                                obj.put(entry.getKey(), value);
-                            else
-                                obj.remove(entry.getKey());
                         }
-                        break;
-                    case "$currentDate":
-//                        log.info("current date");
-                        obj.put((String) cmd.keySet().toArray()[0], new Date());
-                        break;
-                    case "$mul":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            Object value = obj.get(entry.getKey());
-                            if (value instanceof Integer) {
-                                value = (Integer) value * ((Integer) entry.getValue());
-                            } else if (value instanceof Double) {
-                                value = (Double) value * ((Double) entry.getValue());
-                            } else if (value instanceof Float) {
-                                value = (Float) value * ((Float) entry.getValue());
-                            } else if (value instanceof Long) {
-                                value = (Long) value * ((Long) entry.getValue());
-                            }
-                            if (!obj.get(entry.getKey()).equals(value)) {
-                                modified.add(obj.get("_id"));
-                            }
-                            if (value != null)
-                                obj.put(entry.getKey(), value);
-                            else
-                                obj.remove(entry.getKey());
-                        }
-                        break;
-                    case "$rename":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            if (obj.get(entry.getKey()) != null)
-                                obj.put((String) entry.getValue(), obj.get(entry.getKey()));
-                            else
-                                obj.remove(entry.getValue());
-                            obj.remove(entry.getKey());
+                        if (!obj.get(entry.getKey()).equals(value)) {
                             modified.add(obj.get("_id"));
+                        }
+                        if (value != null)
+                            obj.put(entry.getKey(), value);
+                        else
+                            obj.remove(entry.getKey());
+                    }
+                    break;
+                case "$currentDate":
+//                        log.info("current date");
+                    obj.put((String) cmd.keySet().toArray()[0], new Date());
+                    break;
+                case "$mul":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        Object value = obj.get(entry.getKey());
+                        if (value instanceof Integer) {
+                            value = (Integer) value * ((Integer) entry.getValue());
+                        } else if (value instanceof Double) {
+                            value = (Double) value * ((Double) entry.getValue());
+                        } else if (value instanceof Float) {
+                            value = (Float) value * ((Float) entry.getValue());
+                        } else if (value instanceof Long) {
+                            value = (Long) value * ((Long) entry.getValue());
+                        }
+                        if (!obj.get(entry.getKey()).equals(value)) {
+                            modified.add(obj.get("_id"));
+                        }
+                        if (value != null)
+                            obj.put(entry.getKey(), value);
+                        else
+                            obj.remove(entry.getKey());
+                    }
+                    break;
+                case "$rename":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        if (obj.get(entry.getKey()) != null)
+                            obj.put((String) entry.getValue(), obj.get(entry.getKey()));
+                        else
+                            obj.remove(entry.getValue());
+                        obj.remove(entry.getKey());
+                        modified.add(obj.get("_id"));
 
+                    }
+                    break;
+                case "$min":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        Comparable value = (Comparable) obj.get(entry.getKey());
+                        //noinspection unchecked
+                        if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
+                            modified.add(obj.get("_id"));
+                            obj.put(entry.getKey(), entry.getValue());
                         }
-                        break;
-                    case "$min":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            Comparable value = (Comparable) obj.get(entry.getKey());
-                            //noinspection unchecked
-                            if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
-                                modified.add(obj.get("_id"));
-                                obj.put(entry.getKey(), entry.getValue());
-                            }
+                    }
+                    break;
+                case "$max":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        Comparable value = (Comparable) obj.get(entry.getKey());
+                        //noinspection unchecked
+                        if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
+                            obj.put(entry.getKey(), entry.getValue());
+                            modified.add(obj.get("_id"));
                         }
-                        break;
-                    case "$max":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            Comparable value = (Comparable) obj.get(entry.getKey());
-                            //noinspection unchecked
-                            if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
-                                obj.put(entry.getKey(), entry.getValue());
-                                modified.add(obj.get("_id"));
-                            }
+                    }
+                    break;
+                case "$add_to_set":
+                case "$push":
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        List v = (List) obj.get(entry.getKey());
+                        if (v == null) {
+                            v = new ArrayList();
+                            obj.put(entry.getKey(), v);
+                            modified.add(obj.get("_id"));
                         }
-                        break;
-                    case "$add_to_set":
-                    case "$push":
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            List v = (List) obj.get(entry.getKey());
-                            if (v == null) {
-                                v = new ArrayList();
-                                obj.put(entry.getKey(), v);
-                                modified.add(obj.get("_id"));
-                            }
-                            if (entry.getValue() instanceof Map) {
-                                if (((Map) entry.getValue()).get("$each") != null) {
-                                    //noinspection unchecked
-                                    if (operand.equals("$add_to_set")){
-                                        for (Object elem:(List)((Map) entry.getValue()).get("$each")){
-                                            if (!v.contains(elem)){
-                                                v.add(elem);
-                                            }
+                        if (entry.getValue() instanceof Map) {
+                            if (((Map) entry.getValue()).get("$each") != null) {
+                                //noinspection unchecked
+                                if (operand.equals("$add_to_set")) {
+                                    for (Object elem:(List)((Map) entry.getValue()).get("$each")) {
+                                        if (!v.contains(elem)) {
+                                            v.add(elem);
                                         }
-                                    } else {
-                                        v.addAll((List) ((Map) entry.getValue()).get("$each"));
                                     }
                                 } else {
-                                    //noinspection unchecked
-                                    if (operand.equals("$add_to_set") && v.contains(entry.getValue())){
-                                        break;
-                                    }
-                                    v.add(entry.getValue());
+                                    v.addAll((List) ((Map) entry.getValue()).get("$each"));
                                 }
                             } else {
                                 //noinspection unchecked
-                                if (operand.equals("$add_to_set") && v.contains(entry.getValue())){
-                                   break;
+                                if (operand.equals("$add_to_set") && v.contains(entry.getValue())) {
+                                    break;
                                 }
                                 v.add(entry.getValue());
                             }
+                        } else {
+                            //noinspection unchecked
+                            if (operand.equals("$add_to_set") && v.contains(entry.getValue())) {
+                                break;
+                            }
+                            v.add(entry.getValue());
                         }
-                        break;
-                    default:
-                        throw new RuntimeException("unknown operand " + operand);
+                    }
+                    break;
+                default:
+                    throw new RuntimeException("unknown operand " + operand);
                 }
             }
             count++;
@@ -2156,7 +2202,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         return Doc.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "modified", count);
     }
-
 
     /**
      * {
@@ -2196,7 +2241,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
-        Runnable r = () -> {
+        Runnable r = ()->{
             List<DriverTailableIterationCallback> w = null;
             if (watchersByDb.containsKey(db)) {
                 w = Collections.synchronizedList(new CopyOnWriteArrayList<>(watchersByDb.get(db)));
@@ -2237,7 +2282,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         eventQueue.add(r);
 
-
     }
 
     public Map<String, Object> delete(String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc) throws MorphiumDriverException {
@@ -2271,7 +2315,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return getDB(db).get(collection);
     }
 
-
     public void drop(String db, String collection, WriteConcern wc) {
         getDB(db).remove(collection);
         if (indexDataByDBCollection.containsKey(db)) {
@@ -2283,7 +2326,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         notifyWatchers(db, collection, "drop", null);
     }
 
-
     public void drop(String db, WriteConcern wc) {
         database.remove(db);
         if (indexDataByDBCollection.containsKey(db)) {
@@ -2294,7 +2336,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         notifyWatchers(db, null, "drop", null);
     }
-
 
     public boolean exists(String db) {
         return database.containsKey(db);
@@ -2390,7 +2431,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     }
 
-
     public List<Object> distinct(String db, String collection, String field, Map<String, Object> filter, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> list = find(db, collection, filter, null, null, 0, 0);
         Set<Object> distinctValues = new HashSet<>();
@@ -2406,7 +2446,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return Collections.synchronizedList(new ArrayList<>(distinctValues));
     }
 
-
     public boolean exists(String db, String collection) {
         return getDB(db) != null && getDB(db).containsKey(collection);
     }
@@ -2415,7 +2454,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         indicesByDbCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         return indicesByDbCollection.get(db);
     }
-
 
     public List<Map<String, Object>> getIndexes(String db, String collection) {
         if (!getIndexesForDB(db).containsKey(collection)) {
@@ -2427,11 +2465,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return getIndexesForDB(db).get(collection);
     }
 
-
     public List<String> getCollectionNames(String db) {
         return null;
     }
-
 
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> r = find(db, col, query, sort, null, 0, 1);
@@ -2442,13 +2478,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return r.get(0);
     }
 
-
     public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query, Map<String, Object> update, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
         update(db, col, query, null, update, false, false, collation, null);
         return ret.get(0);
     }
-
 
     public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
@@ -2460,16 +2494,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return replacement;
     }
 
-
     public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("not possible in Mem yet");
     }
 
-
     public int getMaxWaitTime() {
         return 0;
     }
-
 
     public void setMaxWaitTime(int maxWaitTime) {
 
@@ -2490,15 +2521,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     }
 
-
     public int getServerSelectionTimeout() {
         return 0;
     }
 
-
     public void setServerSelectionTimeout(int serverSelectionTimeout) {
     }
-
 
     public boolean isCapped(String db, String coll) {
         return cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(coll);
@@ -2509,53 +2537,51 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return Map.of("inMem", 1);
     }
 
-
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-            private final List<BulkRequest> requests = new ArrayList<>();
+                   private final List<BulkRequest> requests = new ArrayList<>();
 
-            @Override
-            public Map<String, Object> execute() {
-                try {
-                    for (BulkRequest r : requests) {
-                        if (r instanceof InsertBulkRequest) {
-                            insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
-                        } else if (r instanceof UpdateBulkRequest) {
-                            UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
-                        } else if (r instanceof DeleteBulkRequest) {
-                            delete(db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
-                        } else {
-                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
-                        }
-                    }
-                } catch (MorphiumDriverException e) {
-                    log.error("Got exception: ", e);
-                }
-                return new Doc();
+                   @Override
+                   public Map<String, Object> execute() {
+                       try {
+                           for (BulkRequest r : requests) {
+                               if (r instanceof InsertBulkRequest) {
+                                   insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
+                               } else if (r instanceof UpdateBulkRequest) {
+                                   UpdateBulkRequest up = (UpdateBulkRequest) r;
+                                   update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
+                               } else if (r instanceof DeleteBulkRequest) {
+                                   delete(db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
+                               } else {
+                                   throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                               }
+                           }
+                       } catch (MorphiumDriverException e) {
+                           log.error("Got exception: ", e);
+                       }
+                       return new Doc();
 
-            }
+                   }
 
-            @Override
-            public UpdateBulkRequest addUpdateBulkRequest() {
-                UpdateBulkRequest up = new UpdateBulkRequest();
-                requests.add(up);
-                return up;
-            }
+                   @Override
+                   public UpdateBulkRequest addUpdateBulkRequest() {
+                       UpdateBulkRequest up = new UpdateBulkRequest();
+                       requests.add(up);
+                       return up;
+                   }
 
+                   public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+                       InsertBulkRequest in = new InsertBulkRequest(toInsert);
+                       requests.add(in);
+                       return in;
+                   }
 
-            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
-                InsertBulkRequest in = new InsertBulkRequest(toInsert);
-                requests.add(in);
-                return in;
-            }
-
-            @Override
-            public DeleteBulkRequest addDeleteBulkRequest() {
-                DeleteBulkRequest del = new DeleteBulkRequest();
-                requests.add(del);
-                return del;
-            }
+                   @Override
+                   public DeleteBulkRequest addDeleteBulkRequest() {
+                       DeleteBulkRequest del = new DeleteBulkRequest();
+                       requests.add(del);
+                       return del;
+                   }
         };
     }
 
@@ -2567,10 +2593,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         ret.put(DriverStatsKey.REPLY_IN_MEM, (double) commandResults.size());
 
-
         return ret;
     }
-
 
     public void createIndex(String db, String collection, Map<String, Object> indexDef, Map<String, Object> options) throws MorphiumDriverException {
         Map<String, Object> index = new HashMap<>(indexDef);
@@ -2645,17 +2669,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
-
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
 
-
     public List<Map<String, Object>> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("no map reduce in memory");
     }
-
-
 
     public void commitTransaction() {
         if (currentTransaction.get() == null) throw new IllegalArgumentException("No transaction in progress");
@@ -2665,11 +2685,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         currentTransaction.set(null);
     }
 
-
     public void abortTransaction() {
         currentTransaction.set(null);
     }
-
 
     public void setTransactionContext(MorphiumTransactionContext ctx) {
         currentTransaction.set((InMemTransactionContext) ctx);
@@ -2793,21 +2811,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
-
     public SSLContext getSslContext() {
         return null;
     }
-
 
     public void setSslContext(SSLContext sslContext) {
 
     }
 
-
     public boolean isSslInvalidHostNameAllowed() {
         return false;
     }
-
 
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
 
