@@ -40,6 +40,7 @@ public class MorphiumServer {
         this.drv = new InMemoryDriver();
         this.port = port;
         this.host = host;
+        drv.connect();
         executor =
                 new ThreadPoolExecutor(
                         minThreads,
@@ -184,6 +185,8 @@ public class MorphiumServer {
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
+                    log.info("Message flags: "+m.getFlags());
+                
                     id = m.getMessageId();
                 }
                 log.info("Incoming " + Utils.toJsonString(doc));
