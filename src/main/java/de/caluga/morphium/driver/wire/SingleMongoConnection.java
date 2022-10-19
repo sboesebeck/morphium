@@ -426,8 +426,8 @@ public class SingleMongoConnection implements MongoConnection {
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
-            } else {
-                log.info("No/empty result");
+            // } else {
+                // log.info("No/empty result");
             }
             if (!command.getCb().isContinued()) {
 
