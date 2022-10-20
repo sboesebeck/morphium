@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-
 public class MongoConnectionTest {
     private Logger log = LoggerFactory.getLogger(MongoConnectionTest.class);
 
@@ -30,6 +29,7 @@ public class MongoConnectionTest {
     public void testSendAndAnswer() throws Exception {
 
         MongoConnection con = new SingleMongoConnection();
+        con.setCredentials("admin","test","test");
         con.connect(new DriverMock(), "localhost", 27017);
 
         HelloCommand hello = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
@@ -43,11 +43,11 @@ public class MongoConnectionTest {
         con.close();
     }
 
-
     @Test
     public void testConnected() throws Exception {
 
         MongoConnection con = new SingleMongoConnection();
+        con.setCredentials("admin","test","test");
         con.connect(new DriverMock(), "localhost", 27017);
 
         var m = con.getConnectedTo();
@@ -61,6 +61,7 @@ public class MongoConnectionTest {
     @Test
     public void testAsyncWriteRead() throws Exception {
         MongoConnection con = new SingleMongoConnection();
+        con.setCredentials("admin","test","test");
         con.connect(new DriverMock(), "localhost", 27017);
         log.info("Clearing collection");
         ClearCollectionCommand clr = new ClearCollectionCommand(con).setColl("test").setDb("morphium_test");
@@ -68,7 +69,7 @@ public class MongoConnectionTest {
         log.info("done - deleted " + del + " entries");
         AtomicBoolean running = new AtomicBoolean(true);
         Stack<Integer> stack = new Stack<>();
-        new Thread(() -> {
+        new Thread(()->{
             while (running.get()) {
                 if (stack.isEmpty()) continue;
                 //log.info("Checking "+stack.peek());
@@ -94,7 +95,7 @@ public class MongoConnectionTest {
         Thread.sleep(200);
 
         InsertMongoCommand insert = new InsertMongoCommand(con).setDb("morphium_test").setColl("test")
-                .setDocuments(List.of(Doc.of("value", "stringvalue", "cnt", 42)));
+         .setDocuments(List.of(Doc.of("value", "stringvalue", "cnt", 42)));
         stack.push(insert.executeAsync());
 
         Thread.sleep(200);
@@ -111,6 +112,7 @@ public class MongoConnectionTest {
     @Test
     public void testWriteRead() throws Exception {
         MongoConnection con = new SingleMongoConnection();
+        con.setCredentials("admin","test","test");
         con.connect(new DriverMock(), "localhost", 27017);
         log.info("Clearing collection");
         ClearCollectionCommand clr = new ClearCollectionCommand(con).setColl("test").setDb("morphium_test");
@@ -124,8 +126,8 @@ public class MongoConnectionTest {
         }
         log.info("calling insert");
         InsertMongoCommand insert = new InsertMongoCommand(con)
-                .setDocuments(lst).setColl("test").setDb("morphium_test")
-                .setBypassDocumentValidation(true);
+         .setDocuments(lst).setColl("test").setDb("morphium_test")
+         .setBypassDocumentValidation(true);
 
         var msg = con.sendCommand(insert);
         var ret = con.readSingleAnswer(msg);
@@ -133,7 +135,7 @@ public class MongoConnectionTest {
 
         log.info("Calling find...");
         FindCommand find = new FindCommand(con).setBatchSize(17)
-                .setDb("morphium_test").setColl("test");
+         .setDb("morphium_test").setColl("test");
         msg = con.sendCommand(find);
         var resultList = con.readAnswerFor(msg);
         assertEquals(1000, resultList.size());

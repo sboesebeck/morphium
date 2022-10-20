@@ -14,6 +14,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
@@ -73,7 +74,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return connection;
     }
 
-
     public MongoCommand<T> setConnection(MongoConnection connection) {
         this.connection = connection;
         return this;
@@ -129,7 +129,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
         return (T) this;
     }
 
-
     public T fromMap(Map<String,Object> m){
         setColl(""+m.get(getCommandName()));
         for (Field f : an.getAllFields(this.getClass())) {
@@ -151,15 +150,19 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
             try {
                 Object v=m.get(n);
-                if (v==null)continue;
-                Class  targetType = f.getType();
+                if (v==null) continue;
+                Class targetType = f.getType();
                 if (targetType.isEnum()) {
-                    Enum en=Enum.valueOf((Class<Enum>)f.getType(),v.toString());
+                    Enum en=Enum.valueOf((Class<Enum>) f.getType(),v.toString());
                     v = en;
                 }
-
-                if (v != null)
-                    f.set(this,v);
+                if (v != null) {
+                    if (f.getType().equals(UUID.class)) {
+                        f.set(this,((Map)v).get("id")); 
+                    } else {
+                        f.set(this,v);
+                    }
+                }
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }
@@ -221,14 +224,12 @@ public abstract class MongoCommand<T extends MongoCommand> {
         }
     }
 
-
     public abstract String getCommandName();
-
 
     public int executeAsync() throws MorphiumDriverException {
         MongoConnection driver = getConnection();
         if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
-        return new NetworkCallHelper<Integer>().doCall(() -> {
+        return new NetworkCallHelper<Integer>().doCall(()->{
             //long start = System.currentTimeMillis();
             var result = getConnection().sendCommand(this);
             // long dur = System.currentTimeMillis() - start;
@@ -237,6 +238,5 @@ public abstract class MongoCommand<T extends MongoCommand> {
             return result;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
-
 
 }

@@ -101,99 +101,99 @@ public class SingleConnectDriverTests extends DriverTestBase {
 
     }
 
-    @Test
-    public void testFailover() throws Exception {
-        SingleMongoConnectDriver drv = getDriver();
-        log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
-        while (!drv.isConnected()) Thread.yield();
-        MongoConnection con = drv.getConnection();
-        var originalConnectedTo = con.getConnectedTo();
-        ShutdownCommand cmd = new ShutdownCommand(con).setForce(Boolean.TRUE).setTimeoutSecs(2);
-        var res = cmd.execute();
-        log.info("Shutdown Result: " + Utils.toJsonString(res));
-        con.release();
-        while (true) {
-            while (!drv.isConnected()) {
-                Thread.yield();
-            }
-            con = drv.getConnection();
-            if (con.getConnectedTo() == null || con.getConnectedTo().equals(originalConnectedTo)) {
-                continue;
-            }
-            String hst = con.getConnectedTo();
-            log.info("Failover...to " + con.getConnectedTo());
-            boolean br = true;
-            for (int i = 0; i < 2; i++) {
-                Thread.sleep(1000);
-                if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
-                    log.info("Connection did not stick...");
-                    br = false;
-                    break;
-                }
-            }
-            if (br)
-                break;
-        }
-
-        assertThat(drv.isConnected());
-        assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
-        assertNotNull(originalConnectedTo);
-        assertNotNull(con.getConnectedTo());
-        log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
-        con.release();
-        log.info("HostSeed:");
-        for (var c : drv.getHostSeed()) {
-            log.info("---> " + c);
-        }
-
-        String startNode = MorphiumTestBase.getProps().getProperty("failoverNodeRestartCommand");
-        if (startNode == null) {
-            log.error("Cannot restart node for tests! Please do so manually!");
-            Thread.sleep(5000);
-        } else {
-            log.info("Trying to restart shut down node! using " + startNode);
-            var ret = Runtime.getRuntime().exec(startNode);
-            BufferedReader br = new BufferedReader(new InputStreamReader(ret.getInputStream()));
-            while (ret.isAlive()) {
-
-                if (br.ready()) {
-                    log.info(br.readLine());
-                } else {
-                    log.info("waiting for node to startup...");
-                }
-                Thread.sleep(1000);
-            }
-
-        }
-        log.info("Node should be started up... checking cluster");
-
-        OUT:
-        while (true) {
-            Thread.sleep(1000);
-            con = drv.getConnection();
-            ReplicastStatusCommand rstat = new ReplicastStatusCommand(con);
-            var status = rstat.execute();
-            con.release();
-            var members = ((List<Map<String, Object>>) status.get("members"));
-            for (Map<String, Object> mem : members) {
-                if (mem.get("name").equals(originalConnectedTo)) {
-                    Object stateStr = mem.get("stateStr");
-                    log.info("Status of original host: " + stateStr);
-                    if (stateStr.equals("PRIMARY")) {
-                        log.info("Finally...");
-                        break OUT;
-                    } else if (stateStr.equals("STARTUP") || stateStr.equals("STARTUP2") || stateStr.equals("SECONDARY")) {
-                        log.info("Status is still " + stateStr);
-                    } else {
-                        log.warn("Unknown status " + stateStr);
-                    }
-                }
-            }
-        }
-        log.info("State recovered");
-
-    }
-
+    // @Test
+    // public void testFailover() throws Exception {
+    //     SingleMongoConnectDriver drv = getDriver();
+    //     log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
+    //     while (!drv.isConnected()) Thread.yield();
+    //     MongoConnection con = drv.getConnection();
+    //     var originalConnectedTo = con.getConnectedTo();
+    //     ShutdownCommand cmd = new ShutdownCommand(con).setForce(Boolean.TRUE).setTimeoutSecs(2);
+    //     var res = cmd.execute();
+    //     log.info("Shutdown Result: " + Utils.toJsonString(res));
+    //     con.release();
+    //     while (true) {
+    //         while (!drv.isConnected()) {
+    //             Thread.yield();
+    //         }
+    //         con = drv.getConnection();
+    //         if (con.getConnectedTo() == null || con.getConnectedTo().equals(originalConnectedTo)) {
+    //             continue;
+    //         }
+    //         String hst = con.getConnectedTo();
+    //         log.info("Failover...to " + con.getConnectedTo());
+    //         boolean br = true;
+    //         for (int i = 0; i < 2; i++) {
+    //             Thread.sleep(1000);
+    //             if (con.getConnectedTo() == null || !con.getConnectedTo().equals(hst)) {
+    //                 log.info("Connection did not stick...");
+    //                 br = false;
+    //                 break;
+    //             }
+    //         }
+    //         if (br)
+    //             break;
+    //     }
+    //
+    //     assertThat(drv.isConnected());
+    //     assertThat(con.getConnectedTo()).isNotEqualTo(originalConnectedTo);
+    //     assertNotNull(originalConnectedTo);
+    //     assertNotNull(con.getConnectedTo());
+    //     log.info("Connection changed from " + originalConnectedTo + " to " + con.getConnectedTo());
+    //     con.release();
+    //     log.info("HostSeed:");
+    //     for (var c : drv.getHostSeed()) {
+    //         log.info("---> " + c);
+    //     }
+    //
+    //     String startNode = MorphiumTestBase.getProps().getProperty("failoverNodeRestartCommand");
+    //     if (startNode == null) {
+    //         log.error("Cannot restart node for tests! Please do so manually!");
+    //         Thread.sleep(5000);
+    //     } else {
+    //         log.info("Trying to restart shut down node! using " + startNode);
+    //         var ret = Runtime.getRuntime().exec(startNode);
+    //         BufferedReader br = new BufferedReader(new InputStreamReader(ret.getInputStream()));
+    //         while (ret.isAlive()) {
+    //
+    //             if (br.ready()) {
+    //                 log.info(br.readLine());
+    //             } else {
+    //                 log.info("waiting for node to startup...");
+    //             }
+    //             Thread.sleep(1000);
+    //         }
+    //
+    //     }
+    //     log.info("Node should be started up... checking cluster");
+    //
+    //     OUT:
+    //     while (true) {
+    //         Thread.sleep(1000);
+    //         con = drv.getConnection();
+    //         ReplicastStatusCommand rstat = new ReplicastStatusCommand(con);
+    //         var status = rstat.execute();
+    //         con.release();
+    //         var members = ((List<Map<String, Object>>) status.get("members"));
+    //         for (Map<String, Object> mem : members) {
+    //             if (mem.get("name").equals(originalConnectedTo)) {
+    //                 Object stateStr = mem.get("stateStr");
+    //                 log.info("Status of original host: " + stateStr);
+    //                 if (stateStr.equals("PRIMARY")) {
+    //                     log.info("Finally...");
+    //                     break OUT;
+    //                 } else if (stateStr.equals("STARTUP") || stateStr.equals("STARTUP2") || stateStr.equals("SECONDARY")) {
+    //                     log.info("Status is still " + stateStr);
+    //                 } else {
+    //                     log.warn("Unknown status " + stateStr);
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     log.info("State recovered");
+    //
+    // }
+    //
 
     @Test
     public void crudTest() throws Exception {
