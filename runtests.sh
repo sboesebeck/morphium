@@ -34,15 +34,16 @@ while true; do
     echo "Running tests for version $version"
     date
     grep "Running " test.log | tail -n 1
-    a=$(grep "Number: " test.log | tail -n 1); echo "Test number: ${a##*:}"
+    a=$(grep "Number: " test.log | tail -n 1);
+    echo "Test number: ${a##*:}"
     run=0
     for i in $(grep -a 'Tests run: ' test.log |cut -f2 -d: | cut -f1 -d,); do   
-        let run=run+i
+      (( run=run+i ))
     done
     echo "Tests run: $run"
     fail=0
     for i in $(grep -a 'Tests run: ' test.log |cut -f3 -d: | cut -f1 -d,); do 
-        let fail=fail+i
+      (( fail=fail+i ))
     done
     echo "Fails: $fail"
     err=0
@@ -61,7 +62,6 @@ while true; do
     tail -n 10 test.log
 
     jobs > /dev/null
-    l=$(ls -l test.log)
     sleep 15
     if [ $(jobs | wc -l) -eq 0 ]; then
         echo "Bg job finished... exiting"   
@@ -73,8 +73,8 @@ fail=$(grep -a 'Tests run: ' test.log |cut -f3 -d: | cut -f1 -d,  | tail -n 1)
 err=$(grep -a 'Tests run: ' test.log |cut -f4 -d: | cut -f1 -d,  | tail -n 1)
 
 dur=$(date +%s)
-let dur=dur-start
-let h=dur/3600
+(( dur=dur-start ))
+(( h=dur/3600 ))
 let m='(dur-h*3600)/60'
 let s='(dur-h*3600-m*60)'
  

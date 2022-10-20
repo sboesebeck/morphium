@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
-
 public class SingleMongoConnectionTest extends ConnectionTestBase {
 
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);
@@ -57,7 +56,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 //        }
 //    }
 
-
     @Test
     public void testSyncConnection() throws Exception {
         var con = getConnection();
@@ -69,7 +67,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
             StoreMongoCommand cmd = new StoreMongoCommand(con)
-                    .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
@@ -102,7 +100,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         }
     }
 
-
     @Test
     public void testUpdateSyncConnection() throws Exception {
         var con = getConnection();
@@ -113,7 +110,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
             StoreMongoCommand cmd = new StoreMongoCommand(con)
-                    .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
@@ -127,9 +124,9 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         log.info("Updating...");
         UpdateMongoCommand update = new UpdateMongoCommand(con)
-                .setDb(db)
-                .setColl(coll)
-                .addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
+         .setDb(db)
+         .setColl(coll)
+         .addUpdate(Doc.of("q", Doc.of("_id", res.get(0).get("_id")), "u", Doc.of("$set", Doc.of("counter", 9999))));
 
         Map<String, Object> updateInfo = update.execute();
         assertEquals(1, updateInfo.get("nModified"));
@@ -142,7 +139,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
     }
 
-
     @Test
     public void testWatchDb() throws Exception {
         var con = getConnection();
@@ -150,7 +146,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         UncachedObject o = new UncachedObject("value", 123);
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-                .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+         .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         cmd.execute();
 
         long start = System.currentTimeMillis();
@@ -160,7 +156,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     log.info("Thread is connecting...");
                     SingleMongoConnectDriver con = new SingleMongoConnectDriver();
                     con.setHostSeed("localhost:27017");
-
+                    con.setCredentials("admin", "test", "test");
                     con.setDefaultBatchSize(5);
 
                     con.connect();
@@ -171,7 +167,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
-                            .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -181,7 +177,8 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     throw new RuntimeException(e);
                 }
             }
-        }.start();
+        }
+        .start();
         con.watch(new WatchCommand(con).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
 
@@ -203,7 +200,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
     }
 
-
     @Test
     public void testWatchColl() throws Exception {
         var con = getConnection();
@@ -211,7 +207,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         UncachedObject o = new UncachedObject("value", 123);
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-                .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+         .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         cmd.execute();
 
         long start = System.currentTimeMillis();
@@ -221,7 +217,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     log.info("Thread is connecting...");
                     SingleMongoConnectDriver con = new SingleMongoConnectDriver();
                     con.setHostSeed("localhost:27017");
-
+                    con.setCredentials("admin", "test", "test");
                     con.setDefaultBatchSize(5);
 
                     con.connect();
@@ -232,7 +228,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
-                            .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -242,11 +238,11 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     throw new RuntimeException(e);
                 }
             }
-        }.start();
+        }
+        .start();
         final AtomicInteger counter = new AtomicInteger(0);
         final long waitStart = System.currentTimeMillis();
         con.watch(new WatchCommand(con).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
-
 
             @Override
             public void incomingData(Map<String, Object> data, long dur) {
@@ -266,7 +262,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
     }
 
-
     @Test
     public void testMapReduce() throws Exception {
         var con = getConnection();
@@ -278,20 +273,20 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-                .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
         MapReduceCommand settings = new MapReduceCommand(con)
-                .setColl(coll)
-                .setDb(db)
-                .setOutConfig(Doc.of("inline", 1))
-                .setMap("function(){ if (this.counter%2==0) emit(this.counter,1); }")
-                .setReduce("function(key,values){ return values; }")
-                .setFinalize("function(key, reducedValue){ return reducedValue;}")
-                .setSort(Doc.of("counter", 1))
-                .setScope(Doc.of("myVar", 1));
+         .setColl(coll)
+         .setDb(db)
+         .setOutConfig(Doc.of("inline", 1))
+         .setMap("function(){ if (this.counter%2==0) emit(this.counter,1); }")
+         .setReduce("function(key,values){ return values; }")
+         .setFinalize("function(key, reducedValue){ return reducedValue;}")
+         .setSort(Doc.of("counter", 1))
+         .setScope(Doc.of("myVar", 1));
         List<Map<String, Object>> res = settings.execute();
-        res.sort((o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
+        res.sort((o1, o2)->((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
         log.info("Got results");
         assertEquals(50, res.size());
         assertTrue(res.get(0).containsKey("_id"));
@@ -299,7 +294,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         assertEquals(1.0, ((List) res.get(14).get("value")).get(0));
         con.close();
     }
-
 
     @Test
     public void testRunCommand() throws Exception {
@@ -312,17 +306,16 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-                .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
-        var msg = new HelloCommand(con).setHelloOk(true).executeAsync();
+        var msg = new HelloCommand(con).setHelloOk(true).setIncludeClient(false).executeAsync();
         var result = con.readSingleAnswer(msg);
         assertTrue(result != null);
         assertEquals(result.get("me"), result.get("primary"));
         assertEquals(false, result.get("secondary"));
         con.close();
     }
-
 
     @Test
     public void iteratorTest() throws Exception {
@@ -335,7 +328,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-                .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocs(testList);
         cmd.execute();
 
         FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);
@@ -361,7 +354,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
     }
 
-
     @Test
     public void testHandshake() throws Exception {
         Socket s = new Socket("localhost", 27017);
@@ -371,11 +363,11 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         OpQuery q = new OpQuery();
         q.setMessageId(100);
         q.setDoc(Doc.of("ismaster", true, "helloOk", true, "client",
-                Doc.of("driver", Doc.of("name", "morphium", "version", 1), "os", Doc.of("type", "darvin", "name", "macos", "architecture", "arm64"),
-                        "platform", "Java", "version", "0.0.1", "application", Doc.of("name", "Morphium-Test")
-                ),
-                "compression", Arrays.asList("none"),
-                "loadBalanced", false));
+         Doc.of("driver", Doc.of("name", "morphium", "version", 1), "os", Doc.of("type", "darvin", "name", "macos", "architecture", "arm64"),
+         "platform", "Java", "version", "0.0.1", "application", Doc.of("name", "Morphium-Test")
+         ),
+         "compression", Arrays.asList("none"),
+         "loadBalanced", false));
         q.setColl("admin.$cmd");
         q.setLimit(-1);
         q.setDb(null);
@@ -388,7 +380,6 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         log.info(Utils.toJsonString(reply.getDocuments().get(0)));
     }
 
-
     @Test
     public void testAuthSHA() throws Exception {
         var con = getConnection();
@@ -399,13 +390,11 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         insert.setColl("testcoll");
         insert.setOrdered(true);
 
-
         var result = insert.execute();
         log.info("InsertResult: " + Utils.toJsonString(result));
 
         con.close();
     }
-
 
     @Test
     public void testmanualAuthSHA1() throws Exception {
@@ -475,6 +464,5 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         log.info("Insert: " + Utils.toJsonString(reply));
 
     }
-
 
 }
