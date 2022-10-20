@@ -181,7 +181,6 @@ public class QueryHelper {
                                         contains = true;
                                         break;
                                     }
-                                    ;
                                 }
                                 if (o != null && q.get(k) != null && o.equals(q.get(k))) {
                                     contains = true;
