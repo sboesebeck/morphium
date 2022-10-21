@@ -1,25 +1,24 @@
 package de.caluga.test.morphium.driver.command;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.lang.reflect.Modifier;
+
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import de.caluga.morphium.driver.wire.SingleMongoConnection;
-import de.caluga.test.DriverMock;
 import de.caluga.test.ConnectionMock;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.lang.reflect.Modifier;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class CommandAsMapTest {
     private Logger log = LoggerFactory.getLogger(CommandAsMapTest.class);
