@@ -13,6 +13,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -26,9 +27,9 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         UncachedObject uc = new UncachedObject("strVal", 12);
         uc.setDval(12.0);
         uc.setMorphiumId(new MorphiumId());
-        uc.setBinaryData(new byte[]{1, 2, 3, 4});
-        uc.setLongData(new long[]{12L, 10202L});
-        uc.setFloatData(new float[]{12.0f, 122f});
+        uc.setBinaryData(new byte[] {1, 2, 3, 4});
+        uc.setLongData(new long[] {12L, 10202L});
+        uc.setFloatData(new float[] {12.0f, 122f});
 
         var query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).type(MongoType.OBJECT_ID).toQueryObject();
         assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
@@ -54,7 +55,6 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         query = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).type(MongoType.NULL).toQueryObject();
         assertTrue(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(uc), null));
 
-
     }
     @Test
     public void geoSearchWithinBoxTest() throws Exception {
@@ -70,7 +70,6 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
         query = morphium.createQueryFor(GeoSearchTests.Place.class).f(GeoSearchTests.Place.Fields.position).geoWithinBox(110.0, 90.0, 130.0, 110.0).toQueryObject();
         assertFalse(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(p), null));
-
 
     }
 
@@ -158,15 +157,13 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         Map<String, Object> doc = UtilsMap.of("counter", (Object) 12, "str_value", "hello");
 
         Map<String, Object> query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
-                .f("str_value").eq("not hello").toQueryObject();
+         .f("str_value").eq("not hello").toQueryObject();
         assertFalse(QueryHelper.matchesQuery(query, doc, null));
 
-
         query = morphium.createQueryFor(UncachedObject.class).f("counter").eq(12)
-                .f("strValue").eq("hello").toQueryObject();
+         .f("strValue").eq("hello").toQueryObject();
 
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
-
 
     }
 
@@ -191,6 +188,13 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 //        assert (QueryHelper.matchesQuery(query,doc));
 
     }
-
-
+    @Test
+    public void geoNearTests() throws Exception {
+        GeoSearchTests.Place p = new GeoSearchTests.Place();
+        p.setPosition(Arrays.asList(-73.9667,40.78));
+        var ret=QueryHelper.matchesQuery(Doc.of("position",Doc.of("$near",Doc.of("$geometry",Doc.of("type","Point","coordinates",Arrays.asList(-73.9966,40.77)))),
+          "$minDistance",1000,"$maxDistance",2000),
+          morphium.getMapper().serialize(p), null);
+        assertTrue(ret);
+    }
 }

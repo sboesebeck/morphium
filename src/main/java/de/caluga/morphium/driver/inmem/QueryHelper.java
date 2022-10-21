@@ -412,9 +412,70 @@ public class QueryHelper {
                         return fnd;
                     case "$jsonSchema":
                     case "$geoIntersects":
-                    case "$near":
-                    case "$nearSphere":
                         break;
+                    case "$nearSphere":
+                    case "$near":
+                        if (!(toCheck.get(key) instanceof List)) {
+                            log.warn("No proper coordinates found");
+                            return false;
+                        }
+                        if ((q.get(k) instanceof Map)) {
+                            Map qmap=((Map)q.get(key));
+                            Map geo=(Map)qmap.get("$geometry");
+                            if (geo.containsKey("type")) {
+                                if (!geo.get("type").equals("Point")) {
+                                    log.warn("$near needs a point as parameter");
+                                    return false;
+                                }
+                                List<Double> coord=(List<Double>) geo.get("coordinates");
+                                if (coord==null || coord.size()!=2) {
+                                    log.warn("Coordinates for point wrong!");
+                                    return false;
+                                }
+                                double lat1=(Double)coord.get(1);
+                                double lon1=(Double)coord.get(0);
+                                double lat2=((List<Double>) toCheck.get(k)).get(1);
+                                double lon2=((List<Double>) toCheck.get(k)).get(0);
+
+                                // The math module contains a function
+                                // named toRadians which converts from
+                                // degrees to radians.
+                                lon1 = Math.toRadians(lon1);
+                                lon2 = Math.toRadians(lon2);
+                                lat1 = Math.toRadians(lat1);
+                                lat2 = Math.toRadians(lat2);
+
+                                // Haversine toRadiansent,eol,start
+                                double dlon = lon2 - lon1;
+                                double dlat = lat2 - lat1;
+                                double a = Math.pow(Math.sin(dlat / 2), 2)
+                                 + Math.cos(lat1) * Math.cos(lat2)
+                                 * Math.pow(Math.sin(dlon / 2),2);
+
+                                double c = 2 * Math.asin(Math.sqrt(a));
+
+                                // Radius of earth
+                                double r=6371;
+                                double distance = c*r;
+                                
+                                if (qmap.containsKey("$minDistance")&& distance < (Double)qmap.get("$minDistance")){
+                                    return false;
+                                }
+                                if (qmap.containsKey("$maxDistance") && distance > (Double)qmap.get("$maxDistance")){
+                                    return false;
+                                }
+                                if (!qmap.containsKey("$maxDistance") && !qmap.containsKey("$minDistance")){
+                                    log.warn("No distance given?");
+                                    return false;
+                                }
+                                return true;
+                            }
+                            return false;
+                        } else {
+                            log.error("Could not parse near query");
+                            return false;
+                        }
+
                     case "$geoWithin":
                         if (!(toCheck.get(key) instanceof List)) {
                             log.warn("No proper coordinates found");

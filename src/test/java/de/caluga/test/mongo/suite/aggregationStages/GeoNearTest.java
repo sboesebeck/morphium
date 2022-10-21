@@ -19,6 +19,7 @@ public class GeoNearTest extends MorphiumTestBase {
     public void testGeoNear() throws Exception {
         morphium.dropCollection(Place.class);
         Thread.sleep(100);
+        morphium.ensureIndicesFor(Place.class);
         morphium.store(new Place("Polo grounds", new Point(-73.9375, 40.8303), new Double[]{-73.9375, 40.8303}, "Stadiums"));
         morphium.store(new Place("Central park", new Point(-73.97, 40.77), new Double[]{-73.97, 40.77}, "Parks"));
         morphium.store(new Place("La Guardia", new Point(-73.88, 40.78), new Double[]{-73.88, 40.78}, "Airport"));

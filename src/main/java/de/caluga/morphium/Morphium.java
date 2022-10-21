@@ -146,53 +146,43 @@ public class Morphium implements AutoCloseable {
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
 
-        BlockingQueue<Runnable> queue =
-                new LinkedBlockingQueue<Runnable>() {
-                    private static final long serialVersionUID = -6903933921423432194L;
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            private static final long serialVersionUID = -6903933921423432194L;
 
-                    @Override
-                    public boolean offer(Runnable e) {
-                        int poolSize = asyncOperationsThreadPool.getPoolSize();
-                        int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
-                        if (poolSize >= maximumPoolSize
-                                || poolSize > asyncOperationsThreadPool.getActiveCount()) {
-                            return super.offer(e);
-                        } else {
-                            return false;
-                        }
-                    }
-                };
-        asyncOperationsThreadPool =
-                new ThreadPoolExecutor(
-                        getConfig().getThreadPoolAsyncOpCoreSize(),
-                        getConfig().getThreadPoolAsyncOpMaxSize(),
-                        getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-                        TimeUnit.MILLISECONDS,
-                        queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler(
-                (r, executor) -> {
-                    try {
-                        /*
-                         * This does the actual put into the queue. Once the max threads
-                         * have been reached, the tasks will then queue up.
-                         */
-                        executor.getQueue().put(r);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-        asyncOperationsThreadPool.setThreadFactory(
-                new ThreadFactory() {
-                    private final AtomicInteger num = new AtomicInteger(1);
+            @Override
+            public boolean offer(Runnable e) {
+                int poolSize = asyncOperationsThreadPool.getPoolSize();
+                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
+                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
+                    return super.offer(e);
+                } else {
+                    return false;
+                }
+            }
+        };
+        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor) -> {
+            try {
+                /*
+                 * This does the actual put into the queue. Once the max threads
+                 * have been reached, the tasks will then queue up.
+                 */
+                executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
+            private final AtomicInteger num = new AtomicInteger(1);
 
-                    @Override
-                    public Thread newThread(Runnable r) {
-                        Thread ret = new Thread(r, "asyncOp " + num);
-                        num.set(num.get() + 1);
-                        ret.setDaemon(true);
-                        return ret;
-                    }
-                });
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "asyncOp " + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
 
         initializeAndConnect();
     }
@@ -211,26 +201,21 @@ public class Morphium implements AutoCloseable {
         }
 
         if (morphiumDriver == null) {
-            Runtime.getRuntime()
-                    .addShutdownHook(
-                            new Thread() {
-                                @Override
-                                public void run() {
-                                    setName("shutdown_hook");
-                                    try {
-                                        close();
-                                    } catch (Exception e) {
-                                        // swallow
-                                    }
-                                }
-                            });
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    setName("shutdown_hook");
+                    try {
+                        close();
+                    } catch (Exception e) {
+                        // swallow
+                    }
+                }
+            });
 
-            try (ScanResult scanResult =
-                    new ClassGraph()
-                            .enableAllInfo() // Scan classes, methods, fields, annotations
-                            .scan()) {
-                ClassInfoList entities =
-                        scanResult.getClassesImplementing(MorphiumDriver.class.getName());
+            try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
+                    .scan()) {
+                ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
                 // entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
                 log.info("Found " + entities.size() + " drivers in classpath");
                 if (config.getDriverName() == null) {
@@ -243,16 +228,11 @@ public class Morphium implements AutoCloseable {
                             if (Modifier.isAbstract(c.getModifiers())) continue;
                             var flds = annotationHelper.getAllFields(c);
                             for (var f : flds) {
-                                if (Modifier.isStatic(f.getModifiers())
-                                        && Modifier.isFinal(f.getModifiers())
-                                        && Modifier.isPublic(f.getModifiers())
-                                        && f.getName().equals("driverName")) {
+                                if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
                                     String dn = (String) f.get(c);
                                     log.info("Found driverName: " + dn);
                                     if (dn.equals(config.getDriverName())) {
-                                        morphiumDriver =
-                                                (MorphiumDriver)
-                                                        c.getDeclaredConstructor().newInstance();
+                                        morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
                                     }
                                     break;
                                 }
@@ -309,72 +289,37 @@ public class Morphium implements AutoCloseable {
                 throw new RuntimeException(e);
             }
             try {
-                encryptionKeyProvider =
-                        config.getEncryptionKeyProviderClass()
-                                .getDeclaredConstructor()
-                                .newInstance();
+                encryptionKeyProvider = config.getEncryptionKeyProviderClass().getDeclaredConstructor().newInstance();
                 if (config.getCredentialsEncryptionKey() != null) {
-                    encryptionKeyProvider.setEncryptionKey(
-                            CREDENTIAL_ENCRYPT_KEY_NAME,
-                            config.getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+                    encryptionKeyProvider.setEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, config.getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
                 }
                 if (config.getCredentialsDecryptionKey() != null) {
-                    encryptionKeyProvider.setDecryptionKey(
-                            CREDENTIAL_ENCRYPT_KEY_NAME,
-                            config.getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+                    encryptionKeyProvider.setDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME, config.getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
             try {
-                valueEncryptionProvider =
-                        config.getValueEncryptionProviderClass()
-                                .getDeclaredConstructor()
-                                .newInstance();
+                valueEncryptionProvider = config.getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
 
             if (config.getMongoLogin() != null && config.getMongoPassword() != null) {
                 if (config.getCredentialsEncrypted() != null && config.getCredentialsEncrypted()) {
-                    var key =
-                            getEncryptionKeyProvider()
-                                    .getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
-                    valueEncryptionProvider.setEncryptionKey(
-                            getEncryptionKeyProvider()
-                                    .getEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
-                    valueEncryptionProvider.setDecryptionKey(
-                            getEncryptionKeyProvider()
-                                    .getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+                    var key = getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME);
+                    valueEncryptionProvider.setEncryptionKey(getEncryptionKeyProvider().getEncryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
+                    valueEncryptionProvider.setDecryptionKey(getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
                     if (key == null) {
                         log.error("Cannot decrypt - no key for mongodb_crendentials set!");
                     }
                     try {
 
-                        var user =
-                                new String(
-                                        getValueEncrpytionProvider()
-                                                .decrypt(
-                                                        Base64.getDecoder()
-                                                                .decode(config.getMongoLogin())));
-                        var passwd =
-                                new String(
-                                        getValueEncrpytionProvider()
-                                                .decrypt(
-                                                        Base64.getDecoder()
-                                                                .decode(
-                                                                        config
-                                                                                .getMongoPassword())));
+                        var user = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoLogin())));
+                        var passwd = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoPassword())));
                         var authdb = "admin";
                         if (config.getMongoAuthDb() != null) {
-                            authdb =
-                                    new String(
-                                            getValueEncrpytionProvider()
-                                                    .decrypt(
-                                                            Base64.getDecoder()
-                                                                    .decode(
-                                                                            config
-                                                                                    .getMongoAuthDb())));
+                            authdb = new String(getValueEncrpytionProvider().decrypt(Base64.getDecoder().decode(config.getMongoAuthDb())));
                         }
                         morphiumDriver.setCredentials(authdb, user, passwd);
                     } catch (Exception e) {
@@ -382,10 +327,7 @@ public class Morphium implements AutoCloseable {
                     }
 
                 } else {
-                    morphiumDriver.setCredentials(
-                            config.getMongoAuthDb(),
-                            config.getMongoLogin(),
-                            config.getMongoPassword());
+                    morphiumDriver.setCredentials(config.getMongoAuthDb(), config.getMongoLogin(), config.getMongoPassword());
                 }
             }
             //            if (config.getMongoAdminUser() != null && config.getMongoAdminPwd() !=
@@ -453,20 +395,13 @@ public class Morphium implements AutoCloseable {
             for (Class cls : capped.keySet()) {
                 switch (config.getCappedCheck()) {
                     case WARN_ON_STARTUP:
-                        log.warn(
-                                "Collection for entity "
-                                        + cls.getName()
-                                        + " is not capped although configured!");
+                        log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
                         break;
                     case CONVERT_EXISTING_ON_STARTUP:
                         try {
                             if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
                                 log.info("Existing collection is not capped - converting");
-                                convertToCapped(
-                                        cls,
-                                        capped.get(cls).get("size"),
-                                        capped.get(cls).get("max"),
-                                        null);
+                                convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
                             }
                         } catch (MorphiumDriverException e) {
                             throw new RuntimeException(e);
@@ -474,17 +409,12 @@ public class Morphium implements AutoCloseable {
                         break;
                     case CREATE_ON_STARTUP:
                         try {
-                            if (!morphiumDriver.exists(
-                                    getDatabase(), getMapper().getCollectionName(cls))) {
+                            if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
                                 MongoConnection primaryConnection = null;
                                 try {
                                     primaryConnection = morphiumDriver.getPrimaryConnection(null);
                                     CreateCommand cmd = new CreateCommand(primaryConnection);
-                                    cmd.setDb(getDatabase())
-                                            .setColl(getMapper().getCollectionName(cls))
-                                            .setCapped(true)
-                                            .setMax(capped.get(cls).get("max"))
-                                            .setSize(capped.get(cls).get("size"));
+                                    cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
 
                                     var ret = cmd.execute();
                                     // TODO: check for errors
@@ -502,32 +432,21 @@ public class Morphium implements AutoCloseable {
                     case NO_CHECK:
                         break;
                     default:
-                        throw new IllegalArgumentException(
-                                "Unknow value for cappedcheck " + config.getCappedCheck());
+                        throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
                 }
             }
         }
 
-        if (!config.getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK)
-                && config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
-            Map<Class<?>, List<IndexDescription>> missing =
-                    checkIndices(
-                            classInfo ->
-                                    !classInfo.getPackageName().startsWith("de.caluga.morphium"));
+        if (!config.getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
+            Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo -> !classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
                         try {
-                            if (config.getIndexCheck()
-                                    .equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
-                                log.warn(
-                                        "Missing indices for entity "
-                                                + cls.getName()
-                                                + ": "
-                                                + missing.get(cls).size());
+                            if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
+                                log.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
 
-                            } else if (config.getIndexCheck()
-                                    .equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
+                            } else if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
                                 log.warn("Creating missing indices for entity " + cls.getName());
                                 //noinspection unchecked
                                 ensureIndicesFor(cls);
@@ -539,9 +458,7 @@ public class Morphium implements AutoCloseable {
                 }
             }
         }
-        getCache()
-                .setValidCacheTime(
-                        CollectionInfo.class, 15000); // TODO: settings for collectionCache
+        getCache().setValidCacheTime(CollectionInfo.class, 15000); // TODO: settings for collectionCache
         // logger.info("Initialization successful...");
     }
 
@@ -575,8 +492,7 @@ public class Morphium implements AutoCloseable {
     public void enableValidation() {
         setValidationSupport();
         if (lst == null) {
-            throw new RuntimeException(
-                    "Validation not possible - javax.validation implementation not in Classpath?");
+            throw new RuntimeException("Validation not possible - javax.validation implementation not in Classpath?");
         }
     }
 
@@ -684,8 +600,7 @@ public class Morphium implements AutoCloseable {
             //noinspection unchecked
             flds = annotationHelper.getFields(cls);
         }
-        @SuppressWarnings("unchecked")
-        Query<T> q = createQueryFor((Class<T>) cls);
+        @SuppressWarnings("unchecked") Query<T> q = createQueryFor((Class<T>) cls);
         for (String f : flds) {
             try {
                 q.f(f).eq(annotationHelper.getValue(template, f));
@@ -701,8 +616,8 @@ public class Morphium implements AutoCloseable {
      * specified, all NON Null-Fields are taken into account if specified, field might also be null
      *
      * @param template - what to search for
-     * @param fields - fields to use for searching
-     * @param <T> - type
+     * @param fields   - fields to use for searching
+     * @param <T>      - type
      * @return result of search
      */
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
@@ -721,8 +636,7 @@ public class Morphium implements AutoCloseable {
         unset(toSet, field, (AsyncOperationCallback) null);
     }
 
-    public <T> void unset(
-            final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, field.name(), callback);
     }
 
@@ -731,24 +645,15 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public <T> void unset(
-            final T toSet,
-            String collection,
-            final Enum<?> field,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, String collection, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, collection, field.name(), callback);
     }
 
-    public <T> void unset(
-            final T toSet, final String field, final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
 
-    public <T> void unset(
-            final T toSet,
-            String collection,
-            final String field,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -777,8 +682,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings({"unused", "UnusedParameters"})
-    public <T> void unsetQ(
-            Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
+    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
         getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
@@ -786,8 +690,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
-    public <T> void unsetQ(
-            Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
+    public <T> void unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
         getWriterForClass(q.getType()).unset(q, cb, multiple, field);
     }
 
@@ -807,20 +710,17 @@ public class Morphium implements AutoCloseable {
      * converts the given type to capped collection in Mongo, even if no @capped is defined!
      * <b>Warning:</b> depending on size this might take some time!
      *
-     * @param c entity type
+     * @param c    entity type
      * @param size size of capped collection
-     * @param cb callback
-     * @param <T> type
+     * @param cb   callback
+     * @param <T>  type
      */
-    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb)
-            throws MorphiumDriverException {
+    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
         convertToCapped(getMapper().getCollectionName(c), size, max, cb);
     }
 
     @SuppressWarnings("UnusedParameters")
-    public <T> void convertToCapped(
-            String collectionName, int size, int max, AsyncOperationCallback<T> cb)
-            throws MorphiumDriverException {
+    public <T> void convertToCapped(String collectionName, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
 
         if (!exists(getDatabase(), collectionName)) return;
         MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(null);
@@ -830,13 +730,7 @@ public class Morphium implements AutoCloseable {
             log.warn("Creating new collection with index settings");
             String tmpColl = collectionName + "_tmp";
 
-            CreateCommand createCommand =
-                    new CreateCommand(primaryConnection)
-                            .setCapped(true)
-                            .setColl(tmpColl)
-                            .setDb(getDatabase())
-                            .setMax(max)
-                            .setSize(size);
+            CreateCommand createCommand = new CreateCommand(primaryConnection).setCapped(true).setColl(tmpColl).setDb(getDatabase()).setMax(max).setSize(size);
             createCommand.execute();
             log.info("temp-collection created - creating indexes");
             var idx = getIndexesFromMongo(collectionName);
@@ -844,12 +738,7 @@ public class Morphium implements AutoCloseable {
             for (IndexDescription i : idx) idxMaps.add(i.asMap());
             if (idx != null && !idx.isEmpty()) {
                 try {
-                    CreateIndexesCommand idxCmd =
-                            new CreateIndexesCommand(primaryConnection)
-                                    .setDb(getDatabase())
-                                    .setColl(tmpColl)
-                                    .setIndexes(idxMaps)
-                                    .setComment("created by morphium");
+                    CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection).setDb(getDatabase()).setColl(tmpColl).setIndexes(idxMaps).setComment("created by morphium");
                     idxCmd.execute();
                 } catch (Exception e) {
                     // swallow
@@ -868,10 +757,7 @@ public class Morphium implements AutoCloseable {
             }
             // TODO: check for error!
             log.info("dropping old collection");
-            DropMongoCommand dropCmd =
-                    new DropMongoCommand(primaryConnection)
-                            .setColl(collectionName)
-                            .setDb(getDatabase());
+            DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection).setColl(collectionName).setDb(getDatabase());
             dropCmd.execute();
             log.info("Renaming tmp collection");
             RenameCollectionCommand ren = new RenameCollectionCommand(primaryConnection);
@@ -920,48 +806,40 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        Runnable r =
-                () -> {
-                    String coll = getMapper().getCollectionName(c);
-                    //                DBCollection collection = null;
+        Runnable r = () -> {
+            String coll = getMapper().getCollectionName(c);
+            //                DBCollection collection = null;
 
-                    try {
-                        boolean exists = morphiumDriver.exists(config.getDatabase(), coll);
-                        if (exists && morphiumDriver.isCapped(config.getDatabase(), coll)) {
-                            return;
-                        }
-                        if (config.isAutoIndexAndCappedCreationOnWrite()) { // && !exists) {
-                            if (log.isDebugEnabled()) {
-                                log.debug(
-                                        "Collection does not exist - ensuring indices / capped"
-                                                + " status");
-                            }
-                            MongoConnection primaryConnection =
-                                    morphiumDriver.getPrimaryConnection(getWriteConcernForClass(c));
-                            var create = new CreateCommand(primaryConnection);
-
-                            Capped capped =
-                                    annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                            if (capped != null) {
-                                create.setSize(capped.maxSize())
-                                        .setCapped(true)
-                                        .setMax(capped.maxEntries());
-                            }
-                            // cmd.put("autoIndexId",
-                            // (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
-                            create.execute();
-                            primaryConnection.release();
-                        } else {
-                            Capped capped =
-                                    annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
-                            if (capped != null) {
-                                convertToCapped(c, capped.maxSize(), capped.maxEntries(), null);
-                            }
-                        }
-                    } catch (Throwable t) {
-                        throw new RuntimeException(t);
+            try {
+                boolean exists = morphiumDriver.exists(config.getDatabase(), coll);
+                if (exists && morphiumDriver.isCapped(config.getDatabase(), coll)) {
+                    return;
+                }
+                if (config.isAutoIndexAndCappedCreationOnWrite()) { // && !exists) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Collection does not exist - ensuring indices / capped" + " status");
                     }
-                };
+                    MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(getWriteConcernForClass(c));
+                    var create = new CreateCommand(primaryConnection);
+
+                    Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                    if (capped != null) {
+                        create.setSize(capped.maxSize()).setCapped(true).setMax(capped.maxEntries());
+                    }
+                    // cmd.put("autoIndexId",
+                    // (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
+                    create.execute();
+                    primaryConnection.release();
+                } else {
+                    Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
+                    if (capped != null) {
+                        convertToCapped(c, capped.maxSize(), capped.maxEntries(), null);
+                    }
+                }
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
+        };
 
         if (callback == null) {
             r.run();
@@ -974,8 +852,7 @@ public class Morphium implements AutoCloseable {
     public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
             Map<String, Object> ret = new HashMap<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
+            @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
             for (Object o : lst) {
                 if (o instanceof Map) {
                     //noinspection unchecked
@@ -994,8 +871,7 @@ public class Morphium implements AutoCloseable {
         set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void set(
-            Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
@@ -1005,16 +881,14 @@ public class Morphium implements AutoCloseable {
         set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void set(
-            Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
         getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
     @SuppressWarnings("unused")
-    public void setEnum(
-            Query<?> query, Map<Enum, Object> values, boolean upsert, boolean multiple) {
+    public void setEnum(Query<?> query, Map<Enum, Object> values, boolean upsert, boolean multiple) {
         HashMap<String, Object> toSet = new HashMap<>();
         for (Map.Entry<Enum, Object> est : values.entrySet()) {
             // noinspection SuspiciousMethodCalls
@@ -1041,20 +915,17 @@ public class Morphium implements AutoCloseable {
         pull(query, field, value, false, true);
     }
 
-    public void push(
-            Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
+    public void push(Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
         push(query, field.name(), value, upsert, multiple);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pull(
-            Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
+    public void pull(Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pushAll(
-            Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
+    public void pushAll(Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
         pushAll(query, field.name(), value, upsert, multiple);
     }
 
@@ -1081,10 +952,7 @@ public class Morphium implements AutoCloseable {
                     arr = Array.newInstance(((Class) fld.getGenericType()).getComponentType(), 1);
                     Array.set(arr, 0, value);
                 } else {
-                    arr =
-                            Array.newInstance(
-                                    ((Class) fld.getGenericType()).getComponentType(),
-                                    Array.getLength(a) + 1);
+                    arr = Array.newInstance(((Class) fld.getGenericType()).getComponentType(), Array.getLength(a) + 1);
                     for (int i = 0; i < Array.getLength(a); i++) {
                         Array.set(arr, i, Array.get(a, i));
                     }
@@ -1115,8 +983,7 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public void push(
-            Object entity, String collection, Enum<?> field, Object value, boolean upsert) {
+    public void push(Object entity, String collection, Enum<?> field, Object value, boolean upsert) {
         push(entity, collection, field.name(), value, upsert);
     }
 
@@ -1125,181 +992,94 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pullAll(
-            Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
+    public void pullAll(Query<?> query, Enum<?> field, List<Object> value, boolean upsert, boolean multiple) {
         pull(query, field.name(), value, upsert, multiple);
     }
 
-    public <T> void push(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple) {
+    public <T> void push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
         push(query, field, value, upsert, multiple, null);
     }
 
     /**
      * asynchronous call to callback
      *
-     * @param query - the query
-     * @param field - field to push values to
-     * @param value - value to push
-     * @param upsert - insert object, if it does not exist
+     * @param query    - the query
+     * @param field    - field to push values to
+     * @param value    - value to push
+     * @param upsert   - insert object, if it does not exist
      * @param multiple - more than one
      * @param callback - will be called, when operation succeeds - synchronous call, if null
-     * @param <T> - the type
+     * @param <T>      - the type
      */
     @SuppressWarnings("UnusedParameters")
-    public <T> void push(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
-        getWriterForClass(query.getType())
-                .pushPull(
-                        MorphiumStorageListener.UpdateTypes.PUSH,
-                        query,
-                        field,
-                        value,
-                        upsert,
-                        multiple,
-                        null);
+        getWriterForClass(query.getType()).pushPull(MorphiumStorageListener.UpdateTypes.PUSH, query, field, value, upsert, multiple, null);
     }
 
     public <T> void addToSet(final Query<T> query, final String field, final Object value) {
         addToSet(query, field, value, false, false, null);
     }
 
-    public <T> void addToSet(
-            final Query<T> query, final String field, final Object value, final boolean multiple) {
+    public <T> void addToSet(final Query<T> query, final String field, final Object value, final boolean multiple) {
         addToSet(query, field, value, false, multiple, null);
     }
 
-    public <T> void addToSet(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple) {
+    public <T> void addToSet(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
         addToSet(query, field, value, upsert, multiple, null);
     }
 
-    public <T> void addToSet(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void addToSet(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new IllegalArgumentException("Cannot update null");
         }
-        getWriterForClass(query.getType())
-                .pushPull(UpdateTypes.ADD_TO_SET, query, field, value, upsert, multiple, callback);
+        getWriterForClass(query.getType()).pushPull(UpdateTypes.ADD_TO_SET, query, field, value, upsert, multiple, callback);
     }
 
-    public <T> void pull(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple) {
+    public <T> void pull(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
         pull(query, field, value, upsert, multiple, null);
     }
 
     /**
      * Asynchronous call to pulll
      *
-     * @param query - query
-     * @param field - field to pull
-     * @param value - value to pull from field
-     * @param upsert - insert document unless it exists
+     * @param query    - query
+     * @param field    - field to pull
+     * @param value    - value to pull from field
+     * @param upsert   - insert document unless it exists
      * @param multiple - more than one
      * @param callback -callback to call when operation succeeds - synchronous call, if null
-     * @param <T> - type
+     * @param <T>      - type
      */
-    public <T> void pull(
-            final Query<T> query,
-            final String field,
-            final Object value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void pull(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
         MorphiumWriter wr = getWriterForClass(query.getType());
-        wr.pushPull(
-                MorphiumStorageListener.UpdateTypes.PULL,
-                query,
-                field,
-                value,
-                upsert,
-                multiple,
-                callback);
+        wr.pushPull(MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
-    public <T> void pull(
-            final T entity,
-            final String field,
-            final Expr value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void pull(final T entity, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (entity == null) throw new IllegalArgumentException("Null Entity cannot be pulled...");
         //noinspection unchecked
-        pull(
-                (Query<T>) createQueryFor(entity.getClass()).f("_id").eq(getId(entity)),
-                field,
-                value,
-                upsert,
-                multiple,
-                callback);
+        pull((Query<T>) createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
     }
 
-    public <T> void pull(
-            final Query<T> query,
-            final String field,
-            final Expr value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void pull(final Query<T> query, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
         MorphiumWriter wr = getWriterForClass(query.getType());
-        wr.pushPull(
-                MorphiumStorageListener.UpdateTypes.PULL,
-                query,
-                field,
-                value,
-                upsert,
-                multiple,
-                callback);
+        wr.pushPull(MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
-    public void pushAll(
-            final Query<?> query,
-            final String field,
-            final List<?> value,
-            final boolean upsert,
-            final boolean multiple) {
+    public void pushAll(final Query<?> query, final String field, final List<?> value, final boolean upsert, final boolean multiple) {
         pushAll(query, field, value, upsert, multiple, null);
     }
 
-    public <T> void pushAll(
-            final Query<T> query,
-            final String field,
-            final List<?> value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void pushAll(final Query<T> query, final String field, final List<?> value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1307,27 +1087,15 @@ public class Morphium implements AutoCloseable {
         wr.pushPullAll(UpdateTypes.PUSH, query, field, value, upsert, multiple, callback);
     }
 
-    public <T> void addAllToSet(
-            final Query<T> query, final String field, final List<?> value, final boolean multiple) {
+    public <T> void addAllToSet(final Query<T> query, final String field, final List<?> value, final boolean multiple) {
         addAllToSet(query, field, value, false, multiple, null);
     }
 
-    public <T> void addAllToSet(
-            final Query<T> query,
-            final String field,
-            final List<?> value,
-            final boolean upsert,
-            final boolean multiple) {
+    public <T> void addAllToSet(final Query<T> query, final String field, final List<?> value, final boolean upsert, final boolean multiple) {
         addAllToSet(query, field, value, upsert, multiple, null);
     }
 
-    public <T> void addAllToSet(
-            final Query<T> query,
-            final String field,
-            final List<?> value,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback callback) {
+    public <T> void addAllToSet(final Query<T> query, final String field, final List<?> value, final boolean upsert, final boolean multiple, final AsyncOperationCallback callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1347,66 +1115,42 @@ public class Morphium implements AutoCloseable {
      * used to generate the object to create, unless it already exists. look at Mongodb-query
      * documentation as well
      *
-     * @param query - query to specify which objects should be set
-     * @param field - field to set
-     * @param val - value to set
-     * @param upsert - insert, if it does not exist (query needs to be simple!)
+     * @param query    - query to specify which objects should be set
+     * @param field    - field to set
+     * @param val      - value to set
+     * @param upsert   - insert, if it does not exist (query needs to be simple!)
      * @param multiple - update several documents, if false, only first hit will be updated
      */
     @SuppressWarnings("unused")
-    public <T> void set(
-            Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
         set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
-    public <T> void set(
-            Query<T> query,
-            Enum<?> field,
-            Object val,
-            boolean upsert,
-            boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         set(query, field.name(), val, upsert, multiple, callback);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void pullAll(
-            Query<?> query, String field, List<Object> value, boolean upsert, boolean multiple) {
+    public void pullAll(Query<?> query, String field, List<Object> value, boolean upsert, boolean multiple) {
         pull(query, field, value, upsert, multiple);
     }
 
-    public <T> void set(
-            Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
+    public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
         set(query, field, val, upsert, multiple, null);
     }
 
-    public <T> void set(
-            Query<T> query,
-            String field,
-            Object val,
-            boolean upsert,
-            boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
         set(query, map, upsert, multiple, callback);
     }
 
-    public void set(
-            final Query<?> query,
-            final Map<String, Object> map,
-            final boolean upsert,
-            final boolean multiple) {
+    public void set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
         set(query, map, upsert, multiple, null);
     }
 
-    public <T> void set(
-            final Query<T> query,
-            final Map<String, Object> map,
-            final boolean upsert,
-            final boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1422,13 +1166,11 @@ public class Morphium implements AutoCloseable {
      * @param multiple
      * @param <T>
      */
-    public <T> void currentDate(
-            final Query<?> query, String field, boolean upsert, boolean multiple) {
+    public <T> void currentDate(final Query<?> query, String field, boolean upsert, boolean multiple) {
         set(query, UtilsMap.of("$currentDate", UtilsMap.of(field, 1)), upsert, multiple);
     }
 
-    public <T> void currentDate(
-            final Query<?> query, Enum field, boolean upsert, boolean multiple) {
+    public <T> void currentDate(final Query<?> query, Enum field, boolean upsert, boolean multiple) {
         set(query, UtilsMap.of("$currentDate", UtilsMap.of(field.name(), 1)), upsert, multiple);
     }
 
@@ -1451,12 +1193,7 @@ public class Morphium implements AutoCloseable {
         set(toSet, collection, field.name(), value, false, null);
     }
 
-    public <T> void set(
-            final T toSet,
-            final Enum<?> field,
-            final Object value,
-            boolean upserts,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, final Enum<?> field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, upserts, callback);
     }
 
@@ -1468,17 +1205,11 @@ public class Morphium implements AutoCloseable {
         set(into, inCollection, false, values, null);
     }
 
-    public <T> void set(
-            final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
+    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
         set(toSet, collection, upserts, values, null);
     }
 
-    public <T> void set(
-            final T toSet,
-            String collection,
-            boolean upserts,
-            final Map<Enum, Object> values,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
         Map<String, Object> strValues = new HashMap<>();
         for (Map.Entry<Enum, Object> e : values.entrySet()) {
             strValues.put(e.getKey().name(), e.getValue());
@@ -1499,19 +1230,8 @@ public class Morphium implements AutoCloseable {
         set(toSet, field, value, null);
     }
 
-    public <T> void set(
-            final T toSet,
-            final String field,
-            final Object value,
-            boolean upserts,
-            AsyncOperationCallback<T> callback) {
-        set(
-                toSet,
-                getMapper().getCollectionName(toSet.getClass()),
-                field,
-                value,
-                upserts,
-                callback);
+    public <T> void set(final T toSet, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+        set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, callback);
     }
 
     public <T> void set(final Map<String, Object> values, final T into) {
@@ -1522,17 +1242,11 @@ public class Morphium implements AutoCloseable {
         set(toSet, collection, values, false, null);
     }
 
-    public <T> void set(
-            final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
+    public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
         set(toSet, collection, values, upserts, null);
     }
 
-    public <T> void set(
-            final T toSet,
-            String collection,
-            final Map<String, Object> values,
-            boolean upserts,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts, AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1557,39 +1271,22 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Object> getCollStats(Class<?> coll) throws MorphiumDriverException {
-        return getDriver()
-                .getCollStats(getConfig().getDatabase(), getMapper().getCollectionName(coll));
+        return getDriver().getCollStats(getConfig().getDatabase(), getMapper().getCollectionName(coll));
     }
 
     public Map<String, Object> getCollStats(String coll) throws MorphiumDriverException {
         return getDriver().getCollStats(getConfig().getDatabase(), coll);
     }
 
-    public <T> void set(
-            final T toSet,
-            String collection,
-            final Enum field,
-            final Object value,
-            boolean upserts,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
     }
 
-    public <T> void set(
-            final T toSet,
-            String collection,
-            final String field,
-            final Object value,
-            boolean upserts,
-            AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, UtilsMap.of(field, value), upserts, callback);
     }
 
-    public <T> void set(
-            final T toSet,
-            final String field,
-            final Object value,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
         set(toSet, field, value, false, callback);
     }
 
@@ -1602,8 +1299,7 @@ public class Morphium implements AutoCloseable {
     //
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void dec(
-            Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), -amount, upsert, multiple);
     }
 
@@ -1613,8 +1309,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public void dec(
-            Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+    public void dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         dec(query, field.name(), amount.doubleValue(), upsert, multiple);
     }
 
@@ -1718,8 +1413,7 @@ public class Morphium implements AutoCloseable {
         inc(query, field, amount, false, false);
     }
 
-    public void inc(
-            Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
@@ -1731,17 +1425,11 @@ public class Morphium implements AutoCloseable {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(
-            Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+    public void inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public <T> void inc(
-            final Map<Enum, Number> fieldsToInc,
-            final Query<T> matching,
-            final boolean upsert,
-            final boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Number> toUpdate = new HashMap<>();
         for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
             toUpdate.put(e.getKey().name(), e.getValue());
@@ -1749,24 +1437,14 @@ public class Morphium implements AutoCloseable {
         inc(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final Map<String, Number> toUpdate,
-            final boolean upsert,
-            final boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Map<Enum, Number> fieldsToInc,
-            final Query<T> matching,
-            final boolean upsert,
-            final boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Number> toUpdate = new HashMap<>();
         for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
             toUpdate.put(e.getKey().name(), e.getValue());
@@ -1774,237 +1452,115 @@ public class Morphium implements AutoCloseable {
         dec(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final Map<String, Number> toUpdate,
-            final boolean upsert,
-            final boolean multiple,
-            AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
-    public void inc(
-            final Query<?> query,
-            final String name,
-            final long amount,
-            final boolean upsert,
-            final boolean multiple) {
+    public void inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
         inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(
-            final Query<?> query,
-            final String name,
-            final int amount,
-            final boolean upsert,
-            final boolean multiple) {
+    public void inc(final Query<?> query, final String name, final int amount, final boolean upsert, final boolean multiple) {
         inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(
-            final Query<?> query,
-            final String name,
-            final double amount,
-            final boolean upsert,
-            final boolean multiple) {
+    public void inc(final Query<?> query, final String name, final double amount, final boolean upsert, final boolean multiple) {
         inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(
-            final Query<?> query,
-            final String name,
-            final Number amount,
-            final boolean upsert,
-            final boolean multiple) {
+    public void inc(final Query<?> query, final String name, final Number amount, final boolean upsert, final boolean multiple) {
         inc(query, name, amount, upsert, multiple, null);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final Enum<?> field,
-            final long amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final String name,
-            final long amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final Enum<?> field,
-            final int amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final String name,
-            final int amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final Enum<?> field,
-            final double amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final String name,
-            final double amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final Enum<?> field,
-            final Number amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(
-            final Query<T> query,
-            final String name,
-            final Number amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final Enum<?> field,
-            final long amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final String name,
-            final long amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final Enum<?> field,
-            final int amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final String name,
-            final int amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final Enum<?> field,
-            final double amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final String name,
-            final double amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
         getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final Enum<?> field,
-            final Number amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(
-            final Query<T> query,
-            final String name,
-            final Number amount,
-            final boolean upsert,
-            final boolean multiple,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
-        getWriterForClass(query.getType())
-                .inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
+        getWriterForClass(query.getType()).inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
     }
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
@@ -2018,7 +1574,9 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    /** decreasing a value of a given object calles <code>inc(toDec,field,-amount);</code> */
+    /**
+     * decreasing a value of a given object calles <code>inc(toDec,field,-amount);</code>
+     */
     @SuppressWarnings("unused")
     public void dec(Object toDec, Enum<?> field, double amount) {
         dec(toDec, field.name(), amount);
@@ -2087,94 +1645,47 @@ public class Morphium implements AutoCloseable {
         inc(toSet, field, i, null);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final Enum<?> field,
-            final double i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final String field,
-            final double i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final String field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final Enum<?> field,
-            final int i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final String field,
-            final int i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final String field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final Enum<?> field,
-            final long i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final String field,
-            final long i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final String field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final Enum<?> field,
-            final Number i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final Enum<?> field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            final String field,
-            final Number i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, final String field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, getMapper().getCollectionName(toSet.getClass()), field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            Enum<?> collection,
-            final Enum<?> field,
-            final double i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, Enum<?> collection, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final Enum<?> field,
-            final double i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final double i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final String field,
-            final double i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final String field, final double i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -2187,21 +1698,11 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final Enum<?> field,
-            final int i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final int i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final String field,
-            final int i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final String field, final int i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -2214,21 +1715,11 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final Enum<?> field,
-            final long i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final long i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final String field,
-            final long i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final String field, final long i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -2241,21 +1732,11 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final Enum<?> field,
-            final Number i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final Enum<?> field, final Number i, final AsyncOperationCallback<T> callback) {
         inc(toSet, collection, field.name(), i, callback);
     }
 
-    public <T> void inc(
-            final T toSet,
-            String collection,
-            final String field,
-            final Number i,
-            final AsyncOperationCallback<T> callback) {
+    public <T> void inc(final T toSet, String collection, final String field, final Number i, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -2272,8 +1753,7 @@ public class Morphium implements AutoCloseable {
         delete(lst, forceCollectionName, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void delete(
-            List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
+    public <T> void delete(List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();
         for (T o : lst) {
@@ -2315,7 +1795,7 @@ public class Morphium implements AutoCloseable {
      * updating an enty in DB without sending the whole entity only transfers the fields to be
      * changed / set
      *
-     * @param ent - entity to update
+     * @param ent    - entity to update
      * @param fields - fields to use
      */
     public void updateUsingFields(final Object ent, final String... fields) {
@@ -2326,32 +1806,22 @@ public class Morphium implements AutoCloseable {
         updateUsingFields(ent, null, fieldNames);
     }
 
-    public <T> void updateUsingFields(
-            final T ent, AsyncOperationCallback<T> callback, final Enum... fields) {
+    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final Enum... fields) {
         updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
     }
 
-    public <T> void updateUsingFields(
-            final T ent, AsyncOperationCallback<T> callback, final String... fields) {
+    public <T> void updateUsingFields(final T ent, AsyncOperationCallback<T> callback, final String... fields) {
         updateUsingFields(ent, getMapper().getCollectionName(ent.getClass()), callback, fields);
     }
 
-    public <T> void updateUsingFields(
-            final T ent,
-            String collection,
-            AsyncOperationCallback<T> callback,
-            final Enum... fields) {
+    public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final Enum... fields) {
         List<String> g = new ArrayList<>();
         for (Enum<?> e : fields) g.add(e.name());
-        updateUsingFields(ent, collection, callback, g.toArray(new String[] {}));
+        updateUsingFields(ent, collection, callback, g.toArray(new String[]{}));
     }
 
     @SuppressWarnings({"UnusedParameters", "CommentedOutCode"})
-    public <T> void updateUsingFields(
-            final T ent,
-            String collection,
-            AsyncOperationCallback<T> callback,
-            final String... fields) {
+    public <T> void updateUsingFields(final T ent, String collection, AsyncOperationCallback<T> callback, final String... fields) {
         if (ent == null) {
             return;
         }
@@ -2377,7 +1847,7 @@ public class Morphium implements AutoCloseable {
     /**
      * careful this actually changes the parameter o!
      *
-     * @param o - object to read
+     * @param o   - object to read
      * @param <T> - tpye of the object
      * @return - entity
      */
@@ -2399,15 +1869,8 @@ public class Morphium implements AutoCloseable {
 
         try {
 
-            MongoConnection con =
-                    morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
-            FindCommand settings =
-                    new FindCommand(con)
-                            .setDb(config.getDatabase())
-                            .setColl(collection)
-                            .setFilter(Doc.of(srch))
-                            .setBatchSize(1)
-                            .setLimit(1);
+            MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
+            FindCommand settings = new FindCommand(con).setDb(config.getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
 
             List<Map<String, Object>> found = settings.execute();
             con.release();
@@ -2419,8 +1882,7 @@ public class Morphium implements AutoCloseable {
                 if (fromDb == null) {
                     throw new RuntimeException("could not reread from db");
                 }
-                @SuppressWarnings("unchecked")
-                List<String> flds = annotationHelper.getFields(o.getClass());
+                @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(o.getClass());
                 for (String f : flds) {
                     Field fld = annotationHelper.getField(o.getClass(), f);
                     if (java.lang.reflect.Modifier.isStatic(fld.getModifiers())) {
@@ -2641,8 +2103,7 @@ public class Morphium implements AutoCloseable {
 
     public ReadPreference getReadPreferenceForClass(Class<?> cls) {
         if (cls == null) return config.getDefaultReadPreference();
-        DefaultReadPreference rp =
-                annotationHelper.getAnnotationFromHierarchy(cls, DefaultReadPreference.class);
+        DefaultReadPreference rp = annotationHelper.getAnnotationFromHierarchy(cls, DefaultReadPreference.class);
         if (rp == null) {
             return config.getDefaultReadPreference();
         }
@@ -2650,29 +2111,18 @@ public class Morphium implements AutoCloseable {
     }
 
     public MorphiumBulkContext createBulkRequestContext(Class<?> type, boolean ordered) {
-        return new MorphiumBulkContext(
-                getDriver()
-                        .createBulkContext(
-                                this,
-                                config.getDatabase(),
-                                getMapper().getCollectionName(type),
-                                ordered,
-                                getWriteConcernForClass(type)));
+        return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type)));
     }
 
     @SuppressWarnings("unused")
     public MorphiumBulkContext createBulkRequestContext(String collection, boolean ordered) {
-        return new MorphiumBulkContext(
-                getDriver()
-                        .createBulkContext(this, config.getDatabase(), collection, ordered, null));
+        return new MorphiumBulkContext(getDriver().createBulkContext(this, config.getDatabase(), collection, ordered, null));
     }
 
     @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
     public WriteConcern getWriteConcernForClass(Class<?> cls) {
 
-        WriteSafety safety =
-                annotationHelper.getAnnotationFromHierarchy(
-                        cls, WriteSafety.class); // cls.getAnnotation(WriteSafety.class);
+        WriteSafety safety = annotationHelper.getAnnotationFromHierarchy(cls, WriteSafety.class); // cls.getAnnotation(WriteSafety.class);
         if (safety == null) {
             return null;
         }
@@ -2685,9 +2135,7 @@ public class Morphium implements AutoCloseable {
             de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
             if (getConfig().isReplicaset() && s == null || s.getActiveNodes() == 0) {
-                log.warn(
-                        "ReplicaSet status is null or no node active! Assuming default write"
-                                + " concern");
+                log.warn("ReplicaSet status is null or no node active! Assuming default write" + " concern");
                 return null;
             }
             if (log.isDebugEnabled()) {
@@ -2725,20 +2173,13 @@ public class Morphium implements AutoCloseable {
                 }
                 timeout = maxReplLag * 3000;
                 if (maxReplLag > 10) {
-                    log.warn(
-                            "Warning: replication lag too high! timeout set to "
-                                    + timeout
-                                    + "ms - replication Lag is "
-                                    + maxReplLag
-                                    + "s - write should take place in Background!");
+                    log.warn("Warning: replication lag too high! timeout set to " + timeout + "ms - replication Lag is " + maxReplLag + "s - write should take place in Background!");
                 }
             }
             // Wait for all active slaves (-1 for the timeout bug)
             w = activeNodes;
             if (timeout > 0 && timeout < maxReplLag * 1000) {
-                log.warn(
-                        "Timeout is set smaller than replication lag - increasing to"
-                                + " replication_lag time * 3");
+                log.warn("Timeout is set smaller than replication lag - increasing to" + " replication_lag time * 3");
                 timeout = maxReplLag * 3000;
             }
         }
@@ -2756,8 +2197,7 @@ public class Morphium implements AutoCloseable {
         profilingListeners.remove(l);
     }
 
-    public void fireProfilingWriteEvent(
-            Class type, Object data, long time, boolean isNew, WriteAccessType wt) {
+    public void fireProfilingWriteEvent(Class type, Object data, long time, boolean isNew, WriteAccessType wt) {
         for (ProfilingListener l : profilingListeners) {
             try {
                 l.writeAccess(type, data, time, isNew, wt);
@@ -2790,7 +2230,7 @@ public class Morphium implements AutoCloseable {
      * issues a remove command - no lifecycle methods calles, no drop, keeps all indexec this way
      * But uses sepcified collection name instead deriving name from class
      *
-     * @param cls - class
+     * @param cls     - class
      * @param colName - CollectionName
      */
     public void clearCollection(Class<?> cls, String colName) {
@@ -2875,14 +2315,8 @@ public class Morphium implements AutoCloseable {
         MongoConnection con = null;
         try {
             con = getDriver().getPrimaryConnection(null);
-            DistinctMongoCommand settings =
-                    new DistinctMongoCommand(con)
-                            .setColl(q.getCollectionName())
-                            .setDb(config.getDatabase())
-                            .setQuery(Doc.of(q.toQueryObject()))
-                            .setKey(key);
-            if (q.getCollation() != null)
-                settings.setCollation(Doc.of(q.getCollation().toQueryObject()));
+            DistinctMongoCommand settings = new DistinctMongoCommand(con).setColl(q.getCollectionName()).setDb(config.getDatabase()).setQuery(Doc.of(q.toQueryObject())).setKey(key);
+            if (q.getCollation() != null) settings.setCollation(Doc.of(q.getCollation().toQueryObject()));
             return settings.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
@@ -2899,11 +2333,7 @@ public class Morphium implements AutoCloseable {
         MongoConnection con = null;
         try {
             con = morphiumDriver.getPrimaryConnection(null);
-            DistinctMongoCommand settings =
-                    new DistinctMongoCommand(con)
-                            .setColl(objectMapper.getCollectionName(cls))
-                            .setDb(config.getDatabase())
-                            .setKey(getARHelper().getMongoFieldName(cls, key));
+            DistinctMongoCommand settings = new DistinctMongoCommand(con).setColl(objectMapper.getCollectionName(cls)).setDb(config.getDatabase()).setKey(getARHelper().getMongoFieldName(cls, key));
             if (collation != null) settings.setCollation(Doc.of(collation.toQueryObject()));
             return settings.execute();
         } catch (Exception e) {
@@ -2923,10 +2353,7 @@ public class Morphium implements AutoCloseable {
         try {
             con = getDriver().getPrimaryConnection(null);
             DistinctMongoCommand cmd = new DistinctMongoCommand(con);
-            cmd.setColl(collectionName)
-                    .setDb(config.getDatabase())
-                    .setKey(key)
-                    .setCollation(collation.toQueryObject());
+            cmd.setColl(collectionName).setDb(config.getDatabase()).setKey(key).setCollation(collation.toQueryObject());
             return cmd.execute();
             // return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new
             // HashMap<>(), collation, config.getDefaultReadPreference());
@@ -2941,25 +2368,14 @@ public class Morphium implements AutoCloseable {
         return findById(type, id, null);
     }
 
-    public <T> void findById(
-            Class<? extends T> type,
-            Object id,
-            String collection,
-            AsyncOperationCallback callback) {
+    public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
         //noinspection unchecked
-        createQueryFor(type)
-                .setCollectionName(collection)
-                .f(getARHelper().getIdFieldName(type))
-                .eq(id)
-                .get(callback);
+        createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get(callback);
     }
 
     public <T> T findById(Class<? extends T> type, Object id, String collection) {
         inc(StatisticKeys.READS);
-        Cache c =
-                getARHelper()
-                        .getAnnotationFromHierarchy(
-                                type, Cache.class); // type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
 
         if (useCache) {
@@ -2972,8 +2388,7 @@ public class Morphium implements AutoCloseable {
             inc(StatisticKeys.NO_CACHED_READS);
         }
 
-        @SuppressWarnings("unchecked")
-        List<String> ls = annotationHelper.getFields(type, Id.class);
+        @SuppressWarnings("unchecked") List<String> ls = annotationHelper.getFields(type, Id.class);
         if (ls.isEmpty()) {
             throw new RuntimeException("Cannot find by ID on non-Entity");
         }
@@ -3000,21 +2415,15 @@ public class Morphium implements AutoCloseable {
         }
         Object reread = null;
         // new object - need to store creation time
-        CreationTime ct =
-                getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
+        CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
         if (ct != null && config.isCheckForNew() && ct.checkForNew() && !aNew) {
             // check if it is new or not
-            reread =
-                    findById(
-                            getARHelper().getRealClass(o.getClass()),
-                            getARHelper().getId(o)); // reread(o);
+            reread = findById(getARHelper().getRealClass(o.getClass()), getARHelper().getId(o)); // reread(o);
             aNew = reread == null;
         }
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
-            boolean checkForNew =
-                    Objects.requireNonNull(ct).checkForNew() || getConfig().isCheckForNew();
-            @SuppressWarnings("unchecked")
-            List<String> lst = getARHelper().getFields(type, CreationTime.class);
+            boolean checkForNew = Objects.requireNonNull(ct).checkForNew() || getConfig().isCheckForNew();
+            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
             for (String fld : lst) {
                 Field field = getARHelper().getField(o.getClass(), fld);
                 if (id != null) {
@@ -3029,10 +2438,7 @@ public class Morphium implements AutoCloseable {
                         }
                     } else {
                         if (reread == null) {
-                            aNew =
-                                    (id
-                                            instanceof
-                                            MorphiumId); // if id null, is new. if id!=null probably
+                            aNew = (id instanceof MorphiumId); // if id null, is new. if id!=null probably
                             // not, if type is objectId
                         } else {
                             Object value = field.get(reread);
@@ -3046,8 +2452,7 @@ public class Morphium implements AutoCloseable {
             }
             if (aNew) {
                 if (lst.isEmpty()) {
-                    log.error(
-                            "Unable to store creation time as @CreationTime for field is missing");
+                    log.error("Unable to store creation time as @CreationTime for field is missing");
                 } else {
                     long now = System.currentTimeMillis();
                     for (String ctf : lst) {
@@ -3075,8 +2480,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getARHelper().isAnnotationPresentInHierarchy(type, LastChange.class)) {
-            @SuppressWarnings("unchecked")
-            List<String> lst = getARHelper().getFields(type, LastChange.class);
+            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, LastChange.class);
             if (lst != null && !lst.isEmpty()) {
                 long now = System.currentTimeMillis();
                 for (String ctf : lst) {
@@ -3145,8 +2549,7 @@ public class Morphium implements AutoCloseable {
         storeBuffered(lst, getMapper().getCollectionName(lst.getClass()), callback);
     }
 
-    public <T> void storeBuffered(
-            final T lst, String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void storeBuffered(final T lst, String collection, final AsyncOperationCallback<T> callback) {
 
         config.getBufferedWriter().store(lst, collection, callback);
     }
@@ -3170,19 +2573,15 @@ public class Morphium implements AutoCloseable {
         dropCollection(cls, getMapper().getCollectionName(cls), callback);
     }
 
-    public <T> void dropCollection(
-            Class<T> cls, String collection, AsyncOperationCallback<T> callback) {
+    public <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback) {
         try {
             getWriterForClass(cls).dropCollection(cls, collection, callback);
         } catch (Exception e) {
             if (!e.getMessage().endsWith("Error: 26: ns not found")) {
                 if (callback != null)
-                    callback.onOperationError(
-                            AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
+                    callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
             } else {
-                if (callback != null)
-                    callback.onOperationSucceeded(
-                            AsyncOperationType.WRITE, null, 0, null, null, cls);
+                if (callback != null) callback.onOperationSucceeded(AsyncOperationType.WRITE, null, 0, null, null, cls);
             }
         }
     }
@@ -3222,24 +2621,17 @@ public class Morphium implements AutoCloseable {
         ensureIndicesFor(type, getMapper().getCollectionName(type), callback);
     }
 
-    public <T> void ensureIndicesFor(
-            Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback) {
         ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
     }
 
     @SuppressWarnings("ConstantConditions")
-    public <T> void ensureIndicesFor(
-            Class<T> type,
-            String onCollection,
-            AsyncOperationCallback<T> callback,
-            MorphiumWriter wr) {
+    public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
             // List<Annotation> collations = annotationHelper.getAllAnnotationsFromHierachy(type,
             // de.caluga.morphium.annotations.Collation.class);
 
-            @SuppressWarnings("unchecked")
-            List<Annotation> lst =
-                    annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
+            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
@@ -3268,14 +2660,9 @@ public class Morphium implements AutoCloseable {
                         }
                         if (optionsMap != null && optionsMap.containsKey("")) optionsMap = null;
                         try {
-                            wr.createIndex(
-                                    type,
-                                    onCollection,
-                                    IndexDescription.fromMaps(m, optionsMap),
-                                    callback);
+                            wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
                         } catch (Exception e) {
-                            if (e.getMessage()
-                                    .contains("Index already exists with a different name:")) {
+                            if (e.getMessage().contains("Index already exists with a different name:")) {
                                 log.info("Index already exists");
                             } else {
                                 throw e;
@@ -3287,8 +2674,7 @@ public class Morphium implements AutoCloseable {
             }
         }
 
-        @SuppressWarnings("unchecked")
-        List<String> flds = annotationHelper.getFields(type, Index.class);
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
         if (flds != null && !flds.isEmpty()) {
 
             for (String f : flds) {
@@ -3304,11 +2690,7 @@ public class Morphium implements AutoCloseable {
                     optionsMap = createIndexKeyMapFrom(i.options()).get(0);
                 }
                 try {
-                    wr.createIndex(
-                            type,
-                            onCollection,
-                            IndexDescription.fromMaps(idx, optionsMap),
-                            callback);
+                    wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
                 } catch (Exception e) {
                     if (e.getMessage().contains("Index already exists with a different name:")) {
                         log.info("Index already exists");
@@ -3323,12 +2705,7 @@ public class Morphium implements AutoCloseable {
     @Deprecated
     public void ensureIndex(Class<?> cls, Map<String, Object> index) {
         try {
-            getWriterForClass(cls)
-                    .createIndex(
-                            cls,
-                            getMapper().getCollectionName(cls),
-                            IndexDescription.fromMaps(index, null),
-                            null);
+            getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls), IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3340,14 +2717,9 @@ public class Morphium implements AutoCloseable {
 
     @Deprecated
     @SuppressWarnings("unused")
-    public void ensureIndex(
-            Class<?> cls,
-            String collection,
-            Map<String, Object> index,
-            Map<String, Object> options) {
+    public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index, Map<String, Object> options) {
         try {
-            getWriterForClass(cls)
-                    .createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3361,8 +2733,7 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unused")
     public void ensureIndex(Class<?> cls, String collection, Map<String, Object> index) {
         try {
-            getWriterForClass(cls)
-                    .createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3376,7 +2747,7 @@ public class Morphium implements AutoCloseable {
      * ensureIndex(CachedObject.class,"counter","-value");
      * ensureIndex(CachedObject.class,"counter:2d","-value); Similar to sorting
      *
-     * @param cls - class
+     * @param cls    - class
      * @param fldStr - fields
      */
     @Deprecated
@@ -3385,16 +2756,14 @@ public class Morphium implements AutoCloseable {
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
         Map<String, Object> m = new LinkedHashMap<>();
         for (Enum<?> e : fldStr) {
             String f = e.name();
             m.put(f, 1);
         }
         try {
-            getWriterForClass(cls)
-                    .createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3405,20 +2774,16 @@ public class Morphium implements AutoCloseable {
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, String... fldStr) {
         ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
         List<Map<String, Object>> m = createIndexKeyMapFrom(fldStr);
         for (Map<String, Object> idx : m) {
             try {
-                getWriterForClass(cls)
-                        .createIndex(
-                                cls, collection, IndexDescription.fromMaps(idx, null), callback);
+                getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
             } catch (Exception e) {
                 if (e.getMessage().contains("Index already exists with a different name:")) {
                     log.info("Index already exists");
@@ -3430,22 +2795,14 @@ public class Morphium implements AutoCloseable {
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndex(Class<T> cls, Map<String, Object> index, AsyncOperationCallback<T> callback) {
         ensureIndex(cls, getMapper().getCollectionName(cls), index, callback);
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls,
-            String collection,
-            Map<String, Object> index,
-            Map<String, Object> options,
-            AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, Map<String, Object> options, AsyncOperationCallback<T> callback) {
         try {
-            getWriterForClass(cls)
-                    .createIndex(
-                            cls, collection, IndexDescription.fromMaps(index, options), callback);
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3456,14 +2813,9 @@ public class Morphium implements AutoCloseable {
     }
 
     @Deprecated
-    public <T> void ensureIndex(
-            Class<T> cls,
-            String collection,
-            Map<String, Object> index,
-            AsyncOperationCallback<T> callback) {
+    public <T> void ensureIndex(Class<T> cls, String collection, Map<String, Object> index, AsyncOperationCallback<T> callback) {
         try {
-            getWriterForClass(cls)
-                    .createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
+            getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
                 log.info("Index already exists");
@@ -3473,11 +2825,7 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public <T> void createIndex(
-            Class<T> cls,
-            String collection,
-            IndexDescription index,
-            AsyncOperationCallback<T> callback) {
+    public <T> void createIndex(Class<T> cls, String collection, IndexDescription index, AsyncOperationCallback<T> callback) {
         try {
             getWriterForClass(cls).createIndex(cls, collection, index, callback);
         } catch (Exception e) {
@@ -3494,8 +2842,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public List<IndexDescription> getIndexesFromMongo(String collection) {
-        MongoConnection readConnection =
-                getDriver().getReadConnection(getConfig().getDefaultReadPreference());
+        MongoConnection readConnection = getDriver().getReadConnection(getConfig().getDefaultReadPreference());
         ListIndexesCommand cmd = new ListIndexesCommand(readConnection);
         cmd.setDb(getDatabase()).setColl(collection);
         try {
@@ -3514,9 +2861,7 @@ public class Morphium implements AutoCloseable {
             // de.caluga.morphium.annotations.Collation.class);
 
             // Indexes on class level, usually combined ones
-            @SuppressWarnings("unchecked")
-            List<Annotation> lst =
-                    annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
+            @SuppressWarnings("unchecked") List<Annotation> lst = annotationHelper.getAllAnnotationsFromHierachy(type, Index.class);
             for (Annotation a : lst) {
                 Index i = (Index) a;
                 if (i.value().length > 0) {
@@ -3565,8 +2910,7 @@ public class Morphium implements AutoCloseable {
         }
 
         // Indexes on Field
-        @SuppressWarnings("unchecked")
-        List<String> flds = annotationHelper.getFields(type, Index.class);
+        @SuppressWarnings("unchecked") List<String> flds = annotationHelper.getFields(type, Index.class);
         if (flds != null && !flds.isEmpty()) {
 
             for (String f : flds) {
@@ -3592,8 +2936,7 @@ public class Morphium implements AutoCloseable {
 
     @SuppressWarnings("unused")
     public int writeBufferCount() {
-        return config.getWriter().writeBufferCount()
-                + config.getBufferedWriter().writeBufferCount();
+        return config.getWriter().writeBufferCount() + config.getBufferedWriter().writeBufferCount();
     }
 
     @SuppressWarnings("unused")
@@ -3632,8 +2975,7 @@ public class Morphium implements AutoCloseable {
                                     double d = Double.parseDouble(value);
                                     m.put(key, d);
                                 } catch (NumberFormatException e1) {
-                                    if (value.equalsIgnoreCase("true")
-                                            || value.equalsIgnoreCase("false")) {
+                                    if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
                                         m.put(key, Boolean.parseBoolean(value));
                                     } else {
                                         m.put(key, value);
@@ -3718,12 +3060,7 @@ public class Morphium implements AutoCloseable {
                 //noinspection unchecked
                 writers.get(cls).insert((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
-                log.error(
-                        "Write failed for "
-                                + cls.getName()
-                                + " lst of size "
-                                + values.get(cls).size(),
-                        e);
+                log.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
                 throw new RuntimeException(e);
             }
         }
@@ -3742,23 +3079,17 @@ public class Morphium implements AutoCloseable {
      * also no checks for validity of fields, no references, no auto-variables no async writing!
      *
      * @param type - type to write to (just for determining collection name)
-     * @param lst - list of entries to write
+     * @param lst  - list of entries to write
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMaps(Class type, List<Map<String, Object>> lst)
-            throws MorphiumDriverException {
+    public Map<String, Integer> storeMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
         return saveMaps(type, lst);
     }
 
-    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst)
-            throws MorphiumDriverException {
+    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
         var con = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings =
-                new StoreMongoCommand(con)
-                        .setColl(getMapper().getCollectionName(type))
-                        .setDb(getDatabase())
-                        .setDocs(lst);
+        StoreMongoCommand settings = new StoreMongoCommand(con).setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(lst);
         settings.execute();
         con.release();
         return null;
@@ -3769,23 +3100,17 @@ public class Morphium implements AutoCloseable {
      * also no checks for validity of fields, no references, no auto-variables no async writing!
      *
      * @param collection - name of colleciton to write to
-     * @param lst - list of entries to write
+     * @param lst        - list of entries to write
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMaps(String collection, List<Map<String, Object>> lst)
-            throws MorphiumDriverException {
+    public Map<String, Integer> storeMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
         return saveMaps(collection, lst);
     }
 
-    public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst)
-            throws MorphiumDriverException {
+    public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings =
-                new StoreMongoCommand(primaryConnection)
-                        .setColl(collection)
-                        .setDb(getDatabase())
-                        .setDocs(lst);
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setColl(collection).setDb(getDatabase()).setDocs(lst);
         Map<String, Object> ret = settings.execute();
         getDriver().releaseConnection(primaryConnection);
         Map<String, Integer> res = new HashMap<>();
@@ -3798,23 +3123,17 @@ public class Morphium implements AutoCloseable {
      * also no checks for validity of fields, no references, no auto-variables no async writing!
      *
      * @param collection collection name
-     * @param m data to write
+     * @param m          data to write
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMap(String collection, Map<String, Object> m)
-            throws MorphiumDriverException {
+    public Map<String, Integer> storeMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
         return saveMap(collection, m);
     }
 
-    public Map<String, Integer> saveMap(String collection, Map<String, Object> m)
-            throws MorphiumDriverException {
+    public Map<String, Integer> saveMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings =
-                new StoreMongoCommand(primaryConnection)
-                        .setDb(getDatabase())
-                        .setColl(collection)
-                        .setDocs(Arrays.asList(Doc.of(m)));
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(collection).setDocs(Arrays.asList(Doc.of(m)));
         Map<String, Integer> res = new HashMap<>();
         Map<String, Object> result = settings.execute();
         getDriver().releaseConnection(primaryConnection);
@@ -3827,18 +3146,13 @@ public class Morphium implements AutoCloseable {
      * also no checks for validity of fields, no references, no auto-variables no async writing!
      *
      * @param type - type, used to determine collection name
-     * @param m - data to write
+     * @param m    - data to write
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Object> storeMap(Class type, Map<String, Object> m)
-            throws MorphiumDriverException {
+    public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings =
-                new StoreMongoCommand(primaryConnection)
-                        .setDb(getDatabase())
-                        .setColl(getMapper().getCollectionName(type))
-                        .setDocs(Arrays.asList(m));
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setDocs(Arrays.asList(m));
         WriteConcern wc = getWriteConcernForClass(type);
         if (wc != null) settings.setWriteConcern(wc.asMap());
         var ret = settings.execute();
@@ -3913,9 +3227,9 @@ public class Morphium implements AutoCloseable {
     /**
      * stores all elements of this list to the given collection
      *
-     * @param lst - list of objects to store
+     * @param lst        - list of objects to store
      * @param collection - collection name to use
-     * @param <T> - type of entity
+     * @param <T>        - type of entity
      */
     public <T> void storeList(List<T> lst, String collection) {
         saveList(lst, collection, null);
@@ -3942,14 +3256,8 @@ public class Morphium implements AutoCloseable {
                 //noinspection unchecked
                 writers.get(cls).store((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
-                log.error(
-                        "Async Write failed for "
-                                + cls.getName()
-                                + " lst of size "
-                                + values.get(cls).size(),
-                        e);
-                callback.onOperationError(
-                        AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
+                log.error("Async Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null, cls);
             }
         }
     }
@@ -3958,7 +3266,7 @@ public class Morphium implements AutoCloseable {
      * sorts elements in this list, whether to store in background or directly.
      *
      * @param lst - all objects are sorted whether to store in BG or direclty. All objects are
-     *     stored in their corresponding collection
+     *            stored in their corresponding collection
      * @param <T> - type of list elements
      */
     public <T> void storeList(List<T> lst) {
@@ -4032,50 +3340,18 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public <T> void pushPull(
-            boolean push,
-            Query<T> query,
-            String field,
-            Object value,
-            boolean upsert,
-            boolean multiple,
-            AsyncOperationCallback<T> callback) {
-        getWriterForClass(query.getType())
-                .pushPull(
-                        push
-                                ? MorphiumStorageListener.UpdateTypes.PUSH
-                                : MorphiumStorageListener.UpdateTypes.PULL,
-                        query,
-                        field,
-                        value,
-                        upsert,
-                        multiple,
-                        callback);
+    public <T> void pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPull(push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> void pushPullAll(
-            boolean push,
-            Query<T> query,
-            String field,
-            List<?> value,
-            boolean upsert,
-            boolean multiple,
-            AsyncOperationCallback<T> callback) {
-        getWriterForClass(query.getType())
-                .pushPullAll(push, query, field, value, upsert, multiple, callback);
+    public <T> void pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPullAll(push?UpdateTypes.PUSH:UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> void pullAll(
-            Query<T> query,
-            String field,
-            List<?> value,
-            boolean upsert,
-            boolean multiple,
-            AsyncOperationCallback<T> callback) {
-        getWriterForClass(query.getType())
-                .pushPullAll(false, query, field, value, upsert, multiple, callback);
+    public <T> void pullAll(Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+        getWriterForClass(query.getType()).pushPullAll(UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     /**
@@ -4097,13 +3373,11 @@ public class Morphium implements AutoCloseable {
             delete((Query) lo, callback);
             return;
         }
-        getWriterForClass(lo.getClass())
-                .remove(lo, getMapper().getCollectionName(lo.getClass()), callback);
+        getWriterForClass(lo.getClass()).remove(lo, getMapper().getCollectionName(lo.getClass()), callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> void delete(
-            final T lo, String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
         getWriterForClass(lo.getClass()).remove(lo, collection, callback);
     }
 
@@ -4212,17 +3486,10 @@ public class Morphium implements AutoCloseable {
     /////// MAP/REDUCE
     /////
 
-    public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce)
-            throws MorphiumDriverException {
-        MongoConnection readConnection =
-                morphiumDriver.getReadConnection(getReadPreferenceForClass(type));
+    public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce) throws MorphiumDriverException {
+        MongoConnection readConnection = morphiumDriver.getReadConnection(getReadPreferenceForClass(type));
         try {
-            MapReduceCommand mr =
-                    new MapReduceCommand(readConnection)
-                            .setDb(getDatabase())
-                            .setColl(getMapper().getCollectionName(type))
-                            .setMap(map)
-                            .setReduce(reduce);
+            MapReduceCommand mr = new MapReduceCommand(readConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setMap(map).setReduce(reduce);
             List<Map<String, Object>> result = mr.execute();
             List<T> ret = new ArrayList<>();
 
@@ -4239,25 +3506,18 @@ public class Morphium implements AutoCloseable {
     //// AGGREGATOR Support
     ///
 
-    public <T, R> Aggregator<T, R> createAggregator(
-            Class<? extends T> type, Class<? extends R> resultType) {
+    public <T, R> Aggregator<T, R> createAggregator(Class<? extends T> type, Class<? extends R> resultType) {
         Aggregator<T, R> aggregator = getDriver().createAggregator(this, type, resultType);
         return aggregator;
     }
 
     @SuppressWarnings("unchecked")
     public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {
-        return (T)
-                Enhancer.create(
-                        cls,
-                        new Class[] {Serializable.class},
-                        new LazyDeReferencingProxy(this, cls, id, collectionName));
+        return (T) Enhancer.create(cls, new Class[]{Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
     }
 
     public int getWriteBufferCount() {
-        return config.getBufferedWriter().writeBufferCount()
-                + config.getWriter().writeBufferCount()
-                + config.getAsyncWriter().writeBufferCount();
+        return config.getBufferedWriter().writeBufferCount() + config.getWriter().writeBufferCount() + config.getAsyncWriter().writeBufferCount();
     }
 
     public int getBufferedWriterBufferCount() {
@@ -4284,8 +3544,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public boolean isAutoValuesEnabledForThread() {
-        return ((enableAutoValues.get() == null || enableAutoValues.get())
-                && config.isAutoValuesEnabled());
+        return ((enableAutoValues.get() == null || enableAutoValues.get()) && config.isAutoValuesEnabled());
     }
 
     @SuppressWarnings("unused")
@@ -4299,8 +3558,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public boolean isReadCacheEnabledForThread() {
-        return (enableReadCache.get() == null || enableReadCache.get())
-                && config.isReadCacheEnabled();
+        return (enableReadCache.get() == null || enableReadCache.get()) && config.isReadCacheEnabled();
     }
 
     @SuppressWarnings("unused")
@@ -4314,8 +3572,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public boolean isWriteBufferEnabledForThread() {
-        return (disableWriteBuffer.get() == null || disableWriteBuffer.get())
-                && config.isBufferedWritesEnabled();
+        return (disableWriteBuffer.get() == null || disableWriteBuffer.get()) && config.isBufferedWritesEnabled();
     }
 
     @SuppressWarnings("unused")
@@ -4329,8 +3586,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public boolean isAsyncWritesEnabledForThread() {
-        return (disableAsyncWrites.get() == null || disableAsyncWrites.get())
-                && config.isAsyncWritesEnabled();
+        return (disableAsyncWrites.get() == null || disableAsyncWrites.get()) && config.isAsyncWritesEnabled();
     }
 
     public void queueTask(Runnable runnable) {
@@ -4349,8 +3605,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public int getNumberOfAvailableThreads() {
-        return asyncOperationsThreadPool.getMaximumPoolSize()
-                - asyncOperationsThreadPool.getActiveCount();
+        return asyncOperationsThreadPool.getMaximumPoolSize() - asyncOperationsThreadPool.getActiveCount();
     }
 
     public int getActiveThreads() {
@@ -4385,16 +3640,11 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public <T> void watchAsync(
-            String collectionName, boolean updateFull, ChangeStreamListener lst) {
+    public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, null, lst));
     }
 
-    public <T> void watchAsync(
-            String collectionName,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, pipeline, lst));
     }
 
@@ -4402,11 +3652,7 @@ public class Morphium implements AutoCloseable {
         asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, null, lst));
     }
 
-    public <T> void watchAsync(
-            Class<T> entity,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, pipeline, lst));
     }
 
@@ -4414,11 +3660,7 @@ public class Morphium implements AutoCloseable {
         watch(getMapper().getCollectionName(entity), updateFull, null, lst);
     }
 
-    public <T> void watch(
-            Class<T> entity,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> void watch(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         watch(getMapper().getCollectionName(entity), updateFull, pipeline, lst);
     }
 
@@ -4426,47 +3668,26 @@ public class Morphium implements AutoCloseable {
         watch(collectionName, config.getMaxWaitTime(), updateFull, null, lst);
     }
 
-    public <T> void watch(
-            String collectionName,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> void watch(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         watch(collectionName, config.getMaxWaitTime(), updateFull, pipeline, lst);
     }
 
-    public <T> void watch(
-            String collectionName,
-            int maxWaitTime,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
             MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-            WatchCommand settings =
-                    new WatchCommand(primaryConnection)
-                            .setDb(config.getDatabase())
-                            .setColl(collectionName)
-                            .setMaxTimeMS(maxWaitTime)
-                            .setPipeline(pipeline)
-                            .setFullDocument(
-                                    updateFull
-                                            ? WatchCommand.FullDocumentEnum.updateLookup
-                                            : WatchCommand.FullDocumentEnum.defaultValue)
-                            .setCb(
-                                    new DriverTailableIterationCallback() {
-                                        boolean b = true;
+            WatchCommand settings = new WatchCommand(primaryConnection).setDb(config.getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
+                boolean b = true;
 
-                                        @Override
-                                        public void incomingData(
-                                                Map<String, Object> data, long dur) {
-                                            b = processEvent(lst, data);
-                                        }
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    b = processEvent(lst, data);
+                }
 
-                                        @Override
-                                        public boolean isContinued() {
-                                            return b;
-                                        }
-                                    });
+                @Override
+                public boolean isContinued() {
+                    return b;
+                }
+            });
             getDriver().watch(settings);
             getDriver().releaseConnection(primaryConnection);
         } catch (MorphiumDriverException e) {
@@ -4476,8 +3697,7 @@ public class Morphium implements AutoCloseable {
 
     private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
 
-        @SuppressWarnings("unchecked")
-        Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
+        @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.remove("fullDocument");
         ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, doc);
 
@@ -4485,27 +3705,20 @@ public class Morphium implements AutoCloseable {
         return lst.incomingData(evt);
     }
 
-    public <T> AtomicBoolean watchDbAsync(
-            String dbName,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
-        asyncOperationsThreadPool.execute(
-                () -> {
-                    watchDb(dbName, updateFull, null, runningFlag, lst);
-                    log.debug("watch async finished");
-                });
+        asyncOperationsThreadPool.execute(() -> {
+            watchDb(dbName, updateFull, null, runningFlag, lst);
+            log.debug("watch async finished");
+        });
         return runningFlag;
     }
 
-    public <T> AtomicBoolean watchDbAsync(
-            boolean updateFull, AtomicBoolean runningFlag, ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(boolean updateFull, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         return watchDbAsync(config.getDatabase(), updateFull, null, lst);
     }
 
-    public <T> AtomicBoolean watchDbAsync(
-            boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         return watchDbAsync(config.getDatabase(), updateFull, pipeline, lst);
     }
 
@@ -4514,63 +3727,32 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void watchDb(String dbName, boolean updateFull, ChangeStreamListener lst) {
-        watchDb(
-                dbName,
-                getConfig().getMaxWaitTime(),
-                updateFull,
-                null,
-                new AtomicBoolean(true),
-                lst);
+        watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, null, new AtomicBoolean(true), lst);
     }
 
-    public <T> void watchDb(
-            String dbName,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            AtomicBoolean runningFlag,
-            ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, pipeline, runningFlag, lst);
     }
 
-    public <T> void watchDb(
-            String dbName,
-            int maxWaitTime,
-            boolean updateFull,
-            List<Map<String, Object>> pipeline,
-            AtomicBoolean runningFlag,
-            ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         MongoConnection con = null;
         try {
             con = getDriver().getPrimaryConnection(null);
-            WatchCommand cmd =
-                    new WatchCommand(con)
-                            .setDb(dbName)
-                            .setMaxTimeMS(maxWaitTime)
-                            .setFullDocument(
-                                    updateFull
-                                            ? WatchCommand.FullDocumentEnum.updateLookup
-                                            : WatchCommand.FullDocumentEnum.defaultValue)
-                            .setPipeline(pipeline)
-                            .setCb(
-                                    new DriverTailableIterationCallback() {
-                                        @Override
-                                        public void incomingData(
-                                                Map<String, Object> data, long dur) {
-                                            ChangeStreamEvent evt =
-                                                    getMapper()
-                                                            .deserialize(
-                                                                    ChangeStreamEvent.class, data);
+            WatchCommand cmd = new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
+                @Override
+                public void incomingData(Map<String, Object> data, long dur) {
+                    ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, data);
 
-                                            if (!lst.incomingData(evt)) {
-                                                runningFlag.set(false);
-                                            }
-                                        }
+                    if (!lst.incomingData(evt)) {
+                        runningFlag.set(false);
+                    }
+                }
 
-                                        @Override
-                                        public boolean isContinued() {
-                                            return runningFlag.get();
-                                        }
-                                    });
+                @Override
+                public boolean isContinued() {
+                    return runningFlag.get();
+                }
+            });
             cmd.watch();
 
         } catch (MorphiumDriverException e) {
@@ -4590,8 +3772,7 @@ public class Morphium implements AutoCloseable {
         initializeAndConnect();
     }
 
-    public List<IndexDescription> getMissingIndicesFor(Class<?> entity)
-            throws MorphiumDriverException {
+    public List<IndexDescription> getMissingIndicesFor(Class<?> entity) throws MorphiumDriverException {
         //        if (!morphiumDriver.exists(getDatabase(), objectMapper.getCollectionName(entity)))
         // {
         //            return new ArrayList<>(); //skip non existent collections
@@ -4600,8 +3781,7 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("ConstantConditions")
-    public List<IndexDescription> getMissingIndicesFor(Class<?> entity, String collection)
-            throws MorphiumDriverException {
+    public List<IndexDescription> getMissingIndicesFor(Class<?> entity, String collection) throws MorphiumDriverException {
         List<IndexDescription> missingIndexDef = new ArrayList<>();
         var fromMongo = getIndexesFromMongo(collection);
         var fromJava = getIndexesFromEntity(entity);
@@ -4740,8 +3920,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<Class<?>, Map<String, Integer>> checkCapped() {
         Map<Class<?>, Map<String, Integer>> uncappedCollections = new HashMap<>();
-        try (ScanResult scanResult =
-                new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
+        try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
             for (String cn : entities.getNames()) {
                 // ClassInfo ci = scanResult.getClassInfo(cn);
@@ -4756,14 +3935,9 @@ public class Morphium implements AutoCloseable {
                         continue;
                     }
                     if (annotationHelper.isAnnotationPresentInHierarchy(entity, Capped.class)) {
-                        if (!morphiumDriver.isCapped(
-                                getConfig().getDatabase(), getMapper().getCollectionName(entity))) {
-                            Capped capped =
-                                    annotationHelper.getAnnotationFromClass(entity, Capped.class);
-                            uncappedCollections.put(
-                                    entity,
-                                    UtilsMap.of(
-                                            "max", capped.maxEntries(), "size", capped.maxSize()));
+                        if (!morphiumDriver.isCapped(getConfig().getDatabase(), getMapper().getCollectionName(entity))) {
+                            Capped capped = annotationHelper.getAnnotationFromClass(entity, Capped.class);
+                            uncappedCollections.put(entity, UtilsMap.of("max", capped.maxEntries(), "size", capped.maxSize()));
                         }
                     }
                 } catch (Exception e) {
@@ -4775,18 +3949,16 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    public Map<Class<?>, List<IndexDescription>> checkIndices(
-            ClassInfoList.ClassInfoFilter filter) {
+    public Map<Class<?>, List<IndexDescription>> checkIndices(ClassInfoList.ClassInfoFilter filter) {
 
         Map<Class<?>, List<IndexDescription>> missingIndicesByClass = new HashMap<>();
         // initializing type IDs
-        try (ScanResult scanResult =
-                new ClassGraph()
-                        //                     .verbose()             // Enable verbose logging
-                        .enableAnnotationInfo()
-                        //                             .enableFieldInfo()
-                        .enableClassInfo() // Scan classes, methods, fields, annotations
-                        .scan()) {
+        try (ScanResult scanResult = new ClassGraph()
+                //                     .verbose()             // Enable verbose logging
+                .enableAnnotationInfo()
+                //                             .enableFieldInfo()
+                .enableClassInfo() // Scan classes, methods, fields, annotations
+                .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
             if (filter != null) {
                 entities = entities.filter(filter);
@@ -4833,10 +4005,7 @@ public class Morphium implements AutoCloseable {
 
     @Override
     public String toString() {
-        return "Morphium: Driver "
-                + getDriver().getName()
-                + " - "
-                + String.join(",", getConfig().getHostSeed());
+        return "Morphium: Driver " + getDriver().getName() + " - " + String.join(",", getConfig().getHostSeed());
     }
 
     //

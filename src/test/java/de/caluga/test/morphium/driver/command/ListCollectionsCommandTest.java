@@ -42,7 +42,7 @@ public class ListCollectionsCommandTest extends DriverTestBase {
 
         var lst = drv.listCollections(db, null);
         assertNotNull(lst);
-        assertTrue(4<= lst.size()&& 0>lst.size());
+        assertTrue(5> lst.size()&& 0<lst.size());
         con.release();
 
     }

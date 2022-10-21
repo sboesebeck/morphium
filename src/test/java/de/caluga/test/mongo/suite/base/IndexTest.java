@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumConfig.IndexCheck;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
@@ -91,7 +92,9 @@ public class IndexTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void indexOnNewCollTest(Morphium morphium) throws Exception {
+        var chk=morphium.getConfig().getIndexCheck();
         try (morphium) {
+            morphium.getConfig().setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.dropCollection(IndexedObject.class);
             while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(IndexedObject.class))) {
                 log.info("Collection still exists... waiting");
@@ -138,6 +141,8 @@ public class IndexTest extends MultiDriverTestBase {
             }
             log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
             assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
+        } finally {
+            morphium.getConfig().setIndexCheck(chk);
         }
     }
 
