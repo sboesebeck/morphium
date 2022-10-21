@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnection;
 import de.caluga.test.DriverMock;
+import de.caluga.test.ConnectionMock;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
@@ -36,15 +37,20 @@ public class CommandAsMapTest {
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             log.info("Found " + entities.size() + " MongoCommands in classpath");
             for (String cn : entities.getNames()) {
+                if (cn.equals("de.caluga.morphium.driver.inmem.InMemAggregator$1" )){
+                    //inner class, need to skip
+                    continue;
+                }
                 log.info("Class -> " + cn);
                 try {
                     Class<? extends MongoCommand> cls = (Class<? extends MongoCommand>) Class.forName(cn);
+                    
                     if (Modifier.isAbstract(cls.getModifiers())) continue;
-                    MongoCommand cmd = cls.getConstructor(MongoConnection.class).newInstance(new SingleMongoConnection().setDriver(new DriverMock()));
+                    MongoCommand cmd = cls.getConstructor(MongoConnection.class).newInstance(new ConnectionMock());
                     cmd.setColl("testcoll").setDb("testDB").setMetaData("test", true);
                     var m = cmd.asMap();
                     assertFalse(m.containsKey("test"));
-                    assertFalse(m.containsKey("$db"));
+                    assertTrue(m.containsKey("$db"));
                     assertThat(m.get("$db")).isIn("testDB", "local", "admin");
                     assertThat(m).containsKey(cmd.getCommandName());
                 } catch (Exception e) {

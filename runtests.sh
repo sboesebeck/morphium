@@ -3,12 +3,14 @@ function quit {
     echo "Shutting down"
     kill -9 $(ps aux | grep -v grep | grep surefire | cut -c15-24)
     dur=$(date +%s)
-    let dur=dur-start
-    let h=dur/3600
-    let m='(dur-h*3600)/60'
-    let s='(dur-h*3600-m*60)'
+    (( dur=dur-start ))
+    (( h=dur/3600 ))
+    (( m=(dur-h*3600)/60 ))
+    (( s=(dur-h*3600-m*60) ))
 
-    let h=dur/3600; let m='(dur-h*3600)/60';let s='(dur-h*3600-m*60)';
+    (( h=dur/3600 ))
+    (( m=(dur-h*3600)/60 ))
+    (( s=(dur-h*3600-m*60) ))
     duration=$(printf "Duration: %02d:%02d:%02d" $h $m $s)
     end="Aborted during testrun after $duration on jdk $jv, but ran $run Tests, $fail tests failed, $err tests had errors"
     curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium $version integration test just ran: $end'}" $(<slackurl.inc)
@@ -48,7 +50,7 @@ while true; do
     echo "Fails: $fail"
     err=0
     for i in $(grep -a 'Tests run: ' test.log |cut -f4 -d: | cut -f1 -d,); do 
-        let err=err+i
+      (( err=err+i ))
     done
     echo "Errors: $err"
     echo 
@@ -62,7 +64,7 @@ while true; do
     tail -n 10 test.log
 
     jobs > /dev/null
-    sleep 15
+    sleep 5
     if [ $(jobs | wc -l) -eq 0 ]; then
         echo "Bg job finished... exiting"   
         break
