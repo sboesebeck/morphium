@@ -12,6 +12,7 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 public class ListCollectionsCommandTest extends DriverTestBase {
@@ -41,7 +42,7 @@ public class ListCollectionsCommandTest extends DriverTestBase {
 
         var lst = drv.listCollections(db, null);
         assertNotNull(lst);
-        assertEquals(3, lst.size());
+        assertTrue(4<= lst.size()&& 0>lst.size());
         con.release();
 
     }
