@@ -1,86 +1,75 @@
 #!/bin/bash
-function quit {
-    echo "Shutting down"
-    kill -9 $(ps aux | grep -v grep | grep surefire | cut -c15-24)
-    dur=$(date +%s)
-    (( dur=dur-start ))
-    (( h=dur/3600 ))
-    (( m=(dur-h*3600)/60 ))
-    (( s=(dur-h*3600-m*60) ))
+p=$1
+if [ "q$p" == "q" ]; then
+	echo "No pattern given, running all tests"
+	p="."
+else
+	echo "Checking for tests whose classes match $p"
+fi
 
-    (( h=dur/3600 ))
-    (( m=(dur-h*3600)/60 ))
-    (( s=(dur-h*3600-m*60) ))
-    duration=$(printf "Duration: %02d:%02d:%02d" $h $m $s)
-    end="Aborted during testrun after $duration on jdk $jv, but ran $run Tests, $fail tests failed, $err tests had errors"
-    curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium $version integration test just ran: $end'}" $(<slackurl.inc)
-    exit 1
-}
+m=$2
+if [ "q$2" == "q" ]; then
+	echo "No pattern for methods given"
+	m="."
+else
+	echo "Checking for test-methods matching $m"
+fi
 
-trap 'quit' ABRT QUIT INT
+rg -l "@Test" | grep ".java" >files.lst
+rg -l "@ParameterizedTest" | grep ".java" >>files.lst
 
-jv=$(/usr/libexec/java_home)
-jv=${jv%/Contents/Home}
-jv=${jv##*/}
-echo "Running on $jv"
+sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//'>files.txt
+cnt=$(wc -l < files.txt|tr -d ' ')
+echo "Running test classes $cnt"
+rm -rf test.log
+mkdir test.log
+tst=0
+totalTestsRun=0
+totalTestsFailed=0
+totalTestsError=0
 
-start=$(date +%s)
-cd $(dirname $0)
-version=$(grep '<version>' pom.xml | head -n1 | tr -d ' a-z<>/')
+for t in $(<files.txt); do
+  (( tst = tst +1 ))
+	if [ "$m" == "." ]; then
+		echo "Running all tests in Class $t"
+		mvn test -Dtest="$t" >test.log/"$t".log &
+	else
+		echo "Running test in class $t matching $m"
+		mvn test -Dtest="$t#$m" >"test.log/$t.log" &
+	fi
 
-mvn -Dsurefire.skipAfterFailureCount=2 -Dsurefire.rerunFailingTestsCount=1 test >test.log 2>&1 &
-
-end=""
-while true; do 
+  while true; do
     clear
-    echo "Running tests for version $version"
-    date
-    grep "Running " test.log | tail -n 1
-    a=$(grep "Number: " test.log | tail -n 1);
-    echo "Test number: ${a##*:}"
+    echo "Running test in $t  - #$tst/$cnt"
+    echo "Tests    run: $totalTestsRun"
+    echo "Tests failed: $totalTestsFailed"
+    echo "Tests errors: $totalTestsError"
     run=0
-    for i in $(grep -a 'Tests run: ' test.log |cut -f2 -d: | cut -f1 -d,); do   
+    for i in $(grep -a "Tests run: .*in $t" test.log/$t.log |cut -f2 -d: | cut -f1 -d,); do   
       (( run=run+i ))
     done
-    echo "Tests run: $run"
     fail=0
-    for i in $(grep -a 'Tests run: ' test.log |cut -f3 -d: | cut -f1 -d,); do 
+    for i in $(grep -a "Tests run: .*in $t" test.log/$t.log |cut -f3 -d: | cut -f1 -d,); do 
       (( fail=fail+i ))
     done
-    echo "Fails: $fail"
     err=0
-    for i in $(grep -a 'Tests run: ' test.log |cut -f4 -d: | cut -f1 -d,); do 
+    for i in $(grep -a "Tests run: .*in $t" test.log/$t.log |cut -f4 -d: | cut -f1 -d,); do 
       (( err=err+i ))
     done
-    echo "Errors: $err"
-    echo 
-    echo "-------------   Current Failed tests:"
-    if [ $fail -gt 0 ] || [ $err -gt 0 ]; then
-        egrep "Running |Tests run:" test.log | grep -B1 FAILURE
-        echo
+    echo "---------- LOG: "
+    tail -n 10 test.log/"$t".log
+    echo "----------"
+    echo "Failed tests"
+    egrep "Running |Tests run:" test.log/* | grep -B1 FAILURE || echo "none"
+    jobs >/dev/null
+    j=$(jobs | wc -l)
+    if [ "$j" -lt 1 ]; then
+      break;
     fi
-    echo
-    echo "-------------   Log output:"
-    tail -n 10 test.log
-
-    jobs > /dev/null
-    sleep 5
-    if [ $(jobs | wc -l) -eq 0 ]; then
-        echo "Bg job finished... exiting"   
-        break
-    fi
+    sleep 2
+  done
+  (( totalTestsRun = totalTestsRun + run ))
+  (( totalTestsError = totalTestsError + err ))
+  (( totalTestsFailed = totalTestsFailed + fail ))
+  
 done
-run=$(grep -a 'Tests run: ' test.log |cut -f2 -d: | cut -f1 -d, | tail -n 1)
-fail=$(grep -a 'Tests run: ' test.log |cut -f3 -d: | cut -f1 -d,  | tail -n 1)
-err=$(grep -a 'Tests run: ' test.log |cut -f4 -d: | cut -f1 -d,  | tail -n 1)
-
-dur=$(date +%s)
-(( dur=dur-start ))
-(( h=dur/3600 ))
-let m='(dur-h*3600)/60'
-let s='(dur-h*3600-m*60)'
- 
-let h=dur/3600; let m='(dur-h*3600)/60';let s='(dur-h*3600-m*60)'; 
-duration=$(printf "Duration: %02d:%02d:%02d" $h $m $s)
-end="$duration - JDK: $jv - Ran $run Tests, $fail tests failed, $err tests had errors"
-curl -X POST -H "Content-type: application/json" --data "{'text':'Morphium $version integration test just ran: $end'}" $(<slackurl.inc)
