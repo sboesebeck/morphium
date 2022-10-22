@@ -1,6 +1,9 @@
 *.class
 test.log
+test.log/*
 target/
+files.lst
+files.txt
 .idea/
 *.iml
 dist/
