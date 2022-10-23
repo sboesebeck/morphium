@@ -54,11 +54,6 @@ public class AnnotationAndReflectionHelperTest {
     }
 
     @Test
-    public void throwsNullPointerExceptionWhenSuperClassIsNull() {
-        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> helper.getRealClass(null));
-    }
-
-    @Test
     public void testIsBufferedWrite() {
         assertTrue(helper.isBufferedWrite(CachedObject.class));
     }
