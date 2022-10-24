@@ -1,4 +1,20 @@
 #!/bin/bash
+
+function quitting(){
+  kill -9 $(<test.pid)
+  rm -f test.pid
+  exit 1
+}
+
+trap quitting EXIT 
+trap quitting SIGINT
+trap quitting SIGHUP
+
+nodel=0
+if [ "q$1" == "q--nodel" ]; then
+  nodel=1
+  shift
+fi
 p=$1
 if [ "q$p" == "q" ]; then
 	# echo "No pattern given, running all tests"
@@ -14,14 +30,20 @@ if [ "q$2" == "q" ]; then
 # else
 # 	echo "Checking for test-methods matching $m"
 fi
+echo "Cleaning up..."
+
+mvn clean > /dev/null
 
 rg -l "@Test" | grep ".java" >files.lst
 rg -l "@ParameterizedTest" | grep ".java" >>files.lst
 
 sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//'>files.txt
 cnt=$(wc -l < files.txt|tr -d ' ')
-rm -rf test.log
-mkdir test.log
+testMethods=$(egrep "@Test|@ParameterizedTest" $(<files.lst)| cut -f2 -d: | grep -v '^ *//' | wc -l)
+if [ "$nodel" -eq 0 ]; then
+  rm -rf test.log
+  mkdir test.log
+fi
 tst=0
 totalTestsRun=0
 totalTestsFailed=0
@@ -30,14 +52,17 @@ for t in $(<files.txt); do
   (( tst = tst +1 ))
   tm=$(date +%s)
   if [ "$m" == "." ]; then
-    mvn test -Dtest="$t" >test.log/"$t".log &
+    mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log &
+    echo "$&" > test.pid
   else
-    mvn test -Dtest="$t#$m" >"test.log/$t.log" &
+    mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" &
+    echo "$&" > test.pid
   fi
   while true; do
     clear
 
     echo "Running test in $t  - #$tst/$cnt"
+    echo "Total methods to run $testMethods"
     if [ "$m" != "." ]; then
       echo " Tests matchin: $m"
     fi
@@ -62,7 +87,9 @@ for t in $(<files.txt); do
     tail -n 10 test.log/"$t".log
     echo "----------"
     echo "Failed tests"
-    egrep "Running |Tests run:" test.log/* | grep -B1 FAILURE || echo "none"
+    egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
+    # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
+    # egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
     jobs >/dev/null
     j=$(jobs | wc -l)
     if [ "$j" -lt 1 ]; then

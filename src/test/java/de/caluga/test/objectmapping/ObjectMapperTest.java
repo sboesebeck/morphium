@@ -1,19 +1,61 @@
 package de.caluga.test.objectmapping;
 
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
-import de.caluga.test.mongo.suite.data.UncachedObject;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 public class ObjectMapperTest {
     private Logger log = LoggerFactory.getLogger(ObjectMapperTest.class);
+
+    @Test
+    public void marshallListOfIdsTest() {
+        ListOfIdsContainer c = new ListOfIdsContainer();
+        c.others = new ArrayList<>();
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.others.add(new MorphiumId());
+        c.simpleId = new MorphiumId();
+
+        c.idMap = new HashMap<>();
+        c.idMap.put("1", new MorphiumId());
+        MorphiumObjectMapper mapper=new ObjectMapperImpl();
+        Map<String, Object> marshall = mapper.serialize(c);
+        assert (marshall.get("simple_id") instanceof ObjectId);
+        assert (((Map) marshall.get("id_map")).get("1") instanceof ObjectId);
+        for (Object i : (List) marshall.get("others")) {
+            assert (i instanceof ObjectId);
+        }
+
+        ///
+
+        c = mapper.deserialize(ListOfIdsContainer.class, marshall);
+        //noinspection ConstantConditions
+        assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
+        //noinspection ConstantConditions
+        assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
+        assertNotNull(c.simpleId);
+        ;
+    }
 
     @Test
     public void testObjectMapper() throws Exception {
