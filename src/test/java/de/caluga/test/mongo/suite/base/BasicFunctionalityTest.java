@@ -673,84 +673,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
-    @Test
-    public void arHelperTest() {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        AnnotationAndReflectionHelper annotationHelper = morphium.getARHelper();
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class);
-        long dur = System.currentTimeMillis() - start;
-        log.info("present duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.isAnnotationPresentInHierarchy(UncachedObject.class, Entity.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("present duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getFields(UncachedObject.class, Id.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("fields an duration: " + dur);
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getFields(UncachedObject.class, Id.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("fields an duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getFields(UncachedObject.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("fields duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getFields(UncachedObject.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("fields duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("Hierarchy duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 500000; i++)
-            annotationHelper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class);
-        dur = System.currentTimeMillis() - start;
-        log.info("Hierarchy duration: " + dur);
-
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 50000; i++) {
-            List<String> lst = annotationHelper.getFields(UncachedObject.class);
-            for (String f : lst) {
-                Field fld = annotationHelper.getField(UncachedObject.class, f);
-                fld.isAnnotationPresent(Id.class);
-            }
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("fields / getField duration: " + dur);
-
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 50000; i++) {
-            List<String> lst = annotationHelper.getFields(UncachedObject.class);
-            for (String f : lst) {
-                Field fld = annotationHelper.getField(UncachedObject.class, f);
-                fld.isAnnotationPresent(Id.class);
-            }
-        }
-        dur = System.currentTimeMillis() - start;
-        log.info("fields / getField duration: " + dur);
-
-
-    }
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void listOfIdsTest(Morphium morphium) {
@@ -857,38 +779,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertTrue(ex);
         }
 
-    }
-
-    @Test
-    public void marshallListOfIdsTest() {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        ListOfIdsContainer c = new ListOfIdsContainer();
-        c.others = new ArrayList<>();
-        c.others.add(new MorphiumId());
-        c.others.add(new MorphiumId());
-        c.others.add(new MorphiumId());
-        c.others.add(new MorphiumId());
-        c.simpleId = new MorphiumId();
-
-        c.idMap = new HashMap<>();
-        c.idMap.put("1", new MorphiumId());
-
-        Map<String, Object> marshall = morphium.getMapper().serialize(c);
-        assert (marshall.get("simple_id") instanceof ObjectId);
-        assert (((Map) marshall.get("id_map")).get("1") instanceof ObjectId);
-        for (Object i : (List) marshall.get("others")) {
-            assert (i instanceof ObjectId);
-        }
-
-        ///
-
-        c = morphium.getMapper().deserialize(ListOfIdsContainer.class, marshall);
-        //noinspection ConstantConditions
-        assert (c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
-        //noinspection ConstantConditions
-        assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
-        assertNotNull(c.simpleId);
-        ;
     }
 
     @ParameterizedTest

@@ -35,7 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 //import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
 //import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 
-
 /**
  * User: Stpehan Bösebeck
  * Date: 26.02.12
@@ -164,7 +163,6 @@ public class MorphiumTestBase {
 
                 cfg.setCheckForNew(true);
 
-
                 //            cfg.setMongoAdminUser("adm");
                 //            cfg.setMongoAdminPwd("adm");
                 ////
@@ -253,23 +251,34 @@ public class MorphiumTestBase {
         }
         MongoConnection con = null;
         try {
-            con = morphium.getDriver().getPrimaryConnection(null);
-            ListCollectionsCommand cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-            for (var collMap : cmd.execute()) {
-                String coll = (String) collMap.get("name");
-                log.info("Dropping collection " + coll);
-                try {
-                    morphium.clearCollection(UncachedObject.class, coll); //faking it
-                } catch (Exception e) {
-                    //e.printStackTrace();
+            boolean retry=true;
+
+            while (retry) {
+                con = morphium.getDriver().getPrimaryConnection(null);
+                ListCollectionsCommand cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                for (var collMap : cmd.execute()) {
+                    String coll = (String) collMap.get("name");
+                    log.info("Dropping collection " + coll);
+                    try {
+                        morphium.clearCollection(UncachedObject.class, coll); //faking it
+                    } catch (Exception e) {
+                        //e.printStackTrace();
+                    }
+                    morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
                 }
-                morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
-            }
-            while (cmd.execute().size() > 0) {
-                Thread.sleep(100);
-                for (var k : cmd.execute()) {
-                    log.info("Collections still there..." + k.get("name"));
+                long start=System.currentTimeMillis();
+                retry=false;
+                while (cmd.execute().size() > 0) {
+                    Thread.sleep(100);
+                    for (var k : cmd.execute()) {
+                        log.info("Collections still there..." + k.get("name"));
+                    }
+                    if (System.currentTimeMillis()-start>1500){
+                        retry=true;
+                        break;
+                    }
                 }
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -351,7 +360,6 @@ public class MorphiumTestBase {
         init();
     }
 
-
     public void logStats(Morphium m) {
         Map<String, Double> stats = m.getStatistics();
         log.info("Statistics: ");
@@ -359,7 +367,6 @@ public class MorphiumTestBase {
             log.info(e.getKey() + " - " + e.getValue());
         }
     }
-
 
     public void waitForWrites() {
         waitForWrites(morphium);
