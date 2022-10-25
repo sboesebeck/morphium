@@ -1,13 +1,15 @@
 #!/bin/bash
 
-failed=$(./getFailedTests.sh)
+failed=$(./getFailedTests.sh --noreason)
 
 
 for f in $failed; do
+  echo "F: $f"
   cls=${f%#*}
   m=${f#*#}
-  m=$(echo "$m" | sed -e 's/\/.*$' )
+  m=${m/(*/}
+  # m=$(echo "$m" | sed -e 's/\\(.*$//' )
   echo "Re-Running tests in $cls Method $m"
-  ./runtests.sh --nodel $f $m
+  ./runtests.sh --nodel $cls $m
 done
 
