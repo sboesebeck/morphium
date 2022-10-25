@@ -17,3 +17,4 @@ slackurl.inc
 .classpath
 .settings/
 .project
+test.pid

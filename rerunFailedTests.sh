@@ -4,7 +4,10 @@ failed=$(./getFailedTests.sh)
 
 
 for f in $failed; do
-  echo "Re-Running tests in $f"
-  ./runtests.sh --nodel $f
+  cls=${f%#*}
+  m=${f#*#}
+  m=$(echo "$m" | sed -e 's/\/.*$' )
+  echo "Re-Running tests in $cls Method $m"
+  ./runtests.sh --nodel $f $m
 done
 
