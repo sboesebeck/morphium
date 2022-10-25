@@ -57,10 +57,10 @@ for t in $(<files.txt); do
 	((tst = tst + 1))
 	tm=$(date +%s)
 	if [ "$m" == "." ]; then
-		mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log &
+		mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
 		echo $! >test.pid
 	else
-		mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" &
+		mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1&
 		echo $! >test.pid
 	fi
 	while true; do

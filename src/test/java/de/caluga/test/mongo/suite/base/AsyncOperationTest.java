@@ -13,6 +13,7 @@ import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -168,7 +169,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     public void testAsyncWriter(Morphium morphium) throws Exception {
 
         try (morphium) {
-            if (morphium.getDriver() instanceof SingleMongoConnectDriver){
+            if (! (morphium.getDriver() instanceof PooledDriver)){
                 log.info("Cannot run with single connection");
                 return;
             }
@@ -176,7 +177,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             morphium.ensureIndicesFor(AsyncObject.class);
             Thread.sleep(2000);
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
-
+            var q=morphium.createQueryFor(AsyncObject.class);
+            assertEquals(q.countAll(),0);
             for (int i = 0; i < 500; i++) {
                 if (i % 10 == 0) {
                     log.info("Stored " + i + " objects");
@@ -188,7 +190,6 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 morphium.store(ao);
             }
             long start=System.currentTimeMillis();
-            var q=morphium.createQueryFor(AsyncObject.class);
             while (System.currentTimeMillis()-start < 5000 && q.countAll()!=500){
                 log.info("Written: "+q.countAll());
                 Thread.sleep(500);
