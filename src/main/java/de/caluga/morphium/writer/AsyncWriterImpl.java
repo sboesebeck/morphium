@@ -12,14 +12,8 @@ import java.util.List;
  * Date: 19.03.13
  * Time: 12:36
  * <p/>
- * TODO: Add documentation here
  */
 public class AsyncWriterImpl extends MorphiumWriterImpl {
-    @Override
-    public <T> void store(T obj, String collection, AsyncOperationCallback<T> callback) {
-        super.store(obj, collection, callback);
-        Thread.yield();
-    }
 
     @Override
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
@@ -28,13 +22,13 @@ public class AsyncWriterImpl extends MorphiumWriterImpl {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<T> q, long duration, List<T> result, T entity, Object... param) {
                 }
-
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<T> q, long duration, String error, Throwable t, T entity, Object... param) {
                     LoggerFactory.getLogger(AsyncWriterImpl.class).error("Error during async operation", t);
                 }
             };
         }
+
         super.submitAndBlockIfNecessary(callback, r);
     }
 }
