@@ -49,6 +49,9 @@ if [ "$nodel" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
 fi
+echo "Compiling..."
+mvn compile  > /dev/null || exit 1
+
 tst=0
 totalTestsRun=0
 totalTestsFailed=0
@@ -115,3 +118,8 @@ for t in $(<files.txt); do
 	((totalTestsFailed = totalTestsFailed + fail))
 
 done
+
+echo "Total tests run       : $totalTestsRun"
+echo "TotalTests with errors: $totalTestsError"
+echo "TotalTests failed     : $totalTestsFailed"
+echo "Finished!"
