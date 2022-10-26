@@ -13,6 +13,7 @@ import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
@@ -59,13 +60,14 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     log.info("Objects deleted");
                     asyncCall = true;
                 }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, String error, Throwable t, Query<UncachedObject> entity, Object... param) {
                     assert false;
                 }
             });
             Thread.sleep(200);
-            assert(asyncCall);
+            assert (asyncCall);
             asyncCall = false;
             uc = uc.q();
             uc.f(UncachedObject.Fields.counter).mod(3, 2);
@@ -76,6 +78,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     log.info("Objects updated");
                     asyncCall = true;
                 }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                     log.info("Objects update error", t);
@@ -85,7 +88,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             Thread.sleep(100);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
             assert counter > 0 : "Counter is: " + counter;
-            assert(asyncCall);
+            assert (asyncCall);
         }
     }
 
@@ -104,8 +107,9 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     asyncCall = true;
                     log.info("got read answer");
                     assertNotNull(result, "Error");
-                    assert(result.size() == 100) : "Error";
+                    assert (result.size() == 100) : "Error";
                 }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                     assert false;
@@ -116,12 +120,12 @@ public class AsyncOperationTest extends MultiDriverTestBase {
 
             while (q.getNumberOfPendingRequests() > 0) {
                 count++;
-                assert(count < 10);
+                assert (count < 10);
                 System.out.println("Still waiting...");
                 Thread.sleep(1000);
             }
 
-            assert(asyncCall);
+            assert (asyncCall);
         }
     }
 
@@ -140,14 +144,15 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     log.info("got async callback!");
                     assertTrue(param != null && param[0] != null);
                     ;
-                    assert(param[0].equals((long) 100));
+                    assert (param[0].equals((long) 100));
                 }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
                     //To change body of implemented methods use File | Settings | File Templates.
                     log.error("got async error callback", t);
                     //noinspection ConstantConditions
-                    assert(false);
+                    assert (false);
                 }
             });
             //waiting for thread to become active
@@ -157,28 +162,25 @@ public class AsyncOperationTest extends MultiDriverTestBase {
 
             while (q.getNumberOfPendingRequests() > 0) {
                 count++;
-                assert(count < 10);
+                assert (count < 10);
                 Thread.sleep(1000);
             }
 
-            assert(asyncCall);
+            assert (asyncCall);
         }
     }
+
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testAsyncWriter(Morphium morphium) throws Exception {
 
         try (morphium) {
-            if (! (morphium.getDriver() instanceof PooledDriver)){
-                log.info("Cannot run with single connection");
-                return;
-            }
             morphium.dropCollection(AsyncObject.class);
             morphium.ensureIndicesFor(AsyncObject.class);
             Thread.sleep(2000);
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
-            var q=morphium.createQueryFor(AsyncObject.class);
-            assertEquals(q.countAll(),0);
+            var q = morphium.createQueryFor(AsyncObject.class);
+            assertEquals(q.countAll(), 0);
             for (int i = 0; i < 500; i++) {
                 if (i % 10 == 0) {
                     log.info("Stored " + i + " objects");
@@ -188,12 +190,24 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 ao.setCounter(i);
                 ao.setStrValue("Async write");
                 morphium.store(ao);
+//                Thread.yield();
+//                log.info("--------> Written: " + q.countAll());
+//                log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
+//                log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
+//                log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
             }
-            long start=System.currentTimeMillis();
-            while (System.currentTimeMillis()-start < 5000 && q.countAll()!=500){
-                log.info("Written: "+q.countAll());
+            long start = System.currentTimeMillis();
+            while (System.currentTimeMillis() - start < 5000 && q.countAll() != 500) {
+                log.info("--------> Waiting: " + q.countAll());
+                log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
+                log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
+                log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
                 Thread.sleep(500);
             }
+            log.info("--------> finished: " + q.countAll());
+            log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
+            log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
+            log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
             assertTrue(q.countAll() != 0);
             assertEquals(500, q.countAll());
         }
@@ -210,6 +224,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query<WrongObject> q, long duration, List<WrongObject> result, WrongObject entity, Object... param) {
                 }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query<WrongObject> q, long duration, String error, Throwable t, WrongObject entity, Object... param) {
                     log.info("On Error Callback called correctly");
@@ -217,7 +232,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
             });
             Thread.sleep(1000);
-            assert(callback);
+            assert (callback);
         }
     }
 
