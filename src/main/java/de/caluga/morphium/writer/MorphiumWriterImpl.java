@@ -1150,45 +1150,49 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (callback == null) {
             r.run();
         } else {
-            synchronized(this){
-                r.setCallback(callback);
-                int tries = 0;
-                boolean retry = true;
+            r.setCallback(callback);
+            int tries = 0;
+            boolean retry = true;
 
-                while (retry) {
+            while (retry) {
+                try {
+                    tries++;
+                    executor.execute(r);
+                    retry = false;
+                } catch (OutOfMemoryError ignored) {
+                    logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
+                } catch (java.util.concurrent.RejectedExecutionException e) {
+                    if (tries > maximumRetries) {
+                        throw new RuntimeException(
+                            "Could not write - not even after "
+                            + maximumRetries
+                            + " retries and pause of "
+                            + pause
+                            + "ms",
+                            e);
+                    }
+
+                    if (logger.isDebugEnabled()) {
+                        logger.warn(
+                            "thread pool exceeded - waiting "
+                            + pause
+                            + " ms for the "
+                            + tries
+                            + ". time");
+                    }
+
                     try {
-                        tries++;
-                        executor.execute(r);
-                        retry = false;
-                    } catch (OutOfMemoryError ignored) {
-                        logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
-                    } catch (java.util.concurrent.RejectedExecutionException e) {
-                        if (tries > maximumRetries) {
-                            throw new RuntimeException(
-                                "Could not write - not even after "
-                                + maximumRetries
-                                + " retries and pause of "
-                                + pause
-                                + "ms",
-                                e);
-                        }
-
-                        if (logger.isDebugEnabled()) {
-                            logger.warn(
-                                "thread pool exceeded - waiting "
-                                + pause
-                                + " ms for the "
-                                + tries
-                                + ". time");
-                        }
-
-                        try {
-                            Thread.sleep(pause);
-                        } catch (InterruptedException ignored) {
-                            // swallow
-                        }
+                        Thread.sleep(pause);
+                    } catch (InterruptedException ignored) {
+                        // swallow
                     }
                 }
+            }
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
             }
         }
     }

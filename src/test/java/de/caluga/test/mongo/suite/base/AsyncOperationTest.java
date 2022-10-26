@@ -169,6 +169,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testAsyncWriter(Morphium morphium) throws Exception {
+        log.info("Running Test with "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(AsyncObject.class);
             morphium.ensureIndicesFor(AsyncObject.class);
@@ -176,23 +177,27 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
             var q = morphium.createQueryFor(AsyncObject.class);
             assertEquals(q.countAll(), 0);
+            Runnable r=()->{
+                for (int i = 0; i < 125; i++) {
+                    if (i % 10 == 0) {
+                        log.info("Stored " + i + " objects");
+                    }
 
-            for (int i = 0; i < 500; i++) {
-                if (i % 10 == 0) {
-                    log.info("Stored " + i + " objects");
+                    AsyncObject ao = new AsyncObject();
+                    ao.setCounter(i);
+                    ao.setStrValue("Async write");
+                    morphium.store(ao);
+                    // Thread.sleep(5); //TODO: Get RID of this. this fixes the test, but the unerlying problem still exists
+                    //                log.info("--------> Written: " + q.countAll());
+                    //                log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
+                    //                log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
+                    //                log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
                 }
-
-                AsyncObject ao = new AsyncObject();
-                ao.setCounter(i);
-                ao.setStrValue("Async write");
-                morphium.store(ao);
-                // Thread.sleep(5);
-                //                log.info("--------> Written: " + q.countAll());
-                //                log.info("Connections in pool : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_POOL));
-                //                log.info("Connections borrowed: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED));
-                //                log.info("Connections returned: " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_RELEASED));
-            }
-
+            };
+            new Thread(r).start();
+            new Thread(r).start();
+            new Thread(r).start();
+            new Thread(r).start();
             long start = System.currentTimeMillis();
 
             while (System.currentTimeMillis() - start < 5000 && q.countAll() != 500) {
