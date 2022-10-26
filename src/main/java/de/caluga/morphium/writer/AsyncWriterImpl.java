@@ -16,6 +16,12 @@ import java.util.List;
  */
 public class AsyncWriterImpl extends MorphiumWriterImpl {
     @Override
+    public <T> void store(T obj, String collection, AsyncOperationCallback<T> callback) {
+        super.store(obj, collection, callback);
+        Thread.yield();
+    }
+
+    @Override
     public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
             callback = new AsyncOperationCallback<T>() {
