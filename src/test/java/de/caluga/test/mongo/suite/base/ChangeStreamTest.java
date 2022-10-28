@@ -74,6 +74,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void changeStreamBackgroundTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver() instanceof SingleMongoConnectDriver) return;
+        log.info("================================> Running test with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
 
@@ -81,38 +83,26 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             try {
                 final var count = new AtomicInteger(0);
                 final var written = new AtomicInteger(0);
-                new Thread(() -> {
+                var t=new Thread(() -> {
                     try {
-                        MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-                        Morphium m2 = morphium;
-                        if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                            cfg.setCredentialsEncryptionKey("1234567890abcdef");
-                            cfg.setCredentialsDecryptionKey("1234567890abcdef");
-                            m2 = new Morphium(cfg);
-
-                        }
-
-
                         while (run.get()) {
                             try {
                                 Thread.sleep(2500);
                             } catch (InterruptedException e) {
                             }
-                            m2.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
-                            log.info("Written");
+                            morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
+                            log.info(morphium.getDriver().getName()+": Written");
                             written.incrementAndGet();
-                            m2.set(m2.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
-                            log.info("updated");
+                            morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
+                            log.info(morphium.getDriver().getName()+": updated");
                             written.incrementAndGet();
                         }
-                        log.info("Thread finished");
-                        if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                            m2.close();
-                        }
+                        log.info(morphium.getDriver().getName()+": Thread finished");
                     } catch (Exception e) {
-                        log.error("Error in Thread", e);
+                        log.error(morphium.getDriver().getName()+": Error in Thread", e);
                     }
-                }).start();
+                });
+                t.start();
                 start = System.currentTimeMillis();
                 morphium.watchAsync(UncachedObject.class, true, evt -> {
                     count.incrementAndGet();
@@ -120,19 +110,21 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     return run.get();
                 });
                 Thread.sleep(500);
-                waitForCondidtionToBecomeTrue(5000, "no writes?", () -> written.get() > 0);
-                waitForCondidtionToBecomeTrue(5000, "no incoming events?", () -> count.get() > 1);
+                waitForCondidtionToBecomeTrue(5000, morphium.getDriver().getName()+": no writes?", () -> written.get() > 0);
+                waitForCondidtionToBecomeTrue(5000, morphium.getDriver().getName()+": no incoming events?", () -> count.get() > 1);
                 Thread.sleep(1000);
-                log.info("Stopping thread");
+                log.info(morphium.getDriver().getName()+": Stopping thread");
                 run.set(false);
+                t.join();
+                
                 start = System.currentTimeMillis();
                 while (!(count.get() > 0 && count.get() >= written.get() - 2)) {
                     Thread.sleep(500);
-                    log.info("Wrong count: " + count.get() + " written: " + written.get());
+                    log.info(morphium.getDriver().getName()+": Wrong count: " + count.get() + " written: " + written.get());
                     assert (System.currentTimeMillis() - start < 10000);
                 }
             } finally {
-                run.set(false);
+                run.set(false); 
                 morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
             }
             Thread.sleep(2000);
