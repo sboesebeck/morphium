@@ -2,6 +2,8 @@ package de.caluga.morphium.writer;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.Collation;
+import de.caluga.morphium.MorphiumConfig.CappedCheck;
+import de.caluga.morphium.MorphiumConfig.IndexCheck;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -507,22 +509,37 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         if (!morphium.getDriver().isTransactionInProgress()
             && !morphium.getDriver().exists(getDbName(), coll)) {
-            switch (morphium.getConfig().getIndexCheck()) {
-                case CREATE_ON_WRITE_NEW_COL:
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Collection " + coll + " does not exist - ensuring indices");
-                    }
-
-                    createCappedCollection(type, coll);
-                    morphium.ensureIndicesFor(type, coll, callback);
-                    break;
-
-                case CREATE_ON_STARTUP:
-                case WARN_ON_STARTUP:
-                case NO_CHECK:
-                default:
-                    // nothing
+            if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL)){
+                createCappedCollection(type,coll);
             }
+            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)){
+                morphium.ensureIndicesFor(type,coll,callback);
+            }
+            // switch (morphium.getConfig().getIndexCheck()) {
+            //     case CREATE_ON_WRITE_NEW_COL:
+            //         if (logger.isDebugEnabled()) {
+            //             logger.debug("Collection " + coll + " does not exist - ensuring indices");
+            //         }
+            //         
+            //         morphium.ensureIndicesFor(type, coll, callback);
+            //         break;
+            //
+            //     case CREATE_ON_STARTUP:
+            //     case WARN_ON_STARTUP:
+            //     case NO_CHECK:
+            //     default:
+            //         // nothing
+            // }
+            // switch(morphium.getConfig().getCappedCheck()){
+            //     case CREATE_ON_WRITE_NEW_COL:
+            //           createCappedCollection(type, coll);
+            //     break;
+            //     case CREATE_ON_STARTUP:
+            //     case WARN_ON_STARTUP:
+            //     case NO_CHECK:
+            //     default:
+            //         //ignore 
+            // }
 
             //
             //
