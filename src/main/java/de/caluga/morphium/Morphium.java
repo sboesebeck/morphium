@@ -417,7 +417,7 @@ public class Morphium implements AutoCloseable {
                                     cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
 
                                     var ret = cmd.execute();
-                                    // TODO: check for errors
+                                    log.info("Created capped collection");
                                 } catch (MorphiumDriverException e) {
 
                                     throw new RuntimeException(e);
@@ -815,13 +815,15 @@ public class Morphium implements AutoCloseable {
                 if (exists && morphiumDriver.isCapped(config.getDatabase(), coll)) {
                     return;
                 }
-                if (config.isAutoIndexAndCappedCreationOnWrite()) { // && !exists) {
+            
+                if (!exists) { 
                     if (log.isDebugEnabled()) {
                         log.debug("Collection does not exist - ensuring indices / capped" + " status");
                     }
                     MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(getWriteConcernForClass(c));
                     var create = new CreateCommand(primaryConnection);
-
+                    create.setColl(getMapper().getCollectionName(c)).setDb(getDatabase());
+                    
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
                     if (capped != null) {
                         create.setSize(capped.maxSize()).setCapped(true).setMax(capped.maxEntries());
