@@ -250,6 +250,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySizeWithDelOldStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeDelOldObject.class);
+        morphium.getConfig().setMaxWaitTime(15000);
         waitForAsyncOperationsToStart(morphium, 2000);
         waitForWrites();
         int amount = 1500;
@@ -336,6 +337,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
         Vector<Thread> thr = new Vector<>();
         for (int i = 0; i < threads; i++) {
+            final var num=i;
             Thread t = new Thread() {
                 public void run() {
                     try {
@@ -344,6 +346,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
                             o.setCount(j);
                             o.setValue(getName());
                             morphium.store(o);
+                            log.info("Thr "+num+": wrote "+j+"/"+count);
                         }
                     } catch (Exception e) {
                         e.printStackTrace();

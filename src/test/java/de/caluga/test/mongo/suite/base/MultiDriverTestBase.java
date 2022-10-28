@@ -294,6 +294,7 @@ public class MultiDriverTestBase {
         while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
             if (System.currentTimeMillis() - start > maxWaitMs) {
+                log.error("Timoout reached, "+maxWaitMs+" but buffer is still "+morphium.getWriteBufferCount());
                 return false;
             }
         }
