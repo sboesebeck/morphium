@@ -549,7 +549,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q.f("counter").eq(i);
             List<CachedObject> l = q.asList();
-            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? " + i;
+            assertNotNull(l);
+            assertFalse(l.isEmpty());
             CachedObject fnd = l.get(0);
             assertNotNull(fnd, "Error finding element with id " + i);
             assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
@@ -578,10 +579,13 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Storing (in Cache) single took " + dur + " ms");
 //        wiatForAsyncOpToStart(1000);
 //       waitForWrites(morphium);
-            Thread.sleep(3000);
+            var q=m.createQueryFor(CachedObject.class);
+            while (q.countAll()<NO_OBJECTS){
+                m.clearCachefor(CachedObject.class);
+                assertThat(System.currentTimeMillis()-start < 5000);
+            }
             dur = System.currentTimeMillis() - start;
             log.info("Storing took " + dur + " ms overall");
-            Thread.sleep(500);
             randomCheck(m);
             Map<String, Double> statistics = m.getStatistics();
             Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
@@ -611,6 +615,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void checkToStringUniqueness(Morphium morphium) {
+        log.info("Runnint test with "+morphium.getDriver().getName());
         try (morphium) {
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q = q.f("value").eq("Test").f("counter").gt(5);
@@ -635,7 +640,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void mixedListWritingTest(Morphium morphium) {
+    public void mixedListWritingTest(Morphium morphium) throws Exception {
         try (morphium) {
             List<Object> tst = new ArrayList<>();
             int cached = 0;
@@ -658,18 +663,13 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
 
             morphium.storeList(tst);
-            assertTrue(waitForAsyncOperationsToStart(morphium, 3000));
-            waitForWrites(morphium);
-//        Still waiting - storing lists is not shown in number of write buffer entries
-            try {
-                Thread.sleep(3000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+            long start=System.currentTimeMillis();
+            while (true){
+                Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
+                Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
+                if (uncached==qu.countAll() && cached==q.countAll()) break;
+                assertThat(System.currentTimeMillis()-start > 5000);
             }
-            Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
-            assertEquals(uncached, qu.countAll());
-            Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
-            assertEquals(cached, q.countAll());
         }
     }
 
