@@ -5,6 +5,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +24,11 @@ public class CollationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void queryTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)){
+            log.info("Collation does not work properly with InMemoryDriver - skipping");
+            return;
+        }
+        log.info("==========================> Running with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
@@ -82,6 +88,11 @@ public class CollationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void countTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)){
+            log.info("Collation does not work properly with InMemoryDriver - skipping");
+            return;
+        }
+        log.info("==========================> Running with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
@@ -100,6 +111,11 @@ public class CollationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void updateTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)){
+            log.info("Collation does not work properly with InMemoryDriver - skipping");
+            return;
+        }
+        log.info("==========================> Running with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
@@ -123,6 +139,11 @@ public class CollationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void delTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)){
+            log.info("Collation does not work properly with InMemoryDriver - skipping");
+            return;
+        }
+        log.info("==========================> Running with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
@@ -145,6 +166,11 @@ public class CollationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void aggregateTest(Morphium morphium) throws Exception {
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)){
+            log.info("Collation does not work properly with InMemoryDriver - skipping");
+            return;
+        }
+        log.info("==========================> Running with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
