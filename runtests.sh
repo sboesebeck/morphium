@@ -3,6 +3,8 @@
 function quitting() {
 	kill -9 $(<test.pid) >/dev/null 2>&1
 	#  rm -f test.pid
+  ./getFAiledTests.sh > failed.txt
+  echo "List of failed tests in failed.txt"
 	exit 1
 }
 
@@ -118,8 +120,8 @@ for t in $(<files.txt); do
 	((totalTestsFailed = totalTestsFailed + fail))
 
 done
-
+./getFAiledTests.sh > failed.txt
 echo "Total tests run       : $totalTestsRun"
 echo "TotalTests with errors: $totalTestsError"
 echo "TotalTests failed     : $totalTestsFailed"
-echo "Finished!"
+echo "Finished! List of failed tests in ./failed.txt"
