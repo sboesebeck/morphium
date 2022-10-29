@@ -18,3 +18,5 @@ slackurl.inc
 .settings/
 .project
 test.pid
+
+failed.txt
