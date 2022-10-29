@@ -92,7 +92,6 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                             }
                             morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
                             log.info(morphium.getDriver().getName()+": Written");
-                            written.incrementAndGet();
                             morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), "strValue", "newVal");
                             log.info(morphium.getDriver().getName()+": updated");
                             written.incrementAndGet();
@@ -118,11 +117,12 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 t.join();
                 
                 start = System.currentTimeMillis();
-                while (!(count.get() > 0 && count.get() >= written.get() - 2)) {
+                while (!(count.get() > 0 && count.get()*2 >= written.get() - 2)) {
                     Thread.sleep(500);
                     log.info(morphium.getDriver().getName()+": Wrong count: " + count.get() + " written: " + written.get());
                     assert (System.currentTimeMillis() - start < 10000);
                 }
+                log.info("finished.");
             } finally {
                 run.set(false); 
                 morphium.store(new UncachedObject("value", (int) (1 + (Math.random() * 100.0))));
