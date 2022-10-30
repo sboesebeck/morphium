@@ -4,6 +4,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -26,7 +28,7 @@ public class RegexTests extends MorphiumTestBase {
     public void patternRegexTest() throws Exception {
         createTestData();
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-        assert (q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).countAll() == 50);
+        assertTrue(q.f(UncachedObject.Fields.strValue).matches(Pattern.compile("VALUE.*")).countAll() == 50);
         List<UncachedObject> lst = q.q().f(UncachedObject.Fields.strValue).matches(Pattern.compile("9$")).asList();
         assert (lst.size() > 1);
         for (UncachedObject o : lst) {
