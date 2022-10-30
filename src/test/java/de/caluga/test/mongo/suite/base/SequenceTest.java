@@ -56,7 +56,7 @@ public class SequenceTest extends MorphiumTestBase {
         Sequence s = morphium.createQueryFor(Sequence.class).f(Sequence.Fields.name).eq("test").get();
         s.setLockedBy("noone");
         morphium.store(s);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         //now sequence is blocked by someone else... waiting 30s
         long v = sg.getNextValue();
         log.info("Got next Value: " + v);

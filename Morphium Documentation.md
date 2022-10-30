@@ -1354,7 +1354,7 @@ public void textIndexTest() throws Exception {
         return;
     }
     createData();
-    waitForWrites();
+    TestUtils.waitForWrites(morphium,log);
     Query<Person> p = morphium.createQueryFor(Person.class);
     List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
     assert (lst.size() == 2) : "size is " + lst.size();
@@ -2751,7 +2751,7 @@ There are some places, you also might want to look at for additional information
 
         cs.sendClearMessage(CachedObject.class, "test");
         Thread.sleep(2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
         msg.terminate();
@@ -2903,10 +2903,10 @@ There are some places, you also might want to look at for additional information
 	public void asyncStoreTest() throws Exception {
 	  asyncCall = false;
 	  super.createCachedObjects(1000);
-	  waitForWrites();
+	  TestUtils.waitForWrites(morphium,log);
 	  log.info("Uncached object preparation");
 	  super.createUncachedObjects(1000);
-	  waitForWrites();
+	  TestUtils.waitForWrites(morphium,log);
 	  Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
 	  uc = uc.f("counter").lt(100);
 	  morphium.delete(uc, new AsyncOperationCallback<Query<UncachedObject>>() {
@@ -2937,7 +2937,7 @@ There are some places, you also might want to look at for additional information
             }
     });
     
-    waitForWrites();
+    TestUtils.waitForWrites(morphium,log);
     
     assert(morphium.createQueryFor(UncachedObject.class).f("counter").eq(0).countAll() > 0);
     assert (asyncCall);

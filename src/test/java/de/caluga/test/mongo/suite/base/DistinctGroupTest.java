@@ -58,7 +58,7 @@ public class DistinctGroupTest extends MultiDriverTestBase {
             morphium.startTransaction();
             createCachedObjects(morphium, 2);
             waitForAsyncOperationsToStart(morphium, 1000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             Thread.sleep(1500);
             List values = morphium.distinct("counter", UncachedObject.class);

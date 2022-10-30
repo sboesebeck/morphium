@@ -57,7 +57,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             m2.store(o);
 
             log.info("waiting for some time!");
-            waitForCondidtionToBecomeTrue(15000, "count did not raise", () -> count > 1);
+            TestUtils.waitForConditionToBecomeTrue(15000, "count did not raise", () -> count > 1);
             runningFlag.set(false);
             assertTrue(count >= 2 && count <= 3);
             long cnt = count;
@@ -109,8 +109,8 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                     return run.get();
                 });
                 Thread.sleep(500);
-                waitForCondidtionToBecomeTrue(5000, morphium.getDriver().getName()+": no writes?", () -> written.get() > 0);
-                waitForCondidtionToBecomeTrue(5000, morphium.getDriver().getName()+": no incoming events?", () -> count.get() > 1);
+                TestUtils.waitForConditionToBecomeTrue(5000, morphium.getDriver().getName()+": no writes?", () -> written.get() > 0);
+                TestUtils.waitForConditionToBecomeTrue(5000, morphium.getDriver().getName()+": no incoming events?", () -> count.get() > 1);
                 Thread.sleep(1000);
                 log.info(morphium.getDriver().getName()+": Stopping thread");
                 run.set(false);

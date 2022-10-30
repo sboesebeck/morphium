@@ -319,7 +319,7 @@ public class UpdateTest extends MultiDriverTestBase {
             em.setValue("emb Value 2");
             em.setTest(2);
             morphium.push(lc, "embedded_object_list", em);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());
             ;
@@ -394,7 +394,7 @@ public class UpdateTest extends MultiDriverTestBase {
             em.setTest(3);
             obj.add(em);
             morphium.pushAll(lc, "embedded_object_list", obj, false, true);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(2500);
             ListContainer lc2 = lc.get();
             assertNotNull(lc2.getEmbeddedObjectList());

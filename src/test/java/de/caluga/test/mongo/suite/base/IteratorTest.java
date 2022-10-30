@@ -398,7 +398,7 @@ public class IteratorTest extends MultiDriverTestBase {
                 u.setCounter(1800);
                 u.setStrValue("Should not be read");
                 morphium.store(u);
-                waitForWrites(morphium);
+                TestUtils.waitForWrites(morphium,log);
 
                 while (it.hasNext()) {
                     u = it.next();

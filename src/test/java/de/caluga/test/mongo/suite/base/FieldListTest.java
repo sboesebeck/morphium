@@ -22,7 +22,7 @@ public class FieldListTest extends MorphiumTestBase {
     @Test
     public void testFieldList() {
         createUncachedObjects(100);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.addProjection(UncachedObject.Fields.counter);

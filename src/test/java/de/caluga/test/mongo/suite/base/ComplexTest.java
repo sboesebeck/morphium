@@ -53,7 +53,7 @@ public class ComplexTest extends MultiDriverTestBase {
             morphium.store(co);
 
             //object stored!!!
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             //now read it again...
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
@@ -238,7 +238,7 @@ public class ComplexTest extends MultiDriverTestBase {
             co.setEmbed(eo);
 
             morphium.store(co);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(1000);
             Query<ComplexObject> qc = morphium.createQueryFor(ComplexObject.class);
             co = qc.f("embed.name").eq("embedded1").get();

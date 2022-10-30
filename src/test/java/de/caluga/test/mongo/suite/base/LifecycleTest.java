@@ -40,7 +40,7 @@ public class LifecycleTest extends MorphiumTestBase {
         assert (postLoad) : "Something went wrong: postload";
 
         morphium.set(obj, "value", "test beendet");
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         assert (preUpdate);
         assert (postUpdate);
         morphium.delete(obj);

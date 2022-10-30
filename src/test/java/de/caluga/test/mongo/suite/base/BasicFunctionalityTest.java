@@ -277,7 +277,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
 
             waitForAsyncOperationsToStart(morphium, 3000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             morphium.reread(o);
             for (int i = 0; i < binaryData.length; i++) {
                 binaryData[i] = (byte) (i + 2);
@@ -285,7 +285,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             o.setBinaryData(binaryData);
             morphium.store(o);
             waitForAsyncOperationsToStart(morphium, 3000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {
                 assert (o.getBinaryData()[i] == binaryData[i]);
@@ -306,7 +306,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.store(o);
 
             waitForAsyncOperationsToStart(morphium, 3000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             morphium.reread(o);
             for (int i = 0; i < o.getBinaryData().length; i++) {
                 assert (o.getBinaryData()[i] == binaryData[i]);
@@ -578,7 +578,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             long dur = System.currentTimeMillis() - start;
             log.info("Storing (in Cache) single took " + dur + " ms");
 //        wiatForAsyncOpToStart(1000);
-//       waitForWrites(morphium);
+//       TestUtils.waitForWrites(morphium,log);
             var q=m.createQueryFor(CachedObject.class);
             while (q.countAll()<NO_OBJECTS){
                 m.clearCachefor(CachedObject.class);

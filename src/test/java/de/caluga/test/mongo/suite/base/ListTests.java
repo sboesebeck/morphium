@@ -4,6 +4,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.*;
@@ -28,6 +29,13 @@ public class ListTests extends MorphiumTestBase {
     @Test
     public void listStoringTest() throws Exception {
         morphium.dropCollection(Uc.class);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Collection was not dropped?!?!", ()->{
+            try {
+                return !morphium.exists(morphium.getDatabase(),morphium.getMapper().getCollectionName(Uc.class));
+            } catch (MorphiumDriverException e) {
+            }
+            return false;
+        });
         List<UncachedObject> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             Uc u = new Uc();

@@ -26,7 +26,7 @@ public class IdCacheTest extends MorphiumTestBase {
             morphium.store(u);
         }
 
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         long s = System.currentTimeMillis();
         Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
         while (q.countAll() != 99) {

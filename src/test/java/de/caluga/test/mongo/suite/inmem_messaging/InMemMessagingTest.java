@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -553,7 +554,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             error = false;
-            waitForWrites();
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(2500);
             assert (!gotMessage1) : "Message recieved again by m1?!?!?";
             assert (!gotMessage2) : "Message recieved again by m2?!?!?";
@@ -738,7 +739,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
             long dur = System.currentTimeMillis() - start;
             log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
-            waitForWrites();
+            TestUtils.waitForWrites(morphium,log);
             log.info("...all messages persisted!");
             int last = 0;
             assert (!failed[0]);

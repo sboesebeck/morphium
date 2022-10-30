@@ -44,11 +44,11 @@ public class TailableQueryTests extends MultiDriverTestBase {
                 });
                 assertTrue(found.get() >= 1);
             }).start();
-            waitForCondidtionToBecomeTrue(2500, "no result coming in?", () -> found.get() == 2);
+            TestUtils.waitForConditionToBecomeTrue(2500, "no result coming in?", () -> found.get() == 2);
             log.info("Storing 3...");
             m.store(new CappedCol("Test 3 - quit", 3));
             log.info("Stored... waiting for event");
-            waitForCondidtionToBecomeTrue(2500, "3rd result not coming in", () -> found.get() == 3);
+            TestUtils.waitForConditionToBecomeTrue(2500, "3rd result not coming in", () -> found.get() == 3);
         }
 
     }

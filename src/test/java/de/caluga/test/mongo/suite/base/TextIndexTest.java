@@ -26,7 +26,7 @@ public class TextIndexTest extends MorphiumTestBase {
 //            return;
 //        }
 //        createData();
-//        waitForWrites();
+//        TestUtils.waitForWrites(morphium,log);
 //        Query<Person> p = morphium.createQueryFor(Person.class);
 //        List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
 //        assert (lst.size() == 2) : "size is " + lst.size();
@@ -48,7 +48,7 @@ public class TextIndexTest extends MorphiumTestBase {
 //        }
 //        createData();
 //
-//        waitForWrites();
+//        TestUtils.waitForWrites(morphium,log);
 //
 //        Query<Person> p = morphium.createQueryFor(Person.class);
 //        p = p.text("hugo", "Bruce");

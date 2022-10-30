@@ -67,7 +67,7 @@ public class MassCacheTest extends MorphiumTestBase {
             }
         }
 
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         log.info("Waiting for changes to be propagated...");
         dur = System.currentTimeMillis() - start;
         int goal = NO_OBJECTS * WRITING_THREADS;
@@ -174,7 +174,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 throw new RuntimeException(e);
             }
         }
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         long dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms\n");
 
@@ -197,7 +197,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 o.setValue("Test " + j);
                 morphium.store(o);
             }
-            waitForWrites();
+            TestUtils.waitForWrites(morphium,log);
             log.info("Done.");
 
             for (int j = 0; j < 3; j++) {
@@ -252,7 +252,7 @@ public class MassCacheTest extends MorphiumTestBase {
             morphium.store(o);
         }
         Thread.sleep(1200);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(25000);
         log.info("Done.");
         ProfilingListener pl = new ProfilingListener() {
