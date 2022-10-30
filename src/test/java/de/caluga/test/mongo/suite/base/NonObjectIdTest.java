@@ -33,7 +33,7 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setName("2nd Test");
         morphium.store(p);
         waitForAsyncOperationsToStart(morphium, 1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
 
         p.setName("CHANGED");
         morphium.store(p);
@@ -44,7 +44,7 @@ public class NonObjectIdTest extends MorphiumTestBase {
         p.setName("no ID");
         morphium.store(p);
         waitForAsyncOperationsToStart(morphium, 1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(1500);
         long cnt = morphium.createQueryFor(Person.class).countAll();
         assert (cnt == 3) : "Count wrong: " + cnt;

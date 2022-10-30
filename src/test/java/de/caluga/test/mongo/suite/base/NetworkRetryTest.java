@@ -48,7 +48,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
         waitForAsyncOperationsToStart(morphium, 1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 1; i <= 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

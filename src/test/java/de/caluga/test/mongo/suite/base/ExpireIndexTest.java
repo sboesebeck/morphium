@@ -20,8 +20,10 @@ public class ExpireIndexTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testExpiry(Morphium morphium) throws InterruptedException {
+        log.info("==========> Running test with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UCobj.class);
+            morphium.ensureIndicesFor(UCobj.class);
             for (int i = 0; i < 100; i++) {
                 UCobj u = new UCobj();
                 u.setCounter(i);
@@ -29,9 +31,9 @@ public class ExpireIndexTest extends MultiDriverTestBase {
                 morphium.store(u);
             }
             Thread.sleep(500);
-            waitForCondidtionToBecomeTrue(1000, "Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 100);
+            TestUtils.waitForConditionToBecomeTrue(1000, "Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 100);
             log.info("Waiting for mongo to clear it");
-            waitForCondidtionToBecomeTrue(62000, "Did not clear?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
+            TestUtils.waitForConditionToBecomeTrue(62000, "Did not clear?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
             log.info("done.");
         }
     }

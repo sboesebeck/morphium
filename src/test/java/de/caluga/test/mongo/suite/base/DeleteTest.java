@@ -21,10 +21,10 @@ public class DeleteTest extends MultiDriverTestBase {
     public void uncachedDeleteSingle(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 10);
-            waitForCondidtionToBecomeTrue(1000, "create failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            TestUtils.waitForConditionToBecomeTrue(1000, "create failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
             UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
             morphium.delete(u);
-            waitForCondidtionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
                 assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
@@ -37,10 +37,10 @@ public class DeleteTest extends MultiDriverTestBase {
     public void uncachedDeleteQuery(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 10);
-            waitForCondidtionToBecomeTrue(1000, "Count!=10 still", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            TestUtils.waitForConditionToBecomeTrue(1000, "Count!=10 still", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
             UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
             morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
-            waitForCondidtionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
                 assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
@@ -54,12 +54,12 @@ public class DeleteTest extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             createCachedObjects(morphium, 10);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             long c = morphium.createQueryFor(CachedObject.class).countAll();
             assert (c == 10) : "Count is " + c;
             CachedObject u = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(u);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
 
@@ -82,12 +82,12 @@ public class DeleteTest extends MultiDriverTestBase {
     public void cachedDeleteQuery(Morphium morphium) throws Exception {
         try (morphium) {
             createCachedObjects(morphium, 10);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             long cnt = morphium.createQueryFor(CachedObject.class).countAll();
             assert (cnt == 10) : "Count is " + cnt;
             CachedObject co = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(100);
             cnt = morphium.createQueryFor(CachedObject.class).countAll();
             assert (cnt == 9);

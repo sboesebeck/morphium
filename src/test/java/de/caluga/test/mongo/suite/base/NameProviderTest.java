@@ -37,7 +37,7 @@ public class NameProviderTest extends MorphiumTestBase {
             morphium.store(lo);
         }
        waitForAsyncOperationsToStart(1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
         //        DBCollection col = morphium.getDatabase().getCollection(colName);

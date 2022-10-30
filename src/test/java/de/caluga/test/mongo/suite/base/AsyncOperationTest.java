@@ -47,10 +47,10 @@ public class AsyncOperationTest extends MultiDriverTestBase {
         try (morphium) {
             asyncCall = false;
             super.createCachedObjects(morphium, 1000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             log.info("Uncached object preparation");
             super.createUncachedObjects(morphium, 1000);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
             uc = uc.f(UncachedObject.Fields.counter).lt(100);
             log.info("deleting...");
@@ -82,7 +82,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     log.info("Objects update error", t);
                 }
             });
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(100);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
             assert counter > 0 : "Counter is: " + counter;

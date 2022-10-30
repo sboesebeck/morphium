@@ -54,12 +54,12 @@ public class CacheListenerTest extends MorphiumTestBase {
             for (int i = 0; i < 10; i++) {
                 morphium.createQueryFor(CachedObject.class).f("counter").lte(i).asList();
             }
-            waitForWrites();
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(1000);
             assert (wouldAdd);
 
             super.createCachedObjects(10);
-            waitForWrites();
+            TestUtils.waitForWrites(morphium,log);
             log.info("Waiting for would clear message");
             Thread.sleep(1500);
             assert (wouldClear);

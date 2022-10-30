@@ -138,7 +138,7 @@ public class MorphiumTestBase {
                 cfg.setRetryReads(false);
                 cfg.setRetryWrites(false);
                 cfg.setReadTimeout(1000);
-                cfg.setMaxWaitTime(2000);
+                cfg.setMaxWaitTime(10000);
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
                 cfg.setMaxConnections(100);
@@ -369,26 +369,7 @@ public class MorphiumTestBase {
     }
 
     public void waitForWrites() {
-        waitForWrites(morphium);
-    }
-
-    public void waitForWrites(Morphium morphium) {
-        int count = 0;
-        while (morphium.getWriteBufferCount() > 0) {
-            count++;
-            if (count % 100 == 0) {
-                log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex) {
-            }
-        }
-        //waiting for it to be persisted
-        try {
-            Thread.sleep(1500);
-        } catch (InterruptedException e) {
-        }
+        TestUtils.waitForWrites(morphium,log);
     }
 
     public static boolean stringWordCompare(String m1, String m2) {

@@ -30,7 +30,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             morphium.dropCollection(UncachedObject.class);
 
             createUncachedObjects(morphium, 10);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
             long s = System.currentTimeMillis();
@@ -82,7 +82,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
     public void bulkTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 100);
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
             //        UpdateBulkRequest up = c

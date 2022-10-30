@@ -56,7 +56,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             co.setEinText("This is a very complex object");
             morphium.store(co);
 
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             Thread.sleep(1500);
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value");
@@ -96,7 +96,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             co.setEinText("This is a very complex object");
             morphium.store(co);
 
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
 
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value_not");

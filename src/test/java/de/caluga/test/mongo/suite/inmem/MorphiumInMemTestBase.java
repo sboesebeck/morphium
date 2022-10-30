@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.AfterEach;
@@ -99,29 +100,8 @@ public class MorphiumInMemTestBase {
     }
 
     public void waitForWrites() {
-        waitForWrites(morphium);
+        TestUtils.waitForWrites(morphium,log);
     }
-
-    public void waitForWrites(Morphium morphium) {
-        int count = 0;
-        while (morphium.getWriteBufferCount() > 0) {
-            count++;
-            if (count % 100 == 0) {
-                log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
-            }
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException ex) {
-            }
-        }
-        //waiting for it to be persisted
-        try {
-            Thread.sleep(500);
-        } catch (InterruptedException e) {
-        }
-    }
-
-
     public void createCachedObjects(Morphium morphium, int amount) {
         List<CachedObject> lst = new ArrayList<>();
         for (int i = 0; i < amount; i++) {

@@ -1634,7 +1634,7 @@ Mongodb has since V3.x a built in text search functionality. This can be used in
             return;
         }
         createData();
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Query<Person> p = morphium.createQueryFor(Person.class);
         List<Person> lst = p.text(Query.TextSearchLanguages.english, "hugo", "bruce").asList();
         assert (lst.size() == 2) : "size is " + lst.size();

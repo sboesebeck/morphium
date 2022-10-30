@@ -2053,7 +2053,7 @@ public void textIndexTest() throws Exception {
         return;
     }
     createData();
-    waitForWrites();
+    TestUtils.waitForWrites(morphium,log);
     Query&lt;Person&gt; p = morphium.createQueryFor(Person.class);
     List&lt;Person&gt; lst = p.text(Query.TextSearchLanguages.english, &quot;hugo&quot;, &quot;bruce&quot;).asList();
     assert (lst.size() == 2) : &quot;size is &quot; + lst.size();
@@ -3745,7 +3745,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
 
         cs.sendClearMessage(CachedObject.class, &quot;test&quot;);
         Thread.sleep(2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         cnt = q.countAll();
         assert (cnt == 1) : &quot;there should be one msg, there are &quot; + cnt;
         msg.terminate();
@@ -3896,10 +3896,10 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
     public void asyncStoreTest() throws Exception {
       asyncCall = false;
       super.createCachedObjects(1000);
-      waitForWrites();
+      TestUtils.waitForWrites(morphium,log);
       log.info(&quot;Uncached object preparation&quot;);
       super.createUncachedObjects(1000);
-      waitForWrites();
+      TestUtils.waitForWrites(morphium,log);
       Query&lt;UncachedObject&gt; uc = morphium.createQueryFor(UncachedObject.class);
       uc = uc.f(&quot;counter&quot;).lt(100);
       morphium.delete(uc, new AsyncOperationCallback&lt;Query&lt;UncachedObject&gt;&gt;() {
@@ -3930,7 +3930,7 @@ assert(val.equals(&quot;{ \&quot;$filter\&quot; : { \&quot;input\&quot; :  [ 1, 
             }
     });
     
-    waitForWrites();
+    TestUtils.waitForWrites(morphium,log);
     
     assert(morphium.createQueryFor(UncachedObject.class).f(&quot;counter&quot;).eq(0).countAll() &gt; 0);
     assert (asyncCall);

@@ -128,7 +128,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
                     }
                 });
             }
-            waitForWrites(morphium);
+            TestUtils.waitForWrites(morphium,log);
             long dur = System.currentTimeMillis() - start;
             log.info("storing objects one by one async took " + dur + " ms");
             Thread.sleep(1000);

@@ -31,7 +31,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dropCollection(BufferedBySizeObject.class);
 
         assertTrue(waitForAsyncOperationsToStart(morphium, 2000));
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         List<BufferedBySizeObject> lst = new ArrayList<>();
         for (int i = 0; i < 200; i++) {
             BufferedBySizeObject buf = new BufferedBySizeObject();
@@ -45,14 +45,14 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
         Thread.sleep(3000);
         assertTrue(waitForAsyncOperationsToStart(morphium, 2000));
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         for (BufferedBySizeObject b : lst) {
             b.setStrValue(b.getStrValue() + 100);
             morphium.store(b);
         }
         Thread.sleep(3000);
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         assertEquals(200, morphium.createQueryFor(BufferedBySizeObject.class).countAll());
 
     }
@@ -61,7 +61,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dropCollection(BufferedBySizeObject.class);
 
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
 
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f("counter").eq(100);
         morphium.inc(q, UncachedObject.Fields.counter, 1, true, false);
@@ -76,7 +76,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.set(q, UncachedObject.Fields.counter, 1, true, false);
 
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(3000);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 3);
@@ -90,7 +90,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dropCollection(BufferedByTimeObject.class);
 
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
 
         for (int i = 0; i < 100; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
@@ -99,7 +99,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             morphium.store(bo);
         }
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(1000);
         while (morphium.createQueryFor(BufferedByTimeObject.class).countAll() != 100) {
             Thread.sleep(100);
@@ -113,7 +113,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.inc(q, toInc, false, true, null);
 
         waitForAsyncOperationsToStart(morphium, 1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(1000);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
         assert (morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
@@ -123,7 +123,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
         morphium.inc(q, toInc, true, false, null);
         waitForAsyncOperationsToStart(morphium, 1000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(1000);
 
         assert (morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
@@ -140,7 +140,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dropCollection(BufferedBySizeObject.class);
 
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1, true, false);
@@ -160,7 +160,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             log.info("Waiting for writes to finish...");
         }
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         Thread.sleep(5000);
         q = morphium.createQueryFor(BufferedBySizeObject.class);
         assert (q.countAll() == 1) : "Counted " + q.countAll();
@@ -174,7 +174,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeWriteNewObject.class);
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWriteNewObject bo = new BufferedBySizeWriteNewObject();
@@ -199,7 +199,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferBySize() throws Exception {
         morphium.dropCollection(BufferedBySizeObject.class);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeObject bo = new BufferedBySizeObject();
@@ -224,7 +224,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     public void testWriteBufferByTime() throws Exception {
         morphium.dropCollection(BufferedByTimeObject.class);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
@@ -252,7 +252,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.dropCollection(BufferedBySizeDelOldObject.class);
         morphium.getConfig().setMaxWaitTime(15000);
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeDelOldObject bo = new BufferedBySizeDelOldObject();
@@ -270,7 +270,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferBySizeWithIngoreNewStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeIgnoreNewObject.class);
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeIgnoreNewObject bo = new BufferedBySizeIgnoreNewObject();
@@ -288,7 +288,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
     public void testWriteBufferBySizeWithWaitStrategy() throws Exception {
         morphium.dropCollection(BufferedBySizeWaitObject.class);
         waitForAsyncOperationsToStart(morphium, 2000);
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         int amount = 1500;
         for (int i = 0; i < amount; i++) {
             BufferedBySizeWaitObject bo = new BufferedBySizeWaitObject();
@@ -359,17 +359,17 @@ public class BufferedWriterTest extends MorphiumTestBase {
             t.start();
         }
 
-        waitForWrites();
+        TestUtils.waitForWrites(morphium,log);
         while (!thr.isEmpty()) {
             log.info("waiting for threads: " + thr.size());
             Thread.sleep(1000);
         }
-        log.info("WRiting finished");
+        log.info("Writing finished");
 
         Thread.sleep(5000);
         long c = morphium.createQueryFor(SimpleObject.class).countAll();
         log.info("waiting..." + c);
-        assert (c == 500);
+        assertEquals(500,c);
 
     }
 
