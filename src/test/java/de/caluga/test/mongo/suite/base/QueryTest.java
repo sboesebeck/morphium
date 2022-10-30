@@ -557,6 +557,7 @@ public class QueryTest extends MorphiumTestBase {
         }
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).eq(uc.getMorphiumId())
                 .push(UncachedObject.Fields.intData, 42);
+        Thread.sleep(500);
         morphium.reread(uc);
         assertNotNull(uc.getIntData());
         ;
