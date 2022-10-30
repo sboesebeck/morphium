@@ -113,7 +113,7 @@ for t in $(<files.txt); do
 			((err = err + 1))
 			kill %1
 		fi
-		sleep 2
+		sleep 5
 	done
 	((totalTestsRun = totalTestsRun + run))
 	((totalTestsError = totalTestsError + err))
