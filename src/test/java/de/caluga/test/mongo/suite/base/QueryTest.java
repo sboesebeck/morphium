@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class QueryTest extends MorphiumTestBase {
@@ -634,9 +635,10 @@ public class QueryTest extends MorphiumTestBase {
 
         }
         morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).pull(UncachedObject.Fields.intData, Expr.lte(Expr.intExpr(20)), false, false, null);
+        Thread.sleep(100);
         morphium.reread(uc);
-        assert (uc.getIntData().length == 3);
-        assert (uc.getIntData()[0] != 12);
+        assertEquals (3,uc.getIntData().length);
+        assertEquals (23,uc.getIntData()[0]);
 
     }
 
