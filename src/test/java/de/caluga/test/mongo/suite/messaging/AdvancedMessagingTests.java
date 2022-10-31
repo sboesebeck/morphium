@@ -65,7 +65,11 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             };
             for (int i = 0; i < receivers; i++) {
                 log.info("Creating morphiums..." + i);
-                Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+                MorphiumConfig cfg2= MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+                cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+                cfg2.setCredentialsDecryptionKey("1234567890abcdef");
+
+                Morphium m = new Morphium(cfg2);
                 m.getConfig().getCache().setHouskeepingIntervalPause(100);
                 morphiums.add(m);
                 Messaging msg = new Messaging(m, 50, false, true, (int) (1500 * Math.random()));
@@ -180,17 +184,26 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
         m1.start();
 
 
-        Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        MorphiumConfig cfg2= MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
+        Morphium morphium2 = new Morphium(cfg2);
         Messaging m2 = new Messaging(morphium2, 100, false, true, 10);
 //        m2.setUseChangeStream(false);
         m2.start();
 
-        Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        cfg2= MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
+        Morphium morphium3 = new Morphium(cfg2);
         Messaging m3 = new Messaging(morphium3, 100, false, true, 10);
 //        m3.setUseChangeStream(false);
         m3.start();
 
-        Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+        cfg2= MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
+        Morphium morphium4 = new Morphium(cfg2);
         Messaging m4 = new Messaging(morphium4, 100, false, true, 10);
 //        m4.setUseChangeStream(false);
         m4.start();

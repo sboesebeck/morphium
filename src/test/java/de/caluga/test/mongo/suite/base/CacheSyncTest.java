@@ -330,6 +330,8 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
         cfg2.setHostSeed(m1.getConfig().getHostSeed());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
@@ -408,6 +410,8 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
         cfg2.setHostSeed(m1.getConfig().getHostSeed());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
@@ -518,6 +522,8 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         Morphium m1 = morphium;
         MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setCredentialsEncryptionKey("1234567890abcdef");
+        cfg2.setCredentialsDecryptionKey("1234567890abcdef");
         cfg2.setHostSeed(m1.getConfig().getHostSeed());
         cfg2.setDatabase(m1.getConfig().getDatabase());
 

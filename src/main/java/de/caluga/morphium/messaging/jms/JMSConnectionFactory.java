@@ -28,6 +28,9 @@ public class JMSConnectionFactory  implements ConnectionFactory {
     @Override
     public Connection createConnection(String userName, String password) throws JMSException {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
+        cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
+
         cfg.setMongoLogin(userName);
         cfg.setMongoPassword(password);
         return new JMSConnection(new Morphium(cfg));
@@ -41,6 +44,8 @@ public class JMSConnectionFactory  implements ConnectionFactory {
     @Override
     public JMSContext createContext(String userName, String password) {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
+        cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
         cfg.setMongoLogin(userName);
         cfg.setMongoPassword(password);
         return new Context(new Morphium(cfg));
@@ -49,6 +54,8 @@ public class JMSConnectionFactory  implements ConnectionFactory {
     @Override
     public JMSContext createContext(String userName, String password, int sessionMode) {
         MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
+        cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
         cfg.setMongoLogin(userName);
         cfg.setMongoPassword(password);
         return new Context(new Morphium(cfg), "", sessionMode);
