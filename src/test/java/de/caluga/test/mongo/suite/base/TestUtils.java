@@ -6,31 +6,42 @@ import de.caluga.morphium.Morphium;
 
 public class TestUtils {
     public interface Condition {
-        boolean test();
+        boolean test() throws Exception;
     }
     public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst) {
         long start = System.currentTimeMillis();
-        while (!tst.test()) {
-            if (System.currentTimeMillis() - start > maxDuration) {
-                throw new AssertionError(failMessage);
+
+        try {
+            while (!tst.test()) {
+                if (System.currentTimeMillis() - start > maxDuration) {
+                    throw new AssertionError(failMessage);
+                }
+
+                Thread.yield();
             }
-            Thread.yield();
+
+            return System.currentTimeMillis() - start;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        return System.currentTimeMillis() - start;
     }
 
-    public static void waitForWrites(Morphium morphium,Logger log) {
+    public static void waitForWrites(Morphium morphium, Logger log) {
         int count = 0;
+
         while (morphium.getWriteBufferCount() > 0) {
             count++;
+
             if (count % 100 == 0) {
                 log.info("still " + morphium.getWriteBufferCount() + " writers active (" + morphium.getBufferedWriterBufferCount() + " + " + morphium.getWriterBufferCount() + ")");
             }
+
             try {
                 Thread.sleep(100);
             } catch (InterruptedException ex) {
             }
         }
+
         //waiting for it to be persisted
         try {
             Thread.sleep(1500);
