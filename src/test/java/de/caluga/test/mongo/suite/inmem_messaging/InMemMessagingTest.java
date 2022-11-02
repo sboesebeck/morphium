@@ -12,6 +12,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
+import org.opentest4j.AssertionFailedError;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -1582,6 +1583,9 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll());
                 Thread.sleep(500);
+                if (System.currentTimeMillis()-start > 5000){
+                    throw new AssertionError("This took too long! count: "+q.countAll());
+                }
             }
             assert (q.countAll() == 0) : "Count is wrong: " + q.countAll();
 //
