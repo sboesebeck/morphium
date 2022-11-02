@@ -216,8 +216,22 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 continue;
             }
             f.setAccessible(true);
-            try {
-                f.set(this, null);
+            try {   
+                if (f.getType().isPrimitive()){
+                   if (f.getType().equals(boolean.class)){
+                        f.set(this,false);
+                    } else if (f.getType().equals(int.class)){
+                        f.set(this,0);
+                    } else if (f.getType().equals(long.class)){
+                        f.set(this,0L);
+                    } else if (f.getType().equals(float.class)){
+                        f.set(this,0.0f);
+                    } else if (f.getType().equals(double.class)){
+                        f.set(this,0.0d);
+                    }
+                } else {
+                   f.set(this, null);
+                }
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }

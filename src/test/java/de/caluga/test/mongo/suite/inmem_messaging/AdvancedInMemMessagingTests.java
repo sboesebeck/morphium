@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
@@ -109,18 +110,22 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     public void messageAnswerTest() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
         counts.clear();
+        log.info("Starting m1...");
         Messaging m1 = new Messaging(morphium, 100, false, true, 10);
         m1.start();
 
 
+        log.info("Starting m2...");
         Messaging m2 = new Messaging(morphium, 100, false, true, 10);
 //        m2.setUseChangeStream(false);
         m2.start();
 
+        log.info("Starting m3...");
         Messaging m3 = new Messaging(morphium, 100, false, true, 10);
 //        m3.setUseChangeStream(false);
         m3.start();
 
+        log.info("Starting m4...");
         Messaging m4 = new Messaging(morphium, 100, false, true, 10);
 //        m4.setUseChangeStream(false);
         m4.start();
@@ -137,21 +142,23 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
             m4.addListenerForMessageNamed("test", msgMessageListener);
 
             for (int i = 0; i < 10; i++) {
+                log.info("Sending exclusive message");
                 Msg query = new Msg("test", "test query", "query");
                 query.setExclusive(true);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1500);
                 //            for(Msg m:ans){
                 //                log.info("Incoming message: "+m);
                 //            }
-                assert (ans.size() == 1) : "Recieved more than one answer to query " + query.getMsgId() + " " + ans.size();
+                assertEquals(1,ans.size());
             }
 
 
             for (int i = 0; i < 10; i++) {
+                log.info("Sending not exclusive message");
                 Msg query = new Msg("test", "test query", "query");
                 query.setExclusive(false);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1000);
-                assert (ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
+                assert(ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
             }
         } finally {
             m1.terminate();
