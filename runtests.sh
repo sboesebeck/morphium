@@ -3,8 +3,8 @@
 function quitting() {
 	kill -9 $(<test.pid) >/dev/null 2>&1
 	#  rm -f test.pid
-  ./getFAiledTests.sh > failed.txt
-  echo "List of failed tests in failed.txt"
+	./getFAiledTests.sh >failed.txt
+	echo "List of failed tests in failed.txt"
 	exit 1
 }
 
@@ -13,8 +13,14 @@ trap quitting SIGINT
 trap quitting SIGHUP
 
 nodel=0
+skip=0
 if [ "q$1" == "q--nodel" ]; then
 	nodel=1
+	shift
+fi
+
+if [ "q$1" == "q--skip" ]; then
+	skip=1
 	shift
 fi
 p=$1
@@ -41,18 +47,29 @@ rg -l "@Test" | grep ".java" >files.lst
 rg -l "@ParameterizedTest" | grep ".java" >>files.lst
 
 sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
+if [ "$skip" -ne 0 ]; then
+	echo "Skipping tests already run"
+	for i in $(ls -1 test.log); do
+		i=$(basename $i)
+    i=${i%%.log}
+		echo "not rerunning $i"
+		grep -v $i files.txt >files.tmp
+		mv files.tmp files.txt
+	done
+fi
+# read
 cnt=$(wc -l <files.txt | tr -d ' ')
 if [ "$cnt" -eq 0 ]; then
 	echo "no matching class found for $p"
 	exit 1
 fi
 testMethods=$(egrep "@Test|@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-if [ "$nodel" -eq 0 ]; then
+if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
 fi
 echo "Compiling..."
-mvn compile  > /dev/null || exit 1
+mvn compile >/dev/null || exit 1
 
 tst=0
 totalTestsRun=0
@@ -65,7 +82,7 @@ for t in $(<files.txt); do
 		mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
 		echo $! >test.pid
 	else
-		mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1&
+		mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1 &
 		echo $! >test.pid
 	fi
 	while true; do
@@ -120,7 +137,7 @@ for t in $(<files.txt); do
 	((totalTestsFailed = totalTestsFailed + fail))
 
 done
-./getFAiledTests.sh > failed.txt
+./getFAiledTests.sh >failed.txt
 echo "Total tests run       : $totalTestsRun"
 echo "TotalTests with errors: $totalTestsError"
 echo "TotalTests failed     : $totalTestsFailed"
