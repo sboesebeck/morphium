@@ -1243,6 +1243,7 @@ public class MessagingTest extends MorphiumTestBase {
     @Test
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
+        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", ()->!morphium.exists(Msg.class));
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
 
@@ -1296,7 +1297,7 @@ public class MessagingTest extends MorphiumTestBase {
                 Thread.sleep(50);
                 assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
             }
-
+            Thread.sleep(100);
             assertEquals(0, m1.getNumberOfMessages());
         } finally {
             m1.terminate();
@@ -1638,18 +1639,22 @@ public class MessagingTest extends MorphiumTestBase {
         receiver2.start();
 
         final AtomicInteger pausedReciever = new AtomicInteger(0);
+        final AtomicInteger messageCount=new AtomicInteger();
 
         try {
             Thread.sleep(100);
             receiver.addMessageListener((msg, m) -> {
 //                log.info("R1: Incoming message");
-                assert (pausedReciever.get() != 1);
+                messageCount.incrementAndGet();
+                assertThat(pausedReciever.get()).describedAs("Should not get message when paused").isNotEqualTo(1);
+
                 return null;
             });
 
             receiver2.addMessageListener((msg, m) -> {
 //                log.info("R2: Incoming message");
-                assert (pausedReciever.get() != 2);
+                messageCount.incrementAndGet();
+                assertThat(pausedReciever.get()).describedAs("Should not get message when paused").isNotEqualTo(2);
                 return null;
             });
 
@@ -1666,11 +1671,11 @@ public class MessagingTest extends MorphiumTestBase {
                     Thread.sleep(50);
                     pausedReciever.set(1);
                 } else if (i == 160) {
+                    pausedReciever.set(0);
                     receiver.unpauseProcessingOfMessagesNamed("test");
                     //receiver.findAndProcessPendingMessages("test");
                     receiver2.unpauseProcessingOfMessagesNamed("test");
                     //receiver2.findAndProcessPendingMessages("test");
-                    pausedReciever.set(0);
                 }
 
             }
@@ -1678,8 +1683,9 @@ public class MessagingTest extends MorphiumTestBase {
             long start = System.currentTimeMillis();
             Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").f(Msg.Fields.processedBy).eq(null);
             while (q.countAll() > 0) {
-                log.info("Count is still: " + q.countAll());
+                log.info("Count is still: " + q.countAll()+ " received: "+messageCount.get());
                 Thread.sleep(500);
+                assertThat(System.currentTimeMillis()-start).describedAs("Messages should be processed by now!").isLessThan(5000);
             }
             assert (q.countAll() == 0) : "Count is wrong: " + q.countAll();
 //
@@ -2059,7 +2065,7 @@ public class MessagingTest extends MorphiumTestBase {
                 Thread.sleep(1000);
             }
             Thread.sleep(2000);
-            assert (counts.get() == 50) : "Did get too many? " + counts.get();
+            assertThat(counts.get()).describedAs("Dig get too many {}", counts.get()).isEqualTo(50);
 
 
             counts.set(0);

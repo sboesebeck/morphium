@@ -3399,6 +3399,10 @@ public class Morphium implements AutoCloseable {
         return getDriver().listCollections(db, col).size() != 0;
     }
 
+    public boolean exists(Class<?> cls) throws MorphiumDriverException{
+        return exists(getDatabase(),getMapper().getCollectionName(cls));
+    }
+
     //////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////
     //////////////////////////////
