@@ -179,12 +179,12 @@ public class Messaging extends Thread implements ShutdownListener {
             watchConnection.setHostSeed(morphium.getConfig().getHostSeed());
             watchConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
             watchConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
-        }
 
-        try {
-            watchConnection.connect();
-        } catch (MorphiumDriverException e) {
-            log.error("Could not connect", e);
+            try {
+                watchConnection.connect();
+            } catch (MorphiumDriverException e) {
+                log.error("Could not connect", e);
+            }
         }
     }
 
@@ -862,6 +862,13 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private synchronized void processMessage(Msg msg) {
         //Not locked by me
+        if (msg == null) {
+            if (log.isDebugEnabled()) { log.debug("Message was deleted before processing could happen!"); }
+
+            processing.remove(id);
+            return;
+        }
+
         if (msg.isExclusive() && !getSenderId().equals(msg.getLockedBy())) {
             if (log.isDebugEnabled()) {
                 log.debug("Not processing " + msg.getMsgId() + " - senderID does not match locked by");
@@ -887,6 +894,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             processing.remove(msg.getMsgId());
+            return;
         }
 
         //outdated message
@@ -979,7 +987,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (lst.isEmpty()) {
                 if (log.isDebugEnabled()) {
-                    log.debug(getSenderId() + ": Message did not have a listener registered: "+msg.getName());
+                    log.debug(getSenderId() + ": Message did not have a listener registered: " + msg.getName());
                 }
 
                 wasProcessed = true;
@@ -1186,7 +1194,7 @@ public class Messaging extends Thread implements ShutdownListener {
             Map<String, Object> ret = cmd.execute();
 
             //morphium.getDriver().update(morphium.getDatabase(), getCollectionName(), qobj, update, false, false, null, null);
-            if (ret.get("nModified") == null) {
+            if (ret.get("nModified") == null && ret.get("modified") == null || Integer.valueOf(0).equals(ret.get("nModified")) || Integer.valueOf(0).equals(ret.get("modified"))) {
                 log.warn("Could not update processed_by in msg " + msg.getMsgId());
             }
         } catch (MorphiumDriverException e) {
@@ -1288,10 +1296,13 @@ public class Messaging extends Thread implements ShutdownListener {
         waitingForMessages.clear();
         processing.clear();
         skipped.set(0);
-        try {
-            watchConnection.close();
-        } catch (IOException e1) {
-            //Swallowing during close!
+
+        if (!morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
+            try {
+                watchConnection.close();
+            } catch (IOException e1) {
+                //Swallowing during close!
+            }
         }
 
         if (decouplePool != null) {

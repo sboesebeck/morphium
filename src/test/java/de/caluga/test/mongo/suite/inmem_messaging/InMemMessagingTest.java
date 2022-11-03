@@ -1213,7 +1213,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             m.setName("A message");
 
             sender.queueMessage(m);
-            Thread.sleep(5000);
+            Thread.sleep(555000);
 
             int rec = 0;
             if (gotMessage1) {

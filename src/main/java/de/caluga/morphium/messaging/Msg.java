@@ -97,7 +97,6 @@ public class Msg {
         return this;
     }
 
-    @SuppressWarnings("unused")
     public boolean isExclusive() {
         return getLockedBy() == null || !getLockedBy().equals("ALL");
     }
@@ -116,7 +115,6 @@ public class Msg {
         return this;
     }
 
-    @SuppressWarnings("unused")
     public String getSenderHost() {
         return senderHost;
     }

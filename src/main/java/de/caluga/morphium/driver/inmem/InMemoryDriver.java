@@ -2200,7 +2200,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             store(db, collection, lst, wc);
 
         }
-        return Doc.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "modified", count);
+        return Doc.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "nModified", count,"modified",count);
     }
 
     /**
