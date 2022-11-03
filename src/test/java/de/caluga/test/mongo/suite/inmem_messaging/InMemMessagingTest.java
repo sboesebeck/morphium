@@ -1599,6 +1599,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
     @Test
     public void exclusivityPausedUnpausingTest() throws Exception {
+        morphium.dropCollection(Msg.class);
+        Thread.sleep(100);
         Messaging sender = new Messaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
@@ -1787,8 +1789,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             receiver2.addListenerForMessageNamed("m", messageListener);
             receiver3.addListenerForMessageNamed("m", messageListener);
             receiver4.addListenerForMessageNamed("m", messageListener);
-            int amount = 200;
-            int broadcastAmount = 50;
+            int amount = 20;
+            int broadcastAmount = 20;
             for (int i = 0; i < amount; i++) {
                 int rec = received.get();
                 long messageCount = 0;
