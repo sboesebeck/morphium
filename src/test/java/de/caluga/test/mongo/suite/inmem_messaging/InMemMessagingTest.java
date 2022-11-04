@@ -1706,7 +1706,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                 }
                 assertEquals(0,dups.get(),"Got duplicate message");
-                assertTrue((exclusiveAmount + broadcastAmount * 4 - rec - messageCount)>=0); 
+                assertTrue((exclusiveAmount + broadcastAmount * 4 - rec - messageCount)>0); 
                 Thread.sleep(1000);
             }
             int rec = received.get();
