@@ -86,7 +86,7 @@ public class Morphium implements AutoCloseable {
     private final ThreadLocal<Boolean> enableReadCache = new ThreadLocal<>();
     private final ThreadLocal<Boolean> disableWriteBuffer = new ThreadLocal<>();
     private final ThreadLocal<Boolean> disableAsyncWrites = new ThreadLocal<>();
-    private final List<ProfilingListener> profilingListeners;
+    // private final List<ProfilingListener> profilingListeners;
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
@@ -103,7 +103,7 @@ public class Morphium implements AutoCloseable {
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
 
     public Morphium() {
-        profilingListeners = new CopyOnWriteArrayList<>();
+        // profilingListeners = new CopyOnWriteArrayList<>();
     }
 
     public Morphium(String host, String db) {
@@ -2191,33 +2191,33 @@ public class Morphium implements AutoCloseable {
         return WriteConcern.getWc(w, j, (int) timeout);
     }
 
-    public void addProfilingListener(ProfilingListener l) {
-        profilingListeners.add(l);
-    }
+    // public void addProfilingListener(ProfilingListener l) {
+    //     profilingListeners.add(l);
+    // }
+    //
+    // public void removeProfilingListener(ProfilingListener l) {
+    //     profilingListeners.remove(l);
+    // }
 
-    public void removeProfilingListener(ProfilingListener l) {
-        profilingListeners.remove(l);
-    }
+    // public void fireProfilingWriteEvent(Class type, Object data, long time, boolean isNew, WriteAccessType wt) {
+    //     for (ProfilingListener l : profilingListeners) {
+    //         try {
+    //             l.writeAccess(type, data, time, isNew, wt);
+    //         } catch (Throwable e) {
+    //             log.error("Error during profiling: ", e);
+    //         }
+    //     }
+    // }
 
-    public void fireProfilingWriteEvent(Class type, Object data, long time, boolean isNew, WriteAccessType wt) {
-        for (ProfilingListener l : profilingListeners) {
-            try {
-                l.writeAccess(type, data, time, isNew, wt);
-            } catch (Throwable e) {
-                log.error("Error during profiling: ", e);
-            }
-        }
-    }
-
-    public void fireProfilingReadEvent(Query q, long time, ReadAccessType t) {
-        for (ProfilingListener l : profilingListeners) {
-            try {
-                l.readAccess(q, time, t);
-            } catch (Throwable e) {
-                log.error("Error during profiling", e);
-            }
-        }
-    }
+    // public void fireProfilingReadEvent(Query q, long time, ReadAccessType t) {
+    //     for (ProfilingListener l : profilingListeners) {
+    //         try {
+    //             l.readAccess(q, time, t);
+    //         } catch (Throwable e) {
+    //             log.error("Error during profiling", e);
+    //         }
+    //     }
+    // }
 
     /**
      * issues a remove command - no lifecycle methods calles, no drop, keeps all indexec this way
@@ -2540,7 +2540,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void storeNoCache(T o, String collection, AsyncOperationCallback<T> callback) {
-        config.getWriter().store(o, collection, callback);
+        if (getARHelper().getId(o) == null){
+            config.getWriter().insert(o,collection,callback);
+        } else {
+            config.getWriter().store(o, collection, callback);
+        }
     }
 
     public <T> void storeBuffered(final T lst) {
@@ -3038,7 +3042,7 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    private <T> void insert(T o, String collection, AsyncOperationCallback<T> callback) {
+    public <T> void insert(T o, String collection, AsyncOperationCallback<T> callback) {
         if (o instanceof List) {
             insertList((List) o, collection, callback);
         } else if (o instanceof Collection) {
@@ -3049,7 +3053,7 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(o.getClass()).insert(o, collection, callback);
     }
 
-    private <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback) {
+    public <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback) {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
         Map<Class<?>, List<Object>> values = new HashMap<>();
         for (Object o : lst) {
@@ -3068,11 +3072,11 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    private <T> void insertList(List arrayList, AsyncOperationCallback<T> callback) {
+    public <T> void insertList(List arrayList, AsyncOperationCallback<T> callback) {
         insertList(arrayList, null, callback);
     }
 
-    private <T> void insertList(List arrayList) {
+    public <T> void insertList(List arrayList) {
         insertList(arrayList, null, null);
     }
 

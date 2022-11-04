@@ -1420,7 +1420,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
         m.setSender(id);
         m.setSenderHost(hostname);
-        morphium.storeNoCache(m, getCollectionName(), cb);
+        morphium.insert(m, getCollectionName(), cb);
     }
 
     public void sendMessageToSelf(Msg m) {
@@ -1442,7 +1442,7 @@ public class Messaging extends Thread implements ShutdownListener {
         m.setSender("self");
         m.addRecipient(id);
         m.setSenderHost(hostname);
-        morphium.storeNoCache(m, getCollectionName());
+        morphium.insert(m, getCollectionName());
     }
 
     public boolean isAutoAnswer() {

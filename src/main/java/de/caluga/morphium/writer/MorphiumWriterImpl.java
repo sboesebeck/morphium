@@ -228,7 +228,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
                             // bulk insert
-                            morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
+                            //morphium.fireProfilingWriteEvent(c, dbLst, dur, true, WriteAccessType.BULK_INSERT);
                             // null because key changed => mongo _id
                             es.getValue().forEach(record -> {  // null because key changed => mongo _id
                                 morphium.firePostStore(record, true);
@@ -328,7 +328,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         //                        int cnt = 0;
                         morphium.firePreStore(isNew);
                         long dur = System.currentTimeMillis() - start;
-                        morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
+                        //morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
                         start = System.currentTimeMillis();
                         MongoConnection con = morphium.getDriver().getPrimaryConnection(wc);
                         InsertMongoCommand settings =
@@ -368,12 +368,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
 
                         // bulk insert
-                        morphium.fireProfilingWriteEvent(
-                            lst.get(0).getClass(),
-                            dbLst,
-                            dur,
-                            true,
-                            WriteAccessType.BULK_INSERT);
+                        //morphium.fireProfilingWriteEvent(
+                            // lst.get(0).getClass(),
+                            // dbLst,
+                            // dur,
+                            // true,
+                            // WriteAccessType.BULK_INSERT);
                         morphium.firePostStore(isNew);
                     } catch (MorphiumDriverException e) {
                         // TODO: Implement Handling
@@ -476,7 +476,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
+                    //morphium.fireProfilingWriteEvent(o.getClass(), marshall, dur, true, WriteAccessType.SINGLE_INSERT);
                     morphium.getCache().clearCacheIfNecessary(o.getClass());
                     morphium.firePostStore(o, true);
 
@@ -556,7 +556,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             store((List) obj, collection, callback);
             return;
         }
-
+        
         WriterTask r =
         new WriterTask() {
             private AsyncOperationCallback<T> callback;
@@ -609,6 +609,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     objs.add(marshall);
                     Map<String, Object> ret;
                     MongoConnection con = null;
+                    morphium.firePostStore(o, isNew);
 
                     try {
                         con = morphium.getDriver().getPrimaryConnection(wc);
@@ -633,13 +634,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                     }
 
-                    long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        o.getClass(),
-                        marshall,
-                        dur,
-                        true,
-                        WriteAccessType.SINGLE_INSERT);
+                    // long dur = System.currentTimeMillis() - start;
+                    //morphium.fireProfilingWriteEvent(
+                        // o.getClass(),
+                        // marshall,
+                        // dur,
+                        // true,
+                        // WriteAccessType.SINGLE_INSERT);
 
                     //                    if (logger.isDebugEnabled()) {
                     //                        String n = "";
@@ -650,17 +651,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // type.getSimpleName() + " after " + dur + " ms length:" +
                     // serialize.toString().length());
                     //                    }
-                    if (isNew) {
-                        List<String> flds =
-                            morphium.getARHelper().getFields(o.getClass(), Id.class);
-
-                        if (flds == null) {
-                            throw new RuntimeException("Object does not have an ID field!");
-                        }
-                    }
+                    // if (isNew) {
+                    //     List<String> flds =
+                    //         morphium.getARHelper().getFields(o.getClass(), Id.class);
+                    //
+                    //     if (flds == null) {
+                    //         throw new RuntimeException("Object does not have an ID field!");
+                    //     }
+                    // }
 
                     morphium.getCache().clearCacheIfNecessary(o.getClass());
-                    morphium.firePostStore(o, isNew);
 
                     if (callback != null) {
                         callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - start, null, obj);
@@ -818,12 +818,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 morphium.getCache().clearCacheIfNecessary(c);
                                 long dur = System.currentTimeMillis() - start;
                                 // bulk insert
-                                morphium.fireProfilingWriteEvent(
-                                    c,
-                                    toUpdate,
-                                    dur,
-                                    true,
-                                    WriteAccessType.BULK_INSERT);
+                                //morphium.fireProfilingWriteEvent(
+                                    // c,
+                                    // toUpdate,
+                                    // dur,
+                                    // true,
+                                    // WriteAccessType.BULK_INSERT);
                                 // null because key changed => mongo _id
                                 es.getValue()
                                 .forEach(
@@ -860,8 +860,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             morphium.getCache().clearCacheIfNecessary(c);
                             long dur = System.currentTimeMillis() - start;
                             // bulk insert
-                            morphium.fireProfilingWriteEvent(
-                                c, toUpdate, dur, true, WriteAccessType.BULK_INSERT);
+                            //morphium.fireProfilingWriteEvent(
+                                // c, toUpdate, dur, true, WriteAccessType.BULK_INSERT);
                             // null because key changed => mongo _id
                             es.getValue()
                             .forEach(
@@ -1131,7 +1131,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
 
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingWriteEvent(c, es, dur, false, WriteAccessType.BULK_UPDATE);
+        //morphium.fireProfilingWriteEvent(c, es, dur, false, WriteAccessType.BULK_UPDATE);
         morphium.getCache().clearCacheIfNecessary(c);
         morphium.firePostStore(es, false);
     }
@@ -1369,12 +1369,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        ent.getClass(),
-                        update,
-                        dur,
-                        false,
-                        WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // ent.getClass(),
+                        // update,
+                        // dur,
+                        // false,
+                        // WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache()
                     .clearCacheIfNecessary(
                         morphium.getARHelper().getRealClass(ent.getClass()));
@@ -1528,12 +1528,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        q.getType(),
-                        q.toQueryObject(),
-                        dur,
-                        false,
-                        WriteAccessType.BULK_DELETE);
+                    //morphium.fireProfilingWriteEvent(
+                        // q.getType(),
+                        // q.toQueryObject(),
+                        // dur,
+                        // false,
+                        // WriteAccessType.BULK_DELETE);
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(q.getType());
                     morphium.firePostRemoveEvent(q);
@@ -1605,8 +1605,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     var res = settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
+                    //morphium.fireProfilingWriteEvent(
+                        // o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemoveEvent(o);
@@ -1761,12 +1761,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePostUpdateEvent(
                         morphium.getARHelper().getRealClass(cls),
                         MorphiumStorageListener.UpdateTypes.INC);
-                    morphium.fireProfilingWriteEvent(
-                        toInc.getClass(),
-                        toInc,
-                        System.currentTimeMillis() - start,
-                        false,
-                        WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // toInc.getClass(),
+                        // toInc,
+                        // System.currentTimeMillis() - start,
+                        // false,
+                        // WriteAccessType.SINGLE_UPDATE);
 
                     if (callback != null) {
                         callback.onOperationSucceeded(
@@ -1870,14 +1870,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls,
-                        update,
-                        dur,
-                        upsert,
-                        multiple
-                        ? WriteAccessType.BULK_UPDATE
-                        : WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls,
+                        // update,
+                        // dur,
+                        // upsert,
+                        // multiple
+                        // ? WriteAccessType.BULK_UPDATE
+                        // : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(
                         morphium.getARHelper().getRealClass(cls),
@@ -2037,14 +2037,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls,
-                        update,
-                        dur,
-                        upsert,
-                        multiple
-                        ? WriteAccessType.BULK_UPDATE
-                        : WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls,
+                        // update,
+                        // dur,
+                        // upsert,
+                        // multiple
+                        // ? WriteAccessType.BULK_UPDATE
+                        // : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(
                         morphium.getARHelper().getRealClass(cls),
@@ -2242,14 +2242,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         null);
                     Map<String, Object> daa = settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls,
-                        update,
-                        dur,
-                        upsert,
-                        multiple
-                        ? WriteAccessType.BULK_UPDATE
-                        : WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls,
+                        // update,
+                        // dur,
+                        // upsert,
+                        // multiple
+                        // ? WriteAccessType.BULK_UPDATE
+                        // : WriteAccessType.SINGLE_UPDATE);
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(
@@ -2364,14 +2364,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls,
-                        update,
-                        dur,
-                        false,
-                        multiple
-                        ? WriteAccessType.BULK_UPDATE
-                        : WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls,
+                        // update,
+                        // dur,
+                        // false,
+                        // multiple
+                        // ? WriteAccessType.BULK_UPDATE
+                        // : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(
                         morphium.getARHelper().getRealClass(cls),
@@ -2756,12 +2756,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         }
 
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingWriteEvent(
-            cls,
-            update,
-            dur,
-            upsert,
-            multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
+        //morphium.fireProfilingWriteEvent(
+            // cls,
+            // update,
+            // dur,
+            // upsert,
+            // multiple ? WriteAccessType.BULK_UPDATE : WriteAccessType.SINGLE_UPDATE);
         morphium.getCache().clearCacheIfNecessary(cls);
         morphium.firePostUpdateEvent(
             morphium.getARHelper().getRealClass(cls),
@@ -2878,14 +2878,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls,
-                        update,
-                        dur,
-                        upsert,
-                        multiple
-                        ? WriteAccessType.BULK_UPDATE
-                        : WriteAccessType.SINGLE_UPDATE);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls,
+                        // update,
+                        // dur,
+                        // upsert,
+                        // multiple
+                        // ? WriteAccessType.BULK_UPDATE
+                        // : WriteAccessType.SINGLE_UPDATE);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(
                         query.getType(), MorphiumStorageListener.UpdateTypes.PUSH);
@@ -2965,8 +2965,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     long dur = System.currentTimeMillis() - start;
-                    morphium.fireProfilingWriteEvent(
-                        cls, null, dur, false, WriteAccessType.DROP);
+                    //morphium.fireProfilingWriteEvent(
+                        // cls, null, dur, false, WriteAccessType.DROP);
                     morphium.firePostDropEvent(cls);
                 }
             };
@@ -3038,8 +3038,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 long dur = System.currentTimeMillis() - start;
-                morphium.fireProfilingWriteEvent(
-                    cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
+                //morphium.fireProfilingWriteEvent(
+                    // cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
         };
         submitAndBlockIfNecessary(callback, r);
@@ -3101,7 +3101,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 morphium.inc(StatisticKeys.WRITES);
                 handleLastChange(cls, update);
                 long dur = System.currentTimeMillis() - start;
-                morphium.fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
+                //morphium.fireProfilingWriteEvent(toSet.getClass(), update, dur, false, WriteAccessType.SINGLE_UPDATE);
                 morphium.getCache().clearCacheIfNecessary(cls);
 
                 try {
