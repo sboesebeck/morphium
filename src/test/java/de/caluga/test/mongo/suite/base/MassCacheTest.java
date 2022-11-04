@@ -4,9 +4,6 @@
  */
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.ProfilingListener;
-import de.caluga.morphium.ReadAccessType;
-import de.caluga.morphium.WriteAccessType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import org.junit.jupiter.api.Test;
@@ -255,18 +252,6 @@ public class MassCacheTest extends MorphiumTestBase {
         TestUtils.waitForWrites(morphium,log);
         Thread.sleep(25000);
         log.info("Done.");
-        ProfilingListener pl = new ProfilingListener() {
-            @Override
-            public void readAccess(Query query, long time, ReadAccessType t) {
-                log.info("Read Access...");
-                //Should never be called as cache hits won't trigger profiling
-            }
-
-            @Override
-            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
-                log.info("Write access...");
-            }
-        };
 
         for (int j = 0; j < 3; j++) {
             for (int i = 0; i < NO_OBJECTS; i++) {
@@ -279,11 +264,8 @@ public class MassCacheTest extends MorphiumTestBase {
                 log.info("found " + lst.size() + " elements for value: " + lst.get(0).getValue());
 
             }
-            morphium.removeProfilingListener(pl);
-            morphium.addProfilingListener(pl);
 
         }
-        morphium.removeProfilingListener(pl);
 
         printStats();
         Map<String, Double> stats = morphium.getStatistics();

@@ -1,8 +1,8 @@
 package de.caluga.test.mongo.suite.inmem_messaging;
 
-import de.caluga.morphium.ProfilingListener;
 import de.caluga.morphium.ReadAccessType;
 import de.caluga.morphium.WriteAccessType;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
@@ -20,6 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 /**
@@ -40,6 +42,23 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
     public boolean error = false;
     public MorphiumId lastMsgId;
     public AtomicInteger procCounter = new AtomicInteger(0);
+
+
+
+    @Test
+    public void testMarshallUnmarshall() throws Exception {
+        Messaging m = new Messaging(morphium);
+        m.start();
+
+        Msg m1=new Msg("name", "msg", "value", 123123, true);
+        m1.setTtl(100000000);
+        m.sendMessage(m1);
+        Thread.sleep(100);
+
+        var msg=morphium.createQueryFor(Msg.class).get();
+        assertNull(msg.getLockedBy());
+    }
+
 
     @Test
     public void testMsgQueName() throws Exception {
@@ -1206,14 +1225,15 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m3.setUseChangeStream(true).start();
         try {
             Thread.sleep(100);
-
+            log.info("Sending message");
 
             Msg m = new Msg();
             m.setExclusive(true);
             m.setName("A message");
-
-            sender.queueMessage(m);
-            Thread.sleep(555000);
+            // m.setTtl(10000000);
+            // sender.queueMessage(m);
+            sender.sendMessage(m); 
+            Thread.sleep(1000);
 
             int rec = 0;
             if (gotMessage1) {
@@ -1625,20 +1645,6 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         final Map<WriteAccessType, AtomicInteger> wcounts = new ConcurrentHashMap<>();
         final Map<ReadAccessType, AtomicInteger> rcounts = new ConcurrentHashMap<>();
 
-        ProfilingListener lst = new ProfilingListener() {
-            @Override
-            public void readAccess(Query query, long time, ReadAccessType t) {
-                rcounts.putIfAbsent(t, new AtomicInteger());
-                rcounts.get(t).incrementAndGet();
-            }
-
-            @Override
-            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
-                wcounts.putIfAbsent(t, new AtomicInteger());
-                wcounts.get(t).incrementAndGet();
-            }
-        };
-        morphium.addProfilingListener(lst);
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Map<String, Long> ids = new ConcurrentHashMap<>();
@@ -1699,8 +1705,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                 }
-                assert (dups.get() == 0) : "got duplicate message";
-
+                assertEquals(0,dups.get(),"Got duplicate message");
+                assertTrue((exclusiveAmount + broadcastAmount * 4 - rec - messageCount)>=0); 
                 Thread.sleep(1000);
             }
             int rec = received.get();
@@ -1723,7 +1729,6 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             for (ReadAccessType r : rcounts.keySet()) {
                 log.info("Read: " + r.name() + " => " + wcounts.get(r));
             }
-            morphium.removeProfilingListener(lst);
 
 
         } finally {
@@ -1815,6 +1820,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
                 }
+                assertTrue(amount + broadcastAmount * 4 - rec - messageCount>=0);
                 Thread.sleep(1000);
             }
             int rec = received.get();

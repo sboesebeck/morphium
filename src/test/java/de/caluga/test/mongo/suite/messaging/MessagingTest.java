@@ -1753,27 +1753,6 @@ public class MessagingTest extends MorphiumTestBase {
         receiver4.setSenderId("r4");
         receiver4.start();
 
-        final Map<WriteAccessType, AtomicInteger> wcounts = new ConcurrentHashMap<>();
-        final Map<ReadAccessType, AtomicInteger> rcounts = new ConcurrentHashMap<>();
-
-        ProfilingListener lst = new ProfilingListener() {
-            @Override
-            public void readAccess(Query query, long time, ReadAccessType t) {
-                rcounts.putIfAbsent(t, new AtomicInteger());
-                rcounts.get(t).incrementAndGet();
-            }
-
-            @Override
-            public void writeAccess(Class type, Object o, long time, boolean isNew, WriteAccessType t) {
-                wcounts.putIfAbsent(t, new AtomicInteger());
-                wcounts.get(t).incrementAndGet();
-            }
-        };
-        morphium.addProfilingListener(lst);
-        morphium2.addProfilingListener(lst);
-        morphium3.addProfilingListener(lst);
-        morphium4.addProfilingListener(lst);
-        morphium5.addProfilingListener(lst);
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
         final Map<String, Long> ids = new ConcurrentHashMap<>();
@@ -1850,19 +1829,6 @@ public class MessagingTest extends MorphiumTestBase {
             log.info("R2 active: " + receiver2.getRunningTasks());
             log.info("R3 active: " + receiver3.getRunningTasks());
             log.info("R4 active: " + receiver4.getRunningTasks());
-
-
-            for (WriteAccessType w : wcounts.keySet()) {
-                log.info("Write: " + w.name() + " => " + wcounts.get(w));
-            }
-            for (ReadAccessType r : rcounts.keySet()) {
-                log.info("Read: " + r.name() + " => " + wcounts.get(r));
-            }
-            morphium.removeProfilingListener(lst);
-            morphium2.removeProfilingListener(lst);
-            morphium3.removeProfilingListener(lst);
-            morphium4.removeProfilingListener(lst);
-            morphium5.removeProfilingListener(lst);
 
             logStats(morphium);
             logStats(morphium2);

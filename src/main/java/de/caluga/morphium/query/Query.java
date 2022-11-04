@@ -288,7 +288,7 @@ public class Query<T> implements Cloneable {
 
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -364,7 +364,7 @@ public class Query<T> implements Cloneable {
 
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -491,7 +491,7 @@ public class Query<T> implements Cloneable {
             }
         }
         srv = (String) findMetaData.get("server");
-        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
@@ -911,7 +911,7 @@ public class Query<T> implements Cloneable {
         } finally {
             con.release();
         }
-        morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
+        //morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
         return ret;
     }
 
@@ -1108,7 +1108,7 @@ public class Query<T> implements Cloneable {
                 throw new RuntimeException(e);
 
             }
-            morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+            //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
 
             if (useCache) {
                 //noinspection unchecked
@@ -1138,7 +1138,7 @@ public class Query<T> implements Cloneable {
                 throw new RuntimeException(e);
 
             }
-            morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+            //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
             return new ArrayList<>(ret);
         }
     }
@@ -1201,7 +1201,7 @@ public class Query<T> implements Cloneable {
             throw new RuntimeException(e);
 
         }
-        morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
 
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
@@ -1409,7 +1409,7 @@ public class Query<T> implements Cloneable {
         srv = (String) findMetaData.get("server");
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -1493,7 +1493,7 @@ public class Query<T> implements Cloneable {
         //noinspection unchecked
         List<R> ret = query.stream().map(o -> (R) o.get("_id")).collect(Collectors.toList());
         long dur = System.currentTimeMillis() - start;
-        morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
+        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
             //noinspection unchecked
             morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
