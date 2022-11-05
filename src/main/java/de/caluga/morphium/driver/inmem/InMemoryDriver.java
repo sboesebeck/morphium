@@ -1170,11 +1170,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getConnectedToPort() {
-        return 0;
+        return 6666;
     }
 
     public int getRetriesOnNetworkError() {
-        return 0;
+        return 1;
     }
 
     public MorphiumDriver setRetriesOnNetworkError(int r) {
@@ -1182,7 +1182,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int getSleepBetweenErrorRetries() {
-        return 0;
+        return 100;
     }
 
     public MorphiumDriver setSleepBetweenErrorRetries(int s) {
@@ -1192,7 +1192,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMaxConnections() {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -1203,7 +1203,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public int getMinConnections() {
-        return 0;
+        return 1;
     }
 
     @Override
