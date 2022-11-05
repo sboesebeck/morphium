@@ -48,6 +48,6 @@ public class DropDatabaseMongoCommand extends MongoCommand<DropDatabaseMongoComm
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
             return crs;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, connection.getDriver().getRetriesOnNetworkError(), connection.getDriver().getSleepBetweenErrorRetries());
     }
 }

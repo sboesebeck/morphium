@@ -113,7 +113,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
 
     public HelloResult execute() throws MorphiumDriverException {
         var msg = getConnection().sendCommand(this);
-        var crs = getConnection().getAnswerFor(msg, getDefaultBatchSize());
+        var crs = getConnection().getAnswerFor(msg, getConnection().getDriver().getDefaultBatchSize());
         return HelloResult.fromMsg(crs.next());
     }
 

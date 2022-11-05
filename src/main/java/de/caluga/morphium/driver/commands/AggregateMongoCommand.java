@@ -145,7 +145,7 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
             ((Map) doc.get("cursor")).put("batchSize", getBatchSize());
             doc.remove("batchSize");
         } else {
-            ((Map) doc.get("cursor")).put("batchSize", getDefaultBatchSize());
+            ((Map) doc.get("cursor")).put("batchSize", getConnection().getDriver().getDefaultBatchSize());
         }
         return doc;
     }

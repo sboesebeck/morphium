@@ -73,6 +73,6 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
             return (List<Object>) res.get("values");
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, connection.getDriver().getRetriesOnNetworkError(), connection.getDriver().getSleepBetweenErrorRetries());
     }
 }

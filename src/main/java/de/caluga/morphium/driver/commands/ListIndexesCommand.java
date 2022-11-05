@@ -1,14 +1,13 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.IndexDescription;
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.wire.MongoConnection;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import de.caluga.morphium.IndexDescription;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
 
@@ -23,7 +22,7 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
 
     public List<IndexDescription> execute() throws MorphiumDriverException {
         var msg = getConnection().sendCommand(this);
-        var crs = getConnection().getAnswerFor(msg, getDefaultBatchSize());
+        var crs = getConnection().getAnswerFor(msg, getConnection().getDriver().getDefaultBatchSize());
 
         List<IndexDescription> lst = new ArrayList<>();
         while (crs.hasNext()) {
