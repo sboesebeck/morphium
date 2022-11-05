@@ -157,7 +157,6 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
                 //            for(Msg m:ans){
                 //                log.info("Incoming message: "+m);
                 //            }
-                // Thread.sleep(5555550000L);
                 assertEquals(1,ans.size());
             }
 
