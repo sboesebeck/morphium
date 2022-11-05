@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -110,45 +111,53 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
     public void messageAnswerTest() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
         counts.clear();
+        TestUtils.waitForConditionToBecomeTrue(1000, "Message collection did not drop", ()->!morphium.exists(Msg.class));
         log.info("Starting m1...");
         Messaging m1 = new Messaging(morphium, 100, false, true, 10);
+        m1.setSenderId("m1");
         m1.start();
 
 
         log.info("Starting m2...");
         Messaging m2 = new Messaging(morphium, 100, false, true, 10);
-//        m2.setUseChangeStream(false);
-        m2.start();
+        m2.setSenderId("m2");
+        m2.setUseChangeStream(false);
 
         log.info("Starting m3...");
         Messaging m3 = new Messaging(morphium, 100, false, true, 10);
-//        m3.setUseChangeStream(false);
-        m3.start();
+        m3.setSenderId("m3");
+       m3.setUseChangeStream(false);
 
         log.info("Starting m4...");
         Messaging m4 = new Messaging(morphium, 100, false, true, 10);
-//        m4.setUseChangeStream(false);
-        m4.start();
+        m4.setSenderId("m4");
+       m4.setUseChangeStream(false);
         MessageListener<Msg> msgMessageListener = (msg, m) -> {
             log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
             Msg answer = m.createAnswerMsg();
             answer.setName("test_answer");
             return answer;
         };
-
+        
+        m2.addListenerForMessageNamed("test", msgMessageListener);
+        m2.start();
+        m3.addListenerForMessageNamed("test", msgMessageListener);
+        m3.start();
+        m4.addListenerForMessageNamed("test", msgMessageListener);
+        m4.start();
+        Thread.sleep(1000);
         try {
-            m2.addListenerForMessageNamed("test", msgMessageListener);
-            m3.addListenerForMessageNamed("test", msgMessageListener);
-            m4.addListenerForMessageNamed("test", msgMessageListener);
 
             for (int i = 0; i < 10; i++) {
                 log.info("Sending exclusive message");
                 Msg query = new Msg("test", "test query", "query");
+                query.setTtl(5555555);
                 query.setExclusive(true);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1500);
                 //            for(Msg m:ans){
                 //                log.info("Incoming message: "+m);
                 //            }
+                // Thread.sleep(5555550000L);
                 assertEquals(1,ans.size());
             }
 

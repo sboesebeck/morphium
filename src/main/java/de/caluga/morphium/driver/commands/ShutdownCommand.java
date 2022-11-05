@@ -63,6 +63,6 @@ public class ShutdownCommand extends AdminMongoCommand<ShutdownCommand> {
             long start = System.currentTimeMillis();
             var msg = connection.sendCommand(this);
             return msg;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, getConnection().getDriver().getRetriesOnNetworkError(), getConnection().getDriver().getSleepBetweenErrorRetries());
     }
 }

@@ -28,7 +28,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
     @Override
     public Iterator<Map<String, Object>> iterator() {
         try {
-            return executeIterable(getDefaultBatchSize());
+            return executeIterable(getConnection().getDriver().getDefaultBatchSize());
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -43,7 +43,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             setMetaData("server", connection.getConnectedTo());
             long start = System.currentTimeMillis();
             var msg = connection.sendCommand(this);
-            MorphiumCursor crs = connection.getAnswerFor(msg, getDefaultBatchSize());
+            MorphiumCursor crs = connection.getAnswerFor(msg, getConnection().getDriver().getDefaultBatchSize());
             while (crs.hasNext()) {
                 List<Map<String, Object>> batch = crs.getBatch();
                 if (batch.size() == 1 && batch.get(0).containsKey("ok") && batch.get(0).get("ok").equals((double) 0)) {
@@ -55,7 +55,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
             return ret;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, connection.getDriver().getRetriesOnNetworkError(), connection.getDriver().getSleepBetweenErrorRetries());
     }
 
     @Override

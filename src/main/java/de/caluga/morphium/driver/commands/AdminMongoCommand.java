@@ -48,6 +48,6 @@ public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCom
             // long dur = System.currentTimeMillis() - start;
             setMetaData("duration", 0); //not waiting!
             return id;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, connection.getDriver().getRetriesOnNetworkError(),connection.getDriver().getSleepBetweenErrorRetries());
     }
 }

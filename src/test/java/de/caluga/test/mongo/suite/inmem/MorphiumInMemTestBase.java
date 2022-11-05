@@ -59,9 +59,19 @@ public class MorphiumInMemTestBase {
                 if (l instanceof Messaging) {
                     ((Messaging) l).terminate();
                     log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                    long start=System.currentTimeMillis();
                     while (((Messaging) l).isRunning()) {
                         log.info("Waiting for messaging to finish");
-                        Thread.sleep(100);
+                        long dur=System.currentTimeMillis()-start;
+
+                        if (dur>5000 && dur<5500){
+                            log.warn("Shutting down failed, retrying");
+                            ((Messaging)l).terminate();
+                        }
+                        if (dur>10000){
+                            throw new RuntimeException("Could not terminate messaging!");
+                        }
+                        Thread.sleep(1000);
                     }
                 } else if (l instanceof ChangeStreamMonitor) {
                     log.info("Changestream Monitor still running");

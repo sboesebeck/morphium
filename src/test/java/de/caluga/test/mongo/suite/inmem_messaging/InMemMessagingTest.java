@@ -1289,6 +1289,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m1.sendMessage(m);
         Thread.sleep(200);
         assert (cnt.get() == 0);
+        m1.terminate();
 
     }
 
@@ -1466,10 +1467,10 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         });
         receiver.setUseChangeStream(true).start();
         try {
-            Thread.sleep(100);
+            Thread.sleep(500);
             sender.sendMessage(new Msg("test", "test", "test"));
             sender.sendMessage(new Msg("test", "test", "test"));
-            Thread.sleep(1000);
+            Thread.sleep(2000);
 
             assert (list.size() == 2) : "Size wrong: " + list.size();
         } finally {
@@ -1603,7 +1604,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll());
                 Thread.sleep(500);
-                if (System.currentTimeMillis()-start > 5000){
+                if (System.currentTimeMillis()-start > 15000){
                     throw new AssertionError("This took too long! count: "+q.countAll());
                 }
             }

@@ -28,47 +28,16 @@ public abstract class MongoCommand<T extends MongoCommand> {
 
     @Transient
     private MongoConnection connection;
-    @Transient
-    private int retriesOnNetworkError = 2;
-    @Transient
-    private int sleepBetweenErrorRetries = 100;
-    @Transient
-    private int defaultBatchSize = 100;
     private Doc $readPreference = Doc.of("mode", "primaryPreferred");
 
     public MongoCommand(MongoConnection c) {
         connection = c;
-    }
-    public int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
-    }
-
-    public MongoCommand<T> setRetriesOnNetworkError(int retriesOnNetworkError) {
-        this.retriesOnNetworkError = retriesOnNetworkError;
-        return this;
-    }
-
-    public int getSleepBetweenErrorRetries() {
-        return sleepBetweenErrorRetries;
-    }
-
-    public MongoCommand<T> setSleepBetweenErrorRetries(int sleepBetweenErrorRetries) {
-        this.sleepBetweenErrorRetries = sleepBetweenErrorRetries;
-        return this;
     }
 
     public void releaseConnection() {
         getConnection().release();
     }
 
-    public int getDefaultBatchSize() {
-        return defaultBatchSize;
-    }
-
-    public MongoCommand<T> setDefaultBatchSize(int defaultBatchSize) {
-        this.defaultBatchSize = defaultBatchSize;
-        return this;
-    }
 
     public MongoConnection getConnection() {
         return connection;
@@ -236,21 +205,22 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 throw new RuntimeException(e);
             }
         }
+        $readPreference = Doc.of("mode", "primaryPreferred");
     }
 
     public abstract String getCommandName();
 
     public int executeAsync() throws MorphiumDriverException {
-        MongoConnection driver = getConnection();
-        if (driver == null) throw new IllegalArgumentException("you need to set the driver!");
+        MongoConnection con = getConnection();
+        if (con == null) throw new IllegalArgumentException("you need to set the driver!");
         return new NetworkCallHelper<Integer>().doCall(()->{
             //long start = System.currentTimeMillis();
-            var result = getConnection().sendCommand(this);
+            var result = con.sendCommand(this);
             // long dur = System.currentTimeMillis() - start;
             setMetaData("duration", 0); //not waiting!
-            setMetaData("server", connection.getConnectedTo() + ":" + connection.getConnectedToPort());
+            setMetaData("server", con.getConnectedTo() + ":" + con.getConnectedToPort());
             return result;
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
+        }, con.getDriver().getRetriesOnNetworkError(), con.getDriver().getSleepBetweenErrorRetries());
     }
 
 }

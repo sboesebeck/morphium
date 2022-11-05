@@ -19,6 +19,10 @@ public class NetworkCallHelper<T> {
 
 
     public T doCall(MorphiumDriverOperation r, int maxRetry, int sleep) throws MorphiumDriverException {
+        if (maxRetry==0){
+            logger.error("MaxRetry set to 0?!?!?! Does not make sense! defaulting to 1");
+            maxRetry=1;
+        }
         for (int i = 0; i < maxRetry; i++) {
             try {
                 return (T) r.execute();
