@@ -151,9 +151,8 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
             for (int i = 0; i < 10; i++) {
                 log.info("Sending exclusive message");
                 Msg query = new Msg("test", "test query", "query");
-                query.setTtl(5555555);
                 query.setExclusive(true);
-                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1500);
+                List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 2500);
                 //            for(Msg m:ans){
                 //                log.info("Incoming message: "+m);
                 //            }
@@ -166,7 +165,7 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
                 Msg query = new Msg("test", "test query", "query");
                 query.setExclusive(false);
                 List<Msg> ans = m1.sendAndAwaitAnswers(query, 3, 1000);
-                assert(ans.size() == 3) : "Recieved not enough answers to  " + query.getMsgId();
+                assertEquals(3,ans.size());// : "Recieved not enough answers to  " + query.getMsgId();
             }
         } finally {
             m1.terminate();
