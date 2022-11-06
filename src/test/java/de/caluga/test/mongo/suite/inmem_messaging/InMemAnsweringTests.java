@@ -410,7 +410,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
         question.setPriority(5);
         List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
         assertNotNull (answers);
-        assertEquals (2,answers.size() ,"Got wrong number of answers: " + answers.size());
+        assertEquals (2,answers.size() ,"Got wrong number of answers: " + answers.size()); 
         for (Msg m : answers) {
             assertNotNull(m.getInAnswerTo());
             ;
