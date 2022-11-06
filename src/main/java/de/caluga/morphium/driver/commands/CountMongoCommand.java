@@ -101,7 +101,6 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         return (int) execute().get("n");
     }
 
-getConnection().getDriver()
     @Override
     public int executeAsync() throws MorphiumDriverException {
         if (getConnection().getDriver().isTransactionInProgress()) {

@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class AdvancedMessagingTests extends MorphiumTestBase {
@@ -33,6 +35,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
         Messaging sender;
         sender = new Messaging(morphium, 50, false);
         sender.setSenderId("amsender");
+        AtomicBoolean error=new AtomicBoolean(false);
         try {
             log.info("Running Exclusive message test - sending " + amount + " exclusive messages, received by " + receivers);
             morphium.dropCollection(Msg.class, "msg", null);
@@ -43,11 +46,18 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
 
 
             MessageListener<Msg> msgMessageListener = (msg, m) -> {
+                if (m.getLockedBy()==null){
+                    log.error("Received unlocked message?!?!?");
+                    error.set(true);
+                    return null;
+                }
                 if (!m.getLockedBy().equals(msg.getSenderId())) {
                     log.error("Receiver ID did not lock message?!?!?!?");
                     if (m.getLockedBy().equals("ALL")) {
                         log.error("Broadcase message? " + m.toString());
                     }
+                    error.set(true);
+                    return null;
                 }
                 //log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 counts.putIfAbsent(m.getMsgId(), 0);
@@ -101,6 +111,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
                 assert (counts.size() != lastCount);
                 log.info("----> current speed: " + (counts.size() - lastCount) + "/sec");
                 lastCount = counts.size();
+                assertFalse(error.get(), "An error occured during message processing");
             }
             log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
         } finally {
