@@ -489,6 +489,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     private void checkForError(OpMsg msg) throws MorphiumDriverException {
+        if (msg==null || msg.getFirstDoc()==null) return;
         if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
             throw new MorphiumDriverException("Error: " + msg.getFirstDoc().get("code") + " - " + msg.getFirstDoc().get("errmsg"));
         }
