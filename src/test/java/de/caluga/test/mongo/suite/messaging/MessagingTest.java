@@ -728,11 +728,9 @@ public class MessagingTest extends MorphiumTestBase {
                         m.setTtl(60000000);
                         Msg a = m1.sendAndAwaitFirstAnswer(m, 600000);
                         assertNotNull(a);
-                        ;
                         procCounter.incrementAndGet();
                     }
                 }.start();
-
             }
             long s = System.currentTimeMillis();
             while (procCounter.get() < 180) {
