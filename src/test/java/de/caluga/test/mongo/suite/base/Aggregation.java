@@ -57,11 +57,11 @@ public class Aggregation extends MultiDriverTestBase {
 
             List<Aggregate> lst = a.aggregate();
             assert (lst.size() == 1) : "Size wrong: " + lst.size();
-            log.info("Sum  : " + lst.get(0).getSumme());
-            log.info("Avg  : " + lst.get(0).getSchnitt());
-            log.info("Last :    " + lst.get(0).getLast());
-            log.info("First:   " + lst.get(0).getFirst());
-            log.info("count:  " + lst.get(0).getAnzahl());
+            log.debug("Sum  : " + lst.get(0).getSumme());
+            log.debug("Avg  : " + lst.get(0).getSchnitt());
+            log.debug("Last :    " + lst.get(0).getLast());
+            log.debug("First:   " + lst.get(0).getFirst());
+            log.debug("count:  " + lst.get(0).getAnzahl());
 
 
             assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
@@ -99,11 +99,11 @@ public class Aggregation extends MultiDriverTestBase {
 
             List<Aggregate> lst = a.aggregate();
             assertEquals(1, lst.size());
-            log.info("Sum  : " + lst.get(0).getSumme());
-            log.info("Avg  : " + lst.get(0).getSchnitt());
-            log.info("Last :    " + lst.get(0).getLast());
-            log.info("First:   " + lst.get(0).getFirst());
-            log.info("count:  " + lst.get(0).getAnzahl());
+            log.debug("Sum  : " + lst.get(0).getSumme());
+            log.debug("Avg  : " + lst.get(0).getSchnitt());
+            log.debug("Last :    " + lst.get(0).getLast());
+            log.debug("First:   " + lst.get(0).getFirst());
+            log.debug("count:  " + lst.get(0).getAnzahl());
 
 
             assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
@@ -162,9 +162,9 @@ public class Aggregation extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void aggregationTestcompare(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Preparing data");
+            log.debug("Preparing data");
             createUncachedObjects(morphium, 10000);
-            log.info("done... starting");
+            log.debug("done... starting");
             long start = System.currentTimeMillis();
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             HashMap<Integer, Integer> sum = new HashMap<>();
@@ -182,16 +182,16 @@ public class Aggregation extends MultiDriverTestBase {
 
             }
             for (Integer v : sum.keySet()) {
-                log.info("ID: " + v);
-                log.info("  anz: " + anz.get(v));
-                log.info("  sum: " + sum.get(v));
-                log.info("  avg: " + (sum.get(v) / anz.get(v)));
+                log.debug("ID: " + v);
+                log.debug("  anz: " + anz.get(v));
+                log.debug("  sum: " + sum.get(v));
+                log.debug("  avg: " + (sum.get(v) / anz.get(v)));
             }
             long dur = System.currentTimeMillis() - start;
 
-            log.info("Query took " + dur + "ms");
+            log.debug("Query took " + dur + "ms");
 
-            log.info("Starting test with Aggregation:");
+            log.debug("Starting test with Aggregation:");
             start = System.currentTimeMillis();
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
             assertNotNull(a.getResultType());
@@ -206,13 +206,13 @@ public class Aggregation extends MultiDriverTestBase {
             List<Aggregate> lst = a.aggregate();
             assertEquals(3, lst.size());
             for (Aggregate ag : lst) {
-                log.info("ID: " + ag.getTheGeneratedId());
-                log.info(" sum:" + ag.getSumme());
-                log.info(" anz:" + ag.getAnzahl());
-                log.info(" avg:" + ag.getSchnitt());
+                log.debug("ID: " + ag.getTheGeneratedId());
+                log.debug(" sum:" + ag.getSumme());
+                log.debug(" anz:" + ag.getAnzahl());
+                log.debug(" avg:" + ag.getSchnitt());
             }
             dur = System.currentTimeMillis() - start;
-            log.info("Aggregation took " + dur + "ms");
+            log.debug("Aggregation took " + dur + "ms");
         }
     }
 

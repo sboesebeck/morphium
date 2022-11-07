@@ -177,7 +177,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     getHostSeed().add(hello.getPrimary());
                 }
                 if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
-                    log.info("want primary connection, got secondary, retrying");
+                    log.debug("want primary connection, got secondary, retrying");
                     connection.close();
                     incStat(DriverStatsKey.CONNECTIONS_CLOSED);
                     connection = null;
@@ -188,20 +188,20 @@ public class SingleMongoConnectDriver extends DriverBase {
                     } else {
                         connectToIdx++;
                         if (connectToIdx >= getHostSeed().size()) {
-                            log.info("End of hostseed, starting over");
+                            log.debug("End of hostseed, starting over");
                             connectToIdx = 0;
                         }
                     }
                     continue;
                 } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
-                    log.info("want secondary connection, got other - retrying");
+                    log.debug("want secondary connection, got other - retrying");
                     connection.close();
                     incStat(DriverStatsKey.CONNECTIONS_CLOSED);
                     connection = null;
                     Thread.sleep(1000);//Slowing down
                     connectToIdx++;
                     if (connectToIdx >= getHostSeed().size()) {
-                        log.info("End of hostseed, starting over");
+                        log.debug("End of hostseed, starting over");
                         connectToIdx = 0;
                     }
                     continue;
@@ -226,7 +226,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
-            log.info("Starting heartbeat ");
+            log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
 
                 //log.info("checking connection");
@@ -533,7 +533,7 @@ public class SingleMongoConnectDriver extends DriverBase {
          .setColl(coll);
 
         var ret = k.execute();
-        log.info("killed cursor");
+        log.debug("killed cursor");
     }
 
 //    @Override

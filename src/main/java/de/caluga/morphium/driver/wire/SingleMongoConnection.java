@@ -176,7 +176,7 @@ public class SingleMongoConnection implements MongoConnection {
                 .setColl(coll);
 
         var ret = k.execute();
-        log.info("killed cursor");
+        log.debug("killed cursor");
         return ret;
     }
 

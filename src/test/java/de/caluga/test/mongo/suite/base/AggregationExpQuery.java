@@ -19,7 +19,7 @@ public class AggregationExpQuery extends MultiDriverTestBase {
             Thread.sleep(1000);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.expr(Expr.gt(Expr.field(UncachedObject.Fields.counter), Expr.intExpr(50)));
-            log.info(Utils.toJsonString(q.toQueryObject()));
+            log.debug(Utils.toJsonString(q.toQueryObject()));
             List<UncachedObject> lst = q.asList();
             assert (lst.size() == 50) : "Size wrong: " + lst.size();
 

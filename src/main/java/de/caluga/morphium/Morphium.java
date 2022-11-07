@@ -217,7 +217,8 @@ public class Morphium implements AutoCloseable {
                     .scan()) {
                 ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
                 // entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-                log.info("Found " + entities.size() + " drivers in classpath");
+                if (log.isDebugEnabled())
+                log.debug("Found " + entities.size() + " drivers in classpath");
                 if (config.getDriverName() == null) {
                     config.setDriverName(SingleMongoConnectDriver.driverName);
                     morphiumDriver = new SingleMongoConnectDriver();
@@ -230,7 +231,7 @@ public class Morphium implements AutoCloseable {
                             for (var f : flds) {
                                 if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
                                     String dn = (String) f.get(c);
-                                    log.info("Found driverName: " + dn);
+                                    log.debug("Found driverName: " + dn);
                                     if (dn.equals(config.getDriverName())) {
                                         morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
                                     }
@@ -388,7 +389,7 @@ public class Morphium implements AutoCloseable {
             rsMonitor.start();
             rsMonitor.getReplicaSetStatus(false);
         }
-        log.info("Checking for capped collections...");
+        log.debug("Checking for capped collections...");
         // checking capped
         var capped = checkCapped();
         if (capped != null && !capped.isEmpty()) {
@@ -400,7 +401,7 @@ public class Morphium implements AutoCloseable {
                     case CONVERT_EXISTING_ON_STARTUP:
                         try {
                             if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                log.info("Existing collection is not capped - converting");
+                                log.debug("Existing collection is not capped - converting");
                                 convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
                             }
                         } catch (MorphiumDriverException e) {
@@ -417,7 +418,7 @@ public class Morphium implements AutoCloseable {
                                     cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
 
                                     var ret = cmd.execute();
-                                    log.info("Created capped collection");
+                                    log.debug("Created capped collection");
                                 } catch (MorphiumDriverException e) {
 
                                     throw new RuntimeException(e);
@@ -732,7 +733,7 @@ public class Morphium implements AutoCloseable {
 
             CreateCommand createCommand = new CreateCommand(primaryConnection).setCapped(true).setColl(tmpColl).setDb(getDatabase()).setMax(max).setSize(size);
             createCommand.execute();
-            log.info("temp-collection created - creating indexes");
+            log.debug("temp-collection created - creating indexes");
             var idx = getIndexesFromMongo(collectionName);
             var idxMaps = new ArrayList<Map<String, Object>>();
             for (IndexDescription i : idx) idxMaps.add(i.asMap());
@@ -744,7 +745,7 @@ public class Morphium implements AutoCloseable {
                     // swallow
                 }
             }
-            log.info("indexes created... copying data");
+            log.debug("indexes created... copying data");
             log.warn("copying might take some time, as data is read and written ☹️");
 
             FindCommand fnd = new FindCommand(con).setColl(collectionName).setDb(getDatabase());
@@ -756,14 +757,14 @@ public class Morphium implements AutoCloseable {
                 crs.ahead(crs.getBatch().size());
             }
             // TODO: check for error!
-            log.info("dropping old collection");
+            log.debug("dropping old collection");
             DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection).setColl(collectionName).setDb(getDatabase());
             dropCmd.execute();
-            log.info("Renaming tmp collection");
+            log.debug("Renaming tmp collection");
             RenameCollectionCommand ren = new RenameCollectionCommand(primaryConnection);
             ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
             var r = ren.execute();
-            log.info("conversion to capped complete!");
+            log.debug("conversion to capped complete!");
         } finally {
             primaryConnection.release();
             con.release();
@@ -1254,7 +1255,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getId(toSet) == null) {
-            log.info("just storing object as it is new...");
+            log.debug("just storing object as it is new...");
             store(toSet);
             return;
         }
@@ -1693,7 +1694,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getId(toSet) == null) {
-            log.info("just storing object as it is new...");
+            log.debug("just storing object as it is new...");
             store(toSet);
             return;
         }
@@ -1710,7 +1711,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getId(toSet) == null) {
-            log.info("just storing object as it is new...");
+            log.debug("just storing object as it is new...");
             store(toSet);
             return;
         }
@@ -1727,7 +1728,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getId(toSet) == null) {
-            log.info("just storing object as it is new...");
+            log.debug("just storing object as it is new...");
             store(toSet);
             return;
         }
@@ -1744,7 +1745,7 @@ public class Morphium implements AutoCloseable {
         }
 
         if (getId(toSet) == null) {
-            log.info("just storing object as it is new...");
+            log.debug("just storing object as it is new...");
             store(toSet);
             return;
         }
@@ -2669,7 +2670,7 @@ public class Morphium implements AutoCloseable {
                             wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
                         } catch (Exception e) {
                             if (e.getMessage().contains("Index already exists with a different name:")) {
-                                log.info("Index already exists");
+                                log.debug("Index already exists");
                             } else {
                                 throw e;
                             }
@@ -2699,7 +2700,7 @@ public class Morphium implements AutoCloseable {
                     wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
                 } catch (Exception e) {
                     if (e.getMessage().contains("Index already exists with a different name:")) {
-                        log.info("Index already exists");
+                        log.debug("Index already exists");
                     } else {
                         throw (e);
                     }
@@ -2714,7 +2715,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls), IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2728,7 +2729,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2742,7 +2743,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2772,7 +2773,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2792,7 +2793,7 @@ public class Morphium implements AutoCloseable {
                 getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
             } catch (Exception e) {
                 if (e.getMessage().contains("Index already exists with a different name:")) {
-                    log.info("Index already exists");
+                    log.debug("Index already exists");
                 } else {
                     throw (e);
                 }
@@ -2811,7 +2812,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2824,7 +2825,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -2836,7 +2837,7 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, collection, index, callback);
         } catch (Exception e) {
             if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.info("Index already exists");
+                log.debug("Index already exists");
             } else {
                 throw (e);
             }
@@ -3939,7 +3940,7 @@ public class Morphium implements AutoCloseable {
                     if (cn.startsWith("com.sun.")) continue;
                     if (cn.startsWith("org.assertj.")) continue;
                     if (cn.startsWith("javax.")) continue;
-                    log.info("Cap-Checking " + cn);
+                    log.debug("Cap-Checking " + cn);
                     Class<?> entity = Class.forName(cn);
                     if (annotationHelper.getAnnotationFromHierarchy(entity, Entity.class) == null) {
                         continue;

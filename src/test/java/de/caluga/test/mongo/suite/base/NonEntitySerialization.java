@@ -26,11 +26,11 @@ public class NonEntitySerialization extends MorphiumTestBase {
         ne.setValue("Thank you for the fish");
 
         Map<String, Object> obj = morphium.getMapper().serialize(ne);
-        log.info(obj.toString());
+        log.debug(obj.toString());
 
         NonEntity ne2 = morphium.getMapper().deserialize(NonEntity.class, obj);
         assert (ne2.getInteger() == 42);
-        log.info("Successful read:" + ne2);
+        log.debug("Successful read:" + ne2);
     }
 
     @Test

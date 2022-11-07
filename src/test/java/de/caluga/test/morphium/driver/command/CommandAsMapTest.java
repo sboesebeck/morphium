@@ -34,13 +34,13 @@ public class CommandAsMapTest {
             ClassInfoList entities =
                     scanResult.getSubclasses(MongoCommand.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            log.info("Found " + entities.size() + " MongoCommands in classpath");
+            log.debug("Found " + entities.size() + " MongoCommands in classpath");
             for (String cn : entities.getNames()) {
                 if (cn.equals("de.caluga.morphium.driver.inmem.InMemAggregator$1" )){
                     //inner class, need to skip
                     continue;
                 }
-                log.info("Class -> " + cn);
+                log.debug("Class -> " + cn);
                 try {
                     Class<? extends MongoCommand> cls = (Class<? extends MongoCommand>) Class.forName(cn);
                     
