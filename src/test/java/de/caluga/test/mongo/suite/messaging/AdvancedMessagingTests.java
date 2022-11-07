@@ -2,11 +2,15 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -16,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class AdvancedMessagingTests extends MorphiumTestBase {
@@ -24,11 +29,12 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
     @Test
     public void testExclusiveXTimes() throws Exception {
         for (int i = 0; i < 5; i++)
-            runExclusiveMessagesTest((int) (Math.random() * 3500), (int) (22 * Math.random()) + 2);
+            runExclusiveMessagesTest((int) (Math.random() * 1500), (int) (12 * Math.random()) + 2);
     }
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
-
+        morphium.dropCollection(Msg.class);
+        TestUtils.waitForConditionToBecomeTrue(10000, "MsgClass not deleted", ()->!morphium.exists(Msg.class));
         List<Morphium> morphiums = new ArrayList<>();
         List<Messaging> messagings = new ArrayList<>();
 
@@ -48,8 +54,9 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             MessageListener<Msg> msgMessageListener = (msg, m) -> {
                 if (m.getLockedBy()==null){
                     log.error("Received unlocked message?!?!?");
+                    log.error("Message is:\n"+Utils.toJsonString(morphium.getMapper().serialize(m)));
                     error.set(true);
-                    return null;
+                    throw new RuntimeException("Received unlocked message?!?!?");
                 }
                 if (!m.getLockedBy().equals(msg.getSenderId())) {
                     log.error("Receiver ID did not lock message?!?!?!?");
@@ -74,7 +81,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
                 return null;
             };
             for (int i = 0; i < receivers; i++) {
-                log.info("Creating morphiums..." + i);
+                log.info("Creating morphiums..." + i+"/"+receivers);
                 MorphiumConfig cfg2= MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
                 cfg2.setCredentialsEncryptionKey("1234567890abcdef");
                 cfg2.setCredentialsDecryptionKey("1234567890abcdef");
@@ -93,6 +100,11 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
             for (int i = 0; i < amount; i++) {
                 if (i % 100 == 0) {
                     log.info("Sending message " + i + "/" + amount);
+                    log.info("           :  OPEN BORROWED IN_USE");
+                    log.info("Sender     : "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED)+" "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED)+" "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                    for (int j =0;j<receivers;j++){
+                        log.info("Morphium "+j+": "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED)+" "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED)+" "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                    }
                 }
                 Msg m = new Msg("test", "test msg" + i, "value" + i);
                 m.setMsgId(new MorphiumId());
@@ -100,15 +112,21 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
                 m.setTtl(600000);
                 sender.sendMessage(m);
 
+
             }
             int lastCount = counts.size();
             while (counts.size() < amount) {
                 log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
+                log.info("           :  OPEN BORROWED IN_USE");
+                log.info("Sender     : "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED)+" "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED)+" "+morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                for (int j =0;j<receivers;j++){
+                    log.info("Morphium "+j+": "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED)+" "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED)+" "+morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                }
                 for (MorphiumId id : counts.keySet()) {
                     assert (counts.get(id) <= 1) : "Count for id " + id.toString() + " is " + counts.get(id);
                 }
-                Thread.sleep(1000);
-                assert (counts.size() != lastCount);
+                Thread.sleep(2000);
+                assertNotEquals(lastCount,counts.size());
                 log.info("----> current speed: " + (counts.size() - lastCount) + "/sec");
                 lastCount = counts.size();
                 assertFalse(error.get(), "An error occured during message processing");
