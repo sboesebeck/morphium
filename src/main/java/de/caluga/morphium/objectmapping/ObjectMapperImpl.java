@@ -118,7 +118,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             ClassInfoList entities =
                     scanResult.getClassesWithAnnotation(Entity.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
-            log.info("Found " + entities.size() + " entities in classpath");
+            log.debug("Found " + entities.size() + " entities in classpath");
             for (String cn : entities.getNames()) {
                 try {
                     Class c = Class.forName(cn);
@@ -926,7 +926,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     try {
                                         value = morphium.findById(type, id, collectionName);
                                     } catch (MorphiumAccessVetoException ex) {
-                                        log.info("not dereferencing due to veto from listener", ex);
+                                        log.debug("not dereferencing due to veto from listener", ex);
                                     }
                                 }
                                 v.put(e.getKey(), value);
@@ -961,7 +961,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     try {
                                         value = morphium.findById(fldType, id, collection);
                                     } catch (MorphiumAccessVetoException e) {
-                                        log.info("not dereferencing due to veto from listener", e);
+                                        log.debug("not dereferencing due to veto from listener", e);
                                     }
                                 }
                             } else {
