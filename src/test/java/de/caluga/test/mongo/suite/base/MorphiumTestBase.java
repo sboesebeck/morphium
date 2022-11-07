@@ -121,7 +121,7 @@ public class MorphiumTestBase {
             Properties p = getProps();
             if (p.getProperty("database") != null) {
                 cfg = MorphiumConfig.fromProperties(p);
-                cfg.setMaxConnections(100);
+                cfg.setMaxConnections(300);
                 cfg.setThreadConnectionMultiplier(2);
             } else {
                 //creating default config
@@ -141,7 +141,7 @@ public class MorphiumTestBase {
                 cfg.setMaxWaitTime(10000);
                 cfg.setMaxConnectionLifeTime(60000);
                 cfg.setMaxConnectionIdleTime(30000);
-                cfg.setMaxConnections(100);
+                cfg.setMaxConnections(300);
                 cfg.setMinConnections(1);
                 cfg.setMaximumRetriesBufferedWriter(1000);
                 cfg.setMaximumRetriesWriter(1000);
