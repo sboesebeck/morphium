@@ -2224,7 +2224,7 @@ public class Query<T> implements Cloneable {
                 KillCursorsCommand kill = new KillCursorsCommand(con).setCursorIds(cursorId).setColl(cmd.getColl()).setDb(cmd.getDb());
                 kill.execute();
             }
-            log.info("Tail ended!");
+            log.debug("Tail ended!");
         } catch (Exception e) {
             throw new RuntimeException("Error running command", e);
         } finally {
