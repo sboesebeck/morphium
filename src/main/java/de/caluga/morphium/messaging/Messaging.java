@@ -31,6 +31,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.StatisticValue;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -422,19 +423,20 @@ public class Messaging extends Thread implements ShutdownListener {
 
                             //lock was released
                         }
-
                         //ignore updates to processed_by - cannot trigger an execution
                         if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
                             return running;
                         }
 
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-
                         if (obj == null) {
                             return running; //was deleted?
                         }
+                        if (obj.getProcessedBy().contains(id)){
+                            return running;
+                        }
 
-                        if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
+                        if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             //ignoring my own messages
                             return running;
                         }
@@ -453,7 +455,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (obj != null && obj.isExclusive()
                         && (obj.getLockedBy() == null || obj.getLockedBy().equals(id))
-                        && !obj.getProcessedBy().contains(id)
                         && (obj.getRecipients() == null || obj.getRecipients().contains(id))) {
                             // locking
                             lockAndProcess(obj);
@@ -829,14 +830,8 @@ public class Messaging extends Thread implements ShutdownListener {
         Map<String, Object> values = new HashMap<>();
         values.put("locked_by", id);
         values.put("locked", System.currentTimeMillis());
-        Map<String, Object> toSet = new HashMap<>();
 
-        for (Map.Entry<String, Object> ef : values.entrySet()) {
-            String fieldName = morphium.getARHelper().getMongoFieldName(q.getType(), ef.getKey());
-            toSet.put(fieldName, ((MorphiumWriterImpl) morphium.getWriterForClass(Msg.class)).marshallIfNecessary(ef.getValue()));
-        }
-
-        Map<String, Object> update = Doc.of("$set", toSet);
+        Map<String, Object> update = Doc.of("$set", values);
         Map<String, Object> qobj = q.toQueryObject();
         UpdateMongoCommand cmd = null;
 
@@ -845,9 +840,22 @@ public class Messaging extends Thread implements ShutdownListener {
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, processMultiple, null, null, null);
             Map<String, Object> result = cmd.execute();
-
+                    // log.debug("Result from locking: "+Utils.toJsonString(result));
+            // log.debug("Results: "+result.get("nModified"));
+            // log.debug("       : "+result.get("nModified").getClass().getName());
             //            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, processMultiple, false, null, null); //always locking single message
-            if (result.get("modified") != null && result.get("modified").equals(Long.valueOf(1)) || q.countAll() > 0) {
+            // obj=morphium.reread(obj);
+            // if (obj==null){
+                // log.debug("Message was deleted");
+                // return;
+            // }
+            // if (obj.getLockedBy()==null){
+            //     log.error("Locking failed? - still null!");
+            //     return;
+            // }
+            if (result.get("nModified") != null && result.get("nModified").equals(Integer.valueOf(1))) {
+            //     || result.get("n")!=null &&result.get("n").equals(Long.valueOf(1))) {
+            // if (obj.getLockedBy().equals(id)){
                 //                if (log.isDebugEnabled())
                 //                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
                 //updated
@@ -867,8 +875,6 @@ public class Messaging extends Thread implements ShutdownListener {
         //Not locked by me
         if (msg == null) {
             if (log.isDebugEnabled()) { log.debug("Message was deleted before processing could happen!"); }
-
-            processing.remove(id);
             return;
         }
 
@@ -996,13 +1002,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 wasProcessed = true;
             }
 
-            Msg msg1 = morphium.reread(msg, getCollectionName());
-
-            if (msg1 == null) {
-                log.error("msg was deleted!");
-                processing.remove(msg.getMsgId());
+            Msg msg1 =morphium.reread(msg, getCollectionName());
+            if (msg1==null){
+                log.debug("Message was deleted");
+                removeProcessingFor(msg);
                 return;
-            } else if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id)) {
+            }
+            if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id)) {
                 if (log.isDebugEnabled()) {
                     log.debug(msg1.getMsgId() + " was overlocked by " + msg1.getLockedBy());
                 }
@@ -1022,7 +1028,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(msg1);
                         }
-
                         Msg answer = l.onMessage(Messaging.this, msg1);
                         wasProcessed = true;
 
