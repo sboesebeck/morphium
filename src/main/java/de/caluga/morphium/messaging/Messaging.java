@@ -861,6 +861,16 @@ public class Messaging extends Thread implements ShutdownListener {
                 //updated
                 obj.setLocked((Long) values.get("locked"));
                 obj.setLockedBy((String) values.get("locked_by"));
+                // obj=morphium.reread(obj);
+                // if (obj.getLockedBy()==null || !obj.getLockedBy().equals(id)){
+                //     log.error("object was not locked, although update result states so");
+                //     Thread.sleep(100);
+                //     obj=morphium.reread(obj);
+                //     if (obj.getLockedBy()==null || !obj.getLockedBy().equals(id)){
+                //         log.error("Retry failed!");
+                //         return;
+                //     }
+                // }
                 processMessage(obj);
             }
         } catch (Exception e) {
@@ -1002,13 +1012,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 wasProcessed = true;
             }
 
-            Msg msg1 =morphium.reread(msg, getCollectionName());
+            Msg msg1 =msg; //morphium.reread(msg, getCollectionName());
             if (msg1==null){
                 log.debug("Message was deleted");
                 removeProcessingFor(msg);
                 return;
             }
-            if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id)) {
+            if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id) || msg1.getLockedBy()==null) {
                 if (log.isDebugEnabled()) {
                     log.debug(msg1.getMsgId() + " was overlocked by " + msg1.getLockedBy());
                 }

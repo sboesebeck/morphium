@@ -480,6 +480,9 @@ public class SingleMongoConnection implements MongoConnection {
     public MorphiumCursor getAnswerFor(int queryId, int batchSize) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
+        if (reply==null) {
+            return new SingleBatchCursor(List.of());
+        }
         if (reply.hasCursor()) {
             return new SingleMongoConnectionCursor(this, batchSize, true, reply).setServer(connectedTo);
         } else if (reply.getFirstDoc().containsKey("results")) {

@@ -29,7 +29,7 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
     @Test
     public void testExclusiveXTimes() throws Exception {
         for (int i = 0; i < 5; i++)
-            runExclusiveMessagesTest((int) (Math.random() * 1500), (int) (12 * Math.random()) + 2);
+            runExclusiveMessagesTest((int) (Math.random() * 2500+150), (int) (22 * Math.random()) + 2);
     }
 
     private void runExclusiveMessagesTest(int amount, int receivers) throws Exception {
