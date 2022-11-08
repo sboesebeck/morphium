@@ -1,6 +1,7 @@
 #!/bin/bash
 
 function quitting() {
+	echo "Shutting down..."
 	kill -9 $(<test.pid) >/dev/null 2>&1
 	#  rm -f test.pid
 	./getFAiledTests.sh >failed.txt
