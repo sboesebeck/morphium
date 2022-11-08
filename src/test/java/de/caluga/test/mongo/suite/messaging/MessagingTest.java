@@ -1683,7 +1683,7 @@ public class MessagingTest extends MorphiumTestBase {
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll()+ " received: "+messageCount.get());
                 Thread.sleep(500);
-                assertThat(System.currentTimeMillis()-start).describedAs("Messages should be processed by now!").isLessThan(5000);
+                assertThat(System.currentTimeMillis()-start).describedAs("Messages should be processed by now!").isLessThan(15000);
             }
             assert (q.countAll() == 0) : "Count is wrong: " + q.countAll();
 //
