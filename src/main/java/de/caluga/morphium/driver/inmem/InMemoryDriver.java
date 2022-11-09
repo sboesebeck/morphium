@@ -74,7 +74,6 @@ import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.CollStatsCommand;
 import de.caluga.morphium.driver.commands.CommitTransactionCommand;
-import de.caluga.morphium.driver.commands.ConvertToCappedCommand;
 import de.caluga.morphium.driver.commands.CountMongoCommand;
 import de.caluga.morphium.driver.commands.CreateCommand;
 import de.caluga.morphium.driver.commands.CreateIndexesCommand;
@@ -837,21 +836,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         m.put("n", cnt);
         m.put("count", cnt);
         commandResults.put(ret, m);
-        return ret;
-    }
-
-    private int runCommand(ConvertToCappedCommand cmd) throws MorphiumDriverException {
-//        log.info(cmd.getCommandName() + " - incoming (" + cmd.getClass().getSimpleName() + ")");
-        int ret = commandNumber.incrementAndGet();
-        var collectionData = getCollection(cmd.getDb(), cmd.getColl());
-        cappedCollections.putIfAbsent(cmd.getDb(), new HashMap<>());
-        cappedCollections.get(cmd.getDb()).putIfAbsent(cmd.getColl(), new HashMap<>());
-        cappedCollections.get(cmd.getDb()).get(cmd.getColl()).put("size", cmd.getSize());
-
-        while (collectionData.size() > 0 && cappedCollections.get(cmd.getDb()).get(cmd.getColl()).get("size") > VM.current().sizeOf(collectionData.size())) {
-            collectionData.remove(0);
-        }
-        commandResults.put(ret, prepareResult());
         return ret;
     }
 
