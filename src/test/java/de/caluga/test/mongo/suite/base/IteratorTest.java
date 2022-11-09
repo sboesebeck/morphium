@@ -35,6 +35,7 @@ public class IteratorTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void iteratorSortTest(Morphium morphium) throws Exception {
+        log.info("Running with "+morphium.getDriver().getName());
         try (morphium) {
             for (int i = 0; i < 100; i++) {
                 morphium.store(new SimpleEntity(((int) (Math.random() * 5.0)), (long) (Math.random() * 100000.0)));
@@ -60,6 +61,7 @@ public class IteratorTest extends MultiDriverTestBase {
             for (SimpleEntity u : it) {
                 log.info(u.v1 + " ---- " + u.v2);
                 if (lastv1 > u.v1) {
+                    log.error("sorting error!");
                     error = true;
                 }
 
@@ -67,12 +69,13 @@ public class IteratorTest extends MultiDriverTestBase {
                     lastv2 = -1;
                 }
                 if (lastv2 > u.v2) {
+                    log.error("sorting error!");
                     error = true;
                 }
                 lastv2 = u.v2;
                 lastv1 = u.v1;
             }
-            assert (!error);
+            assertFalse(error,"Sorting error occured for driver "+morphium.getDriver().getName());
         }
     }
 
