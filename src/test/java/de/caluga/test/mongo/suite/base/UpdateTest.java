@@ -1,8 +1,18 @@
 package de.caluga.test.mongo.suite.base;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
@@ -14,15 +24,6 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * User: Stephan Bösebeck Date: 09.05.12 Time: 10:46
@@ -238,6 +239,7 @@ public class UpdateTest extends MultiDriverTestBase {
             Query<ListContainer> lc = morphium.createQueryFor(ListContainer.class);
             lc = lc.f("name").eq("LC15");
             morphium.addAllToSet(lc, "long_list", Arrays.asList(12345L, 12345L, 123L, 42L), true);
+            Thread.sleep(100);
             ListContainer cont = lc.get();
             assertTrue(cont.getLongList().contains(12345L));
             assertEquals(cont.getLongList().size(), 4);
@@ -264,6 +266,7 @@ public class UpdateTest extends MultiDriverTestBase {
             lc = lc.f("name").eq("LC15");
             morphium.addToSet(lc, "long_list", 12345L);
             morphium.addToSet(lc, "long_list", 12345L);
+            Thread.sleep(100);
             ListContainer cont = lc.get();
             assertTrue(cont.getLongList().contains(12345L));
             assertEquals(cont.getLongList().size(), 2);
