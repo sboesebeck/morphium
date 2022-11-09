@@ -92,7 +92,6 @@ public class IndexTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void indexOnNewCollTest(Morphium morphium) throws Exception {
-        var chk=morphium.getConfig().getIndexCheck();
         try (morphium) {
             morphium.getConfig().setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
             morphium.dropCollection(IndexedObject.class);
@@ -141,8 +140,6 @@ public class IndexTest extends MultiDriverTestBase {
             }
             log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2);
             assert (foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
-        } finally {
-            morphium.getConfig().setIndexCheck(chk);
         }
     }
 
