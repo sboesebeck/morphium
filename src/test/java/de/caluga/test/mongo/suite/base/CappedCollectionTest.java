@@ -104,18 +104,18 @@ public class CappedCollectionTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void convertToCappedTest(Morphium morphium) throws Exception {
-        log.info("Running test with " + morphium.getDriver().getName());
-
-        try (morphium) {
-            morphium.dropCollection(UncachedObject.class);
-            createUncachedObjects(morphium, 1000);
-            morphium.convertToCapped(UncachedObject.class, 100, 10, null);
-            // assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "uncached_object"));
-            assert(morphium.createQueryFor(UncachedObject.class).countAll() <= 100);
-        }
-    }
+    // @ParameterizedTest
+    // @MethodSource("getMorphiumInstances")
+    // public void convertToCappedTest(Morphium morphium) throws Exception {
+    //     log.info("Running test with " + morphium.getDriver().getName());
+    //
+    //     try (morphium) {
+    //         morphium.dropCollection(UncachedObject.class);
+    //         createUncachedObjects(morphium, 1000);
+    //         morphium.convertToCapped(UncachedObject.class, 100, 10, null);
+    //         // assert (morphium.getDriver().isCapped(morphium.getConfig().getDatabase(), "uncached_object"));
+    //         assert(morphium.createQueryFor(UncachedObject.class).countAll() <= 100);
+    //     }
+    // }
 
 }

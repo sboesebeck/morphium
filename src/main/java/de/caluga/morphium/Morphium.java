@@ -427,8 +427,8 @@ public class Morphium implements AutoCloseable {
                     case CONVERT_EXISTING_ON_STARTUP:
                         try {
                             if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                log.debug("Existing collection is not capped - converting");
-                                convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
+                                log.warn("Existing collection is not capped - ATTENTION!");
+                                // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
                             }
                         } catch (MorphiumDriverException e) {
                             throw new RuntimeException(e);
@@ -757,64 +757,64 @@ public class Morphium implements AutoCloseable {
      * @param cb   callback
      * @param <T>  type
      */
-    public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
-        convertToCapped(getMapper().getCollectionName(c), size, max, cb);
-    }
+    // public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
+    //     convertToCapped(getMapper().getCollectionName(c), size, max, cb);
+    // }
 
-    @SuppressWarnings("UnusedParameters")
-    public <T> void convertToCapped(String collectionName, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
-        if (!exists(getDatabase(), collectionName)) { return; }
-
-        MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(null);
-        MongoConnection con = morphiumDriver.getReadConnection(config.getDefaultReadPreference());
-
-        try {
-            log.warn("Existing coll " + collectionName + " is not capped - converting");
-            log.warn("Creating new collection with index settings");
-            String tmpColl = collectionName + "_tmp";
-            CreateCommand createCommand = new CreateCommand(primaryConnection).setCapped(true).setColl(tmpColl).setDb(getDatabase()).setMax(max).setSize(size);
-            createCommand.execute();
-            log.debug("temp-collection created - creating indexes");
-            var idx = getIndexesFromMongo(collectionName);
-            var idxMaps = new ArrayList<Map<String, Object>>();
-
-            for (IndexDescription i : idx) { idxMaps.add(i.asMap()); }
-
-            if (idx != null && !idx.isEmpty()) {
-                try {
-                    CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection).setDb(getDatabase()).setColl(tmpColl).setIndexes(idxMaps).setComment("created by morphium");
-                    idxCmd.execute();
-                } catch (Exception e) {
-                    // swallow
-                }
-            }
-
-            log.debug("indexes created... copying data");
-            log.warn("copying might take some time, as data is read and written ☹️");
-            FindCommand fnd = new FindCommand(con).setColl(collectionName).setDb(getDatabase());
-            var crs = fnd.executeIterable(getConfig().getCursorBatchSize());
-
-            while (crs.hasNext()) {
-                InsertMongoCommand insert = new InsertMongoCommand(primaryConnection);
-                insert.setDocuments(crs.getBatch());
-                insert.setColl(tmpColl).setDb(getDatabase());
-                crs.ahead(crs.getBatch().size());
-            }
-
-            // TODO: check for error!
-            log.debug("dropping old collection");
-            DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection).setColl(collectionName).setDb(getDatabase());
-            dropCmd.execute();
-            log.debug("Renaming tmp collection");
-            RenameCollectionCommand ren = new RenameCollectionCommand(primaryConnection);
-            ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
-            var r = ren.execute();
-            log.debug("conversion to capped complete!");
-        } finally {
-            primaryConnection.release();
-            con.release();
-        }
-    }
+    // @SuppressWarnings("UnusedParameters")
+    // public <T> void convertToCapped(String collectionName, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
+    //     if (!exists(getDatabase(), collectionName)) { return; }
+    //
+    //     MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(null);
+    //     MongoConnection con = morphiumDriver.getReadConnection(config.getDefaultReadPreference());
+    //
+    //     try {
+    //         log.warn("Existing coll " + collectionName + " is not capped - converting");
+    //         log.warn("Creating new collection with index settings");
+    //         String tmpColl = collectionName + "_tmp";
+    //         CreateCommand createCommand = new CreateCommand(primaryConnection).setCapped(true).setColl(tmpColl).setDb(getDatabase()).setMax(max).setSize(size);
+    //         createCommand.execute();
+    //         log.debug("temp-collection created - creating indexes");
+    //         var idx = getIndexesFromMongo(collectionName);
+    //         var idxMaps = new ArrayList<Map<String, Object>>();
+    //
+    //         for (IndexDescription i : idx) { idxMaps.add(i.asMap()); }
+    //
+    //         if (idx != null && !idx.isEmpty()) {
+    //             try {
+    //                 CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection).setDb(getDatabase()).setColl(tmpColl).setIndexes(idxMaps).setComment("created by morphium");
+    //                 idxCmd.execute();
+    //             } catch (Exception e) {
+    //                 // swallow
+    //             }
+    //         }
+    //
+    //         log.debug("indexes created... copying data");
+    //         log.warn("copying might take some time, as data is read and written ☹️");
+    //         FindCommand fnd = new FindCommand(con).setColl(collectionName).setDb(getDatabase());
+    //         var crs = fnd.executeIterable(getConfig().getCursorBatchSize());
+    //
+    //         while (crs.hasNext()) {
+    //             InsertMongoCommand insert = new InsertMongoCommand(primaryConnection);
+    //             insert.setDocuments(crs.getBatch());
+    //             insert.setColl(tmpColl).setDb(getDatabase());
+    //             crs.ahead(crs.getBatch().size());
+    //         }
+    //
+    //         // TODO: check for error!
+    //         log.debug("dropping old collection");
+    //         DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection).setColl(collectionName).setDb(getDatabase());
+    //         dropCmd.execute();
+    //         log.debug("Renaming tmp collection");
+    //         RenameCollectionCommand ren = new RenameCollectionCommand(primaryConnection);
+    //         ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
+    //         var r = ren.execute();
+    //         log.debug("conversion to capped complete!");
+    //     } finally {
+    //         primaryConnection.release();
+    //         con.release();
+    //     }
+    // }
     //
     //    public Map<String, Object> execCommand(String cmd) {
     //        Map<String, Object> map = new HashMap<>();
@@ -898,7 +898,8 @@ public class Morphium implements AutoCloseable {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
 
                     if (capped != null) {
-                        convertToCapped(c, capped.maxSize(), capped.maxEntries(), null);
+                        log.warn("Collection to be capped already exists! ATTENTION!");
+                        // convertToCapped(c, capped.maxSize(), capped.maxEntries(), null);
                     }
                 }
             } catch (Throwable t) {
