@@ -590,8 +590,12 @@ public class Morphium implements AutoCloseable {
 
     public void reconnectToDb(String db) {
         Properties prop = getConfig().asProperties();
+        var dec=getConfig().getCredentialsDecryptionKey();
+        var enc=getConfig().getCredentialsEncryptionKey();
         close();
         MorphiumConfig cfg = new MorphiumConfig(prop);
+        cfg.setCredentialsDecryptionKey(dec);
+        cfg.setCredentialsEncryptionKey(enc);
         cfg.setDatabase(db);
         setConfig(cfg);
     }
