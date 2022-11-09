@@ -64,7 +64,7 @@ if [ "$cnt" -eq 0 ]; then
 	echo "no matching class found for $p"
 	exit 1
 fi
-testMethods=$(egrep "@Test|@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods=$(grep -E "@Test|@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
@@ -89,17 +89,18 @@ for t in $(<files.txt); do
 	while true; do
 		clear
 
-		echo "Running test in $t  - #$tst/$cnt"
-		echo "Total methods to in matching classes $testMethods"
+		echo "Running tests in $t  - #$tst/$cnt"
+		echo "Total number methods to run in matching classes $testMethods"
+    echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" test.log/$t.log | cut -f2 -d: | grep -vc '^ *//')"
 		if [ "$m" != "." ]; then
 			echo " Tests matchin: $m"
 		fi
+		./getFailedTests.sh | pr -t -2 -w280
 		((dur = $(date +%s) - tm))
 		echo "Duration: $dur"
 		echo "---------- LOG: "
-		tail -n 10 test.log/"$t".log
+		tail -n 15 test.log/"$t".log
 		echo "----------"
-		./getFailedTests.sh | pr -t -2 -w280
 		# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
 
 		# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
