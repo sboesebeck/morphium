@@ -157,6 +157,7 @@ public class MorphiumTest extends MorphiumTestBase {
         Thread.sleep(50);
         morphium.unset(uc, UncachedObject.Fields.strValue);
         assert (uc.getStrValue() == null);
+        Thread.sleep(500);
         morphium.reread(uc);
         assert (uc.getStrValue() == null);
     }
@@ -168,6 +169,7 @@ public class MorphiumTest extends MorphiumTestBase {
         Thread.sleep(50);
         morphium.set(uc, UncachedObject.Fields.strValue, "other");
         assert (uc.getStrValue().equals("other"));
+        Thread.sleep(500);
         morphium.reread(uc);
         assert (uc.getStrValue().equals("other"));
     }
