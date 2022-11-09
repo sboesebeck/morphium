@@ -2568,7 +2568,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         break;
 
                     case ADD_TO_SET:
-                        update = Doc.of("$add_to_set", set);
+                        update = Doc.of("$addToSet", set);
                         break;
 
                     default:
@@ -2818,7 +2818,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         case ADD_TO_SET:
                             Map<String, Object> set =
                                 UtilsMap.of(field, UtilsMap.of("$each", value));
-                            update = UtilsMap.of("$add_to_set", set);
+                            update = UtilsMap.of("$addToSet", set);
                             break;
 
                         case PUSH:
@@ -2866,10 +2866,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             logger.warn("Sort is not supported for updates!!!");
                         }
 
-                        settings.execute();
+                        var result=settings.execute();
+                        
+                        if (result.containsKey("ok") && !result.get("ok").equals(1.0)) {
+                            throw new MorphiumDriverException("Error: " + result.get("code") + " - " + result.get("errmsg"));
+                        }
+
                         morphium.inc(StatisticKeys.WRITES);
                     } catch (MorphiumDriverException e) {
-                        // TODO: Implement Handling
                         throw new RuntimeException(e);
                     } finally {
                         if (con != null) {
