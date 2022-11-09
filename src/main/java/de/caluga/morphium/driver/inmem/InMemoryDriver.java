@@ -1645,7 +1645,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             data.sort((o1, o2)->{
                 for (String f : sort.keySet()) {
                     if (o1.get(f)==null && o2.get(f)==null) {
-                        return 0;
+                        continue;
                     }
                     if (o1.get(f)==null && o2.get(f)!=null) {
                         return -1;
@@ -1657,11 +1657,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     //noinspection unchecked
                     if (sort.get(f) instanceof Integer) {
                         if (coll!=null) {
-                            return (coll.compare(o1.get(f).toString(),o2.get(f).toString())) * ((Integer) sort.get(f));
+                            var r=(coll.compare(o1.get(f).toString(),o2.get(f).toString())) * ((Integer) sort.get(f));
+                            if (r==0) continue;
+                            return r;
                         }
-                        return ((Comparable) o1.get(f)).compareTo(o2.get( f)) * ((Integer) sort.get(f));
+                        var r=((Comparable) o1.get(f)).compareTo(o2.get( f)) * ((Integer) sort.get(f));
+                        if (r==0) continue;
+                        return r;
                     } else {
-                        return (coll.compare(o1.toString(),o2.toString()));
+                        var r=(coll.compare(o1.toString(),o2.toString()));
+                        if (r==0) continue;
+                        return r;
                     }
                 }
                 return 0;
@@ -2044,6 +2050,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 case "$inc":
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
+                        if (value==null) value=new Integer(0);
                         if (value instanceof Integer) {
                             if (entry.getValue() instanceof Integer) {
                                 value = (Integer) value + ((Integer) entry.getValue());
@@ -2151,7 +2158,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         }
                     }
                     break;
-                case "$add_to_set":
+                case "$addToSet":
                 case "$push":
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         List v = (List) obj.get(entry.getKey());
@@ -2163,7 +2170,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         if (entry.getValue() instanceof Map) {
                             if (((Map) entry.getValue()).get("$each") != null) {
                                 //noinspection unchecked
-                                if (operand.equals("$add_to_set")) {
+                                if (operand.equals("$addToSet")) {
                                     for (Object elem:(List)((Map) entry.getValue()).get("$each")) {
                                         if (!v.contains(elem)) {
                                             v.add(elem);
@@ -2174,14 +2181,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 }
                             } else {
                                 //noinspection unchecked
-                                if (operand.equals("$add_to_set") && v.contains(entry.getValue())) {
+                                if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
                                     break;
                                 }
                                 v.add(entry.getValue());
                             }
                         } else {
                             //noinspection unchecked
-                            if (operand.equals("$add_to_set") && v.contains(entry.getValue())) {
+                            if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
                                 break;
                             }
                             v.add(entry.getValue());
