@@ -41,7 +41,7 @@ public abstract class Expr {
                 if (Modifier.isStatic(m.getModifiers())) {
                     if (k.equals("toString")) k = "toStr";
                     if (m.getName().equals(k) || m.getName().equals(k + "Expr")) {
-//                        log.info("Got method for op: " + k + "  method: " + m.getName());
+                       // log.info("Got method for op: " + k + "  method: " + m.getName());
                         try {
                             Object p = ((Map) o).get("$" + k);
                             if (p instanceof List) {
@@ -67,7 +67,7 @@ public abstract class Expr {
                             }
                             if (p.getClass().isArray()) {
                                 if (!m.getParameterTypes()[0].isArray() && m.getParameterCount() != ((Object[]) p).length) {
-                                    log.debug("WRong method, maybe... parameter count mismatch");
+                                    log.debug("Wrong method, maybe... parameter count mismatch");
                                     continue;
                                 }
                             } else if (m.getParameterCount() > 1) {
@@ -79,7 +79,7 @@ public abstract class Expr {
                                 return (Expr) m.invoke(null, new Object[]{new Expr[]{(Expr) p}});
                             }
                             m.setAccessible(true);
-                            return (Expr) m.invoke(null, (Object[]) p);
+                            return (Expr) m.invoke(null,  p);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -190,13 +190,21 @@ public abstract class Expr {
         };
     }
 
-    public static Expr add(Expr... fld) {
-        return new OpExpr("add", Arrays.asList(fld)) {
+    public static Expr add(Expr... expr) {
+        return new OpExpr("add", Arrays.asList(expr)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Number sum = 0;
-                for (Expr f : fld) {
-                    sum = sum.doubleValue() + ((Number) f.evaluate(context)).doubleValue();
+                for (Expr f : expr) {
+                    Object v=f.evaluate(context);
+                    while (v instanceof Expr){
+                        v=((Expr)v).evaluate(context);
+                    }
+                    if (v instanceof Number) {
+                        sum=sum.doubleValue()+((Number)v).doubleValue();
+                    } else {
+                        System.out.println("Cannot evaluate");
+                    }
                 }
                 return sum;
             }

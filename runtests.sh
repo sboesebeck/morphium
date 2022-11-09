@@ -91,7 +91,7 @@ for t in $(<files.txt); do
 
 		echo "Running tests in $t  - #$tst/$cnt"
 		echo "Total number methods to run in matching classes $testMethods"
-    echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" test.log/$t.log | cut -f2 -d: | grep -vc '^ *//')"
+    echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')"
 		if [ "$m" != "." ]; then
 			echo " Tests matchin: $m"
 		fi

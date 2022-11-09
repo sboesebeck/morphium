@@ -16,7 +16,7 @@ public class ExprParsingTests {
     @Test
     public void simpleParsing() {
         Map<String, Object> qo = new HashMap<>();
-        qo.put("$add", Arrays.asList("$field", 32.0d, 3));
+        qo.put("$add", Arrays.asList(Expr.field("field"), Expr.doubleExpr(32.0), Expr.intExpr(3)));
 
         Expr add = Expr.parse(qo);
         Map<String, Object> context = UtilsMap.of("field", 12);
