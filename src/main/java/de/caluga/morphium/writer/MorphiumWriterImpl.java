@@ -1041,81 +1041,81 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      *
      * @param c - type
      */
-    @SuppressWarnings("unused")
-    public <T> void convertToCapped(final Class<T> c) {
-        convertToCapped(c, null);
-    }
-
-    public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        convertToCapped(c, null, callback);
-    }
-
-    public <T> void convertToCapped(
-        final Class<T> c, String collectionName, final AsyncOperationCallback<T> callback) {
-        Runnable r =
-        () -> {
-            WriteConcern wc = morphium.getWriteConcernForClass(c);
-            String coll =
-            collectionName == null
-            ? morphium.getMapper().getCollectionName(c)
-            : collectionName;
-
-            try {
-                if (!morphium.exists(morphium.getConfig().getDatabase(), coll)) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug(
-                            "Collection does not exist - creating collection with"
-                            + " capped status");
-                    }
-
-                    Map<String, Object> cmd = new LinkedHashMap<>();
-                    cmd.put("create", coll);
-                    Capped capped =
-                        morphium.getARHelper()
-                        .getAnnotationFromHierarchy(c, Capped.class);
-
-                    if (capped != null) {
-                        cmd.put("capped", true);
-                        cmd.put("size", capped.maxSize());
-                        cmd.put("max", capped.maxEntries());
-                    }
-
-                    // cmd.put("autoIndexId",
-                    // (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
-                    //                    morphium.getDriver().runCommand(getDbName(),
-                    // Doc.of(cmd));
-                    throw new RuntimeException("not implemented yet");
-                } else {
-                    Capped capped =
-                        morphium.getARHelper()
-                        .getAnnotationFromHierarchy(c, Capped.class);
-
-                    if (capped != null) {
-                        Map<String, Object> cmd = new HashMap<>();
-                        cmd.put("convertToCapped", coll);
-                        cmd.put("size", capped.maxSize());
-                        cmd.put("max", capped.maxEntries());
-                        //
-                        // morphium.getDriver().runCommand(getDbName(), Doc.of(cmd));
-                        throw new RuntimeException("not implemented yet");
-                        // Indexes are not available after converting - recreate them
-                        //                        morphium.ensureIndicesFor(c, callback);
-                    }
-                }
-            } catch (MorphiumDriverException e) {
-                // TODO: Implement Handling
-                throw new RuntimeException(e);
-            }
-        };
-
-        if (callback == null) {
-            r.run();
-        } else {
-            morphium.getAsyncOperationsThreadPool().execute(r);
-            //            new Thread(r).start();
-        }
-    }
-
+    // @SuppressWarnings("unused")
+    // public <T> void convertToCapped(final Class<T> c) {
+    //     convertToCapped(c, null);
+    // }
+    //
+    // public <T> void convertToCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
+    //     convertToCapped(c, null, callback);
+    // }
+    //
+    // public <T> void convertToCapped(
+    //     final Class<T> c, String collectionName, final AsyncOperationCallback<T> callback) {
+    //     Runnable r =
+    //     () -> {
+    //         WriteConcern wc = morphium.getWriteConcernForClass(c);
+    //         String coll =
+    //         collectionName == null
+    //         ? morphium.getMapper().getCollectionName(c)
+    //         : collectionName;
+    //
+    //         try {
+    //             if (!morphium.exists(morphium.getConfig().getDatabase(), coll)) {
+    //                 if (logger.isDebugEnabled()) {
+    //                     logger.debug(
+    //                         "Collection does not exist - creating collection with"
+    //                         + " capped status");
+    //                 }
+    //
+    //                 Map<String, Object> cmd = new LinkedHashMap<>();
+    //                 cmd.put("create", coll);
+    //                 Capped capped =
+    //                     morphium.getARHelper()
+    //                     .getAnnotationFromHierarchy(c, Capped.class);
+    //
+    //                 if (capped != null) {
+    //                     cmd.put("capped", true);
+    //                     cmd.put("size", capped.maxSize());
+    //                     cmd.put("max", capped.maxEntries());
+    //                 }
+    //
+    //                 // cmd.put("autoIndexId",
+    //                 // (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
+    //                 //                    morphium.getDriver().runCommand(getDbName(),
+    //                 // Doc.of(cmd));
+    //                 throw new RuntimeException("not implemented yet");
+    //             } else {
+    //                 Capped capped =
+    //                     morphium.getARHelper()
+    //                     .getAnnotationFromHierarchy(c, Capped.class);
+    //
+    //                 if (capped != null) {
+    //                     Map<String, Object> cmd = new HashMap<>();
+    //                     cmd.put("convertToCapped", coll);
+    //                     cmd.put("size", capped.maxSize());
+    //                     cmd.put("max", capped.maxEntries());
+    //                     //
+    //                     // morphium.getDriver().runCommand(getDbName(), Doc.of(cmd));
+    //                     throw new RuntimeException("not implemented yet");
+    //                     // Indexes are not available after converting - recreate them
+    //                     //                        morphium.ensureIndicesFor(c, callback);
+    //                 }
+    //             }
+    //         } catch (MorphiumDriverException e) {
+    //             // TODO: Implement Handling
+    //             throw new RuntimeException(e);
+    //         }
+    //     };
+    //
+    //     if (callback == null) {
+    //         r.run();
+    //     } else {
+    //         morphium.getAsyncOperationsThreadPool().execute(r);
+    //         //            new Thread(r).start();
+    //     }
+    // }
+    //
     private String getDbName() {
         return morphium.getConfig().getDatabase();
     }

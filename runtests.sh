@@ -100,15 +100,15 @@ for t in $(<files.txt); do
 		((dur = $(date +%s) - tm))
 		echo "Duration: $dur"
 		run=0
-		for i in $(grep -a "Tests run: .*in $t" test.log/$t.log | cut -f2 -d: | cut -f1 -d,); do
+		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f3 -d: | cut -f1 -d,); do
 			((run = run + i))
 		done
 		fail=0
-		for i in $(grep -a "Tests run: .*in $t" test.log/$t.log | cut -f3 -d: | cut -f1 -d,); do
+		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f4 -d: | cut -f1 -d,); do
 			((fail = fail + i))
 		done
 		err=0
-		for i in $(grep -a "Tests run: .*in $t" test.log/$t.log | cut -f4 -d: | cut -f1 -d,); do
+		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f5 -d: | cut -f1 -d,); do
 			((err = err + i))
 		done
 		echo "---------- LOG: "
