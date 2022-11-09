@@ -102,6 +102,9 @@ import de.caluga.morphium.driver.commands.StepDownCommand;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.commands.auth.CreateRoleAdminCommand;
+import de.caluga.morphium.driver.commands.auth.CreateUserAdminCommand;
+import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wire.AtomicDecimal;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -375,7 +378,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         return 0;
     }
+    public int runCommand(CreateUserAdminCommand cmd){
+        return 0;
+    }
+    public int runCommand(CreateRoleAdminCommand cmd){
+        return 0;
+    }
 
+    public int runCommand(SaslAuthCommand cmd){
+        return 0;
+    }
     public int runCommand(GenericCommand cmd) {
         log.info("Trying to handle generic Command");
 
