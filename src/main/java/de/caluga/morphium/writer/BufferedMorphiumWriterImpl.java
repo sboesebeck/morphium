@@ -1030,7 +1030,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         case ADD_TO_SET:
                             morphium.firePreUpdateEvent(
                                     q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
-                            r.setCmd(Doc.of("$add_to_set", Doc.of(field, value)));
+                            r.setCmd(Doc.of("$addToSet", Doc.of(field, value)));
                             morphium.firePostUpdateEvent(
                                     q.getType(), MorphiumStorageListener.UpdateTypes.ADD_TO_SET);
                             break;
@@ -1083,7 +1083,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 r.setCmd(Doc.of("$push", Doc.of(fld, o)));
                                 break;
                             case ADD_TO_SET:
-                                r.setCmd(Doc.of("$add_to_set", Doc.of(fld, o)));
+                                r.setCmd(Doc.of("$addToSet", Doc.of(fld, o)));
                                 break;
                             default:
                                 throw new IllegalArgumentException(
