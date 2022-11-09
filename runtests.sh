@@ -94,27 +94,11 @@ for t in $(<files.txt); do
 		if [ "$m" != "." ]; then
 			echo " Tests matchin: $m"
 		fi
-		echo "Tests    run: $totalTestsRun"
-		echo "Tests failed: $totalTestsFailed"
-		echo "Tests errors: $totalTestsError"
 		((dur = $(date +%s) - tm))
 		echo "Duration: $dur"
-		run=0
-		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f3 -d: | cut -f1 -d,); do
-			((run = run + i))
-		done
-		fail=0
-		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f4 -d: | cut -f1 -d,); do
-			((fail = fail + i))
-		done
-		err=0
-		for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f5 -d: | cut -f1 -d,); do
-			((err = err + i))
-		done
 		echo "---------- LOG: "
 		tail -n 10 test.log/"$t".log
 		echo "----------"
-		echo "Failed tests"
 		./getFailedTests.sh | pr -t -2 -w280
 		# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
 
