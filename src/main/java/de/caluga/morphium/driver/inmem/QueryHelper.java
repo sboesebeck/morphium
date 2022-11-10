@@ -39,6 +39,16 @@ public class QueryHelper {
         if (query.containsKey("$where")) {
             System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("javascript");
+            if (engine==null){
+                log.error("Could not instanciate Script engine!");
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                }
+                engine = new ScriptEngineManager().getEngineByName("javascript");
+                if (engine==null) throw new RuntimeException("Could not instanciate script engine");
+            }
             // engine.eval("print('Hello World!');");
             engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
             for (String k:toCheck.keySet()){

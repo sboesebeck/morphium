@@ -158,7 +158,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             morphium.store(o);
         }
         TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(1000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).countAll()==100);
+        TestUtils.waitForConditionToBecomeTrue(3000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).countAll()==100);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing without synchronizer: " + dur + " ms");
 
@@ -170,7 +170,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             morphium.store(obj);
         }
         TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(1000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll()==100);
+        TestUtils.waitForConditionToBecomeTrue(3000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll()==100);
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
 
