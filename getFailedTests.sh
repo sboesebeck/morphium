@@ -19,7 +19,7 @@ echo "Tests with errors: $err"
 if [ "$fail" -eq 0 ] && [ "$err" -eq 0 ]; then
 	exit
 else
-echo "-------- failed test classes: ---------"
+echo ""
  	for cls in $(grep -E "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' | grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'); do
 		# echo "Getting failures in $cls"
 		if [ ! -e ./target/surefire-reports/TEST-$cls.xml ]; then

@@ -70,7 +70,7 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	mkdir test.log
 fi
 echo "Compiling..."
-mvn compile >/dev/null || exit 1
+mvn compile >/dev/null || { echo "Compilation failed!"; exit 1; }
 
 tst=0
 totalTestsRun=0
