@@ -14,7 +14,18 @@ public class ExprParsingTests {
     private final Logger log = LoggerFactory.getLogger(ExprParsingTests.class);
 
     @Test
-    public void simpleParsing() {
+    public void parseMod() {
+        Map<String, Object> qo = new HashMap<>();
+        qo.put("$mod", Arrays.asList(Expr.field("field"), Expr.doubleExpr(5.0)));
+
+        Expr add = Expr.parse(qo);
+        Map<String, Object> context = UtilsMap.of("field", 12);
+        Object result = add.evaluate(context);
+        assert (result.equals(2.0));
+        log.info("done");
+    }
+    @Test
+    public void parseAdd() {
         Map<String, Object> qo = new HashMap<>();
         qo.put("$add", Arrays.asList(Expr.field("field"), Expr.doubleExpr(32.0), Expr.intExpr(3)));
 
@@ -23,7 +34,6 @@ public class ExprParsingTests {
         Object result = add.evaluate(context);
         assert (result.equals(47.0));
         log.info("done");
-
     }
 
     @Test
