@@ -76,10 +76,18 @@ public abstract class Expr {
 
                             } else if (m.getParameterCount() == 1 && m.getParameterTypes()[0].isArray() && !p.getClass().isArray()) {
                                 m.setAccessible(true);
-                                return (Expr) m.invoke(null, new Object[]{new Expr[]{(Expr) p}});
+                                return (Expr) m.invoke(null, new Expr[]{(Expr) p});
+                            } 
+                            if (m.getParameterCount()>1 && p.getClass().isArray()){
+                                m.setAccessible(true);
+                                Object[] prm=new Object[m.getParameterCount()];
+                                for (int i=0;i<prm.length;i++){
+                                    prm[i]=((Object[])p)[i];
+                                }
+                                return (Expr)m.invoke(null, prm);
                             }
                             m.setAccessible(true);
-                            return (Expr) m.invoke(null,  p);
+                            return (Expr) m.invoke(null,   p);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
@@ -196,10 +204,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Number sum = 0;
                 for (Expr f : expr) {
-                    Object v=f.evaluate(context);
-                    while (v instanceof Expr){
-                        v=((Expr)v).evaluate(context);
-                    }
+                    Object v=eval(f,context);
                     if (v instanceof Number) {
                         sum=sum.doubleValue()+((Number)v).doubleValue();
                     } else {
@@ -264,7 +269,7 @@ public abstract class Expr {
         return new OpExpr("divide", Arrays.asList(divident, divisor)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) divident.evaluate(context)).doubleValue() / ((Number) divisor.evaluate(context)).doubleValue();
+                return ((Number) eval(divident,context)).doubleValue() / ((Number) eval(divisor,context)).doubleValue();
             }
         };
     }
@@ -273,7 +278,7 @@ public abstract class Expr {
         return new OpExprNoList("exp", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.exp(((Number) e.evaluate(context)).doubleValue());
+                return Math.exp(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -282,7 +287,7 @@ public abstract class Expr {
         return new OpExprNoList("floor", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.floor(((Number) e.evaluate(context)).doubleValue());
+                return Math.floor(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -291,7 +296,7 @@ public abstract class Expr {
         return new OpExprNoList("ln", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.log1p(((Number) e.evaluate(context)).doubleValue());
+                return Math.log1p(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -300,7 +305,7 @@ public abstract class Expr {
         return new OpExpr("log", Arrays.asList(num, base)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.log(((Number) num.evaluate(context)).doubleValue()) / Math.log(((Number) base.evaluate(context)).doubleValue());
+                return Math.log(((Number) eval(num,context)).doubleValue()) / Math.log(((Number) eval(base,context)).doubleValue());
             }
         };
     }
@@ -309,7 +314,7 @@ public abstract class Expr {
         return new OpExprNoList("log10", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.log10(((Number) e.evaluate(context)).doubleValue());
+                return Math.log10(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -318,16 +323,24 @@ public abstract class Expr {
         return new OpExpr("mod", Arrays.asList(divident, divisor)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) divident.evaluate(context)).doubleValue() % ((Number) divisor.evaluate(context)).doubleValue();
+                Object div=eval(divident,context);
+                Object dis=eval(divisor,context);
+                return ((Number) div).doubleValue() % ((Number) dis).doubleValue();
             }
         };
+    }
+
+    private static Object eval(Expr e, Map<String,Object> context){
+        Object r=e.evaluate(context);
+        while (r instanceof Expr) r=eval(((Expr)r),context);
+        return r;
     }
 
     public static Expr multiply(Expr e1, Expr e2) {
         return new OpExpr("multiply", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) e1.evaluate(context)).doubleValue() * ((Number) e2.evaluate(context)).doubleValue();
+                return ((Number) eval(e1,context)).doubleValue() * ((Number) eval(e2,context)).doubleValue();
             }
         };
     }
@@ -336,7 +349,7 @@ public abstract class Expr {
         return new OpExpr("pow", Arrays.asList(num, exponent)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.pow(((Number) num.evaluate(context)).doubleValue(), ((Number) exponent.evaluate(context)).doubleValue());
+                return Math.pow(((Number) eval(num,context)).doubleValue(), ((Number) eval(exponent,context)).doubleValue());
             }
         };
     }
@@ -345,7 +358,7 @@ public abstract class Expr {
         return new OpExprNoList("round", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.round(((Number) e.evaluate(context)).doubleValue());
+                return Math.round(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -354,7 +367,7 @@ public abstract class Expr {
         return new OpExprNoList("sqrt", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.sqrt(((Number) e.evaluate(context)).doubleValue());
+                return Math.sqrt(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -363,7 +376,7 @@ public abstract class Expr {
         return new OpExpr("substract", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) e1.evaluate(context)).doubleValue() - ((Number) e2.evaluate(context)).doubleValue();
+                return ((Number) eval(e1,context)).doubleValue() - ((Number) eval(e2,context)).doubleValue();
             }
         };
     }
@@ -372,10 +385,10 @@ public abstract class Expr {
         return new OpExpr("trunc", Arrays.asList(num, place)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                double n = ((Number) num.evaluate(context)).doubleValue();
+                double n = ((Number) eval(num,context)).doubleValue();
                 double m = 1;
-                if (place.evaluate(context) != null || !place.evaluate(context).equals(0)) {
-                    m = Math.pow(10, ((Number) place.evaluate(context)).intValue());
+                if (eval(place,context) != null || !eval(place,context).equals(0)) {
+                    m = Math.pow(10, ((Number) eval(place,context)).intValue());
                 }
                 n = (int) (n * m);
                 n = n / m;
@@ -389,7 +402,7 @@ public abstract class Expr {
         return new OpExpr("arrayElemAt", Arrays.asList(array, index)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((List) array.evaluate(context)).get(((Number) index.evaluate(context)).intValue());
+                return ((List) eval(array,context)).get(((Number) eval(index,context)).intValue());
             }
         };
     }
@@ -399,7 +412,7 @@ public abstract class Expr {
         return new OpExpr("arrayElemAt", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((List) ((Expr) lst.get(0)).evaluate(context)).get(((Number) ((Expr) lst.get(1)).evaluate(context)).intValue());
+                return ((List) (eval((Expr)lst.get(0),context))).get(((Number) (eval((Expr)lst.get(1),context))).intValue());
             }
         };
     }
@@ -420,7 +433,7 @@ public abstract class Expr {
                 List<?> ret = new ArrayList<>();
                 for (Expr e : arrays) {
                     //noinspection unchecked
-                    ret.addAll(((List) e.evaluate(context)));
+                    ret.addAll(((List) eval(e,context)));
                 }
                 return ret;
             }
@@ -436,9 +449,9 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 List<Object> ret = new ArrayList<>();
-                for (Object el : (List) inputArray.evaluate(context)) {
+                for (Object el : (List) eval(inputArray,context)) {
                     if (el instanceof Expr) {
-                        el = ((Expr) el).evaluate(context);
+                        el = eval(((Expr) el),context);
                     }
                     Map<String, Object> ctx = new ObjectMapperImpl().serialize(el);
                     String fld = as;
@@ -446,7 +459,7 @@ public abstract class Expr {
                         fld = "this";
                     }
                     context.put(fld, el);
-                    if ((cond.evaluate(context)).equals(Boolean.TRUE)) {
+                    if (eval(cond,context).equals(Boolean.TRUE)) {
                         ret.add(el);
                     }
                 }
@@ -468,13 +481,13 @@ public abstract class Expr {
         return new OpExpr("in", Arrays.asList(elem, array)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                Object v = elem.evaluate(context);
+                Object v = eval(elem,context);
 
                 boolean found = false;
                 //noinspection unchecked
-                for (Object o : (List<Object>) array.evaluate(context)) {
+                for (Object o : (List<Object>) eval(array,context)) {
                     if (o instanceof Expr) {
-                        o = ((Expr) o).evaluate(context);
+                        o = eval(((Expr) o),context);
                     }
                     if (o.equals(v)) {
                         found = true;
@@ -490,10 +503,10 @@ public abstract class Expr {
         return new OpExpr("indexOfArray", Arrays.asList(array, search, start, end)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                int startNum = ((Number) start.evaluate(context)).intValue();
-                int endNum = ((Number) end.evaluate(context)).intValue();
-                List lst = (List) array.evaluate(context);
-                Object o = search.evaluate(context);
+                int startNum = ((Number) eval(start,context)).intValue();
+                int endNum = ((Number) eval(end,context)).intValue();
+                List lst = (List) eval(array,context);
+                Object o = eval(search,context);
                 return lst.indexOf(o);
             }
         };
@@ -503,7 +516,7 @@ public abstract class Expr {
         return new OpExpr("isArray", Collections.singletonList(array)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return array.evaluate(context) instanceof List;
+                return eval(array,context) instanceof List;
             }
         };
     }
@@ -533,7 +546,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 List ret = new ArrayList();
                 //noinspection unchecked
-                for (Map.Entry e : ((Map<String, Object>) obj.evaluate(context)).entrySet()) {
+                for (Map.Entry e : ((Map<String, Object>) eval(obj,context)).entrySet()) {
                     //noinspection unchecked
                     ret.add(e.getKey());
                     //noinspection unchecked
@@ -548,9 +561,9 @@ public abstract class Expr {
         return new OpExpr("range", Arrays.asList(start, end, step)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                int startNum = ((Number) start.evaluate(context)).intValue();
-                int endNum = ((Number) end.evaluate(context)).intValue();
-                int stepNum = ((Number) step.evaluate(context)).intValue();
+                int startNum = ((Number) eval(start,context)).intValue();
+                int endNum = ((Number) eval(end,context)).intValue();
+                int stepNum = ((Number) eval(step,context)).intValue();
                 List<Number> lst = new ArrayList<>();
                 if (endNum < startNum) {
                     if (stepNum > 0) stepNum = -stepNum;
@@ -569,7 +582,7 @@ public abstract class Expr {
         return new OpExprNoList("reverseArray", array) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                List lst = (List) array.evaluate(context);
+                List lst = (List) eval(array,context);
                 Collections.reverse(lst);
                 return lst;
             }
@@ -580,7 +593,7 @@ public abstract class Expr {
         return new OpExprNoList("size", array) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((List) array.evaluate(context)).size();
+                return ((List) eval(array,context)).size();
             }
         };
     }
@@ -595,9 +608,9 @@ public abstract class Expr {
         return new OpExpr("slice", Arrays.asList(array, pos, n)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                List lst = (List) array.evaluate(context);
-                int posN = ((Number) pos.evaluate(context)).intValue();
-                int len = ((Number) n.evaluate(context)).intValue();
+                List lst = (List) eval(array,context);
+                int posN = ((Number) eval(pos,context)).intValue();
+                int len = ((Number) eval(n,context)).intValue();
                 return lst.subList(posN, posN + len);
             }
         };
@@ -607,8 +620,8 @@ public abstract class Expr {
         return new OpExpr("slice", Arrays.asList(array, n)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                List lst = (List) array.evaluate(context);
-                int len = ((Number) n.evaluate(context)).intValue();
+                List lst = (List) eval(array,context);
+                int len = ((Number) eval(n,context)).intValue();
                 return lst.subList(0, len);
             }
         };
@@ -624,7 +637,7 @@ public abstract class Expr {
 
                 int idx = 0;
                 while (result && idx < expressions.length) {
-                    result = result && ((Boolean) expressions[idx].evaluate(context));
+                    result = result && ((Boolean) eval(expressions[idx],context));
                     idx++;
                 }
                 return result;
@@ -641,7 +654,7 @@ public abstract class Expr {
 
                 int idx = 0;
                 while (!result && idx < expressions.length) {
-                    result = result || ((Boolean) expressions[idx].evaluate(context));
+                    result = result || ((Boolean) eval(expressions[idx],context));
                     idx++;
                 }
                 return result;
@@ -658,7 +671,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
 
-                Object evaluate = expression.evaluate(context);
+                Object evaluate = eval(expression,context);
                 if (evaluate instanceof Boolean) {
                     return !((Boolean) evaluate);
                 } else if (evaluate instanceof Number) {
@@ -678,7 +691,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                return ((Comparable) e1.evaluate(context)).compareTo(e1.evaluate(context));
+                return ((Comparable) eval(e1,context)).compareTo(eval(e2,context));
             }
         };
     }
@@ -696,7 +709,7 @@ public abstract class Expr {
         return new OpExpr("eq", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e1.evaluate(context).equals(e2.evaluate(context));
+                return eval(e1,context).equals(eval(e2,context));
             }
         };
     }
@@ -714,7 +727,7 @@ public abstract class Expr {
         return new OpExpr("ne", Arrays.asList(e1, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return !e1.evaluate(context).equals(e2.evaluate(context));
+                return !eval(e1,context).equals(eval(e2,context));
             }
         };
     }
@@ -733,8 +746,8 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                Object eval1 = e1.evaluate(context);
-                Object eval2 = e2.evaluate(context);
+                Object eval1 = eval(e1,context);
+                Object eval2 = eval(e2,context);
                 if (eval1.getClass().equals(eval2.getClass())) {
                     return ((Comparable) eval1).compareTo(eval2) > 0;
                 }
@@ -778,8 +791,8 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                Object eval1 = e1.evaluate(context);
-                Object eval2 = e2.evaluate(context);
+                Object eval1 = eval(e1,context);
+                Object eval2 = eval(e2,context);
                 if (eval1.getClass().equals(eval2.getClass())) {
                     return ((Comparable) eval1).compareTo(eval2) < 0;
                 }
@@ -804,8 +817,8 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                Object eval1 = e1.evaluate(context);
-                Object eval2 = e2.evaluate(context);
+                Object eval1 = eval(e1,context);
+                Object eval2 = eval(e2,context);
                 if (eval1.getClass().equals(eval2.getClass())) {
                     return ((Comparable) eval1).compareTo(eval2) >= 0;
                 }
@@ -830,8 +843,8 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //noinspection unchecked
-                Object eval1 = e1.evaluate(context);
-                Object eval2 = e2.evaluate(context);
+                Object eval1 = eval(e1,context);
+                Object eval2 = eval(e2,context);
                 if (eval1.getClass().equals(eval2.getClass())) {
                     return ((Comparable) eval1).compareTo(eval2) <= 0;
                 }
@@ -857,9 +870,9 @@ public abstract class Expr {
         return new OpExpr("ifNull", Arrays.asList(toCheck, resultIfNull)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                Object result = toCheck.evaluate(context);
+                Object result = eval(toCheck,context);
                 if (result == null) {
-                    return (resultIfNull.evaluate(context));
+                    return eval(resultIfNull,context);
                 }
                 return result;
             }
@@ -955,7 +968,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -974,7 +987,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1143,7 +1156,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1163,7 +1176,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1182,7 +1195,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1201,7 +1214,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1220,7 +1233,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1239,7 +1252,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1258,7 +1271,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1277,7 +1290,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1296,7 +1309,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1325,7 +1338,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1344,7 +1357,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 GregorianCalendar cal = new GregorianCalendar();
-                Object val = date.evaluate(context);
+                Object val = eval(date,context);
                 if (val instanceof Date) {
                     cal.setTime((Date) val);
                 } else if (val instanceof Number) {
@@ -1362,7 +1375,7 @@ public abstract class Expr {
         return new OpExprNoList("literal", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e.evaluate(context);
+                return eval(e,context);
             }
         };
     }
@@ -1371,7 +1384,7 @@ public abstract class Expr {
         return new OpExprNoList("mergeObjects", doc) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return doc.evaluate(context);
+                return eval(doc,context);
             }
         };
     }
@@ -1382,7 +1395,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Map<String, Object> res = new HashMap<>();
                 for (Expr e : docs) {
-                    Object val = e.evaluate(context);
+                    Object val = eval(e,context);
                     if (!(val instanceof Map)) {
                         throw new IllegalArgumentException("cannot merge non documents!");
                     }
@@ -1400,7 +1413,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 boolean ret = true;
                 for (Expr el : e) {
-                    if (!Boolean.TRUE.equals(el.evaluate(context))) {
+                    if (!Boolean.TRUE.equals(eval(el,context))) {
                         ret = false;
                         break;
                     }
@@ -1418,7 +1431,7 @@ public abstract class Expr {
                 boolean ret = true;
                 //noinspection unchecked
                 for (Expr el : (List<Expr>) lst) {
-                    if (!Boolean.TRUE.equals(el.evaluate(context))) {
+                    if (!Boolean.TRUE.equals(eval(el,context))) {
                         ret = false;
                         break;
                     }
@@ -1434,7 +1447,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 boolean ret = false;
                 for (Expr el : e) {
-                    if (Boolean.TRUE.equals(el.evaluate(context))) {
+                    if (Boolean.TRUE.equals(eval(el,context))) {
                         ret = true;
                         break;
                     }
@@ -1494,7 +1507,7 @@ public abstract class Expr {
                 Set set = new HashSet();
                 for (Expr el : e) {
                     //noinspection unchecked
-                    set.add(el.evaluate(context));
+                    set.add(eval(el,context));
                 }
                 return set;
             }
@@ -1507,7 +1520,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 StringBuilder b = new StringBuilder();
                 for (Expr ex : e) {
-                    Object evaluate = ex.evaluate(context);
+                    Object evaluate = eval(ex,context);
                     if (evaluate != null) {
                         b.append(evaluate);
                     }
@@ -1544,7 +1557,7 @@ public abstract class Expr {
         return new OpExprNoList("$match", expr) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return expr.evaluate(context);
+                return eval(expr,context);
             }
         };
     }
@@ -1554,7 +1567,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return expr.evaluate(context);
+                return eval(expr,context);
             }
         };
     }
@@ -1596,8 +1609,8 @@ public abstract class Expr {
         return new OpExpr("split", Arrays.asList(str, delimiter)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                String s = str.evaluate(context).toString();
-                return Arrays.asList(s.split(delimiter.evaluate(context).toString()));
+                String s = eval(str,context).toString();
+                return Arrays.asList(s.split(eval(delimiter,context).toString()));
             }
         };
     }
@@ -1654,9 +1667,9 @@ public abstract class Expr {
         return new OpExpr("substr", Arrays.asList(str, start, len)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                String s = (String) str.evaluate(context);
-                int st = ((Number) start.evaluate(context)).intValue();
-                int l = ((Number) len.evaluate(context)).intValue();
+                String s = (String) eval(str,context);
+                int st = ((Number) eval(start,context)).intValue();
+                int l = ((Number) eval(len,context)).intValue();
                 return s.substring(st, st + l);
             }
         };
@@ -1686,8 +1699,8 @@ public abstract class Expr {
         return new OpExprNoList("toLower", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                if (e.evaluate(context) == null) return null;
-                return ((String) e.evaluate(context)).toLowerCase(Locale.ROOT);
+                if (eval(e,context) == null) return null;
+                return ((String) eval(e,context)).toLowerCase(Locale.ROOT);
             }
         };
     }
@@ -1696,7 +1709,7 @@ public abstract class Expr {
         return new OpExprNoList("toString", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return (e.evaluate(context) != null) ? e.evaluate(context).toString() : null;
+                return (eval(e,context) != null) ? eval(e,context).toString() : null;
             }
         };
     }
@@ -1705,8 +1718,8 @@ public abstract class Expr {
         return new OpExprNoList("toUpper", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                if (e.evaluate(context) == null) return null;
-                return e.evaluate(context).toString().toUpperCase();
+                if (eval(e,context) == null) return null;
+                return eval(e,context).toString().toUpperCase();
             }
         };
     }
@@ -1728,7 +1741,7 @@ public abstract class Expr {
         return new OpExprNoList("sin", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.sin(((Number) e.evaluate(context)).doubleValue());
+                return Math.sin(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1737,7 +1750,7 @@ public abstract class Expr {
         return new OpExprNoList("cos", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.cos(((Number) e.evaluate(context)).doubleValue());
+                return Math.cos(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1746,7 +1759,7 @@ public abstract class Expr {
         return new OpExprNoList("tan", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.tan(((Number) e.evaluate(context)).doubleValue());
+                return Math.tan(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1758,7 +1771,7 @@ public abstract class Expr {
         return new OpExprNoList("asin", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.asin(((Number) e.evaluate(context)).doubleValue());
+                return Math.asin(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1767,7 +1780,7 @@ public abstract class Expr {
         return new OpExprNoList("acos", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.acos(((Number) e.evaluate(context)).doubleValue());
+                return Math.acos(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1776,7 +1789,7 @@ public abstract class Expr {
         return new OpExprNoList("atan", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.atan(((Number) e.evaluate(context)).doubleValue());
+                return Math.atan(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1785,7 +1798,7 @@ public abstract class Expr {
         return new OpExpr("atan2", Arrays.asList(e, e2)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.atan2(((Number) e.evaluate(context)).doubleValue(), ((Number) e2.evaluate(context)).doubleValue());
+                return Math.atan2(((Number) eval(e,context)).doubleValue(), ((Number) eval(e2,context)).doubleValue());
             }
         };
     }
@@ -1795,7 +1808,7 @@ public abstract class Expr {
         return new OpExpr("atan2", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.atan2(((Number) ((Expr) lst.get(0)).evaluate(context)).doubleValue(), ((Number) ((Expr) lst.get(1)).evaluate(context)).doubleValue());
+                return Math.atan2(((Number) ( eval((Expr)lst.get(0),context))).doubleValue(), ((Number) (eval((Expr) lst.get(1),context))).doubleValue());
             }
         };
     }
@@ -1804,7 +1817,7 @@ public abstract class Expr {
         return new OpExprNoList("asinh", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.sinh(((Number) e.evaluate(context)).doubleValue());
+                return Math.sinh(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1844,7 +1857,7 @@ public abstract class Expr {
         return new OpExprNoList("degreesToRadian", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.toRadians(((Number) e.evaluate(context)).doubleValue());
+                return Math.toRadians(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1853,7 +1866,7 @@ public abstract class Expr {
         return new OpExprNoList("radiansToDegrees", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.toDegrees(((Number) e.evaluate(context)).doubleValue());
+                return Math.toDegrees(((Number) eval(e,context)).doubleValue());
             }
         };
     }
@@ -1865,9 +1878,9 @@ public abstract class Expr {
                 "onNull", onNull)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                Object in = input.evaluate(context);
+                Object in = eval(input,context);
                 if (in == null) {
-                    return onNull.evaluate(context);
+                    return eval(onNull,context);
                 }
                 //type check???
                 return in; //TODO: migrate data?
@@ -1880,9 +1893,9 @@ public abstract class Expr {
         return new MapOpExpr("convert", map) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                Object in = ((Expr) map.get("input")).evaluate(context);
+                Object in = eval((Expr) map.get("input"),context);
                 if (in == null) {
-                    return ((Expr) map.get("onNull")).evaluate(context);
+                    return eval((Expr) map.get("onNull"),context);
                 }
                 //type check???
                 return in; //TODO: migrate data?
@@ -1894,7 +1907,7 @@ public abstract class Expr {
         return new OpExprNoList("isNumber", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e.evaluate(context) instanceof Number;
+                return eval(e,context) instanceof Number;
             }
         };
     }
@@ -1914,7 +1927,7 @@ public abstract class Expr {
         return new OpExprNoList("toBool", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Boolean.valueOf(e.evaluate(context).toString());
+                return Boolean.valueOf(eval(e,context).toString());
             }
         };
     }
@@ -1923,7 +1936,7 @@ public abstract class Expr {
         return new OpExprNoList("toDecimal", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return (Double.valueOf(e.evaluate(context).toString()));
+                return (Double.valueOf(eval(e,context).toString()));
             }
         };
     }
@@ -1933,7 +1946,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                Number n = (Number) e.evaluate(context);
+                Number n = (Number) eval(e,context);
                 return n.doubleValue();
             }
         };
@@ -1943,7 +1956,7 @@ public abstract class Expr {
         return new OpExprNoList("toInt", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) e.evaluate(context)).intValue();
+                return ((Number) eval(e,context)).intValue();
             }
         };
     }
@@ -1952,7 +1965,7 @@ public abstract class Expr {
         return new OpExprNoList("toLong", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((Number) e.evaluate(context)).longValue();
+                return ((Number) eval(e,context)).longValue();
             }
         };
     }
@@ -1962,7 +1975,7 @@ public abstract class Expr {
             @Override
             public Object evaluate(Map<String, Object> context) {
                 //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                Object o = e.evaluate(context);
+                Object o = eval(e,context);
                 if (o instanceof String) {
                     o = new MorphiumId((String) o);
                 } else if (o instanceof ObjectId) {
@@ -2007,7 +2020,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 double sum = 0;
                 for (Expr expr : e) {
-                    sum += ((Number) expr.evaluate(context)).doubleValue();
+                    sum += ((Number) eval(expr,context)).doubleValue();
                 }
                 return sum / e.length;
             }
@@ -2018,7 +2031,7 @@ public abstract class Expr {
         return new OpExprNoList("avg", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e.evaluate(context);
+                return eval(e,context);
             }
         };
     }
@@ -2032,7 +2045,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Object max = null;
                 for (Expr expr : e) {
-                    Object v = expr.evaluate(context);
+                    Object v = eval(expr,context);
                     if (max == null) {
                         max = v;
                     } else //noinspection unchecked
@@ -2050,7 +2063,7 @@ public abstract class Expr {
         return new OpExprNoList("max", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e.evaluate(context);
+                return eval(e,context);
             }
         };
     }
@@ -2061,7 +2074,7 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Object min = null;
                 for (Expr expr : e) {
-                    Object v = expr.evaluate(context);
+                    Object v = eval(expr,context);
                     if (min == null) {
                         min = v;
                     } else //noinspection unchecked
@@ -2079,7 +2092,7 @@ public abstract class Expr {
         return new OpExprNoList("min", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return e.evaluate(context);
+                return eval(e,context);
             }
         };
     }
@@ -2163,9 +2176,9 @@ public abstract class Expr {
             public Object evaluate(Map<String, Object> context) {
                 Map<String, Object> effectiveContext = new HashMap<>(context);
                 for (String k : vars.keySet()) {
-                    effectiveContext.put(k, vars.get(k).evaluate(context));
+                    effectiveContext.put(k, eval(vars.get(k),context));
                 }
-                return in.evaluate(effectiveContext);
+                return eval(in,effectiveContext);
             }
         };
     }
@@ -2183,9 +2196,9 @@ public abstract class Expr {
                 //noinspection unchecked
                 for (String k : ((Map<String, Expr>) m.get("vars")).keySet()) {
                     //noinspection unchecked
-                    effectiveContext.put(k, ((Map<String, Expr>) m.get("vars")).get(k).evaluate(context));
+                    effectiveContext.put(k,  eval(((Map<String, Expr>)m.get("vars")).get(k),context));
                 }
-                return ((Expr) m.get("in")).evaluate(effectiveContext);
+                return eval(((Expr) m.get("in")),effectiveContext);
             }
         };
     }
@@ -2318,7 +2331,6 @@ public abstract class Expr {
         public Object evaluate(Map<String, Object> context) {
             return toQueryObject();
         }
-
     }
 
 }
