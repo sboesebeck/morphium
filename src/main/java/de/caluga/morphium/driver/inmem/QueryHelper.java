@@ -41,10 +41,14 @@ public class QueryHelper {
             ScriptEngine engine = new ScriptEngineManager().getEngineByName("javascript");
             // engine.eval("print('Hello World!');");
             engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
-            engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
+            for (String k:toCheck.keySet()){
+                engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
+            }
+            // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
             try {
                 Object result = engine.eval((String) query.get("$where"));
                 if (result == null || result.equals(Boolean.FALSE)) return false;
+                return true;
             } catch (ScriptException e) {
                 throw new RuntimeException("Scripting error", e);
             }
