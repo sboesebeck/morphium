@@ -198,13 +198,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 throw new RuntimeException(e);
                             }
 
-                            dbLst.add(Doc.of(morphium.getMapper().serialize(o)));
                         }
 
                         checkIndexAndCaps(lst.get(0).getClass(), collectionName, callback);
                         long start = System.currentTimeMillis();
                         //                        int cnt = 0;
                         morphium.firePreStore(isNew);
+                        for (Object o:lst){
+                            dbLst.add(morphium.getMapper().serialize(o));
+                        }
                         long dur = System.currentTimeMillis() - start;
                         //morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
                         start = System.currentTimeMillis();
@@ -428,14 +430,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             if (isn) {
                                 setIdIfNull(o);
+                                morphium.firePreStore(o, isn);
                                 newElementsToInsert.putIfAbsent(o.getClass(), new ArrayList<>());
                                 newElementsToInsert.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             } else {
+                                morphium.firePreStore(o, isn);
                                 toUpdate.putIfAbsent(o.getClass(), new ArrayList<>());
                                 toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             }
 
-                            morphium.firePreStore(o, isn);
                         }
 
                         for (Map.Entry<Class, List<Map<String, Object>>> es :
