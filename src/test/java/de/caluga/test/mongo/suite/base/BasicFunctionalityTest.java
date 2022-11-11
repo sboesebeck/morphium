@@ -628,7 +628,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void cachedWritingTest(Morphium m) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        log.info("Running test " + tstName + " with " + m.getDriver().getName());
 
         try(m) {
             log.info("Starting background writing test - single objects");
