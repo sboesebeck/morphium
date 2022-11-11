@@ -8,6 +8,8 @@ import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class BigMessagesTest extends MultiDriverTestBase {
@@ -15,6 +17,8 @@ public class BigMessagesTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testBigMessage(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
         try (morphium) {
             final AtomicInteger count = new AtomicInteger();
             morphium.dropCollection(Msg.class, "msg", null);
@@ -58,7 +62,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
                     }
                     Thread.sleep(500);
                     if (System.currentTimeMillis() - start > 10000) {
-                        log.error("Message was lost: ");
+                        log.error("Message was lost");
                         log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
                         for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
                             log.info("Msg: " + m.getMsgId());
@@ -70,6 +74,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
 
                         }
                     }
+                    assertTrue(System.currentTimeMillis()-start < 35000);
                 }
             } finally {
                 sender.terminate();

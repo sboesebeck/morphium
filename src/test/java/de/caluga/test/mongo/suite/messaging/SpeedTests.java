@@ -15,6 +15,8 @@ public class SpeedTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void writeSpeed(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
         try (morphium) {
             morphium.clearCollection(Msg.class);
             Messaging msg = new Messaging(morphium, 100, false, true, 10);
@@ -48,6 +50,8 @@ public class SpeedTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void writeRecSpeed(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
         try (morphium) {
             morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
@@ -97,6 +101,8 @@ public class SpeedTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void writeExclusiveRec(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
         try (morphium) {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
             morphium.clearCollection(Msg.class);

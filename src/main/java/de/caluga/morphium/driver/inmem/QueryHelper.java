@@ -180,7 +180,8 @@ public class QueryHelper {
                         if (coll != null && (toCheck.get(key) instanceof String)) {
                             return coll.compare(toCheck.get(key), q.get(k)) <= 0;
                         }
-
+                        if (toCheck.get(k)==null) return q.get(k)!=null;
+                        
                         return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) <= 0;
 
                     case "$gt":
@@ -189,6 +190,7 @@ public class QueryHelper {
                         if (coll != null && (toCheck.get(key) instanceof String)) {
                             return coll.compare(toCheck.get(key), q.get(k)) > 0;
                         }
+                        if (toCheck.get(k)==null) return false;
 
                         return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) > 0;
 
@@ -198,7 +200,7 @@ public class QueryHelper {
                         if (coll != null && (toCheck.get(key) instanceof String)) {
                             return coll.compare(toCheck.get(key), q.get(k)) >= 0;
                         }
-
+                        if (toCheck.get(k)==null) return q.get(k)==null;
                         return ((Comparable) toCheck.get(key)).compareTo(q.get(k)) >= 0;
 
                     case "$mod":
