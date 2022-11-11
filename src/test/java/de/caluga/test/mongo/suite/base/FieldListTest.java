@@ -6,6 +6,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,9 +43,10 @@ public class FieldListTest extends MorphiumTestBase {
         ro.readOnlyValue = "Must not be stored!";
 
         morphium.store(ro);
-        morphium.reread(ro);
-
-        assert (ro.readOnlyValue == null);
+        Thread.sleep(250);
+        ro=morphium.reread(ro);
+ 
+        assertNull(ro.readOnlyValue, "Value wrong: "+ro.readOnlyValue);
 
         ro.setStrValue("OtherValue");
         ro.readOnlyValue = "must still not be stored, even after update!";

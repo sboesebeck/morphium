@@ -13,6 +13,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * User: Stephan Bösebeck
@@ -39,10 +40,16 @@ public class SortingTest extends MultiDriverTestBase {
         uc.setCounter(7599);
         uc.setDval(uc.getCounter()%5);
         lst.add(uc);
+
+        uc=new UncachedObject();
+        uc.setStrValue("Random value");
+        uc.setCounter(0);
+        uc.setDval(0);
+        lst.add(uc);
         log.info("Sending bulk write...");
         morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> morphium.createQueryFor(UncachedObject.class).countAll()==5001);
+        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> morphium.createQueryFor(UncachedObject.class).countAll()==5002);
     }
 
     @ParameterizedTest
@@ -51,7 +58,6 @@ public class SortingTest extends MultiDriverTestBase {
         log.info("Running with " + morphium.getDriver().getName());
         try(morphium) {
             prepare(morphium);
-            Thread.sleep(100);
             log.info("Sorting objects...");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("str_value").eq("Random value");
@@ -100,7 +106,7 @@ public class SortingTest extends MultiDriverTestBase {
                 lastValue = u.getCounter();
             }
 
-            assertThat(lastValue).describedAs("Last value").isEqualTo(-1);
+            assertThat(lastValue).describedAs("Last value").isEqualTo(0);
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("str_value").eq("Random value");
             Map<String, Integer> order = new HashMap<>();
@@ -120,7 +126,7 @@ public class SortingTest extends MultiDriverTestBase {
                 lastValue = u.getCounter();
             }
 
-            assert(lastValue == -1) : "Last value wrong: " + lastValue;
+            assertEquals(0,lastValue,"LastValue wrong");
         }
     }
 
@@ -180,14 +186,14 @@ public class SortingTest extends MultiDriverTestBase {
             q.limit(1);
             Thread.sleep(1000);
             List<UncachedObject> lst = q.asList();
-            assert(lst.size() == 1) : "List size wrong: " + lst.size();
-            assert(lst.get(0).getCounter() == -1) : "Smalest value wrong, should be -1, is " + lst.get(0).getCounter();
+            assertEquals(1,lst.size());
+            assertEquals(0,lst.get(0).getCounter(), "Smalest value wrong, should be 0");
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("strValue").eq("Random value");
             q = q.sort("-counter");
             UncachedObject uc = q.get();
             assertNotNull(uc, "not found?!?");
-            assert(uc.getCounter() == 7599) : "Highest value wrong, should be 7599, is " + uc.getCounter();
+            assertEquals(7599,uc.getCounter(),"Highest value wrong, should be 7599");
         }
     }
 

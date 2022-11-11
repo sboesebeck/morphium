@@ -43,7 +43,7 @@ public class WriteBufferCountTest extends MorphiumTestBase {
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                //To change body of implemented methods use File | Settings | File Templates.
+                log.error("Could not write: "+error);
             }
         });
         waitForWriteProcessToBeScheduled();

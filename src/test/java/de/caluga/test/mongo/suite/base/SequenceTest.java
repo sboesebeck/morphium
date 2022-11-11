@@ -6,6 +6,9 @@ import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,9 +27,9 @@ public class SequenceTest extends MorphiumTestBase {
         morphium.dropCollection(Sequence.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
         long v = sg.getNextValue();
-        assert (v == 1) : "Value wrong: " + v;
+        assertEquals (1,v,"Value wrong: " + v);
         v = sg.getNextValue();
-        assert (v == 2);
+        assertEquals(2,v);
     }
 
     @Test
@@ -35,16 +38,16 @@ public class SequenceTest extends MorphiumTestBase {
         SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
         SequenceGenerator sg2 = new SequenceGenerator(morphium, "tstseq2", 1, 1);
         long v = sg1.getNextValue();
-        assert (v == 1) : "Value wrong: " + v;
+        assertEquals (1,v);
         v = sg2.getNextValue();
         v = sg2.getNextValue();
-        assert (v == 2) : "Value wrong: " + v;
+        assertEquals (2,v); 
 
         v = sg1.getNextValue();
-        assert (v == 2);
+        assertEquals(2,v);
         v = sg2.getNextValue();
         v = sg2.getNextValue();
-        assert (v == 4);
+        assertEquals(4,v);
     }
 
     @Test
@@ -60,7 +63,7 @@ public class SequenceTest extends MorphiumTestBase {
         //now sequence is blocked by someone else... waiting 30s
         long v = sg.getNextValue();
         log.info("Got next Value: " + v);
-        assert (v == 2);
+        assertEquals (v,2);
 
 
     }
@@ -82,7 +85,7 @@ public class SequenceTest extends MorphiumTestBase {
             SequenceGenerator g = gens.get(r);
             long v = g.getCurrentValue();
             long v2 = g.getNextValue();
-            assert (v2 == v + g.getInc()) : "incremented wrong?";
+            assertEquals(v2, v + g.getInc(), "incremented wrong?");
         }
         log.info("done");
     }
@@ -97,7 +100,7 @@ public class SequenceTest extends MorphiumTestBase {
             Thread t = new Thread(() -> {
                 for (int i1 = 0; i1 < 25; i1++) {
                     long nv = sg1.getNextValue();
-                    assert (!data.contains(nv)) : "Value already stored? Value: " + nv;
+                    assertFalse(data.contains(nv),"Value already stored? Value: " + nv);
                     data.add(nv);
                     try {
                         Thread.sleep(10);
@@ -115,7 +118,7 @@ public class SequenceTest extends MorphiumTestBase {
         long last = -1;
         Collections.sort(data);
         for (Long l : data) {
-            assert (last == l - 1);
+            assertEquals (l-1,last);
             last = l;
         }
         log.info("done");
@@ -138,7 +141,7 @@ public class SequenceTest extends MorphiumTestBase {
                 for (int i = 0; i < max; i++) {
                     long cv = g.getCurrentValue();
                     long nv = g.getNextValue();
-                    assert (nv == cv + g.getInc());
+                    assertEquals(nv,cv + g.getInc());
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException e) {
@@ -170,12 +173,12 @@ public class SequenceTest extends MorphiumTestBase {
         final Vector<Long> values = new Vector<>();
         List<Thread> threads = new ArrayList<>();
         final AtomicInteger errors = new AtomicInteger(0);
-        for (int i = 0; i < 50; i++) {
+        for (int i = 0; i < 25; i++) {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
 
             Thread t = new Thread(() -> {
                 SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
-                for (int j = 0; j < 50; j++) {
+                for (int j = 0; j < 20; j++) {
                     try {
                         long l = sg1.getNextValue();
                         if (l % 100 == 0)
@@ -187,7 +190,7 @@ public class SequenceTest extends MorphiumTestBase {
                             values.add(l);
                         }
                     } catch (Exception e) {
-                        log.error("Got Exception... pausing");
+                        log.error("Got Exception... pausing",e);
                         errors.incrementAndGet();
                         try {
                             Thread.sleep((long) (250 * Math.random()));
@@ -209,11 +212,11 @@ public class SequenceTest extends MorphiumTestBase {
             threads.remove(0).join();
         }
 
-        assert (errors.get() == 0);
-        assert (values.size() == 2500);
+        assertEquals (0,errors.get(),"No errors allowed");
+        assertEquals (500,values.size(),"Should have gotten 500 values in total");
         //checking that no value was skipped
         for (int i = 0; i < values.size(); i++) {
-            assert (values.get(i) == i);
+            assertEquals(i,values.get(i),"Values not ordered properly!");
         }
 
     }

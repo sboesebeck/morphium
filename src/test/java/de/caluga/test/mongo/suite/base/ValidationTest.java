@@ -21,13 +21,15 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testAllValid() {
+        if (!morphium.isValidationEnabled()) return;
         ValidationTestObject o = getValidObject();
         morphium.store(o);
     }
 
     @Test
     public void testNotNull() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setAnotherInt(null);
             morphium.store(o);
@@ -36,7 +38,8 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testMinMax() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setTheInt(2);
             morphium.store(o);
@@ -45,7 +48,8 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testMinMaxList() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.getFriends().clear();
             morphium.store(o);
@@ -54,7 +58,8 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testEmail() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setEmail("uh oh this won't validate...");
             morphium.store(o);
@@ -63,7 +68,8 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testDateFuture() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
             morphium.store(o);
@@ -72,7 +78,8 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testRegex() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setWhereever("at the beach");
             morphium.store(o);
@@ -81,22 +88,22 @@ public class ValidationTest extends MorphiumTestBase {
 
     @Test
     public void testMultipleValidationErrors() {
-        ValidationTestObject o = getValidObject();
-        o.setWhereever("at the beach");
-        o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
-        o.setEmail("uh oh this won't validate...");
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
+            ValidationTestObject o = getValidObject();
+            o.setWhereever("at the beach");
+            o.setWhenever(new Date(System.currentTimeMillis() - 86400000));
+            o.setEmail("uh oh this won't validate...");
 
-        try {
+
             morphium.store(o);
-        } catch (ConstraintViolationException cfe) {
-            assert (cfe.getConstraintViolations().size() == 3) : "must be three violations";
-        }
-
+        });
     }
 
     @Test
     public void testEmbeddedObjectsValidationErrors() {
-        assertThrows(ConstraintViolationException.class,()-> {
+        if (!morphium.isValidationEnabled()) return;
+        assertThrows(ConstraintViolationException.class, ()-> {
             ValidationTestObject o = getValidObject();
             o.setWhereever("nix");
             ListValidationTestObject lst = new ListValidationTestObject();
@@ -116,17 +123,14 @@ public class ValidationTest extends MorphiumTestBase {
         o.setAnotherInt(123);
         o.setTheInt(4);
         o.setEmail("fish@water.com");
-
         List<String> friends = new ArrayList<>();
         friends.add("Angie");
         friends.add("Julian");
         friends.add("Xaver");
         friends.add("Christian");
         o.setFriends(friends);
-
         o.setWhenever(new Date(System.currentTimeMillis() + 86400000));
         o.setWhereever("münchen");
-
         return o;
     }
 
