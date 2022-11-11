@@ -26,7 +26,7 @@ echo ""
 			echo "$cls"
 			continue
 		fi
-		failures=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[1-9]*\].failure\["@type"\]' | cut -f 2 -d '[' | cut -f1 -d ']')
+		failures=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[0-9]*\].failure\["@type"\]' | cut -f 2 -d '[' | cut -f1 -d ']')
 		for id in $(echo $failures); do
 			# echo "ID: '$id'"
 			# xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; '
