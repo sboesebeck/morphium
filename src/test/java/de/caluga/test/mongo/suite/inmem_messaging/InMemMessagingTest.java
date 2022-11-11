@@ -123,7 +123,8 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         m.setMsgId(new MorphiumId());
         m.setName("A name");
         morphium.store(m);
-        Thread.sleep(5000);
+        Thread.sleep(500);
+        m=morphium.reread(m);
         assert (m.getTimestamp() > 0) : "Timestamp not updated?";
 
     }
