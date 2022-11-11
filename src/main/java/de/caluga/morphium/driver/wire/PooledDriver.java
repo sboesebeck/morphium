@@ -133,7 +133,7 @@ FOR:
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
-            log.debug("Starting heartbeat ");
+            // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
                 var copy = new HashMap<>(connectionPool); //avoid concurrent modification exception
 
@@ -154,7 +154,7 @@ FOR:
                             }
                         } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
                             try {
-                                log.debug("Unused connection closed");
+                                // log.debug("Unused connection closed");
 
                                 if (copy.get(e.getKey()).remove(c)) {
                                     c.getCon().close();
