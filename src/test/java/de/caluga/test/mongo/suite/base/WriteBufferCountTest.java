@@ -6,6 +6,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
@@ -53,8 +55,8 @@ public class WriteBufferCountTest extends MorphiumTestBase {
         long s = System.currentTimeMillis();
         while (morphium.createQueryFor(UncachedObject.class).countAll() < 10000) {
             log.info("Count: " + morphium.createQueryFor(UncachedObject.class).countAll());
-            Thread.sleep(500);
-            assert (System.currentTimeMillis() - s < 15000);
+            Thread.sleep(1500);
+            assertTrue (System.currentTimeMillis() - s < 15000);
         }
     }
 

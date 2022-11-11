@@ -202,20 +202,28 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             long start = System.currentTimeMillis();
 
                             if (!dbLst.isEmpty()) {
+                                //TODO: check for BatchSize
                                 var con = morphium.getDriver().getPrimaryConnection(wc);
-                                InsertMongoCommand settings = new InsertMongoCommand(con)
-                                 .setDb(morphium.getDatabase())
-                                 .setColl(coll)
-                                 .setDocuments(dbLst)
-                                 .setOrdered(false)
-                                 //.setBypassDocumentValidation(true)
-                                ;
+                                while (dbLst.size() != 0) {
+                                    InsertMongoCommand settings = new InsertMongoCommand(con)
+                                     .setDb(morphium.getDatabase())
+                                     .setColl(coll)
+                                     .setOrdered(false)
+                                     //.setBypassDocumentValidation(true)
+                                    ;
+                                    if (dbLst.size()>morphium.getConfig().getCursorBatchSize()){
+                                        settings.setDocuments(dbLst.subList(0, morphium.getConfig().getCursorBatchSize()));
+                                        dbLst=dbLst.subList(morphium.getConfig().getCursorBatchSize(), dbLst.size());
+                                    } else {
+                                        settings.setDocuments(dbLst);
+                                    }
+                                    if (wc != null) {
+                                        settings.setWriteConcern(wc.asMap());
+                                    }
 
-                                if (wc != null) {
-                                    settings.setWriteConcern(wc.asMap());
+                                    settings.execute();
                                 }
 
-                                settings.execute();
                                 int idx = 0;
                                 con.release();
                                 //
@@ -819,7 +827,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 // WriteAccessType.BULK_INSERT);
                                 // null because key changed => mongo _id
                                 es.getValue()
-                                .forEach(record->{ // null because key changed =>
+                                .forEach(record->{  // null because key changed =>
                                     // mongo _id
                                     morphium.firePostStore(record, true);
                                 });
@@ -856,7 +864,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             // c, toUpdate, dur, true, WriteAccessType.BULK_INSERT);
                             // null because key changed => mongo _id
                             es.getValue()
-                            .forEach(record->{ // null because key changed => mongo
+                            .forEach(record->{  // null because key changed => mongo
                                 // _id
                                 morphium.firePostStore(record, true);
                             });
@@ -1007,7 +1015,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
             cmd.execute();
         } catch (MorphiumDriverException ex) {
-            if (ex.getMessage().contains("already exists")){
+            if (ex.getMessage().contains("already exists")) {
                 LoggerFactory.getLogger(MorphiumWriterImpl.class)
                 .error("Collection already exists...cannot create");
             } else {
@@ -1278,7 +1286,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Class<?> type = morphium.getARHelper().getRealClass(ent.getClass());
                 LastChange t =
                  morphium.getARHelper()
-                 .getAnnotationFromHierarchy(type, LastChange.class); // (StoreLastChange)
+                 .getAnnotationFromHierarchy(type, LastChange.class);    // (StoreLastChange)
 
                 // type.getAnnotation(StoreLastChange.class);
                 if (t != null) {
@@ -2266,7 +2274,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 for (String f : fields) {
                     toSet.put(morphium.getARHelper().getMongoFieldName(cls, f),
-                     "");    // value is ignored
+                     "");       // value is ignored
                 }
 
                 Map<String, Object> update = UtilsMap.of("$unset", toSet);
