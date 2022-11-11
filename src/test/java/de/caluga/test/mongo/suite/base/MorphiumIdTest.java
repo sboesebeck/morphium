@@ -4,6 +4,9 @@ import de.caluga.morphium.driver.MorphiumId;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import java.util.List;
 import java.util.Vector;
 
@@ -26,9 +29,9 @@ public class MorphiumIdTest {
     @Test
     public void testCollision() throws Exception {
         final List<MorphiumId> ids = new Vector<>();
-        for (int i = 0; i < 300; i++) {
+        for (int i = 0; i < 3000; i++) {
             MorphiumId id = new MorphiumId();
-            assert (!ids.contains(id));
+            assertFalse(ids.contains(id));
             ids.add(id);
         }
 
@@ -37,15 +40,15 @@ public class MorphiumIdTest {
             Thread t = new Thread() {
                 @Override
                 public void run() {
-                    for (int j = 0; j < 50; j++) {
+                    for (int j = 0; j < 200; j++) {
                         MorphiumId id = new MorphiumId();
                         MorphiumId id2 = new MorphiumId();
                         MorphiumId id3 = new MorphiumId();
-                        assert (!ids.contains(id));
+                        assertFalse(ids.contains(id));
+                        assertFalse(ids.contains(id2));
+                        assertFalse(ids.contains(id3));
                         ids.add(id);
-                        assert (!ids.contains(id2));
                         ids.add(id2);
-                        assert (!ids.contains(id3));
                         ids.add(id3);
                     }
                     thr.remove(this);
@@ -58,5 +61,6 @@ public class MorphiumIdTest {
             LoggerFactory.getLogger(MorphiumIdTest.class).info("Waiting for threads..." + thr.size());
             Thread.sleep(1000);
         }
+        assertEquals(100*200*3+3000,ids.size(),"Amount ids created");
     }
 }
