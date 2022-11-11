@@ -30,14 +30,14 @@ public class CollationTest extends MultiDriverTestBase {
 
             log.info("==========================> Running with: " + morphium.getDriver().getName());
             morphium.dropCollection(UncachedObject.class);
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(1000, "collection not deleted", ()->!morphium.exists(UncachedObject.class));
             morphium.store(new UncachedObject("A", 1));
             morphium.store(new UncachedObject("B", 1));
             morphium.store(new UncachedObject("C", 1));
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            Thread.sleep(150);
+            TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->morphium.createQueryFor(UncachedObject.class).countAll()==6);
             Collation col = new Collation("de", false, Collation.CaseFirst.LOWER, Collation.Strength.TERTIARY, false, Collation.Alternate.SHIFTED, Collation.MaxVariable.SPACE, false, false);
             assert(col.getLocale().equals("de"));
             assert(!col.getCaseLevel());
