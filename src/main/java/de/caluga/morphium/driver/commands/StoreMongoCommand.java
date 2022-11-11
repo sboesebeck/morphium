@@ -22,7 +22,7 @@ public class StoreMongoCommand extends WriteMongoCommand<StoreMongoCommand> {
         return docs;
     }
 
-    public StoreMongoCommand setDocs(List<Map<String, Object>> docs) {
+    public StoreMongoCommand setDocuments(List<Map<String, Object>> docs) {
         this.docs = docs;
         return this;
     }
