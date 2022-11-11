@@ -354,10 +354,6 @@ public class Msg {
             LoggerFactory.getLogger(Msg.class).warn("Defaulting msg ttl to 30sec");
             ttl = 30000;
         }
-//        if (!isExclusive()) {
-//            locked = System.currentTimeMillis();
-//            lockedBy = "ALL";
-//        }
         if (deleteAt == null) {
             deleteAt = new Date(System.currentTimeMillis() + ttl);
         }

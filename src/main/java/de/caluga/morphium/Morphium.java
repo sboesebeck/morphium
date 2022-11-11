@@ -2070,7 +2070,7 @@ public class Morphium implements AutoCloseable {
             l.postStore(this, isNew);
         }
 
-        for (Object o : isNew.keySet()) { annotationHelper.callLifecycleMethod(PreStore.class, o); }
+        for (Object o : isNew.keySet()) { annotationHelper.callLifecycleMethod(PostStore.class, o); }
     }
 
     public <T> void firePostRemove(List<T> toRemove) {
