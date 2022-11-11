@@ -140,7 +140,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         final AtomicInteger count = new AtomicInteger();
         Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
-//            log.info("Got message!");
+           log.info("Got message!");
             count.incrementAndGet();
             return null;
         });
