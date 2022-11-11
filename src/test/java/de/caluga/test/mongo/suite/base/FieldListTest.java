@@ -60,7 +60,7 @@ public class FieldListTest extends MorphiumTestBase {
         List<Map<String, Object>> lst = new ArrayList<>();
         lst.add(marshall);
         StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getPrimaryConnection(null));
-        cmd.setDb(morphium.getDatabase()).setColl("read_only_object").setDocs(lst);
+        cmd.setDb(morphium.getDatabase()).setColl("read_only_object").setDocuments(lst);
         cmd.execute();
         Thread.sleep(100);
         morphium.reread(ro);

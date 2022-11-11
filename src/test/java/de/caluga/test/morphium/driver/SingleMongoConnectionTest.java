@@ -67,7 +67,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
             StoreMongoCommand cmd = new StoreMongoCommand(con)
-             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+             .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
@@ -110,7 +110,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         for (int i = 0; i < 100; i++) {
             UncachedObject o = new UncachedObject("value", 123 + i);
             StoreMongoCommand cmd = new StoreMongoCommand(con)
-             .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+             .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o))));
             cmd.execute();
         }
         log.info("created test data");
@@ -146,7 +146,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         UncachedObject o = new UncachedObject("value", 123);
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-         .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+         .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         cmd.execute();
 
         long start = System.currentTimeMillis();
@@ -167,7 +167,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
-                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                     .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -207,7 +207,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
         UncachedObject o = new UncachedObject("value", 123);
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-         .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o))));
+         .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o))));
         cmd.execute();
 
         long start = System.currentTimeMillis();
@@ -228,7 +228,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd = new StoreMongoCommand(con.getConnection())
-                     .setDb(db).setColl(coll).setDocs(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                     .setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -273,7 +273,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-         .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocuments(testList);
         cmd.execute();
 
         MapReduceCommand settings = new MapReduceCommand(con)
@@ -306,7 +306,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-         .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocuments(testList);
         cmd.execute();
 
         var msg = new HelloCommand(con).setHelloOk(true).setIncludeClient(false).executeAsync();
@@ -328,7 +328,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
             testList.add(Doc.of(om.serialize(new UncachedObject("strValue" + i, (int) (i * i / (i + 1))))));
         }
         StoreMongoCommand cmd = new StoreMongoCommand(con)
-         .setDb(db).setColl(coll).setDocs(testList);
+         .setDb(db).setColl(coll).setDocuments(testList);
         cmd.execute();
 
         FindCommand fnd = new FindCommand(con).setDb(db).setColl(coll).setBatchSize(17);

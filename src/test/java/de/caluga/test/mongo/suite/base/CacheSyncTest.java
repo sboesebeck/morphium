@@ -645,7 +645,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         obj.put(CachedObject.Fields.value.name(), "test");
         writings.add(obj);
         StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getPrimaryConnection(null));
-        cmd.setDocs(writings).setColl(morphium.getMapper().getCollectionName(CachedObject.class)).setDb(morphium.getDatabase());
+        cmd.setDocuments(writings).setColl(morphium.getMapper().getCollectionName(CachedObject.class)).setDb(morphium.getDatabase());
         cmd.execute();
         // morphium.getDriver().store(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CachedObject.class), writings, morphium.getWriteConcernForClass(CachedObject.class));
         //stored some object avoiding cache handling in morphium

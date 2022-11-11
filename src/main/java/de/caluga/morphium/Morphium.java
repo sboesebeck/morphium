@@ -3284,7 +3284,7 @@ public class Morphium implements AutoCloseable {
                 //noinspection unchecked
                 writers.get(cls).insert((List<T>) values.get(cls), collection, callback);
             } catch (Exception e) {
-                log.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
+                //log.error("Write failed for " + cls.getName() + " lst of size " + values.get(cls).size(), e);
                 throw new RuntimeException(e);
             }
         }
@@ -3313,7 +3313,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
         var con = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings = new StoreMongoCommand(con).setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocs(lst);
+        StoreMongoCommand settings = new StoreMongoCommand(con).setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocuments(lst);
         settings.execute();
         con.release();
         return null;
@@ -3334,7 +3334,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setColl(collection).setDb(getDatabase()).setDocs(lst);
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setColl(collection).setDb(getDatabase()).setDocuments(lst);
         Map<String, Object> ret = settings.execute();
         getDriver().releaseConnection(primaryConnection);
         Map<String, Integer> res = new HashMap<>();
@@ -3357,7 +3357,7 @@ public class Morphium implements AutoCloseable {
 
     public Map<String, Integer> saveMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(collection).setDocs(Arrays.asList(Doc.of(m)));
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(collection).setDocuments(Arrays.asList(Doc.of(m)));
         Map<String, Integer> res = new HashMap<>();
         Map<String, Object> result = settings.execute();
         getDriver().releaseConnection(primaryConnection);
@@ -3376,7 +3376,7 @@ public class Morphium implements AutoCloseable {
      */
     public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setDocs(Arrays.asList(m));
+        StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setDocuments(Arrays.asList(m));
         WriteConcern wc = getWriteConcernForClass(type);
 
         if (wc != null) { settings.setWriteConcern(wc.asMap()); }
