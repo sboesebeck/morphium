@@ -276,8 +276,8 @@ public class MultiDriverTestBase {
             p.put("failovertest", "false");
             cfg.setThreadConnectionMultiplier(2);
             storeProps();
+            log.info("created test-settings file");
         }
-        log.info("created test-settings file");
     }
 //
 //    public void createUncachedObjectsInMemory(int amount) {
