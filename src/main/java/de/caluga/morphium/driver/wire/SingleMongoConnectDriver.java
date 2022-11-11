@@ -226,7 +226,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
-            log.debug("Starting heartbeat ");
+            // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
 
                 //log.info("checking connection");
