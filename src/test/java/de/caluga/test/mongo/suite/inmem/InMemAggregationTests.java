@@ -40,8 +40,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assert (lst.size() == 1);
         assert (((Number) lst.get(0).get("summe")).doubleValue() == 1683);
         assert (((Number) lst.get(0).get("tst")).doubleValue() == 1683);
-        assert (((Number) lst.get(0).get("avg")).doubleValue() == 49.5);
         assert (((Number) lst.get(0).get("cnt")).doubleValue() == 34);
+        assert (((Number) lst.get(0).get("avg")).doubleValue() == 49.5);
         assert (lst.get(0).get("_id").equals("mod0"));
     }
 
@@ -225,12 +225,12 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assert (lst.size() == 0);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
-        assert (l.size() != 0);
+        assertEquals(0,l.size());
         //checking stored after $unset
         long lastCounter = -1;
         for (UncachedObject o : l) {
-            assert (o.getStrValue() == null);
-            assert (o.getCounter() != lastCounter);
+            assertNull (o.getStrValue());
+            assertNotEquals(lastCounter,o.getCounter());
             lastCounter = o.getCounter();
         }
     }

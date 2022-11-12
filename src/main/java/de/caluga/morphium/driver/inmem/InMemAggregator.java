@@ -879,11 +879,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             obj.put(k, obj.get(((String) value).substring(1)));
                         } else if (value instanceof Expr) {
                             Object evaluate = ((Expr) value).evaluate(obj);
-                            if (evaluate instanceof Integer) {
-                                if (((Integer) evaluate) == 0) {
-                                    obj.remove(k);
-                                }
-                            }
+                            obj.put(k,evaluate);
                         } else if (value instanceof Integer) {
                             if (((Integer) value) == 0) {
                                 obj.remove(k);
@@ -895,7 +891,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 if (obj.get(fld) instanceof Expr) {
                                     obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
                                 } else {
-                                    log.error("InMemoryAggregation oly works with Expr");
+                                    log.error("InMemoryAggregation only works with Expr");
                                 }
                             }
                         }
