@@ -127,7 +127,8 @@ public class UpdateTest extends MultiDriverTestBase {
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gte(40).f("counter").lte(55).sort("counter");
             morphium.dec(q, "counter", 40);
-            Thread.sleep(300);
+            var q1=q;
+            TestUtils.waitForConditionToBecomeTrue(5000,"Object not found?!?!", ()->q1.get()!=null);
             uc = q.get();
             assert(uc.getCounter() == 41) : "Counter is wrong: " + uc.getCounter();
             // inc without object directly in DB - multiple update
