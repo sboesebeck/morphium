@@ -590,8 +590,8 @@ public class Morphium implements AutoCloseable {
 
     public void reconnectToDb(String db) {
         Properties prop = getConfig().asProperties();
-        var dec=getConfig().getCredentialsDecryptionKey();
-        var enc=getConfig().getCredentialsEncryptionKey();
+        var dec = getConfig().getCredentialsDecryptionKey();
+        var enc = getConfig().getCredentialsEncryptionKey();
         close();
         MorphiumConfig cfg = new MorphiumConfig(prop);
         cfg.setCredentialsDecryptionKey(dec);
@@ -844,7 +844,7 @@ public class Morphium implements AutoCloseable {
     //            throw new RuntimeException(e);
     //        }
     //    }
-    public List<Map<String,Object>> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
+    public List<Map<String, Object>> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
         GenericCommand cmd = new GenericCommand(getDriver().getPrimaryConnection(null));
 
         try {
@@ -2575,7 +2575,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> boolean setAutoValues(T o) throws IllegalAccessException {
-        Class type = o.getClass();
+        Class type = getARHelper().getRealClass(o.getClass());
         Object id = getARHelper().getId(o);
         boolean aNew = id == null;
 
@@ -2583,46 +2583,41 @@ public class Morphium implements AutoCloseable {
             return aNew;
         }
 
-        Object reread = null;
         // new object - need to store creation time
-        CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
-
-        if (ct != null && config.isCheckForNew() && ct.checkForNew() && !aNew) {
-            // check if it is new or not
-            reread = findById(getARHelper().getRealClass(o.getClass()), getARHelper().getId(o)); // reread(o);
-            aNew = reread == null;
-        }
-
-        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class) && aNew) {
+        // CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
+        //
+        // if (ct != null && config.isCheckForNew() && ct.checkForNew() && !aNew) {
+        //     // check if it is new or not
+        //     reread = findById(getARHelper().getRealClass(o.getClhttps://tenor.com/bVYaH.gifass()), getARHelper().getId(o)); // reread(o);
+        //     aNew = reread == null;
+        // }
+        //
+        if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
+            Object reread = null;
+            CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
             boolean checkForNew = Objects.requireNonNull(ct).checkForNew() || getConfig().isCheckForNew();
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
 
-            for (String fld : lst) {
-                Field field = getARHelper().getField(o.getClass(), fld);
+            if (id == null) {
+                aNew = true;
+            } else {
+                if (checkForNew) {
+                    reread = findById(type, id);
+                    aNew = reread == null;
 
-                if (id != null) {
-                    if (checkForNew && reread == null) {
-                        reread = findById(o.getClass(), id);
-                        aNew = reread == null;
-
-                        // read creation time
-                        if (reread != null) {
-                            Object value = field.get(reread);
-                            field.set(o, value);
-                            aNew = false;
-                        }
-                    } else {
-                        if (reread == null) {
-                            aNew = (id instanceof MorphiumId); // if id null, is new. if id!=null probably
-                            // not, if type is objectId
+                    if (!aNew) {
+                        if (lst.isEmpty()) {
+                            log.error("Unable to copy @CreationTime - field missing");
                         } else {
-                            Object value = field.get(reread);
-                            field.set(o, value);
-                            aNew = false;
+                            for (String fld : lst) {
+                                Field field = getARHelper().getField(type, fld);
+                                Object value = field.get(reread);
+                                field.set(o, value);
+                            }
                         }
                     }
                 } else {
-                    aNew = true;
+                    aNew = false;
                 }
             }
 
@@ -3403,7 +3398,7 @@ public class Morphium implements AutoCloseable {
             // noinspection unchecked
             saveList(new ArrayList<>((Collection) o));
         } else {
-            save(o, null);
+            save(o, getMapper().getCollectionName(o.getClass()), null);
         }
     }
 

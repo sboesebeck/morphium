@@ -235,7 +235,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
             });
             Thread.sleep(1000);
-            assert(callback);
+            assertTrue(callback,"Callback not called");
         }
     }
 
