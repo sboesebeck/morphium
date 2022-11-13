@@ -190,7 +190,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         HashMap<Object, Boolean> isNew = new HashMap<>();
 
                         for (Object o : lst) {
-                            isNew.put(o, true);
+                            boolean isn=true;
+                            if (morphium.isAutoValuesEnabledForThread()) {
+                                try {
+                                    isn = morphium.setAutoValues(o);
+                                } catch (IllegalAccessException e) {
+                                    throw new RuntimeException("could not set auto variable!",e);
+                                }
+                            }
+
+                            isNew.put(o, isn);
 
                             try {
                                 setIdIfNull(o);

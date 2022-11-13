@@ -192,9 +192,9 @@ public class AutoVariableTest extends MorphiumTestBase {
     @Test
     public void testCreationTime() throws Exception {
         morphium.dropCollection(CTimeTest.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTest.class);
         CTimeTest ct = new CTimeTest();
         ct.value = "A test";
-
         morphium.store(ct);
         Thread.sleep(250);
         assertNotNull(ct.created);
