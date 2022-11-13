@@ -330,7 +330,7 @@ public class AutoVariableTest extends MorphiumTestBase {
     public void testCTNonOjbectId() throws Exception {
         morphium.getConfig().setCheckForNew(true);
         morphium.dropCollection(CTimeTestStringId.class);
-        log.info("Waiting for collection to be dropped...");
+        TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTestStringId.class);
 //        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
 //            Thread.sleep(100);
 //            log.info("... waiting...");
