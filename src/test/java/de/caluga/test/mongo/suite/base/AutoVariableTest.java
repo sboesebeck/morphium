@@ -198,7 +198,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         morphium.store(ct);
         Thread.sleep(250);
         assertNotNull(ct.created);
-        ;
+        
         assert (ct.timestamp != 0);
 
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
