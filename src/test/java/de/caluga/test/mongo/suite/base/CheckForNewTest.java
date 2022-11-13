@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Created with IntelliJ IDEA.
@@ -29,7 +30,7 @@ public class CheckForNewTest extends MorphiumTestBase {
         tst.theId = "1";
         tst.theValue = "value";
         morphium.store(tst);
-        assert (tst.created == null);
+        assertNull(tst.created);
 
 
         tst = new TestID();
