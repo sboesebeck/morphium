@@ -14,7 +14,9 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -108,7 +110,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
     public void bulkInsertAsync(Morphium morphium) throws Exception {
         try (morphium) {
             //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
-            morphium.clearCollection(UncachedObject.class);
+            morphium.dropCollection(UncachedObject.class);
+            TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
             log.info("Start storing single");
             long start = System.currentTimeMillis();
             for (int i = 0; i < 100; i++) {
@@ -118,6 +121,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
                 morphium.store(uc, new AsyncOperationCallback<UncachedObject>() {
                     @Override
                     public void onOperationSucceeded(AsyncOperationType type, Query<UncachedObject> q, long duration, List<UncachedObject> result, UncachedObject entity, Object... param) {
+                        // log.info("Operation succeeded");
                         asyncCall = true;
                     }
 
@@ -131,9 +135,10 @@ public class BulkInsertTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium,log);
             long dur = System.currentTimeMillis() - start;
             log.info("storing objects one by one async took " + dur + " ms");
-            Thread.sleep(1000);
-            assert (asyncSuccess);
-            assert (asyncCall);
+            Thread.sleep(500);
+            assertEquals(100, morphium.createQueryFor(UncachedObject.class).countAll(), "Write wrong!");
+            assertTrue (asyncSuccess,"Async call failed");
+            assertTrue (asyncCall,"Async callback not called");
 
             morphium.clearCollection(UncachedObject.class);
 
@@ -148,12 +153,12 @@ public class BulkInsertTest extends MultiDriverTestBase {
             }
             morphium.storeList(lst);
             dur = System.currentTimeMillis() - start;
-            assert (morphium.getWriteBufferCount() == 0) : "WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount();
+            assertEquals (0,morphium.getWriteBufferCount(),"WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
             log.info("storing objects one by one took " + dur + " ms");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-            assert (q.countAll() == 1000) : "Assert not all stored yet????";
-
+            assertEquals (1000,q.countAll(),"Not all stored yet????");
+            log.info("Test finished!");
         }
     }
 

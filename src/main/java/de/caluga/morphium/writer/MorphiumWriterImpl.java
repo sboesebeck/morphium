@@ -172,6 +172,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void run() {
                     try {
+                        var allStart=System.currentTimeMillis();
                         String collectionName = cn;
 
                         if (lst == null || lst.isEmpty()) {
@@ -270,6 +271,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
 
                         morphium.firePostStore(isNew);
+                        if (callback != null) {
+                            callback.onOperationSucceeded(AsyncOperationType.WRITE,
+                                null,
+                                System.currentTimeMillis() - allStart,
+                                null,
+                                null,
+                                lst);
+                        }
                     } catch (MorphiumDriverException e) {
                         // TODO: Implement Handling
                         throw new RuntimeException(e);
