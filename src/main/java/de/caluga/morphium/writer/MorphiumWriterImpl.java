@@ -945,11 +945,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 Entity entityDefinition =
                     morphium.getARHelper()
                     .getAnnotationFromHierarchy(ent.getClass(), Entity.class);
-                boolean convertCamelCase =
-                    entityDefinition != null && entityDefinition.translateCamelCase()
-                    || entityDefinition == null
-                    && morphium.getConfig()
-                    .isCamelCaseConversionEnabled();
+                boolean convertCamelCase = entityDefinition != null && entityDefinition.translateCamelCase() || entityDefinition == null && morphium.getConfig() .isCamelCaseConversionEnabled();
                 Map<String, Object> find = new HashMap<>();
                 find.put("_id", id);
                 Map<String, Object> update = new HashMap<>();
@@ -990,15 +986,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 Class<?> type = morphium.getARHelper().getRealClass(ent.getClass());
-                LastChange t =
-                    morphium.getARHelper()
-                    .getAnnotationFromHierarchy(type, LastChange.class);       // (StoreLastChange)
+                LastChange t = morphium.getARHelper() .getAnnotationFromHierarchy(type, LastChange.class);       // (StoreLastChange)
 
                 // type.getAnnotation(StoreLastChange.class);
                 if (t != null) {
-                    List<String> lst =
-                        morphium.getARHelper()
-                        .getFields(ent.getClass(), LastChange.class);
+                    List<String> lst = morphium.getARHelper() .getFields(ent.getClass(), LastChange.class);
                     long now = System.currentTimeMillis();
 
                     for (String ctf : lst) {
@@ -1024,14 +1016,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     String collectionName = collection;
 
                     if (collectionName == null) {
-                        collectionName =
-                            morphium.getMapper().getCollectionName(ent.getClass());
+                        collectionName = morphium.getMapper().getCollectionName(ent.getClass());
                     }
 
                     checkIndexAndCaps(ent.getClass(), collectionName, callback);
-                    Entity en =
-                        morphium.getARHelper()
-                        .getAnnotationFromHierarchy(ent.getClass(), Entity.class);
+                    Entity en = morphium.getARHelper() .getAnnotationFromHierarchy(ent.getClass(), Entity.class);
                     var con = morphium.getDriver().getPrimaryConnection(wc);
 
                     try {
@@ -1055,8 +1044,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // dur,
                     // false,
                     // WriteAccessType.SINGLE_UPDATE);
-                    morphium.getCache()
-                    .clearCacheIfNecessary(morphium.getARHelper().getRealClass(ent.getClass()));
+                    morphium.getCache() .clearCacheIfNecessary(morphium.getARHelper().getRealClass(ent.getClass()));
                     morphium.firePostStore(ent, false);
 
                     if (callback != null) {

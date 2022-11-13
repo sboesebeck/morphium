@@ -2595,7 +2595,7 @@ public class Morphium implements AutoCloseable {
         if (getARHelper().isAnnotationPresentInHierarchy(type, CreationTime.class)) {
             Object reread = null;
             CreationTime ct = getARHelper().getAnnotationFromHierarchy(o.getClass(), CreationTime.class);
-            boolean checkForNew = Objects.requireNonNull(ct).checkForNew() || getConfig().isCheckForNew();
+            boolean checkForNew = Objects.requireNonNull(ct).checkForNew() && getConfig().isCheckForNew();
             @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, CreationTime.class);
 
             if (id == null) {
