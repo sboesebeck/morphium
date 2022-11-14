@@ -49,7 +49,7 @@ public class InMemDriverTest {
         } catch (MorphiumDriverException e) {
             exc = true;
         }
-        assertTrue(exc, "Creating the same index should throw an exception");
+        assertFalse(exc, "Creating the same index does not throw an Exception anymore");
 
         ShutdownCommand shutdownCommand = new ShutdownCommand(drv).setTimeoutSecs(10);
         var sh = shutdownCommand.execute();
