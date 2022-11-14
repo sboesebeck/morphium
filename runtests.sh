@@ -3,8 +3,9 @@
 function quitting() {
 	echo "Shutting down..."
 	kill -9 $(<test.pid) >/dev/null 2>&1
-	#  rm -f test.pid
-	./getFAiledTests.sh >failed.txt
+  kill -9 $(<fail.pid) >/dev/null 2>&1
+	rm -f test.pid fail.pid
+	./getFailedTests.sh >failed.txt
 	echo "List of failed tests in failed.txt"
 	exit 1
 }
@@ -52,7 +53,7 @@ if [ "$skip" -ne 0 ]; then
 	echo "Skipping tests already run"
 	for i in $(ls -1 test.log); do
 		i=$(basename $i)
-    i=${i%%.log}
+		i=${i%%.log}
 		echo "not rerunning $i"
 		grep -v $i files.txt >files.tmp
 		mv files.tmp files.txt
@@ -70,12 +71,27 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	mkdir test.log
 fi
 echo "Compiling..."
-mvn compile >/dev/null || { echo "Compilation failed!"; exit 1; }
+mvn compile >/dev/null || {
+	echo "Compilation failed!"
+	exit 1
+}
 
 tst=0
 totalTestsRun=0
 totalTestsFailed=0
 totalTestsError=0
+
+# running getfailedTests in background
+{
+	while true; do
+		./getFailedTests.sh >failed.tmp
+		mv failed.tmp failed.txt
+    sleep 8
+	done
+} &
+
+echo $! > fail.pid
+
 for t in $(<files.txt); do
 	((tst = tst + 1))
 	tm=$(date +%s)
@@ -91,11 +107,11 @@ for t in $(<files.txt); do
 
 		echo "Running tests in $t  - #$tst/$cnt"
 		echo "Total number methods to run in matching classes $testMethods"
-    echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')"
+		echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')"
 		if [ "$m" != "." ]; then
 			echo " Tests matchin: $m"
 		fi
-		./getFailedTests.sh | pr -t -2 -w280
+		cat failed.txt | pr -t -2 -w280
 		((dur = $(date +%s) - tm))
 		echo "Duration: $dur"
 		echo "---------- LOG: "
