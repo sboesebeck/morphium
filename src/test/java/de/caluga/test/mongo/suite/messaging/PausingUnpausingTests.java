@@ -94,8 +94,6 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
         list.clear();
         Messaging receiver = new Messaging(morphium, 10, false, true, 100);
-        receiver.start();
-        Thread.sleep(100);
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
@@ -128,6 +126,9 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 sender.sendMessage(new Msg("now", "now", "now"));
             }
         }
+        //this can only work, if the receiver is started _after_ all messages are sent
+        receiver.start();
+        Thread.sleep(100);
         long s = System.currentTimeMillis();
         while (count.get() < 6) {
             Thread.sleep(500);
