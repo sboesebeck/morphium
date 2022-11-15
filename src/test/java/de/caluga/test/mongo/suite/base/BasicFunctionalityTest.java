@@ -339,6 +339,19 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void queryTest(Morphium morphium) {
+        try (morphium) {
+            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+            log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+            createUncachedObjects(morphium, 100);
+            var q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(15).f(UncachedObject.Fields.strValue).eq("nothing");
+            assertEquals(0, q.countAll());
+        }
+    }
+
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void whereTest(Morphium morphium) {
@@ -359,7 +372,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             List<UncachedObject> lst = q.asList();
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 10 && o.getCounter() > 5) : "Counter is wrong: " + o.getCounter();
+                assertThat(o.getCounter()).describedAs("Counter should be >5 and <10 but is: %d", o.getCounter()).isLessThan(10).isGreaterThan(5);
             }
 
             assert(morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
