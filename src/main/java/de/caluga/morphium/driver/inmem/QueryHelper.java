@@ -37,26 +37,26 @@ public class QueryHelper {
             return true;
         }
 
-        if (query.containsKey("$where")) {
-            System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
-            ScriptEngineManager mgr = new ScriptEngineManager();
-            ScriptEngine engine = mgr.getEngineByExtension("js");
-            // engine.eval("print('Hello World!');");
-            engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
-
-            for (String k : toCheck.keySet()) {
-                engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
-            }
-
-            // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
-            try {
-                Object result = engine.eval((String) query.get("$where"));
-
-                if (result == null || result.equals(Boolean.FALSE)) { return false; }
-            } catch (ScriptException e) {
-                throw new RuntimeException("Scripting error", e);
-            }
-        }
+        // if (query.containsKey("$where")) {
+        //     System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+        //     ScriptEngineManager mgr = new ScriptEngineManager();
+        //     ScriptEngine engine = mgr.getEngineByExtension("js");
+        //     // engine.eval("print('Hello World!');");
+        //     engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
+        //
+        //     for (String k : toCheck.keySet()) {
+        //         engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
+        //     }
+        //
+        //     // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
+        //     try {
+        //         Object result = engine.eval((String) query.get("$where"));
+        //
+        //         if (result == null || result.equals(Boolean.FALSE)) { return false; }
+        //     } catch (ScriptException e) {
+        //         throw new RuntimeException("Scripting error", e);
+        //     }
+        // }
 
         //noinspection LoopStatementThatDoesntLoop
         for (String keyQuery : query.keySet()) {
@@ -120,6 +120,7 @@ public class QueryHelper {
                         }
 
                         return Boolean.TRUE.equals(result);
+                    
                     }
 
                 default:
@@ -150,6 +151,31 @@ public class QueryHelper {
                         }
 
                         switch (commandKey) {
+                            case "$where":
+                                System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+                                ScriptEngineManager mgr = new ScriptEngineManager();
+                                ScriptEngine engine = mgr.getEngineByExtension("js");
+
+                                // engine.eval("print('Hello World!');");
+                                if (engine != null) {
+                                    engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
+
+                                    for (String k : toCheck.keySet()) {
+                                        engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
+                                    }
+
+                                    // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
+                                    try {
+                                        Object result = engine.eval((String) query.get("$where"));
+                                        //if (result == null || result.equals(Boolean.FALSE)) { return false; }
+                                        return result.equals(Boolean.TRUE);
+                                    } catch (ScriptException e) {
+                                        throw new RuntimeException("Scripting error", e);
+                                    }
+                                }
+
+                                return false;
+
                             case "$eq":
                                 if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) == null) { return true; }
 
@@ -170,8 +196,9 @@ public class QueryHelper {
                                 if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
                                     return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) < 0;
                                 }
+
                                 if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                   return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue())<0;
+                                    return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) < 0;
                                 }
 
                                 return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) < 0;
@@ -184,8 +211,9 @@ public class QueryHelper {
                                 }
 
                                 if (toCheck.get(keyQuery) == null) { return commandMap.get(commandKey) != null; }
+
                                 if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                   return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue())<=0;
+                                    return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) <= 0;
                                 }
 
                                 return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) <= 0;
@@ -200,7 +228,7 @@ public class QueryHelper {
                                 if (toCheck.get(keyQuery) == null) { return false; }
 
                                 if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                   return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue())>0;
+                                    return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) > 0;
                                 }
 
                                 return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) > 0;
@@ -215,8 +243,9 @@ public class QueryHelper {
                                 if (toCheck.get(keyQuery) == null) { return commandMap.get(commandKey) == null; }
 
                                 if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                   return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue())>=0;
+                                    return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) >= 0;
                                 }
+
                                 return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) >= 0;
 
                             case "$mod":
@@ -781,12 +810,13 @@ public class QueryHelper {
                                 break;
 
                             default:
-                                
+
                                 //equals check
                                 if (toCheck.containsKey(commandKey)) {
                                     return toCheck.get(commandKey).equals(commandMap.get(commandKey));
                                 }
-                                if (keyQuery.equals("value")) return false;
+
+                                if (keyQuery.equals("value")) { return false; }
 
                                 throw new RuntimeException("Unknown Operator " + commandKey);
                         }
