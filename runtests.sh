@@ -7,10 +7,10 @@ function quitting() {
 	rm -f test.pid fail.pid
 	./getFailedTests.sh >failed.txt
 	echo "List of failed tests in failed.txt"
-	exit 1
+  exit
 }
 
-trap quitting EXIT
+#trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
 
@@ -84,10 +84,12 @@ totalTestsError=0
 # running getfailedTests in background
 {
 	while true; do
-		./getFailedTests.sh >failed.tmp
+    date > failed.tmp
+		./getFailedTests.sh >>failed.tmp
 		mv failed.tmp failed.txt
     sleep 8
 	done
+
 } &
 
 echo $! > fail.pid
@@ -121,9 +123,9 @@ for t in $(<files.txt); do
 
 		# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
 		# egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
-		jobs >/dev/null
-		j=$(jobs | wc -l)
-		if [ "$j" -lt 1 ]; then
+		jobs>/dev/null
+		j=$(jobs |  grep -E '\[[0-9]+\]' | wc -l)
+		if [ "$j" -lt 2 ]; then
 			break
 		fi
 		if [ $dur -gt 600 ]; then
