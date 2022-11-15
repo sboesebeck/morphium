@@ -573,11 +573,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             //morphium.fireProfilingWriteEvent(
                             // c, toUpdate, dur, true, WriteAccessType.BULK_INSERT);
                             // null because key changed => mongo _id
-                            es.getValue()
-                            .forEach(record-> { // null because key changed => mongo
-                                // _id
-                                morphium.firePostStore(record, true);
-                            });
                         }
 
                         if (callback != null) {
@@ -588,6 +583,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 null,
                                 lst);
                         }
+
+                        lst.forEach(record-> { // null because key changed => mongo
+                            // _id
+                            morphium.firePostStore(record, true);
+                        });
                     } catch (Exception e) {
                         if (e instanceof RuntimeException) {
                             throw(RuntimeException) e;
@@ -1063,7 +1063,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1205,7 +1206,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1276,7 +1278,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1429,7 +1432,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1538,7 +1542,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1697,7 +1702,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -1896,7 +1902,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -2011,7 +2018,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (Exception e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
@@ -2224,7 +2232,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (RuntimeException e) {
                     if (callback == null) {
-                        if (e instanceof RuntimeException) throw (RuntimeException)e;
+                        if (e instanceof RuntimeException) { throw(RuntimeException)e; }
+
                         throw new RuntimeException(e);
                     }
 
