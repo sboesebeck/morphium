@@ -16,12 +16,12 @@ public class SingleBatchCursor extends MorphiumCursor {
     }
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return iterator.hasNext();
     }
 
     @Override
-    public Map<String, Object> next() {
+    public synchronized Map<String, Object> next() {
         idx++;
         return iterator.next();
     }
@@ -42,7 +42,7 @@ public class SingleBatchCursor extends MorphiumCursor {
     }
 
     @Override
-    public void ahead(int skip) throws MorphiumDriverException {
+    public synchronized void ahead(int skip) throws MorphiumDriverException {
         if (getBatch() == null) throw new IllegalArgumentException("cannot jump that far");
         if (skip + idx > getBatch().size()) {
             throw new IllegalArgumentException("cannot jump that far");
@@ -51,7 +51,7 @@ public class SingleBatchCursor extends MorphiumCursor {
     }
 
     @Override
-    public void back(int jump) throws MorphiumDriverException {
+    public synchronized void back(int jump) throws MorphiumDriverException {
         throw new IllegalArgumentException("cannot jump back");
     }
 

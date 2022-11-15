@@ -21,12 +21,12 @@ public class SingleElementCursor extends MorphiumCursor {
     }
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         return idx == 0;
     }
 
     @Override
-    public Map<String, Object> next() {
+    public synchronized Map<String, Object> next() {
         idx++;
         return element;
     }
