@@ -90,7 +90,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
     }
 
     @Override
-    public T next() {
+    public  T next() {
         if (query.getType() == null) {
             return (T) getMongoCursor().next();
         }
@@ -127,6 +127,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
                     cmd.setBatchSize(windowSize);
                 }
                 cursor = cmd.executeIterable(windowSize);
+                cmd.getConnection().release();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
