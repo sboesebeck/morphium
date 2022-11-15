@@ -2326,7 +2326,7 @@ public abstract class Expr {
         }
     }
 
-    private static abstract class ValueExpr extends Expr {
+    public static abstract class ValueExpr extends Expr {
         @Override
         public Object evaluate(Map<String, Object> context) {
             return toQueryObject();
