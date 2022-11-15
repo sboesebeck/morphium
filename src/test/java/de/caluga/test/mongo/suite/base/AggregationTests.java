@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 10:59
  * <p/>
  */
-public class Aggregation extends MultiDriverTestBase {
+public class AggregationTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void aggregatorTest(Morphium morphium) throws Exception {
@@ -72,6 +72,7 @@ public class Aggregation extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void aggregatorExprTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("Running test with "+morphium.getDriver().getName());
             createUncachedObjects(morphium, 1000);
 
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
@@ -86,7 +87,7 @@ public class Aggregation extends MultiDriverTestBase {
             //limit der Daten
             a = a.limit(15);
             //group by - in dem Fall alle, könnte auch beliebig sein
-            a = a.group(Expr.string(null)).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
+            a = a.group(Expr.nullExpr()).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
 
             //ergebnis projezieren
             HashMap<String, Object> projection = new HashMap<>();
