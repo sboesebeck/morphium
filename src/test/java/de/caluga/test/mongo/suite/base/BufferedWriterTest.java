@@ -365,8 +365,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             Thread.sleep(1000);
         }
         log.info("Writing finished");
-
-        Thread.sleep(5000);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Not all written", ()->morphium.createQueryFor(SimpleObject.class).countAll()==500);
         long c = morphium.createQueryFor(SimpleObject.class).countAll();
         log.info("waiting..." + c);
         assertEquals(500,c);
