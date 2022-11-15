@@ -4,9 +4,7 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.AsyncWrites;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.annotations.lifecycle.Lifecycle;
-import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.mongodb.MongoDriver;
 import io.github.classgraph.*;
 import org.slf4j.Logger;
 
