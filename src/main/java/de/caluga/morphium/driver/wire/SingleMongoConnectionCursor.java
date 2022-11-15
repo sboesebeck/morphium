@@ -80,7 +80,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         //end of stream
         if (getBatch() == null || getBatch().isEmpty()) {
             return false;
@@ -115,7 +115,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public Map<String, Object> next() {
+    public synchronized Map<String, Object> next() {
         if (getBatch() == null || getBatch().isEmpty()) return null;
         if (getBatch().size() <= internalIndex) {
             try {
@@ -130,7 +130,8 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public void close() {
+    public  synchronized void close() {
+        if (getConnection()==null) return;
         try {
             getConnection().closeIteration(this);
         } catch (MorphiumDriverException e) {
@@ -174,7 +175,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
 
     @Override
-    public List<Map<String, Object>> getAll() throws MorphiumDriverException {
+    public synchronized List<Map<String, Object>> getAll() throws MorphiumDriverException {
         List<Map<String, Object>> ret = new ArrayList<>();
         while (hasNext()) {
             ret.addAll(getBatch());
@@ -184,7 +185,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public void ahead(int jump) throws MorphiumDriverException {
+    public synchronized void ahead(int jump) throws MorphiumDriverException {
         internalIndex += jump;
         index += jump;
         while (getBatch() != null && internalIndex >= getBatch().size()) {
@@ -197,7 +198,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public void back(int jump) throws MorphiumDriverException {
+    public synchronized  void back(int jump) throws MorphiumDriverException {
         internalIndex -= (jump);
         index -= (jump);
         if (internalIndex < 0) {
