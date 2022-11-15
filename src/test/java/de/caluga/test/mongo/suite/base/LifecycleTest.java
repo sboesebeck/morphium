@@ -6,6 +6,11 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.lifecycle.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 
 /**
@@ -29,29 +34,29 @@ public class LifecycleTest extends MorphiumTestBase {
         LfTestObj obj = new LfTestObj();
         obj.setValue("Ein Test");
         morphium.store(obj);
-        assert (preStore) : "Something went wrong: Prestore";
-        assert (postStore) : "Something went wrong: poststore";
+        assertTrue (preStore,"Something went wrong: Prestore");
+        assertTrue(postStore,"Something went wrong: poststore");
 
         Query<LfTestObj> q = morphium.createQueryFor(LfTestObj.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
 
-        assert (postLoad) : "Something went wrong: postload";
+        assertTrue(postLoad, "Something went wrong: postload");
 
         morphium.set(obj, "value", "test beendet");
         TestUtils.waitForWrites(morphium,log);
-        assert (preUpdate);
-        assert (postUpdate);
+        assertTrue (preUpdate);
+        assertTrue (postUpdate);
         morphium.delete(obj);
-        assert (preRemove) : "Pre remove not called";
-        assert (postRemove) : "Post remove not called";
+        assertTrue (preRemove,"Pre remove not called");
+        assertTrue(postRemove,"Post remove not called");
 
         preUpdate = false;
         postUpdate = false;
         morphium.set(q, "value", "a test - lifecycle won't be called");
-        assert (!preUpdate);
-        assert (!postUpdate);
+        assertFalse (preUpdate);
+        assertFalse(postUpdate);
 
     }
 
@@ -67,29 +72,28 @@ public class LifecycleTest extends MorphiumTestBase {
 
         EntityPostLoad eFetched = m.createQueryFor(EntityPostLoad.class).get();
 
-        assertEquals("value:", "test", eFetched.value);
-        assertEquals("post load:", "OK", eFetched.testPostLoad);
-        assertEquals("post load: fields initiated:", eFetched.value, eFetched.testPostLoadValue);
+
+        assertEquals("test",eFetched.value,"Value");
+        assertEquals( "test", eFetched.value,"value:");
+        assertEquals( "OK", eFetched.testPostLoad,"post load:");
+        assertEquals( eFetched.value, eFetched.testPostLoadValue,"post load: fields initiated:");
 
         EmbeddedPostLoad emb = eFetched.getEmb();
-        assertEquals("embedded: value:", "testEmb", emb.value);
-        assertEquals("embedded: post load:", "OK", emb.testPostLoad);
-        assertEquals("embedded: post load: fields initiated:", emb.value, emb.testPostLoadValue);
+        assertEquals( "testEmb", emb.value,"embedded: value:");
+        assertEquals( "OK", emb.testPostLoad,"embedded: post load:");
+        assertEquals( emb.value, emb.testPostLoadValue,"embedded: post load: fields initiated:");
 
         eFetched.value = "newVal";
         m.store(eFetched);
-        assertEquals("Embedded: preStore", eFetched.getEmb().testPreStore, "OK");
-        assertEquals("Embedded: postStore", eFetched.getEmb().testPostStore, "OK");
+
+        assertEquals( "OK",eFetched.getEmb().testPreStore, "Embedded: preStore");
+        assertEquals( "OK",eFetched.getEmb().testPostStore, "Embedded: postStore");
 
         m.delete(eFetched);
-        assertEquals("Embedded: preDel", eFetched.getEmb().testPreRemove, "OK");
-        assertEquals("Embedded: postDel", eFetched.getEmb().testPostRemove, "OK");
+        assertEquals( "OK",eFetched.getEmb().testPreRemove, "Embedded: preDel");
+        assertEquals( "OK",eFetched.getEmb().testPostRemove, "Embedded: postDel");
 
 
-    }
-
-    private void assertEquals(String s, String test, String value) {
-        assert (test.equals(value)) : s;
     }
 
     @Entity
