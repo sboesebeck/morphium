@@ -70,10 +70,10 @@ public interface MorphiumWriter {
      * @param insertIfNotExist - insert, if it does not exist (query needs to be simple!)
      * @param multiple         - update several documents, if false, only first hit will be updated
      */
-    <T> void set(Query<T> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> set(Query<T> query, Map<String, Object> values, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
 
-    <T> void inc(Query<T> query, String field, Number amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> inc(Query<T> query, String field, Number amount, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Increases a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -91,7 +91,7 @@ public interface MorphiumWriter {
     <T> void remove(List<T> lst, AsyncOperationCallback<T> callback);
 
     @SuppressWarnings("unused")
-    <T> void remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback);
 
     <T> void remove(T o, String collection, AsyncOperationCallback<T> callback);
 
@@ -100,11 +100,11 @@ public interface MorphiumWriter {
      *
      * @param q the query
      */
-    <T> void remove(Query<T> q, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> remove(Query<T> q, AsyncOperationCallback<T> callback);
 
-    <T> void pushPull(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> pushPull(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
-    <T> void pushPullAll(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> pushPullAll(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, List<?> value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * Un-setting a value in an existing mongo collection entry - no reading necessary. Object is altered in place
@@ -120,11 +120,11 @@ public interface MorphiumWriter {
     <T> void pop(T obj, String collection, String field, boolean first, AsyncOperationCallback<T> callback);
 
     @SuppressWarnings("unused")
-    <T> void unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> unset(Query<T> query, String field, boolean multiple, AsyncOperationCallback<T> callback);
 
-    <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, String... fields);
+    <T> Map<String,Object> unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, String... fields);
 
-    <T> void unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, Enum... fields);
+    <T> Map<String,Object> unset(Query<T> query, AsyncOperationCallback<T> callback, boolean multiple, Enum... fields);
 
     <T> void dropCollection(Class<T> cls, String collection, AsyncOperationCallback<T> callback);
 
@@ -141,7 +141,7 @@ public interface MorphiumWriter {
 
     void setPauseBetweenTries(int p);
 
-    <T> void inc(Query<T> query, Map<String, Number> fieldsToInc, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> inc(Query<T> query, Map<String, Number> fieldsToInc, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
     /**
      * information about closing of morphium and all connections

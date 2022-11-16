@@ -1,5 +1,7 @@
 package de.caluga.morphium.writer;
 
+import java.util.Map;
+
 import de.caluga.morphium.async.AsyncOperationCallback;
 
 /**
@@ -11,5 +13,8 @@ import de.caluga.morphium.async.AsyncOperationCallback;
  */
 @SuppressWarnings("WeakerAccess")
 public interface WriterTask<T> extends Runnable {
+    default Map<String,Object> getReturnObject(){
+        return null;
+    }
     void setCallback(AsyncOperationCallback<T> cb);
 }

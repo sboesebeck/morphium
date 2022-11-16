@@ -282,8 +282,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 case WRITE_OLD:
                     opLog.get(type)
                     .sort(Comparator.comparingLong(WriteBufferEntry::getTimestamp));
+
                     // could have been written in the meantime
-                    synchronized(opLog) {
+                    synchronized (opLog) {
                         if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
                             WriteBufferEntry e = opLog.get(type).remove(0);
                             e.getToRun().queue(ctx);
@@ -292,6 +293,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         opLog.putIfAbsent(type, new ArrayList<>());
                         opLog.get(type).add(wb);
                     }
+
                     break;
 
                 case DEL_OLD:
@@ -301,7 +303,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         logger.debug("Deleting oldest entry");
                     }
 
-                    synchronized(opLog) {
+                    synchronized (opLog) {
                         if (opLog.get(type) != null && !opLog.get(type).isEmpty()) {
                             opLog.get(type).remove(0);
                         }
@@ -309,6 +311,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         opLog.putIfAbsent(type, new ArrayList<>());
                         opLog.get(type).add(wb);
                     }
+
                     return;
                 }
             }
@@ -652,12 +655,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void set(
-        final Query<T> query,
-        final Map<String, Object> values,
-        final boolean upsert,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> values, final boolean upsert, final boolean multiple,
+     AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -680,24 +679,16 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             wr.setCmd(Doc.of("$set", set));
 
             for (Map.Entry kv : values.entrySet()) {
-                String fld =
-                morphium.getARHelper()
-                .getMongoFieldName(query.getType(), kv.getKey().toString());
+                String fld = morphium.getARHelper().getMongoFieldName(query.getType(), kv.getKey().toString());
                 set.put(fld, kv.getValue());
             }
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.SET);
-        },
-         c,
-         AsyncOperationType.SET);
+        }, c, AsyncOperationType.SET);
+        return null;
     }
 
     @Override
-    public <T> void inc(
-        final Query<T> query,
-        final Map<String, Number> fieldsToInc,
-        final boolean upsert,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Map<String, Number> fieldsToInc, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -725,20 +716,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 inc.put(fld, kv.getValue());
             }
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-        },
-         c,
-         AsyncOperationType.INC);
+        }, c, AsyncOperationType.INC);
+        return null;
     }
 
     @SuppressWarnings("CommentedOutCode")
     @Override
-    public <T> void inc(
-        final Query<T> query,
-        final String field,
-        final Number amount,
-        final boolean upsert,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> inc(final Query<T> query, final String field, final Number amount, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -761,18 +745,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //                wr.inc(fieldName, amount, multiple);
             //                ctx.addRequest(wr);
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.INC);
-        },
-         c,
-         AsyncOperationType.INC);
+        }, c, AsyncOperationType.INC);
+        return null;
     }
 
     @Override
-    public <T> void inc(
-        final T obj,
-        final String collection,
-        final String field,
-        final Number amount,
-        AsyncOperationCallback<T> c) {
+    public <T> void inc(final T obj, final String collection, final String field, final Number amount,
+     AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -806,12 +785,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void pop(
-        final T obj,
-        final String collection,
-        final String field,
-        final boolean first,
-        AsyncOperationCallback<T> c) {
+    public <T> void pop(final T obj, final String collection, final String field, final boolean first, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -962,7 +936,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void remove(final Query<T> q, boolean multiple, AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> remove(final Query<T> q, boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -977,9 +951,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             r.setQuery(Doc.of(q.toQueryObject()));
             //                    ctx.addRequest(r);
             morphium.firePostRemoveEvent(q);
-        },
-         c,
-         AsyncOperationType.REMOVE);
+        }, c, AsyncOperationType.REMOVE);
+        return null;
     }
 
     @Override
@@ -992,10 +965,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         addToWriteQueue(o.getClass(),
          collection,
          ctx->{
-            Query q =
-            morphium.createQueryFor(o.getClass())
-            .f(morphium.getARHelper().getIdFieldName(o))
-            .eq(morphium.getARHelper().getId(o));
+            Query<?> q = morphium.createQueryFor(o.getClass()).f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
 
             if (collection != null) {
                 q.setCollectionName(collection);
@@ -1012,19 +982,14 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void remove(final Query<T> q, AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> remove(final Query<T> q, AsyncOperationCallback<T> c) {
         remove(q, true, c);
+        return null;
     }
 
     @Override
-    public <T> void pushPull(
-        final MorphiumStorageListener.UpdateTypes type,
-        final Query<T> q,
-        final String field,
-        final Object value,
-        final boolean upsert,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> q, final String field, final Object value, final boolean upsert, final boolean multiple,
+     AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1064,22 +1029,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
 
             //                ctx.addRequest(r);
-        },
-         c,
-         type.equals(MorphiumStorageListener.UpdateTypes.PUSH)
-        ? AsyncOperationType.PUSH
-        : AsyncOperationType.PULL);
+        }, c, type.equals(MorphiumStorageListener.UpdateTypes.PUSH) ? AsyncOperationType.PUSH : AsyncOperationType.PULL);
+        return null;
     }
 
     @Override
-    public <T> void pushPullAll(
-        final MorphiumStorageListener.UpdateTypes type,
-        final Query<T> q,
-        final String field,
-        final List<?> value,
-        final boolean upsert,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> pushPullAll(final MorphiumStorageListener.UpdateTypes type, final Query<T> q, final String field, final List<?> value, final boolean upsert, final boolean multiple,
+     AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1120,16 +1076,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 //                        ctx.addRequest(r);
             }
             morphium.firePostUpdateEvent(q.getType(), type);
-        },
-         c,
-         type.equals(MorphiumStorageListener.UpdateTypes.PULL)
-        ? AsyncOperationType.PULL
-        : AsyncOperationType.PUSH);
+        }, c, type.equals(MorphiumStorageListener.UpdateTypes.PULL) ? AsyncOperationType.PULL : AsyncOperationType.PUSH);
+        return null;
     }
 
     @Override
-    public <T> void unset(
-        final T obj, final String collection, final String field, AsyncOperationCallback<T> c) {
+    public <T> void unset(final T obj, final String collection, final String field, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1163,11 +1115,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     }
 
     @Override
-    public <T> void unset(
-        final Query<T> query,
-        final String field,
-        final boolean multiple,
-        AsyncOperationCallback<T> c) {
+    public <T> Map<String, Object> unset(final Query<T> query, final String field, final boolean multiple, AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1189,18 +1137,13 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             //                ctx.addRequest(wr);
             morphium.getCache().clearCacheIfNecessary(query.getType());
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-        },
-         c,
-         AsyncOperationType.UNSET);
+        }, c, AsyncOperationType.UNSET);
+        return null;
     }
 
     @SuppressWarnings("CommentedOutCode")
     @Override
-    public <T> void unset(
-        final Query<T> query,
-        AsyncOperationCallback<T> c,
-        final boolean multiple,
-        final String... fields) {
+    public <T> Map<String, Object> unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final String ... fields) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1227,17 +1170,12 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             }
             morphium.getCache().clearCacheIfNecessary(query.getType());
             morphium.firePostUpdateEvent(query.getType(), MorphiumStorageListener.UpdateTypes.UNSET);
-        },
-         c,
-         AsyncOperationType.UNSET);
+        }, c, AsyncOperationType.UNSET);
+        return null;
     }
 
     @Override
-    public <T> void unset(
-        final Query<T> query,
-        AsyncOperationCallback<T> c,
-        final boolean multiple,
-        final Enum... fields) {
+    public <T> Map<String, Object> unset(final Query<T> query, AsyncOperationCallback<T> c, final boolean multiple, final Enum ... fields) {
         String[] flds = new String[fields.length];
         int i = 0;
 
@@ -1246,6 +1184,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         }
 
         unset(query, c, multiple, flds);
+        return null;
     }
 
     @Override
