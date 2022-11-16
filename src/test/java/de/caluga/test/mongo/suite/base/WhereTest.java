@@ -26,17 +26,9 @@ public class WhereTest extends MultiDriverTestBase {
 
         try(m) {
             createUncachedObjects(m,100);
-            Thread.sleep(500);
+            // Thread.sleep(500);
             Query<UncachedObject> q = m.createQueryFor(UncachedObject.class);
             q = q.where("this.counter > 15");
-            //        q.f("counter").ne(0);
-            //
-            //        q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-            //        assert(q.countAll()==85):"Count wrong: "+q.countAll();
-            //
-            //        Driver dr=(Driver)morphium.getDriver();
-            //        MongoCollection coll = dr.getCollection(morphium.getConfig().getDatabase(), q.getCollectionName());
-            //        coll.find(new BasicDBObject("$where","counter>15"));
             List<UncachedObject> lst = q.asList();
             assertEquals(85, lst.size(), "wrong number of results");
             assertEquals(85, q.countAll(), "Count wrong");
