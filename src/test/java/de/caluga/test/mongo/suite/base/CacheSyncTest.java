@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,6 +143,7 @@ public class CacheSyncTest extends MorphiumTestBase {
     public void idCacheTest() throws Exception {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(IdCachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, IdCachedObject.class);
         //Making sure, indices are only created once...
         IdCachedObject o = new IdCachedObject();
         o.setCounter(0);
@@ -149,7 +151,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         morphium.store(o);
         waitForAsyncOperationsToStart(morphium, 3000);
         TestUtils.waitForWrites(morphium,log);
-        Thread.sleep(2000);
+        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==1);
         long start = System.currentTimeMillis();
         for (int i = 1; i < 100; i++) {
             o = new IdCachedObject();
@@ -158,7 +160,11 @@ public class CacheSyncTest extends MorphiumTestBase {
             morphium.store(o);
         }
         TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(3000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).countAll()==100);
+        Thread.sleep(5000);
+        var qu=morphium.createQueryFor(IdCachedObject.class);
+        var e=qu.q().sort(IdCachedObject.Fields.counter).get();
+        log.info("First: "+e.getCounter());
+        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==100);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing without synchronizer: " + dur + " ms");
 
@@ -170,7 +176,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             morphium.store(obj);
         }
         TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(3000, "did not write", ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll()==100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll()==100);
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
 

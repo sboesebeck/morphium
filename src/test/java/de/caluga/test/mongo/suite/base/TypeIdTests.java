@@ -61,7 +61,9 @@ public class TypeIdTests extends MorphiumTestBase {
     public void testSimple() throws Exception {
         UncachedObject uc = new UncachedObject("str", 123);
         morphium.store(uc);
-        assertNull(morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).asMapList().get(0)
+        Query<UncachedObject> eq = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId());
+        TestUtils.waitForConditionToBecomeTrue(5000, "Did not store?", ()->eq.countAll()==1);
+        assertNull(eq.asMapList().get(0)
                 .get("class_name"));
     }
 
