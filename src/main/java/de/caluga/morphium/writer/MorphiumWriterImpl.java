@@ -1176,10 +1176,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 try {
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     String collectionName = q.getCollectionName();
+                    var limit = multiple ? 0 : 1;
+
+                    if (q.getLimit() > 0 && multiple) {
+                        limit = q.getLimit();
+                    }
+
                     DeleteMongoCommand settings = new DeleteMongoCommand(con)
                     .setColl(collectionName)
                     .setDb(getDbName())
-                    .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", multiple ? 0 : 1, "collation", q.getCollation() == null ? null : q.getCollation() .toQueryObject())));
+                    .setDeletes(Arrays.asList(Doc.of("q", q.toQueryObject(), "limit", limit, "collation", q.getCollation() == null ? null : q.getCollation() .toQueryObject())));
 
                     if (wc != null) {
                         settings.setWriteConcern(wc.asMap());
@@ -1504,15 +1510,29 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     UpdateMongoCommand settings = new UpdateMongoCommand(con)
                     .setDb(getDbName())
-                    .setColl(coll)
-                    .addUpdate(Doc.of(qobj),
-                        Doc.of(update),
-                        null,
-                        upsert,
-                        multiple,
-                        query.getCollation(),
-                        null,
-                        null);
+                    .setColl(coll);
+
+                    if (multiple && query.getLimit() > 0) {
+                        for (int i = 0; i < query.getLimit(); i++) {
+                            settings.addUpdate(Doc.of(qobj),
+                                Doc.of(update),
+                                null,
+                                upsert,
+                                false,
+                                query.getCollation(),
+                                null,
+                                null);
+                        }
+                    } else {
+                        settings.addUpdate(Doc.of(qobj),
+                            Doc.of(update),
+                            null,
+                            upsert,
+                            multiple,
+                            query.getCollation(),
+                            null,
+                            null);
+                    }
 
                     if (query.getSort() != null) {
                         logger.warn("Sorting is not supported on updates!");
@@ -1663,15 +1683,29 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     UpdateMongoCommand settings = new UpdateMongoCommand(con)
                     .setDb(getDbName())
-                    .setColl(coll)
-                    .addUpdate(Doc.of(qobj),
-                        Doc.of(update),
-                        null,
-                        upsert,
-                        multiple,
-                        query.getCollation(),
-                        null,
-                        null);
+                    .setColl(coll);
+
+                    if (query.getLimit() > 0 && multiple) {
+                        for (int i = 0; i < query.getLimit(); i++) {
+                            settings.addUpdate(Doc.of(qobj),
+                                Doc.of(update),
+                                null,
+                                upsert,
+                                false,
+                                query.getCollation(),
+                                null,
+                                null);
+                        }
+                    } else {
+                        settings.addUpdate(Doc.of(qobj),
+                            Doc.of(update),
+                            null,
+                            upsert,
+                            multiple,
+                            query.getCollation(),
+                            null,
+                            null);
+                    }
 
                     if (query.getSort() != null) {
                         logger.warn("Sorting not supported in update query!");
@@ -1978,15 +2012,29 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     UpdateMongoCommand settings = new UpdateMongoCommand(con)
                     .setDb(getDbName())
                     .setColl(coll)
-                    .setWriteConcern(wc.asMap())
-                    .addUpdate(Doc.of(qobj),
-                        Doc.of(update),
-                        null,
-                        false,
-                        multiple,
-                        query.getCollation(),
-                        null,
-                        null);
+                    .setWriteConcern(wc.asMap());
+
+                    if (multiple && query.getLimit() > 0) {
+                        for (int i = 0; i < query.getLimit(); i++) {
+                            settings.addUpdate(Doc.of(qobj),
+                                Doc.of(update),
+                                null,
+                                false,
+                                false,
+                                query.getCollation(),
+                                null,
+                                null);
+                        }
+                    } else {
+                        settings.addUpdate(Doc.of(qobj),
+                            Doc.of(update),
+                            null,
+                            false,
+                            multiple,
+                            query.getCollation(),
+                            null,
+                            null);
+                    }
 
                     if (query.getSort() != null) {
                         logger.warn("Sort not supported when updating");
