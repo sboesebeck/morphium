@@ -6,6 +6,7 @@ import de.caluga.morphium.query.Query;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * User: Stephan Bösebeck
@@ -16,7 +17,7 @@ import java.util.List;
 public class AsyncWriterImpl extends MorphiumWriterImpl {
 
     @Override
-    public <T> void submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
+    public <T> Map<String,Object> submitAndBlockIfNecessary(AsyncOperationCallback<T> callback, WriterTask<T> r) {
         if (callback == null) {
             callback = new AsyncOperationCallback<T>() {
                 @Override
@@ -29,6 +30,6 @@ public class AsyncWriterImpl extends MorphiumWriterImpl {
             };
         }
 
-        super.submitAndBlockIfNecessary(callback, r);
+        return super.submitAndBlockIfNecessary(callback, r);
     }
 }
