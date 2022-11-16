@@ -10,6 +10,9 @@ import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.lifecycle.*;
+import de.caluga.morphium.annotations.locking.Lockable;
+import de.caluga.morphium.annotations.locking.LockedAt;
+import de.caluga.morphium.annotations.locking.LockedBy;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
@@ -4261,6 +4264,84 @@ public class Morphium implements AutoCloseable {
         }
 
         return missingIndicesByClass;
+    }
+
+    public <T> Query<T> getOutdatedLocksQuery(Class<? extends T> cls, int ms) {
+        if (!getARHelper().isAnnotationPresentInHierarchy(cls, Lockable.class)) {
+            throw new IllegalArgumentException("Type is not lockable " + cls.getName());
+        }
+
+        Query<T> q = createQueryFor(cls);
+
+        for (String f : getARHelper().getFields(cls, LockedAt.class)) {
+            q.f(f).lt(System.currentTimeMillis() - ms);
+        }
+
+        return q;
+    }
+
+    //Limit done via query
+    public <T> List<T> lockEntities(Query<T> q, String lockId, int maxLockTimeMs) throws MorphiumDriverException {
+        if (!getARHelper().isAnnotationPresentInHierarchy(q.getType(), Lockable.class)) {
+            throw new IllegalArgumentException("Type is not lockable " + q.getType().getName());
+        }
+
+        q = q.clone();
+        var qRet = q.q();
+        var fields = getARHelper().getFields(q.getType(), LockedBy.class);
+        var tsFields= getARHelper().getFields(q.getType(), LockedAt.class);
+        for (String f:fields){
+            qRet.f(f).eq(lockId);
+        }
+        UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(q.getType())));
+        cmd.setDb(getDatabase()).setColl(q.getCollectionName());
+        List<Map<String, Object>> updates = new ArrayList<>();
+
+        for (int i = 0; i < q.getLimit(); i++) {
+            Map<String, Object> upd = new LinkedHashMap<>();
+
+            for (String f : fields) {
+                //setting all those fields to
+                q.f(f).eq(null);
+                upd.put(f, lockId);
+                //.setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)));
+            }
+
+
+            for (String f : tsFields) {
+                upd.put(f, System.currentTimeMillis());
+            }
+            updates.add(Doc.of("q", q.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
+
+        }
+
+        cmd.setUpdates(updates);
+        var res = cmd.execute();
+        return qRet.asList();
+    }
+
+    public void releaseLock(Object obj) throws MorphiumDriverException {
+        if (!getARHelper().isAnnotationPresentInHierarchy(obj.getClass(), Lockable.class)) {
+            throw new IllegalArgumentException("Type is not lockable " + obj.getClass().getName());
+        }
+
+        var q = createQueryFor(obj.getClass()).f(getARHelper().getIdFieldName(obj)).eq(getARHelper().getId(obj));
+        //must not be cached!!!!!
+        var fields = getARHelper().getFields(q.getType(), LockedBy.class);
+        UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(q.getType())));
+        cmd.setDb(getDatabase()).setColl(q.getCollectionName());
+        List<Map<String, Object>> updates = new ArrayList<>();
+        Map<String, Object> upd = new LinkedHashMap<>();
+
+        for (String f : fields) {
+            //setting all those fields to
+            q.f(f).eq(null);
+            upd.put(f, 1);
+            //.setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)));
+        }
+
+        cmd.setUpdates(Arrays.asList(Doc.of("q", q.toQueryObject(), "u", Doc.of("$unset", upd), "multi", true, "upsert", false)));
+        var res = cmd.execute();
     }
 
     @Override
