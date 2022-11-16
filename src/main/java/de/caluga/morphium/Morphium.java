@@ -710,37 +710,37 @@ public class Morphium implements AutoCloseable {
         wr.unset(toSet, collection, field, callback);
     }
 
-    public <T> void unsetQ(Query<T> q, String... field) {
-        getWriterForClass(q.getType()).unset(q, null, false, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, String... field) {
+        return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> void unsetQ(Query<T> q, boolean multiple, String... field) {
-        getWriterForClass(q.getType()).unset(q, null, multiple, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, String... field) {
+        return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> void unsetQ(Query<T> q, Enum... field) {
-        getWriterForClass(q.getType()).unset(q, null, false, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, Enum... field) {
+        return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> void unsetQ(Query<T> q, boolean multiple, Enum... field) {
-        getWriterForClass(q.getType()).unset(q, null, multiple, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, Enum... field) {
+        return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String... field) {
-        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String... field) {
+        return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
     @SuppressWarnings({"unused", "UnusedParameters"})
-    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
-        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
+        return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
-    public <T> void unsetQ(Query<T> q, AsyncOperationCallback<T> cb, Enum... field) {
-        getWriterForClass(q.getType()).unset(q, cb, false, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, Enum... field) {
+        return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
-    public <T> void unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
-        getWriterForClass(q.getType()).unset(q, cb, multiple, field);
+    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
+        return getWriterForClass(q.getType()).unset(q, cb, multiple, field);
     }
 
     public void addReplicasetStatusListener(ReplicasetStatusListener lst) {
@@ -754,99 +754,6 @@ public class Morphium implements AutoCloseable {
             rsMonitor.removeListener(lst);
         }
     }
-
-    /**
-     * converts the given type to capped collection in Mongo, even if no @capped is defined!
-     * <b>Warning:</b> depending on size this might take some time!
-     *
-     * @param c    entity type
-     * @param size size of capped collection
-     * @param cb   callback
-     * @param <T>  type
-     */
-    // public <T> void convertToCapped(Class<T> c, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
-    //     convertToCapped(getMapper().getCollectionName(c), size, max, cb);
-    // }
-
-    // @SuppressWarnings("UnusedParameters")
-    // public <T> void convertToCapped(String collectionName, int size, int max, AsyncOperationCallback<T> cb) throws MorphiumDriverException {
-    //     if (!exists(getDatabase(), collectionName)) { return; }
-    //
-    //     MongoConnection primaryConnection = morphiumDriver.getPrimaryConnection(null);
-    //     MongoConnection con = morphiumDriver.getReadConnection(config.getDefaultReadPreference());
-    //
-    //     try {
-    //         log.warn("Existing coll " + collectionName + " is not capped - converting");
-    //         log.warn("Creating new collection with index settings");
-    //         String tmpColl = collectionName + "_tmp";
-    //         CreateCommand createCommand = new CreateCommand(primaryConnection).setCapped(true).setColl(tmpColl).setDb(getDatabase()).setMax(max).setSize(size);
-    //         createCommand.execute();
-    //         log.debug("temp-collection created - creating indexes");
-    //         var idx = getIndexesFromMongo(collectionName);
-    //         var idxMaps = new ArrayList<Map<String, Object>>();
-    //
-    //         for (IndexDescription i : idx) { idxMaps.add(i.asMap()); }
-    //
-    //         if (idx != null && !idx.isEmpty()) {
-    //             try {
-    //                 CreateIndexesCommand idxCmd = new CreateIndexesCommand(primaryConnection).setDb(getDatabase()).setColl(tmpColl).setIndexes(idxMaps).setComment("created by morphium");
-    //                 idxCmd.execute();
-    //             } catch (Exception e) {
-    //                 // swallow
-    //             }
-    //         }
-    //
-    //         log.debug("indexes created... copying data");
-    //         log.warn("copying might take some time, as data is read and written ☹️");
-    //         FindCommand fnd = new FindCommand(con).setColl(collectionName).setDb(getDatabase());
-    //         var crs = fnd.executeIterable(getConfig().getCursorBatchSize());
-    //
-    //         while (crs.hasNext()) {
-    //             InsertMongoCommand insert = new InsertMongoCommand(primaryConnection);
-    //             insert.setDocuments(crs.getBatch());
-    //             insert.setColl(tmpColl).setDb(getDatabase());
-    //             crs.ahead(crs.getBatch().size());
-    //         }
-    //
-    //         // TODO: check for error!
-    //         log.debug("dropping old collection");
-    //         DropMongoCommand dropCmd = new DropMongoCommand(primaryConnection).setColl(collectionName).setDb(getDatabase());
-    //         dropCmd.execute();
-    //         log.debug("Renaming tmp collection");
-    //         RenameCollectionCommand ren = new RenameCollectionCommand(primaryConnection);
-    //         ren.setTo(collectionName).setColl(tmpColl).setDb(getDatabase());
-    //         var r = ren.execute();
-    //         log.debug("conversion to capped complete!");
-    //     } finally {
-    //         primaryConnection.release();
-    //         con.release();
-    //     }
-    // }
-    //
-    //    public Map<String, Object> execCommand(String cmd) {
-    //        Map<String, Object> map = new HashMap<>();
-    //        map.put(cmd, "1");
-    //        return execCommandSingleResult(map);
-    //    }
-    ////
-    //    public Map<String, Object> execCommandSingleResult(Map<String, Object> command) {
-    //        Map<String, Object> ret = null;
-    //        try {
-    //            ret = morphiumDriver.runCommand(config.getDatabase(), command);
-    //        } catch (MorphiumDriverException e) {
-    //            throw new RuntimeException(e);
-    //        }
-    //        return ret;
-    //    }
-    //
-    //    public List<Map<String, Object>> execCommand(Map<String, Object> command) {
-    //        try {
-    //            return
-    // morphiumDriver.readAnswerFor(morphiumDriver.runCommand(config.getDatabase(), command));
-    //        } catch (MorphiumDriverException e) {
-    //            throw new RuntimeException(e);
-    //        }
-    //    }
     public List<Map<String, Object>> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
         GenericCommand cmd = new GenericCommand(getDriver().getPrimaryConnection(null));
 
@@ -943,24 +850,24 @@ public class Morphium implements AutoCloseable {
         return q;
     }
 
-    public <T> void set(Query<T> query, Enum<?> field, Object val) {
-        set(query, field, val, (AsyncOperationCallback<T>) null);
+    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val) {
+        return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
-        getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
+        return getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
-    public <T> void set(Query<T> query, String field, Object val) {
-        set(query, field, val, (AsyncOperationCallback<T>) null);
+    public <T> Map<String,Object> set(Query<T> query, String field, Object val) {
+        return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
-        getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
+        return getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
     @SuppressWarnings("unused")
@@ -1216,13 +1123,13 @@ public class Morphium implements AutoCloseable {
      * @param multiple - update several documents, if false, only first hit will be updated
      */
     @SuppressWarnings("unused")
-    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
-        set(query, field.name(), val, upsert, multiple, null);
+    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
+        return set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
-    public <T> void set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
-        set(query, field.name(), val, upsert, multiple, callback);
+    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+        return set(query, field.name(), val, upsert, multiple, callback);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
@@ -1230,26 +1137,26 @@ public class Morphium implements AutoCloseable {
         pull(query, field, value, upsert, multiple);
     }
 
-    public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
-        set(query, field, val, upsert, multiple, null);
+    public <T> Map<String,Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
+        return set(query, field, val, upsert, multiple, null);
     }
 
-    public <T> void set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
-        set(query, map, upsert, multiple, callback);
+        return set(query, map, upsert, multiple, callback);
     }
 
-    public void set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
-        set(query, map, upsert, multiple, null);
+    public Map<String,Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
+        return set(query, map, upsert, multiple, null);
     }
 
-    public <T> void set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
     }
 
     /**
@@ -1537,12 +1444,12 @@ public class Morphium implements AutoCloseable {
         inc(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
     public <T> void dec(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
@@ -1555,12 +1462,12 @@ public class Morphium implements AutoCloseable {
         dec(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
     public void inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
@@ -1583,96 +1490,96 @@ public class Morphium implements AutoCloseable {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
     public <T> void inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        inc(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        dec(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        dec(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        dec(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        dec(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> void dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
 
-        getWriterForClass(query.getType()).inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
+        return getWriterForClass(query.getType()).inc(query, name, -amount.doubleValue(), upsert, multiple, callback);
     }
 
     public MorphiumWriter getWriterForClass(Class<?> cls) {
