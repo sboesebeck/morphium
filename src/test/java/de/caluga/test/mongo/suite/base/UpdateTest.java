@@ -451,7 +451,8 @@ public class UpdateTest extends MultiDriverTestBase {
             }
 
             q=q.q().f("counter").gte(900).f("counter").lt(950).limit(5);
-            q.set(UncachedObject.Fields.strValue, "not all updated",false,true);
+            var ret=q.set(UncachedObject.Fields.strValue, "not all updated",false,true);
+            log.info(Utils.toJsonString(ret));
             var chk2=q.clone().f("str_value").eq("not all updated");
             Thread.sleep(1000);
             log.info("Updated: "+chk2.countAll());

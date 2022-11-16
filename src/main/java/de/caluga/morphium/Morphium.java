@@ -1304,144 +1304,144 @@ public class Morphium implements AutoCloseable {
     //
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), -amount, upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+        return dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), -amount, upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
+        return dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), amount.doubleValue(), upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+        return dec(query, field.name(), amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
-        dec(query, field.name(), amount, upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
+        return dec(query, field.name(), amount, upsert, multiple);
     }
 
-    public void dec(Query<?> query, String field, double amount, boolean upsert, boolean multiple) {
-        inc(query, field, -amount, upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, String field, double amount, boolean upsert, boolean multiple) {
+        return inc(query, field, -amount, upsert, multiple);
     }
 
-    public void dec(Query<?> query, String field, long amount, boolean upsert, boolean multiple) {
-        inc(query, field, -amount, upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, String field, long amount, boolean upsert, boolean multiple) {
+        return inc(query, field, -amount, upsert, multiple);
     }
 
-    public void dec(Query<?> query, String field, int amount, boolean upsert, boolean multiple) {
-        inc(query, field, -amount, upsert, multiple);
-    }
-
-    @SuppressWarnings("unused")
-    public void dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
-        inc(query, field, -amount.doubleValue(), upsert, multiple);
+    public Map<String,Object> dec(Query<?> query, String field, int amount, boolean upsert, boolean multiple) {
+        return inc(query, field, -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, String field, double amount) {
-        inc(query, field, -amount, false, false);
+    public Map<String,Object> dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
+        return inc(query, field, -amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, String field, long amount) {
-        inc(query, field, -amount, false, false);
-    }
-
-    public void dec(Query<?> query, String field, int amount) {
-        inc(query, field, -amount, false, false, null);
+    public Map<String,Object> dec(Query<?> query, String field, double amount) {
+        return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, String field, Number amount) {
-        inc(query, field, -amount.doubleValue(), false, false);
+    public Map<String,Object> dec(Query<?> query, String field, long amount) {
+        return inc(query, field, -amount, false, false);
+    }
+
+    public Map<String,Object> dec(Query<?> query, String field, int amount) {
+        return inc(query, field, -amount, false, false, null);
+    }
+
+    @SuppressWarnings("unused")
+    public Map<String,Object> dec(Query<?> query, String field, Number amount) {
+        return inc(query, field, -amount.doubleValue(), false, false);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void dec(Query<?> query, Enum<?> field, double amount) {
-        inc(query, field, -amount, false, false);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, double amount) {
+        return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, long amount) {
-        inc(query, field, -amount, false, false);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, long amount) {
+        return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, int amount) {
-        inc(query, field, -amount, false, false);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, int amount) {
+        return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void dec(Query<?> query, Enum<?> field, Number amount) {
-        inc(query, field, -amount.doubleValue(), false, false);
+    public Map<String,Object> dec(Query<?> query, Enum<?> field, Number amount) {
+        return inc(query, field, -amount.doubleValue(), false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, String field, long amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, String field, long amount) {
+    return    inc(query, field, amount, false, false);
     }
 
-    public void inc(Query<?> query, String field, int amount) {
-        inc(query, field, amount, false, false);
-    }
-
-    @SuppressWarnings("unused")
-    public void inc(Query<?> query, String field, Number amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, String field, int amount) {
+        return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, String field, double amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, String field, Number amount) {
+        return inc(query, field, amount, false, false);
+    }
+
+    @SuppressWarnings("unused")
+    public Map<String,Object> inc(Query<?> query, String field, double amount) {
+        return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public void inc(Query<?> query, Enum<?> field, double amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, double amount) {
+        return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum<?> field, long amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, long amount) {
+        return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum<?> field, int amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, int amount) {
+        return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public void inc(Query<?> query, Enum<?> field, Number amount) {
-        inc(query, field, amount, false, false);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, Number amount) {
+        return inc(query, field, amount, false, false);
     }
 
-    public void inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
-        inc(query, field.name(), amount, upsert, multiple);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+        return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
-        inc(query, field.name(), amount, upsert, multiple);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
+        return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
-        inc(query, field.name(), amount, upsert, multiple);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
+        return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public void inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
-        inc(query, field.name(), amount, upsert, multiple);
+    public Map<String,Object> inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+        return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public <T> void inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String,Object> inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Number> toUpdate = new HashMap<>();
 
         for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
             toUpdate.put(e.getKey().name(), e.getValue());
         }
 
-        inc(matching, toUpdate, upsert, multiple, callback);
+        return inc(matching, toUpdate, upsert, multiple, callback);
     }
 
     public <T> Map<String,Object> inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
@@ -1470,24 +1470,24 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
-    public void inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
-        inc(query, name, amount, upsert, multiple, null);
+    public Map<String,Object> inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
+        return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(final Query<?> query, final String name, final int amount, final boolean upsert, final boolean multiple) {
-        inc(query, name, amount, upsert, multiple, null);
+    public Map<String,Object> inc(final Query<?> query, final String name, final int amount, final boolean upsert, final boolean multiple) {
+        return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(final Query<?> query, final String name, final double amount, final boolean upsert, final boolean multiple) {
-        inc(query, name, amount, upsert, multiple, null);
+    public Map<String,Object> inc(final Query<?> query, final String name, final double amount, final boolean upsert, final boolean multiple) {
+        return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public void inc(final Query<?> query, final String name, final Number amount, final boolean upsert, final boolean multiple) {
-        inc(query, name, amount, upsert, multiple, null);
+    public Map<String,Object> inc(final Query<?> query, final String name, final Number amount, final boolean upsert, final boolean multiple) {
+        return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public <T> void inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        inc(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
     public <T> Map<String,Object> inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1498,8 +1498,8 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        inc(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
     public <T> Map<String,Object> inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1510,8 +1510,8 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> void inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
-        inc(query, field.name(), amount, upsert, multiple, callback);
+    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+        return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
     public <T> Map<String,Object> inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
