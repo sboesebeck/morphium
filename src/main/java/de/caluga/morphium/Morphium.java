@@ -163,8 +163,8 @@ public class Morphium implements AutoCloseable {
             }
         };
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-            TimeUnit.MILLISECONDS, queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor) -> {
+          TimeUnit.MILLISECONDS, queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)->{
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -217,7 +217,7 @@ public class Morphium implements AutoCloseable {
             });
 
             try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                .scan()) {
+             .scan()) {
                 ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
 
                 // entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
@@ -423,55 +423,55 @@ public class Morphium implements AutoCloseable {
         if (capped != null && !capped.isEmpty()) {
             for (Class cls : capped.keySet()) {
                 switch (config.getCappedCheck()) {
-                    case WARN_ON_STARTUP:
-                        log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
-                        break;
+                case WARN_ON_STARTUP:
+                    log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
+                    break;
 
-                    case CONVERT_EXISTING_ON_STARTUP:
-                        try {
-                            if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                log.warn("Existing collection is not capped - ATTENTION!");
-                                // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
-                            }
-                        } catch (MorphiumDriverException e) {
-                            throw new RuntimeException(e);
+                case CONVERT_EXISTING_ON_STARTUP:
+                    try {
+                        if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                            log.warn("Existing collection is not capped - ATTENTION!");
+                            // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
                         }
+                    } catch (MorphiumDriverException e) {
+                        throw new RuntimeException(e);
+                    }
 
-                        break;
+                    break;
 
-                    case CREATE_ON_STARTUP:
-                        try {
-                            if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                                MongoConnection primaryConnection = null;
+                case CREATE_ON_STARTUP:
+                    try {
+                        if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                            MongoConnection primaryConnection = null;
 
-                                try {
-                                    primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                                    CreateCommand cmd = new CreateCommand(primaryConnection);
-                                    cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
-                                    var ret = cmd.execute();
-                                    log.debug("Created capped collection");
-                                } catch (MorphiumDriverException e) {
-                                    throw new RuntimeException(e);
-                                } finally {
-                                    if (primaryConnection != null) { primaryConnection.release(); }
-                                }
+                            try {
+                                primaryConnection = morphiumDriver.getPrimaryConnection(null);
+                                CreateCommand cmd = new CreateCommand(primaryConnection);
+                                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
+                                var ret = cmd.execute();
+                                log.debug("Created capped collection");
+                            } catch (MorphiumDriverException e) {
+                                throw new RuntimeException(e);
+                            } finally {
+                                if (primaryConnection != null) { primaryConnection.release(); }
                             }
-                        } catch (MorphiumDriverException e) {
-                            throw new RuntimeException(e);
                         }
+                    } catch (MorphiumDriverException e) {
+                        throw new RuntimeException(e);
+                    }
 
-                    case CREATE_ON_WRITE_NEW_COL:
-                    case NO_CHECK:
-                        break;
+                case CREATE_ON_WRITE_NEW_COL:
+                case NO_CHECK:
+                    break;
 
-                    default:
-                        throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
+                default:
+                    throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
                 }
             }
         }
 
         if (!config.getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && config.getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
-            Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo -> !classInfo.getPackageName().startsWith("de.caluga.morphium"));
+            Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
 
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
@@ -636,7 +636,7 @@ public class Morphium implements AutoCloseable {
         return null;
     }
 
-    public <T> Query<T> createQueryByTemplate(T template, String... fields) {
+    public <T> Query<T> createQueryByTemplate(T template, String ... fields) {
         Class cls = template.getClass();
         List<String> flds;
 
@@ -670,7 +670,7 @@ public class Morphium implements AutoCloseable {
      * @return result of search
      */
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
-    public <T> List<T> findByTemplate(T template, String... fields) {
+    public <T> List<T> findByTemplate(T template, String ... fields) {
         return createQueryByTemplate(template, fields).asList();
     }
 
@@ -710,36 +710,36 @@ public class Morphium implements AutoCloseable {
         wr.unset(toSet, collection, field, callback);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, String... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, String ... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, String... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, String ... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, Enum... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, Enum ... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, Enum... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, Enum ... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String ... field) {
         return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
     @SuppressWarnings({"unused", "UnusedParameters"})
-    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, boolean multiple, String ... field) {
         return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, Enum... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, Enum ... field) {
         return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
-    public <T> Map<String,Object> unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum... field) {
+    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, AsyncOperationCallback<T> cb, Enum ... field) {
         return getWriterForClass(q.getType()).unset(q, cb, multiple, field);
     }
 
@@ -779,7 +779,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        Runnable r = () -> {
+        Runnable r = ()->{
             String coll = getMapper().getCollectionName(c);
             //                DBCollection collection = null;
 
@@ -850,21 +850,21 @@ public class Morphium implements AutoCloseable {
         return q;
     }
 
-    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val) {
+    public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val) {
         return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         return getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
-    public <T> Map<String,Object> set(Query<T> query, String field, Object val) {
+    public <T> Map<String, Object> set(Query<T> query, String field, Object val) {
         return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> Map<String,Object> set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
         return getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
@@ -1062,7 +1062,7 @@ public class Morphium implements AutoCloseable {
         if (entity == null) { throw new IllegalArgumentException("Null Entity cannot be pulled..."); }
 
         //noinspection unchecked
-        pull((Query<T>) createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
+        pull((Query<T>)createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
     }
 
     public <T> void pull(final Query<T> query, final String field, final Expr value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
@@ -1123,12 +1123,12 @@ public class Morphium implements AutoCloseable {
      * @param multiple - update several documents, if false, only first hit will be updated
      */
     @SuppressWarnings("unused")
-    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
+    public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
         return set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
-    public <T> Map<String,Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return set(query, field.name(), val, upsert, multiple, callback);
     }
 
@@ -1137,21 +1137,21 @@ public class Morphium implements AutoCloseable {
         pull(query, field, value, upsert, multiple);
     }
 
-    public <T> Map<String,Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
+    public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
         return set(query, field, val, upsert, multiple, null);
     }
 
-    public <T> Map<String,Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
         return set(query, map, upsert, multiple, callback);
     }
 
-    public Map<String,Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
+    public Map<String, Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
         return set(query, map, upsert, multiple, null);
     }
 
-    public <T> Map<String,Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1304,137 +1304,137 @@ public class Morphium implements AutoCloseable {
     //
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         return dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
         return dec(query, field.name(), -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         return dec(query, field.name(), amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
         return dec(query, field.name(), amount, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Query<?> query, String field, double amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, String field, double amount, boolean upsert, boolean multiple) {
         return inc(query, field, -amount, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Query<?> query, String field, long amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, String field, long amount, boolean upsert, boolean multiple) {
         return inc(query, field, -amount, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Query<?> query, String field, int amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, String field, int amount, boolean upsert, boolean multiple) {
         return inc(query, field, -amount, upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Query<?> query, String field, Number amount, boolean upsert, boolean multiple) {
         return inc(query, field, -amount.doubleValue(), upsert, multiple);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, String field, double amount) {
+    public Map<String, Object> dec(Query<?> query, String field, double amount) {
         return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, String field, long amount) {
+    public Map<String, Object> dec(Query<?> query, String field, long amount) {
         return inc(query, field, -amount, false, false);
     }
 
-    public Map<String,Object> dec(Query<?> query, String field, int amount) {
+    public Map<String, Object> dec(Query<?> query, String field, int amount) {
         return inc(query, field, -amount, false, false, null);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, String field, Number amount) {
+    public Map<String, Object> dec(Query<?> query, String field, Number amount) {
         return inc(query, field, -amount.doubleValue(), false, false);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, double amount) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, double amount) {
         return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, long amount) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, long amount) {
         return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, int amount) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, int amount) {
         return inc(query, field, -amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> dec(Query<?> query, Enum<?> field, Number amount) {
+    public Map<String, Object> dec(Query<?> query, Enum<?> field, Number amount) {
         return inc(query, field, -amount.doubleValue(), false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, String field, long amount) {
-    return    inc(query, field, amount, false, false);
+    public Map<String, Object> inc(Query<?> query, String field, long amount) {
+        return inc(query, field, amount, false, false);
     }
 
-    public Map<String,Object> inc(Query<?> query, String field, int amount) {
+    public Map<String, Object> inc(Query<?> query, String field, int amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, String field, Number amount) {
+    public Map<String, Object> inc(Query<?> query, String field, Number amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, String field, double amount) {
+    public Map<String, Object> inc(Query<?> query, String field, double amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, double amount) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, double amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, long amount) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, long amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, int amount) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, int amount) {
         return inc(query, field, amount, false, false);
     }
 
     @SuppressWarnings("unused")
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, Number amount) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, Number amount) {
         return inc(query, field, amount, false, false);
     }
 
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, double amount, boolean upsert, boolean multiple) {
         return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, long amount, boolean upsert, boolean multiple) {
         return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, int amount, boolean upsert, boolean multiple) {
         return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public Map<String,Object> inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
+    public Map<String, Object> inc(Query<?> query, Enum<?> field, Number amount, boolean upsert, boolean multiple) {
         return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public <T> Map<String,Object> inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Number> toUpdate = new HashMap<>();
 
         for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
@@ -1444,7 +1444,7 @@ public class Morphium implements AutoCloseable {
         return inc(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1462,7 +1462,7 @@ public class Morphium implements AutoCloseable {
         dec(matching, toUpdate, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final Map<String, Number> toUpdate, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1470,27 +1470,27 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, toUpdate, upsert, multiple, callback);
     }
 
-    public Map<String,Object> inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
+    public Map<String, Object> inc(final Query<?> query, final String name, final long amount, final boolean upsert, final boolean multiple) {
         return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public Map<String,Object> inc(final Query<?> query, final String name, final int amount, final boolean upsert, final boolean multiple) {
+    public Map<String, Object> inc(final Query<?> query, final String name, final int amount, final boolean upsert, final boolean multiple) {
         return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public Map<String,Object> inc(final Query<?> query, final String name, final double amount, final boolean upsert, final boolean multiple) {
+    public Map<String, Object> inc(final Query<?> query, final String name, final double amount, final boolean upsert, final boolean multiple) {
         return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public Map<String,Object> inc(final Query<?> query, final String name, final Number amount, final boolean upsert, final boolean multiple) {
+    public Map<String, Object> inc(final Query<?> query, final String name, final Number amount, final boolean upsert, final boolean multiple) {
         return inc(query, name, amount, upsert, multiple, null);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1498,11 +1498,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1510,11 +1510,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1522,11 +1522,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return inc(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1534,11 +1534,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final Enum<?> field, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final String name, final long amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1546,11 +1546,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final Enum<?> field, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final String name, final int amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1558,11 +1558,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final Enum<?> field, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final String name, final double amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -1570,11 +1570,11 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, -amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final Enum<?> field, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return dec(query, field.name(), amount, upsert, multiple, callback);
     }
 
-    public <T> Map<String,Object> dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> dec(final Query<T> query, final String name, final Number amount, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
         }
@@ -2340,13 +2340,27 @@ public class Morphium implements AutoCloseable {
 
     public <T> Query<T> createQueryFor(Class<? extends T> type, String usingCollectionName) {
         //noinspection unchecked
-        return (Query<T>) createQueryFor(type).setCollectionName(usingCollectionName);
+        return (Query<T>)createQueryFor(type).setCollectionName(usingCollectionName);
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
         Query<T> q = new Query<>(this, type, getAsyncOperationsThreadPool());
         q.setAutoValuesEnabled(isAutoValuesEnabledForThread());
         return q;
+    }
+    public int getEstimatedCount(Class<?> type) {
+        try {
+            var stats = getCollStats(getMapper().getCollectionName(type));
+
+            if (stats == null || stats.isEmpty()) { return 0; }
+
+            return (Integer)stats.get("count");
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public long getCount(Class<?> type) {
+        return createQueryFor(type).countAll();
     }
 
     /**
@@ -3794,19 +3808,19 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, null, lst));
+        asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, null, lst));
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(collectionName, updateFull, pipeline, lst));
+        asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, pipeline, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, null, lst));
+        asyncOperationsThreadPool.execute(()->watch(entity, updateFull, null, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(() -> watch(entity, updateFull, pipeline, lst));
+        asyncOperationsThreadPool.execute(()->watch(entity, updateFull, pipeline, lst));
     }
 
     public <T> void watch(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
@@ -3828,8 +3842,7 @@ public class Morphium implements AutoCloseable {
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
             MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-            WatchCommand settings = new WatchCommand(primaryConnection).setDb(config.getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline).setFullDocument(
-            updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
+            WatchCommand settings = new WatchCommand(primaryConnection).setDb(config.getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
                 boolean b = true;
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
@@ -3857,7 +3870,7 @@ public class Morphium implements AutoCloseable {
 
     public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
-        asyncOperationsThreadPool.execute(() -> {
+        asyncOperationsThreadPool.execute(()->{
             watchDb(dbName, updateFull, null, runningFlag, lst);
             log.debug("watch async finished");
         });
@@ -3890,7 +3903,7 @@ public class Morphium implements AutoCloseable {
         try {
             con = getDriver().getPrimaryConnection(null);
             WatchCommand cmd = new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup :
-            WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
+              WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
                     ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, data);
@@ -4117,11 +4130,11 @@ public class Morphium implements AutoCloseable {
 
         // initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-            //                     .verbose()             // Enable verbose logging
-            .enableAnnotationInfo()
-            //                             .enableFieldInfo()
-            .enableClassInfo() // Scan classes, methods, fields, annotations
-            .scan()) {
+         //                     .verbose()             // Enable verbose logging
+         .enableAnnotationInfo()
+         //                             .enableFieldInfo()
+         .enableClassInfo()       // Scan classes, methods, fields, annotations
+         .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
             if (filter != null) {
@@ -4196,10 +4209,12 @@ public class Morphium implements AutoCloseable {
         q = q.clone();
         var qRet = q.q();
         var fields = getARHelper().getFields(q.getType(), LockedBy.class);
-        var tsFields= getARHelper().getFields(q.getType(), LockedAt.class);
-        for (String f:fields){
+        var tsFields = getARHelper().getFields(q.getType(), LockedAt.class);
+
+        for (String f : fields) {
             qRet.f(f).eq(lockId);
         }
+
         UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(q.getType())));
         cmd.setDb(getDatabase()).setColl(q.getCollectionName());
         List<Map<String, Object>> updates = new ArrayList<>();
@@ -4214,12 +4229,11 @@ public class Morphium implements AutoCloseable {
                 //.setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)));
             }
 
-
             for (String f : tsFields) {
                 upd.put(f, System.currentTimeMillis());
             }
-            updates.add(Doc.of("q", q.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
 
+            updates.add(Doc.of("q", q.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
         }
 
         cmd.setUpdates(updates);
