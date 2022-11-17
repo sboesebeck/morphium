@@ -669,7 +669,10 @@ public class Query<T> implements Cloneable {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add where when raw query is defined!");
         }
-
+        FilterExpression w=new FilterExpression();
+        w.setField("$where");
+        w.setValue(wh);
+        andExpr.add(w);
         where = wh;
         return this;
     }
@@ -1012,11 +1015,8 @@ public class Query<T> implements Cloneable {
 
         Map<String, Object> o = new LinkedHashMap<>();
         List<Map<String, Object>> lst = new ArrayList<>();
-        boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty() && where == null;
+        boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty();
 
-        if (where != null) {
-            o.put("$where", where);
-        }
 
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
