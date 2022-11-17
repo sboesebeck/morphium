@@ -59,6 +59,7 @@ public class QueryHelper {
         // }
 
         //noinspection LoopStatementThatDoesntLoop
+        boolean ret=false;
         for (String keyQuery : query.keySet()) {
             switch (keyQuery) {
                 case "$and": {
@@ -120,8 +121,12 @@ public class QueryHelper {
                         }
 
                         return Boolean.TRUE.equals(result);
-                    
                     }
+
+                case "$where":
+                    ret=runWhere(query, toCheck);
+
+                    continue;
 
                 default:
 
@@ -152,29 +157,7 @@ public class QueryHelper {
 
                         switch (commandKey) {
                             case "$where":
-                                System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
-                                ScriptEngineManager mgr = new ScriptEngineManager();
-                                ScriptEngine engine = mgr.getEngineByExtension("js");
-
-                                // engine.eval("print('Hello World!');");
-                                if (engine != null) {
-                                    engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
-
-                                    for (String k : toCheck.keySet()) {
-                                        engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
-                                    }
-
-                                    // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
-                                    try {
-                                        Object result = engine.eval((String) query.get("$where"));
-                                        //if (result == null || result.equals(Boolean.FALSE)) { return false; }
-                                        return result.equals(Boolean.TRUE);
-                                    } catch (ScriptException e) {
-                                        throw new RuntimeException("Scripting error", e);
-                                    }
-                                }
-
-                                return false;
+                                return runWhere(query, toCheck);
 
                             case "$eq":
                                 if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) == null) { return true; }
@@ -859,6 +842,34 @@ public class QueryHelper {
                         return toCheck.get(keyQuery).equals(query.get(keyQuery));
                     }
             }
+        }
+
+        return ret;
+    }
+
+    private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
+        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+        ScriptEngineManager mgr = new ScriptEngineManager();
+        ScriptEngine engine = mgr.getEngineByExtension("js");
+
+        // engine.eval("print('Hello World!');");
+        if (engine != null) {
+            engine.getContext().setAttribute("obj", toCheck, ScriptContext.ENGINE_SCOPE);
+
+            for (String k : toCheck.keySet()) {
+                engine.getContext().setAttribute(k, toCheck.get(k), ScriptContext.ENGINE_SCOPE);
+            }
+
+            // engine.getContext().setAttribute("this", toCheck, ScriptContext.ENGINE_SCOPE);
+            try {
+                Object result = engine.eval((String) query.get("$where"));
+                //if (result == null || result.equals(Boolean.FALSE)) { return false; }
+                return result.equals(Boolean.TRUE);
+            } catch (ScriptException e) {
+                throw new RuntimeException("Scripting error", e);
+            }
+        } else {
+            log.error("Could not create javscript engine!");
         }
 
         return false;

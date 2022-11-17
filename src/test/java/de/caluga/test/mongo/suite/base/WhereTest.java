@@ -26,12 +26,12 @@ public class WhereTest extends MultiDriverTestBase {
 
         try(m) {
             createUncachedObjects(m,100);
-            // Thread.sleep(500);
+            Thread.sleep(500);
             Query<UncachedObject> q = m.createQueryFor(UncachedObject.class);
             q = q.where("this.counter > 15");
             List<UncachedObject> lst = q.asList();
-            assertEquals(85, lst.size(), "wrong number of results");
-            assertEquals(85, q.countAll(), "Count wrong");
+            assertEquals(85, lst.size(), "wrong number of results for "+m.getDriver().getName());
+            assertEquals(85, q.countAll(), "Count wrong for "+m.getDriver().getName());
         }
     }
 

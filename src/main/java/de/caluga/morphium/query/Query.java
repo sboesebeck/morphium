@@ -1842,11 +1842,11 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> inc(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        inc(field.name(), value, upsert, multiple, cb);
+        return inc(field.name(), value, upsert, multiple, cb);
     }
 
     public Map<String, Object> inc(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        inc(field.name(), value, upsert, multiple, cb);
+        return inc(field.name(), value, upsert, multiple, cb);
     }
 
     public Map<String, Object> inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
