@@ -3,11 +3,12 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+
 
 import java.util.List;
 
@@ -35,4 +36,30 @@ public class WhereTest extends MultiDriverTestBase {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void whereTest(Morphium morphium) {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+
+        try(morphium) {
+            for (int i = 1; i <= 100; i++) {
+                UncachedObject o = new UncachedObject();
+                o.setCounter(i);
+                o.setStrValue("Uncached " + i);
+                morphium.store(o);
+            }
+
+            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+            q.where("this.counter<10").f("counter").gt(5);
+            log.info(q.toQueryObject().toString());
+            List<UncachedObject> lst = q.asList();
+
+            for (UncachedObject o : lst) {
+                assertThat(o.getCounter()).describedAs("Counter should be >5 and <10 but is: %d", o.getCounter()).isLessThan(10).isGreaterThan(5);
+            }
+
+            assert(morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+        }
+    }
 }

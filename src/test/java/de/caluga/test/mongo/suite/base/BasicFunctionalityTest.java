@@ -1,12 +1,26 @@
-/*
- * To change this template, choose Tools | Templates
- * and open the template in the editor.
- */
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
@@ -25,19 +39,6 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.bson.types.ObjectId;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.lang.reflect.Field;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 
 /**
@@ -48,45 +49,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);
 
-    private static AtomicInteger testNumber = new AtomicInteger(0);
-    private static Properties props = null;
 
     public BasicFunctionalityTest() {
     }
 
-    @Test
-    //@Ignore("setWarnOnNoEntitySerialization(true) ist not possible in this static environment")
-    public void mapSerializationTest() {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        ObjectMapperImpl OM = (ObjectMapperImpl) morphium.getMapper();
-        morphium.getConfig().setWarnOnNoEntitySerialization(true);
-        Map<String, Object> map = OM.serialize(new ObjectMapperImplTest.Simple());
-        log.info("Got map");
-        assert(map.get("test").toString().startsWith("test"));
-        ObjectMapperImplTest.Simple s = OM.deserialize(ObjectMapperImplTest.Simple.class, map);
-        log.info("Got simple");
-        Map<String, Object> m = new HashMap<>();
-        m.put("test", "testvalue");
-        m.put("simple", s);
-        map = OM.serializeMap(m, null);
-        assert(map.get("test").equals("testvalue"));
-        List<ObjectMapperImplTest.Simple> lst = new ArrayList<>();
-        lst.add(new ObjectMapperImplTest.Simple());
-        lst.add(new ObjectMapperImplTest.Simple());
-        lst.add(new ObjectMapperImplTest.Simple());
-        List serializedList = OM.serializeIterable(lst, null, null);
-        assert(serializedList.size() == 3);
-        List<ObjectMapperImplTest.Simple> deserializedList = OM.deserializeList(serializedList);
-        log.info("Deserialized");
-        morphium.getConfig().setWarnOnNoEntitySerialization(false);
-    }
 
-
-    @Test
-    public void readPreferenceTest() {
-        ReadPreferenceLevel.NEAREST.setPref(ReadPreference.nearest());
-        assert(ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -121,61 +88,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void getDatabaseListTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            morphium.save(new UncachedObject("str", 1));
-            List<String> dbs = morphium.listDatabases();
-            assertNotNull(dbs);
-            assert(dbs.size() != 0);
-
-            for (String s : dbs) {
-                log.info("Got DB: " + s);
-            }
-        }
-    }
-
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void reconnectDatabaseTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            List<String> dbs = morphium.listDatabases();
-            assertNotNull(dbs);
-            assertThat(dbs.size()).isNotEqualTo(0);
-
-            for (String s : dbs) {
-                log.info("Got DB: " + s);
-                morphium.reconnectToDb(s);
-                log.info("Logged in...");
-                Thread.sleep(100);
-            }
-
-            morphium.reconnectToDb("morphium_test");
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void listCollections(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            UncachedObject u = new UncachedObject("test", 1);
-            morphium.store(u);
-            List<String> cols = morphium.listCollections();
-            assertNotNull(cols);
-            ;
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -352,100 +264,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void whereTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            for (int i = 1; i <= NO_OBJECTS; i++) {
-                UncachedObject o = new UncachedObject();
-                o.setCounter(i);
-                o.setStrValue("Uncached " + i);
-                morphium.store(o);
-            }
-
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q.where("this.counter<10").f("counter").gt(5);
-            log.info(q.toQueryObject().toString());
-            List<UncachedObject> lst = q.asList();
-
-            for (UncachedObject o : lst) {
-                assertThat(o.getCounter()).describedAs("Counter should be >5 and <10 but is: %d", o.getCounter()).isLessThan(10).isGreaterThan(5);
-            }
-
-            assert(morphium.getStatistics().get("X-Entries for: idCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void existsTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            for (int i = 1; i <= 10; i++) {
-                UncachedObject o = new UncachedObject();
-                o.setCounter(i);
-                o.setStrValue("Uncached " + i);
-                morphium.store(o);
-            }
-
-            long s = System.currentTimeMillis();
-
-            while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
-                Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
-
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q = q.f("counter").exists().f("str_value").eq("Uncached 1");
-            long c = q.countAll();
-            s = System.currentTimeMillis();
-
-            while (c != 1) {
-                c = q.countAll();
-                Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-            }
-
-            assert(c == 1) : "Count wrong: " + c;
-            UncachedObject o = q.get();
-            s = System.currentTimeMillis();
-
-            while (o == null) {
-                Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-                o = q.get();
-            }
-
-            assert(o.getCounter() == 1);
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void notExistsTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            for (int i = 1; i <= 10; i++) {
-                UncachedObject o = new UncachedObject();
-                o.setCounter(i);
-                o.setStrValue("Uncached " + i);
-                morphium.store(o);
-            }
-
-            Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
-            q = q.f("counter").notExists().f("str_value").eq("Uncached 1");
-            long c = q.countAll();
-            assertEquals(0, c);
-        }
-    }
-
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -455,7 +273,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
         try(morphium) {
             log.info("Storing Uncached objects...");
-            long start = System.currentTimeMillis();
+            // long start = System.currentTimeMillis();
             UncachedObject last = null;
 
             for (int i = 1; i <= NO_OBJECTS; i++) {
@@ -489,7 +307,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
         try(morphium) {
             log.info("Storing Uncached objects...");
-            long start = System.currentTimeMillis();
+            // long start = System.currentTimeMillis();
 
             for (int i = 1; i <= NO_OBJECTS; i++) {
                 UncachedObject o = new UncachedObject();
@@ -954,19 +772,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void testExistst(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try(morphium) {
-            morphium.store(new UncachedObject("value", 123));
-            assertTrue(morphium.getDriver().exists(morphium.getConfig().getDatabase()));
-        }
-    }
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testFindOneAndDelete(Morphium morphium) throws Exception {
@@ -1002,95 +807,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     }
 
 
-    @Test
-    public void shardingReplacementTest() throws Exception {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
-
-        try {
-            var cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
-            int msgid = con.sendCommand(cmd);
-            Map<String, Object> state = con.readSingleAnswer(msgid);
-        } catch (MorphiumDriverException e) {
-            log.info("Not sharded, it seems");
-            con.release();
-            return;
-        }
-
-        try {
-            GenericCommand cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class))
-            .addKey("key", Doc.of("_id", "hashed")).setDb("admin");
-            int msgid = con.sendCommand(cmd);
-            // con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
-            //                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
-            Map<String, Object> state = con.readSingleAnswer(msgid);
-        } catch (MorphiumDriverException e) {
-            log.error("Sharding is enabled, but morphium_test sharding is not it seems");
-            con.release();
-            return;
-        }
-
-        createUncachedObjects(morphium, 10000);
-        UncachedObject uc = new UncachedObject("toReplace", 1234);
-        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
-        Thread.sleep(100);
-        uc.setStrValue("again");
-        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
-        morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert(uc.getStrValue().equals("again"));
-        uc = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).get();
-        uc.setStrValue("another value");
-        morphium.store(uc, morphium.getMapper().getCollectionName(UncachedObject.class), null);
-        Thread.sleep(100);
-        morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
-        assert(uc.getStrValue().equals("another value"));
-    }
-
-
-    @Test
-    public void shardingStringIdReplacementTest() throws Exception {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
-
-        try {
-            var cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
-            int msgid = con.sendCommand(cmd);
-            Map<String, Object> state = con.readSingleAnswer(msgid);
-        } catch (MorphiumDriverException e) {
-            log.info("Not sharded, it seems");
-            con.release();
-            return;
-        }
-
-        try {
-            GenericCommand cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class))
-            .addKey("key", Doc.of("_id", "hashed")).setDb("admin");
-            int msgid = con.sendCommand(cmd);
-            Map<String, Object> state = con.readSingleAnswer(msgid);
-        } catch (MorphiumDriverException e) {
-            log.error("Sharding is enabled, but morphium_test sharding is not it seems");
-            con.release();
-            return;
-        }
-
-        StringIdTestEntity uc = new StringIdTestEntity();
-        uc.value = "test123e";
-        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
-        Thread.sleep(100);
-        uc.value = "again";
-        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
-        morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
-        assert(uc.value.equals("again"));
-        uc = new StringIdTestEntity();
-        uc.value = "test123";
-        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
-        uc = morphium.createQueryFor(StringIdTestEntity.class).f(StringIdTestEntity.Fields.value).eq("test123").get();
-        uc.value = "another value";
-        morphium.store(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class), null);
-        Thread.sleep(100);
-        morphium.reread(uc, morphium.getMapper().getCollectionName(StringIdTestEntity.class));
-        assert(uc.value.equals("another value"));
-    }
 
 
     @Entity

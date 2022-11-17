@@ -20,6 +20,7 @@ import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
@@ -55,6 +56,30 @@ public class ObjectMapperTest {
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assertNotNull(c.simpleId);
         ;
+    }
+    @Test
+    public void mapSerializationTest() {
+        var OM = new ObjectMapperImpl();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
+        OM.setAnnotationHelper(an);
+        Map<String, Object> map = OM.serialize(new ObjectMapperImplTest.Simple());
+        log.info("Got map");
+        assert(map.get("test").toString().startsWith("test"));
+        ObjectMapperImplTest.Simple s = OM.deserialize(ObjectMapperImplTest.Simple.class, map);
+        log.info("Got simple");
+        Map<String, Object> m = new HashMap<>();
+        m.put("test", "testvalue");
+        m.put("simple", s);
+        map = OM.serializeMap(m, null);
+        assert(map.get("test").equals("testvalue"));
+        List<ObjectMapperImplTest.Simple> lst = new ArrayList<>();
+        lst.add(new ObjectMapperImplTest.Simple());
+        lst.add(new ObjectMapperImplTest.Simple());
+        lst.add(new ObjectMapperImplTest.Simple());
+        List serializedList = OM.serializeIterable(lst, null, null);
+        assert(serializedList.size() == 3);
+        List<ObjectMapperImplTest.Simple> deserializedList = OM.deserializeList(serializedList);
+        log.info("Deserialized "+deserializedList.size());
     }
 
     @Test
