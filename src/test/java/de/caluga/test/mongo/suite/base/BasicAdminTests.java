@@ -133,7 +133,7 @@ public class BasicAdminTests extends MultiDriverTestBase{
 
             long s = System.currentTimeMillis();
 
-            while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
+            while (TestUtils.countUC(morphium) < 10) {
                 Thread.sleep(100);
                 assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }

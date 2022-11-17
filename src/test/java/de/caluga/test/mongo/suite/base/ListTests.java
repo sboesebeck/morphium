@@ -79,7 +79,7 @@ public class ListTests extends MorphiumTestBase {
         }
 
         morphium.store(lst);
-        Thread.sleep(100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Did not write", ()->morphium.createQueryFor(ListContainer.class).f("_id").eq(lst.getId()).get()!=null);
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = q.get();

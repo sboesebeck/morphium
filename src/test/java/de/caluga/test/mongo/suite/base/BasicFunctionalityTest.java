@@ -682,7 +682,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             morphium.insert(lst);
-            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->morphium.createQueryFor(UncachedObject.class).countAll()==100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->TestUtils.countUC(morphium)==100);
             List<UncachedObject> lst2 = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
@@ -781,7 +781,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
             assertEquals(ret.getStrValue(), "value");
             Thread.sleep(100);
-            assertEquals(morphium.createQueryFor(UncachedObject.class).countAll(), 0);
+            assertEquals(TestUtils.countUC(morphium), 0);
         }
     }
 
@@ -797,7 +797,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Thread.sleep(150);
             UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndUpdate(UtilsMap.of("$set", UtilsMap.of("counter", 42)));
             assertEquals("value", ret.getStrValue());
-            assertEquals(1, morphium.createQueryFor(UncachedObject.class).countAll());
+            assertEquals(1, TestUtils.countUC(morphium));
             morphium.reread(uc);
             assertEquals(42, uc.getCounter());
         }

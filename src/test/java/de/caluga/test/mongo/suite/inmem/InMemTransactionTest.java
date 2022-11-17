@@ -1,6 +1,10 @@
 package de.caluga.test.mongo.suite.inmem;
 
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import org.junit.jupiter.api.Test;
 
 /**
@@ -8,7 +12,6 @@ import org.junit.jupiter.api.Test;
  * Date: 03.07.18
  * Time: 22:01
  * <p>
- * TODO: Add documentation here
  */
 public class InMemTransactionTest extends MorphiumInMemTestBase {
 
@@ -19,11 +22,11 @@ public class InMemTransactionTest extends MorphiumInMemTestBase {
         morphium.startTransaction();
         UncachedObject u = new UncachedObject("test", 101);
         morphium.store(u);
-        long l = morphium.createQueryFor(UncachedObject.class).countAll();
+        long l = TestUtils.countUC(morphium);
         assert (l == 11) : "Count wrong: " + l;
         morphium.abortTransaction();
         Thread.sleep(1000);
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+        assertEquals(10, TestUtils.countUC(morphium));
 
     }
 

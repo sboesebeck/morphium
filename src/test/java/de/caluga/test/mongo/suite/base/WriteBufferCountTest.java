@@ -53,8 +53,8 @@ public class WriteBufferCountTest extends MorphiumTestBase {
         assert (c != 0);
 
         long s = System.currentTimeMillis();
-        while (morphium.createQueryFor(UncachedObject.class).countAll() < 10000) {
-            log.info("Count: " + morphium.createQueryFor(UncachedObject.class).countAll());
+        while (TestUtils.countUC(morphium) < 10000) {
+            log.info("Count: " + TestUtils.countUC(morphium));
             Thread.sleep(1500);
             assertTrue (System.currentTimeMillis() - s < 15000);
         }

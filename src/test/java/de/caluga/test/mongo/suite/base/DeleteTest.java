@@ -21,10 +21,10 @@ public class DeleteTest extends MultiDriverTestBase {
     public void uncachedDeleteSingle(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 10);
-            TestUtils.waitForConditionToBecomeTrue(1000, "create failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            TestUtils.waitForConditionToBecomeTrue(1000, "create failed", () -> TestUtils.countUC(morphium) == 10);
             UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
             morphium.delete(u);
-            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> TestUtils.countUC(morphium) == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
                 assert (!uc.getMorphiumId().equals(u.getMorphiumId()));
@@ -37,10 +37,10 @@ public class DeleteTest extends MultiDriverTestBase {
     public void uncachedDeleteQuery(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 10);
-            TestUtils.waitForConditionToBecomeTrue(1000, "Count!=10 still", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 10);
+            TestUtils.waitForConditionToBecomeTrue(1000, "Count!=10 still", () -> TestUtils.countUC(morphium) == 10);
             UncachedObject u = morphium.createQueryFor(UncachedObject.class).get();
             morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").eq(u.getCounter()));
-            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> morphium.createQueryFor(UncachedObject.class).countAll() == 9);
+            TestUtils.waitForConditionToBecomeTrue(1000, "delete failed", () -> TestUtils.countUC(morphium) == 9);
             List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).asList();
             for (UncachedObject uc : lst) {
                 assert (!uc.getMorphiumId().equals(u.getMorphiumId()));

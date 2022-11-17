@@ -49,7 +49,7 @@ public class SortingTest extends MultiDriverTestBase {
         log.info("Sending bulk write...");
         morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> morphium.createQueryFor(UncachedObject.class).countAll()==5002);
+        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> TestUtils.countUC(morphium)==5002);
     }
 
     @ParameterizedTest

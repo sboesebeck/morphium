@@ -45,7 +45,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
             }
             morphium.storeList(lst);
             Thread.sleep(1000);
-            long l = morphium.createQueryFor(UncachedObject.class).countAll();
+            long l = TestUtils.countUC(morphium);
             assert (l == 4212) : "Count wrong: " + l;
 
             for (UncachedObject u : lst) {
@@ -136,7 +136,7 @@ public class BulkInsertTest extends MultiDriverTestBase {
             long dur = System.currentTimeMillis() - start;
             log.info("storing objects one by one async took " + dur + " ms");
             Thread.sleep(500);
-            assertEquals(100, morphium.createQueryFor(UncachedObject.class).countAll(), "Write wrong!");
+            assertEquals(100, TestUtils.countUC(morphium), "Write wrong!");
             assertTrue (asyncSuccess,"Async call failed");
             assertTrue (asyncCall,"Async callback not called");
 
