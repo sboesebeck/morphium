@@ -450,14 +450,14 @@ public class UpdateTest extends MultiDriverTestBase {
                 assertEquals("i was updated",o.getStrValue(),"Wrong result?");
             }
 
-            q=q.q().f("counter").gte(900).f("counter").lt(950).limit(5);
+            q=q.q().f("counter").gte(900).f("counter").lt(950).f("str_value").ne("not all updated").limit(5);
             var ret=q.set(UncachedObject.Fields.strValue, "not all updated",false,true);
             log.info(Utils.toJsonString(ret));
-            var chk2=q.clone().f("str_value").eq("not all updated");
+            var chk2=q.q().f("counter").gte(900).f("counter").lt(950).f("str_value").eq("not all updated");
             Thread.sleep(1000);
             log.info("Updated: "+chk2.countAll());
             TestUtils.waitForConditionToBecomeTrue(5000, "Update failed!", ()->chk2.countAll()==5);
-            lst=q.asList();
+            lst=q.q().f("counter").gte(900).f("counter").lt(950).asList();
             int count=0;
             for (var o :lst){
                 if (o.getStrValue().equals("not all updated")) count++;

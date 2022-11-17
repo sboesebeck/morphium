@@ -8,8 +8,8 @@ for f in $failed; do
   cls=${f%#*}
   m=${f#*#}
   m=${m/(*/}
-  # m=$(echo "$m" | sed -e 's/\\(.*$//' )
+  #m=$(echo "$m" | sed -e 's/\\(.*$//' )
   echo "Re-Running tests in $cls Method $m"
-  ./runtests.sh --nodel $cls $m
+  echo ./runtests.sh --nodel $cls $m
 done
 

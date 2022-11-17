@@ -65,7 +65,9 @@ if [ "$cnt" -eq 0 ]; then
 	echo "no matching class found for $p"
 	exit 1
 fi
-testMethods=$(grep -E "@Test|@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+(( testMethods=testMethods+3*testMethodsP ))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
@@ -80,7 +82,7 @@ tst=0
 totalTestsRun=0
 totalTestsFailed=0
 totalTestsError=0
-
+echo "Starting..." >failed.txt
 # running getfailedTests in background
 {
 	while true; do
@@ -141,8 +143,11 @@ for t in $(<files.txt); do
 	((totalTestsFailed = totalTestsFailed + fail))
 
 done
-./getFAiledTests.sh >failed.txt
+./getFailedTests.sh >failed.txt
 echo "Total tests run       : $totalTestsRun"
 echo "TotalTests with errors: $totalTestsError"
 echo "TotalTests failed     : $totalTestsFailed"
 echo "Finished! List of failed tests in ./failed.txt"
+
+kill $(<fail.pid)
+rm -f fail.pid
