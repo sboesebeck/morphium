@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.base;
 import org.slf4j.Logger;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 public class TestUtils {
     public interface Condition {
@@ -36,6 +37,10 @@ public class TestUtils {
 
     public static long waitForCollectionToBeDeleted(Morphium m, Class<?> type) {
         return waitForConditionToBecomeTrue(5000, "Collection for type was not deleted: " + type.getName(), ()->!m.exists(type));
+    }
+
+    public static long countUC(Morphium m){
+        return m.createQueryFor(UncachedObject.class).countAll();
     }
 
     public static void waitForWrites(Morphium morphium, Logger log) {

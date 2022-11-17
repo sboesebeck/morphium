@@ -682,10 +682,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             morphium.insert(lst);
-            Thread.sleep(100);
-            long c = morphium.createQueryFor(UncachedObject.class).countAll();
-            log.info("Found " + c);
-            assertEquals(c, 100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->morphium.createQueryFor(UncachedObject.class).countAll()==100);
             List<UncachedObject> lst2 = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
