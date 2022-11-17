@@ -673,7 +673,7 @@ public class QueryTest extends MorphiumTestBase {
         createUncachedObjects(10);
         long s = System.currentTimeMillis();
 
-        while (morphium.createQueryFor(UncachedObject.class).countAll() < 10) {
+        while (TestUtils.countUC(morphium) < 10) {
             Thread.sleep(50);
             assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }

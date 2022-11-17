@@ -122,7 +122,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
                     log.error("Counter is < 1000!?");
                     morphium.reread(o);
                 }
-                assert (o.getCounter() > 1000) : "Counter is " + o.getCounter() + " - Total number: " + morphium.createQueryFor(UncachedObject.class).countAll() + " greater than 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
+                assert (o.getCounter() > 1000) : "Counter is " + o.getCounter() + " - Total number: " + TestUtils.countUC(morphium) + " greater than 1000: " + morphium.createQueryFor(UncachedObject.class).f("counter").gte(1000).countAll();
             }
         }
     }

@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
+import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -14,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class InMemDumpTest extends MorphiumInMemTestBase {
@@ -91,8 +93,8 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
 //        driver.close();
 //        driver.connect();
 //        driver.restore(new ByteArrayInputStream(bout.toByteArray()));
-        assert (morphium.createQueryFor(UncachedObject.class).countAll() == 100);
-        assert (morphium.createQueryFor(ComplexObject.class).countAll() == 100);
+        assertEquals (100,TestUtils.countUC(morphium));
+        assertEquals(100,morphium.createQueryFor(ComplexObject.class).countAll());
 
         for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
             assertNotNull(co.getEinText());

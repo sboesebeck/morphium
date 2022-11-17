@@ -37,7 +37,7 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->morphium.createQueryFor(UncachedObject.class).countAll()==6);
+            TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->TestUtils.countUC(morphium)==6);
             Collation col = new Collation("de", false, Collation.CaseFirst.LOWER, Collation.Strength.TERTIARY, false, Collation.Alternate.SHIFTED, Collation.MaxVariable.SPACE, false, false);
             assert(col.getLocale().equals("de"));
             assert(!col.getCaseLevel());
@@ -156,11 +156,11 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            Thread.sleep(100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write all properly", ()->TestUtils.countUC(morphium)==6);
+           
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("strValue").eq("a");
             morphium.delete(q);
-            Thread.sleep(100);
-            assert(morphium.createQueryFor(UncachedObject.class).countAll() == 4);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not delete properly", ()->TestUtils.countUC(morphium)==4);
         }
     }
 

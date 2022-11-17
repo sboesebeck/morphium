@@ -25,11 +25,11 @@ public class TransactionTest extends MorphiumTestBase {
 
                 morphium.startTransaction();
                 Thread.sleep(100);
-                log.info("Count after transaction start: " + morphium.createQueryFor(UncachedObject.class).countAll());
+                log.info("Count after transaction start: " + TestUtils.countUC(morphium));
                 UncachedObject u = new UncachedObject("test", 101);
                 morphium.store(u);
                 Thread.sleep(100);
-                long cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+                long cnt = TestUtils.countUC(morphium);
                 if (cnt != 11) {
                     morphium.abortTransaction();
                     assert (cnt == 11) : "Count during transaction: " + cnt;
@@ -41,7 +41,7 @@ public class TransactionTest extends MorphiumTestBase {
                 assert (u.getCounter() == 102);
                 morphium.abortTransaction();
                 Thread.sleep(100);
-                cnt = morphium.createQueryFor(UncachedObject.class).countAll();
+                cnt = TestUtils.countUC(morphium);
                 u = morphium.reread(u);
                 assert (u == null);
                 assert (cnt == 10) : "Count after rollback: " + cnt;
