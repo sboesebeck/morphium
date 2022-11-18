@@ -29,7 +29,7 @@ fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then 
     count=$(ls -1 test.log/* | wc -l)
     if [ "$count" -gt 0 ]; then
-        echo "There are restults from old tests there - continue tests? (y/n/CTRL-C)"
+        echo "There are restults from old tests there - continue tests (y sill skip)? (y/n/CTRL-C)"
         read q
         if [ "$q" == "y" ]; then 
             skip=1
