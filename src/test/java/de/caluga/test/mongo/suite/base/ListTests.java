@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -80,15 +81,20 @@ public class ListTests extends MorphiumTestBase {
 
         morphium.store(lst);
         TestUtils.waitForConditionToBecomeTrue(5000, "Did not write", ()->morphium.createQueryFor(ListContainer.class).f("_id").eq(lst.getId()).get()!=null);
+        Thread.sleep(100);
         Query<ListContainer> q = morphium.createQueryFor(ListContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         ListContainer lst2 = q.get();
         assertNotNull(lst2, "Error - not found?");
-
         assertNotNull(lst2.getEmbeddedObjectList(), "Embedded list null?");
         assertNotNull(lst2.getLongList(), "Long list null?");
         assertNotNull(lst2.getRefList(), "Ref list null?");
         assertNotNull(lst2.getStringList(), "String list null?");
+        assertEquals(count, lst2.getLongList().size());
+        assertEquals(count, lst2.getRefList().size());
+        assertEquals(count, lst2.getEmbeddedObjectList().size());
+        assertEquals(count, lst2.getStringList().size());
+
 
         for (int i = 0; i < count; i++) {
 
