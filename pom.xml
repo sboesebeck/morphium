@@ -248,12 +248,13 @@
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-sync</artifactId>
       <version>${mongodbDriver.version}</version>
-      <scope>provided</scope>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
       <artifactId>mongodb-driver-core</artifactId>
       <version>${mongodbDriver.version}</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>com.ongres.scram</groupId>
