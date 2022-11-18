@@ -74,8 +74,7 @@ public class UpdateTest extends MultiDriverTestBase {
                 o.setStrValue("Uncached " + i);
                 morphium.store(o);
             }
-
-            Thread.sleep(150);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?",()->TestUtils.countUC(morphium)==50);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("str_value").eq("Uncached " + 5);
             UncachedObject uc = q.get();
