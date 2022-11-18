@@ -1,18 +1,18 @@
 #!/bin/bash
 
 function quitting() {
-	echo "Shutting down..."
+	echo "Shutting down... current test $t"
+    
 	kill -9 $(<test.pid) >/dev/null 2>&1
-  kill -9 $(<fail.pid) >/dev/null 2>&1
-	rm -f test.pid fail.pid
+	kill -9 $(<fail.pid) >/dev/null 2>&1
+	rm -f test.pid fail.pid >/dev/null 2>&1
+    echo "Removing unfinished test $t"
+    rm -f test.log/$t.log
 	./getFailedTests.sh >failed.txt
 	echo "List of failed tests in failed.txt"
-  exit
+    cat failed.txt
+	exit
 }
-
-#trap quitting EXIT
-trap quitting SIGINT
-trap quitting SIGHUP
 
 nodel=0
 skip=0
@@ -25,6 +25,21 @@ if [ "q$1" == "q--skip" ]; then
 	skip=1
 	shift
 fi
+
+if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then 
+    count=$(ls -1 test.log/* | wc -l)
+    if [ "$count" -gt 0 ]; then
+        echo "There are restults from old tests there - continue tests? (y/n/CTRL-C)"
+        read q
+        if [ "$q" == "y" ]; then 
+            skip=1
+        fi
+    fi
+fi
+#trap quitting EXIT
+trap quitting SIGINT
+trap quitting SIGHUP
+
 p=$1
 if [ "q$p" == "q" ]; then
 	# echo "No pattern given, running all tests"
@@ -39,10 +54,6 @@ if [ "q$2" == "q" ]; then
 	m="."
 # else
 # 	echo "Checking for test-methods matching $m"
-fi
-if [ "$nodel" -eq 0 ]; then
-	echo "Cleaning up..."
-	mvn clean >/dev/null
 fi
 
 rg -l "@Test" | grep ".java" >files.lst
@@ -67,34 +78,36 @@ if [ "$cnt" -eq 0 ]; then
 fi
 testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-(( testMethods=testMethods+3*testMethodsP ))
+((testMethods = testMethods + 3 * testMethodsP))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
 fi
+if [ "$nodel" -eq 0 ]; then
+	echo "Cleaning up..."
+	mvn clean >/dev/null
+fi
 echo "Compiling..."
-mvn compile >/dev/null || {
+mvn compile test-compile >/dev/null || {
 	echo "Compilation failed!"
 	exit 1
 }
 
+
 tst=0
-totalTestsRun=0
-totalTestsFailed=0
-totalTestsError=0
 echo "Starting..." >failed.txt
 # running getfailedTests in background
 {
 	while true; do
-    date > failed.tmp
+		date >failed.tmp
 		./getFailedTests.sh >>failed.tmp
 		mv failed.tmp failed.txt
-    sleep 8
+		sleep 8
 	done
 
 } &
 
-echo $! > fail.pid
+echo $! >fail.pid
 
 for t in $(<files.txt); do
 	((tst = tst + 1))
@@ -125,8 +138,8 @@ for t in $(<files.txt); do
 
 		# egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
 		# egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
-		jobs>/dev/null
-		j=$(jobs |  grep -E '\[[0-9]+\]' | wc -l)
+		jobs >/dev/null
+		j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
 		if [ "$j" -lt 2 ]; then
 			break
 		fi
@@ -138,16 +151,11 @@ for t in $(<files.txt); do
 		fi
 		sleep 5
 	done
-	((totalTestsRun = totalTestsRun + run))
-	((totalTestsError = totalTestsError + err))
-	((totalTestsFailed = totalTestsFailed + fail))
 
 done
 ./getFailedTests.sh >failed.txt
-echo "Total tests run       : $totalTestsRun"
-echo "TotalTests with errors: $totalTestsError"
-echo "TotalTests failed     : $totalTestsFailed"
+cat failed.txt
 echo "Finished! List of failed tests in ./failed.txt"
 
-kill $(<fail.pid)
-rm -f fail.pid
+kill $(<fail.pid) >/dev/null 2>&1
+rm -f fail.pid >/dev/null 2>&1 
