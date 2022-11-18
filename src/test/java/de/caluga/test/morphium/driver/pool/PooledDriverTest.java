@@ -106,11 +106,22 @@ public class PooledDriverTest {
         log.info("PooledDriver took " + dur + "ms");
         drv.close();
     }
+    private com.mongodb.WriteConcern toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern w){
+         com.mongodb.WriteConcern wc = w.getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
+         if (w.getW() > 0) {
+            if (w.getWtimeout() > 0) {
+                wc.withWTimeout(w.getWtimeout(), TimeUnit.MILLISECONDS);
+            }
+        }
+        return wc;
+
+    }
 
     public void crudTestMongoDriver() {
         long start = System.currentTimeMillis();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
-        o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000).toMongoWriteConcern());
+
+        o.writeConcern(toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000)));
         //read preference check
         o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
