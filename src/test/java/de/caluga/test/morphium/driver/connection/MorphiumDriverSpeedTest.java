@@ -125,10 +125,20 @@ public class MorphiumDriverSpeedTest {
         return ret;
     }
 
+    private com.mongodb.WriteConcern toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern w){
+         com.mongodb.WriteConcern wc = w.getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
+         if (w.getW() > 0) {
+            if (w.getWtimeout() > 0) {
+                wc.withWTimeout(w.getWtimeout(), TimeUnit.MILLISECONDS);
+            }
+        }
+        return wc;
+
+    }
     public Map<String, Long> runMongoDriver(int amount) {
         Map<String, Long> ret = new HashMap<>();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
-        o.writeConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 10000).toMongoWriteConcern());
+        o.writeConcern(toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 10000)));
         //read preference check
         o.retryReads(true);
         o.retryWrites(true);
