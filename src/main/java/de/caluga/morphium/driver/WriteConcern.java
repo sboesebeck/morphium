@@ -39,15 +39,6 @@ public class WriteConcern {
     }
 
 
-    public com.mongodb.WriteConcern toMongoWriteConcern() {
-        com.mongodb.WriteConcern wc = getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
-        if (getW() > 0) {
-            if (getWtimeout() > 0) {
-                wc.withWTimeout(getWtimeout(), TimeUnit.MILLISECONDS);
-            }
-        }
-        return wc;
-    }
 
     public int getW() {
         return w;
