@@ -2459,7 +2459,7 @@ public class Morphium implements AutoCloseable {
         return findById(type, id, null);
     }
 
-    public <T> T findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
+    public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
         //noinspection unchecked
         return createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get(callback);
     }
