@@ -26,11 +26,9 @@ import java.util.regex.Pattern;
 @SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(DriverBase.class);
-    private volatile AtomicInteger rqid = new AtomicInteger(1000);
+    private volatile AtomicInteger rqid = new AtomicInteger((int)System.currentTimeMillis()%1000000);
     private int maxWait = 1000;
-    private boolean keepAlive = true;
-    private int soTimeout = 1000;
-    private int maxBsonObjectSize;
+    private int maxBsonObjectSize= 12*1025*1024;
     private int maxMessageSize = 16 * 1024 * 1024;
     private int maxWriteBatchSize = 1000;
     private ReadPreference defaultRP = ReadPreference.primary();
@@ -40,12 +38,9 @@ public abstract class DriverBase implements MorphiumDriver {
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
     private int localThreshold = 0;
-    private int heartbeatConnectionTimeout = 1000;
     private List<String> hostSeed;
-    private int heartbeatSocketTimeout = 1000;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
-    private int maxBlockingThreadsMultiplier = 5;
     private int defaultW = 1;
     private int connectionTimeout = 1000;
     private int maxConnectionIdleTime = 100000;
@@ -53,7 +48,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int minConnectionsPerHost = 1;
     private int maxConnectionsPerHost = 100;
     private int defaultWriteTimeout = 10000;
-    private boolean slaveOk = true;
     private int batchSize = 100;
     private boolean retryReads = false;
     private boolean retryWrites = true;
