@@ -48,8 +48,6 @@ import org.openjdk.jol.vm.VM;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.rits.cloning.Cloner;
-
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
