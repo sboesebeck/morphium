@@ -28,6 +28,7 @@ public class TransactionTest extends MorphiumTestBase {
                 TestUtils.waitForConditionToBecomeTrue(5000, "did not clear", ()->TestUtils.countUC(morphium) == 0);
                 createUncachedObjects(10);
                 morphium.startTransaction();
+                log.info("Transaction started: "+morphium.getTransaction().getTxnNumber());
                 log.info("Count after transaction start: " + TestUtils.countUC(morphium));
                 UncachedObject u = new UncachedObject("test", 101);
                 morphium.store(u);
@@ -61,10 +62,5 @@ public class TransactionTest extends MorphiumTestBase {
         }
     }
 
-    @WriteSafety(level=SafetyLevel.MAJORITY)
-    @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
-    public static class TransactedObject extends UncachedObject{
-
-    }
 
 }
