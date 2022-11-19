@@ -1,16 +1,11 @@
 package de.caluga.test.mongo.suite.base;
 
-import de.caluga.morphium.annotations.DefaultReadPreference;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
-import de.caluga.morphium.annotations.SafetyLevel;
-import de.caluga.morphium.annotations.WriteSafety;
-import de.caluga.test.mongo.suite.data.UncachedObject;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import org.junit.jupiter.api.Test;
+
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
  * User: Stephan Bösebeck
