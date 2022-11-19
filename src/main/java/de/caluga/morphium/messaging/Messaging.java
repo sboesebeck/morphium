@@ -570,10 +570,10 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void findAndProcessPendingMessages(String name) {
         Runnable r = ()->{
-            while (true) {
+              while (true) {
                 List<MorphiumId> messages = lockAndGetMessages(name, processMultiple);
 
-                if (messages.size() == 0) { break; }
+                if (messages==null || messages.size() == 0) { break; }
 
                 processMessages(messages);
 
