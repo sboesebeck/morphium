@@ -302,11 +302,11 @@
       <artifactId>commons-lang3</artifactId>
       <version>3.12.0</version>
     </dependency>
-    <dependency>
-      <groupId>uk.com.robust-it</groupId>
-      <artifactId>cloning</artifactId>
-      <version>1.9.12</version>
-    </dependency>
+    <!-- <dependency> -->
+    <!--   <groupId>uk.com.robust-it</groupId> -->
+    <!--   <artifactId>cloning</artifactId> -->
+    <!--   <version>1.9.12</version> -->
+    <!-- </dependency> -->
     <dependency>
       <groupId>io.github.classgraph</groupId>
       <artifactId>classgraph</artifactId>
