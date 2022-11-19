@@ -5,6 +5,8 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -88,6 +90,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleBroadcastChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -123,6 +126,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleBroadcastNoChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -154,6 +158,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleExclusiveChangeSteram() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -188,6 +193,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleExclusiveNoChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -223,6 +229,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleExclusivePausingChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
@@ -270,6 +277,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleExclusivePausingNoChangeStream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
@@ -318,6 +326,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void parallelExclusiveMessages() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
@@ -368,7 +377,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void parallelExclusiveMessagesNoChangestream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
-        Thread.sleep(100);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -415,6 +424,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleBroadcastAnswer() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
@@ -446,6 +456,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     @Test
     public void simpleBroadcastAnswernoChangestream() throws Exception {
         morphium.dropCollection(Msg.class, "msg", null);
+        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         Messaging m1 = new Messaging(morphium, 10, false);
