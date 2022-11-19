@@ -25,12 +25,13 @@ public class ConnectionIndexTest extends ConnectionTestBase {
     @Test
     public void listIndexTests() throws Exception {
         var con = getConnection();
-        DropMongoCommand dc = new DropMongoCommand(con).setDb(db).setColl(coll);
-        var drp = dc.execute();
-        log.info(Utils.toJsonString(drp));
+        // DropMongoCommand dc = new DropMongoCommand(con).setDb(db).setColl(coll);
+        // var drp = dc.execute();
+        // log.info(Utils.toJsonString(drp));
         InsertMongoCommand cmd = new InsertMongoCommand(con).setDb(db).setColl(coll)
                 .setDocuments(Arrays.asList(Doc.of("counter", 123, "str_val", "This is a test")));
         cmd.execute();
+        Thread.sleep(1000);
         CreateIndexesCommand cic = new CreateIndexesCommand(con).addIndex(new IndexDescription().setKey(Doc.of("counter", 1)).setName("tst1").setSparse(true)).setDb(db).setColl(coll);
         //Created collection
         var res = cic.execute();

@@ -1474,7 +1474,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void priorityTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
-
+        Thread.sleep(250);
         list.clear();
         //if running multithreadded, the execution order might differ a bit because of the concurrent
         //execution - hence if set to multithreadded, the test will fail!

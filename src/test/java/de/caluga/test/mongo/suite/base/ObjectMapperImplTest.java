@@ -1257,7 +1257,7 @@ public class ObjectMapperImplTest {
         public List<Map<String, Object>> structureK;
 
     }
-
+    @Embedded
     public static class Simple {
         public String test = "test_" + System.currentTimeMillis();
         public int value = (int) (System.currentTimeMillis() % 42);

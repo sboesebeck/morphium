@@ -173,27 +173,6 @@ public class ConnectTest extends BaseTest {
         s.close();
     }
 
-    @Test
-    public void SingleConnectDirectDriverTest() throws Exception {
-        MorphiumConfig cfg = new MorphiumConfig();
-        cfg.setHostSeed("localhost:27017");
-        cfg.setReplicasetMonitoring(false);
-        cfg.setDriverName(SingleMongoConnectDriver.driverName);
-        cfg.setDatabase("morphium_test");
-        Morphium m = new Morphium(cfg);
-
-        m.dropCollection(UncachedObject.class);
-        Thread.sleep(100);
-        for (int i = 0; i < 100; i++) {
-            UncachedObject uc = new UncachedObject("string", i);
-            m.store(uc);
-        }
-        List<UncachedObject> lst = m.createQueryFor(UncachedObject.class).asList();
-        assert (lst.size() == 100);
-
-
-    }
-
 //
 //    @Test
 //    public void incomingTest() throws Exception {
