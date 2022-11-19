@@ -360,7 +360,7 @@ public class PooledDriver extends DriverBase {
             if (isTransactionInProgress()){
                 type=ReadPreferenceType.PRIMARY;
             }
-            switch (rp.getType()) {
+            switch (type) {
             case PRIMARY:
                 return borrowConnection(primaryNode);
 
