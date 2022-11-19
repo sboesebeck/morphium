@@ -152,8 +152,8 @@ public class MessagingTest extends MorphiumTestBase {
 
 
     @Test
-    public void mutlithreaddingTestMultiple() throws Exception {
-        int amount = 2650;
+    public void multithreaddingTestMultiple() throws Exception {
+        int amount = 650;
         Messaging producer = new Messaging(morphium, 500, false);
         producer.start();
         log.info("now multithreadded and multiprocessing");
@@ -161,7 +161,7 @@ public class MessagingTest extends MorphiumTestBase {
             if (i % 10 == 0) {
                 log.info("Messages sent: " + i + "/" + amount);
             }
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 300000);
             producer.sendMessage(m);
         }
         final AtomicInteger count = new AtomicInteger();
