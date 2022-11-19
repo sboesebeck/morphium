@@ -52,7 +52,6 @@ public class PooledDriver extends DriverBase {
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
         int connectToIdx = 0;
-FOR:
 
         for (String host : getHostSeed()) {
             for (int i = 0; i < getMinConnectionsPerHost(); i++) {
@@ -155,7 +154,6 @@ FOR:
                         } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
                             try {
                                 // log.debug("Unused connection closed");
-
                                 if (copy.get(e.getKey()).remove(c)) {
                                     c.getCon().close();
                                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
@@ -275,11 +273,11 @@ FOR:
 
         while (getTotalConnectionsToHost(host) >= getMaxConnectionsPerHost()) {
             if ((System.currentTimeMillis() - start) % 1000 == 0) {
-                log.warn(String.format("Connection pool exceeded for host %s (in use: %d, max: %d)- need to wait", host,getTotalConnectionsToHost(host),getMaxConnectionsPerHost()));
+                log.warn(String.format("Connection pool exceeded for host %s (in use: %d, max: %d)- need to wait", host, getTotalConnectionsToHost(host), getMaxConnectionsPerHost()));
             }
 
             if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                log.error(String.format("Could not get connection from pool to %s - timeout %d",host,getMaxWaitTime()));
+                log.error(String.format("Could not get connection from pool to %s - timeout %d", host, getMaxWaitTime()));
                 throw new MorphiumDriverException("Could not get connection from pool in time - max connections per host exceeded");
             }
 
@@ -358,7 +356,10 @@ FOR:
             }
 
             if (rp == null) { rp = getDefaultReadPreference(); }
-
+            var type=rp.getType();
+            if (isTransactionInProgress()){
+                type=ReadPreferenceType.PRIMARY;
+            }
             switch (rp.getType()) {
             case PRIMARY:
                 return borrowConnection(primaryNode);
@@ -385,7 +386,8 @@ FOR:
 
             case SECONDARY_PREFERRED:
             case SECONDARY:
-                int retry=0;
+                int retry = 0;
+
                 while (true) {
                     //round-robin
                     if (lastSecondaryNode >= getHostSeed().size()) {
@@ -403,18 +405,20 @@ FOR:
                     try {
                         return borrowConnection(getHostSeed().get(lastSecondaryNode++));
                     } catch (MorphiumDriverException e) {
-                        if (retry>1){
+                        if (retry > 1) {
                             log.error("Could not get Connection - abort");
-                            throw (e);
-                        }    
+                            throw(e);
+                        }
+
                         log.warn("could not get connection to secondary node - retrying");
                         retry++;
+
                         try {
                             Thread.sleep(100);
                         } catch (InterruptedException e1) {
                             //Swallow
                         }
-                   }
+                    }
                 }
 
             default:
@@ -549,15 +553,19 @@ FOR:
             throw new IllegalArgumentException("No transaction in progress, cannot abort");
         }
 
-        MorphiumTransactionContext ctx = getTransactionContext();
         MongoConnection con = getPrimaryConnection(null);
-        var cmd = new AbortTransactionCommand(con).setTxnNumber(ctx.getTxnNumber())
-         .setAutocommit(false)
-         .setLsid(ctx.getLsid());
-        cmd.execute();
-        //getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid(), "$db", "admin")));
-        clearTransactionContext();
-        con.release();
+
+        try {
+            MorphiumTransactionContext ctx = getTransactionContext();
+            var cmd = new AbortTransactionCommand(con).setTxnNumber(ctx.getTxnNumber())
+             .setAutocommit(false)
+             .setLsid(ctx.getLsid());
+            cmd.execute();
+            //getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1, "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id", ctx.getLsid(), "$db", "admin")));
+        } finally {
+            con.release();
+            clearTransactionContext();
+        }
     }
     //
     //    @Override
