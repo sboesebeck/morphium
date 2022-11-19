@@ -3785,7 +3785,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public MorphiumTransactionContext getTransaction() {
-        return null; // getDriver().getTransactionContext();
+        return getDriver().getTransactionContext();
     }
 
     public void setTransaction(MorphiumTransactionContext ctx) {
