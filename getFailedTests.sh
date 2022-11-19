@@ -1,5 +1,37 @@
 #!/bin/bash
 
+getFailure() {
+	cls=$1
+	type=$2
+    #echo "Checking $cls for type $type"
+	failures=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[0-9]*\].'$type'\["@type"\]' | cut -f 2 -d '[' | cut -f1 -d ']')
+	for id in $(echo $failures); do
+		# echo "ID: '$id'"
+		# xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; '
+		m="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; ')"
+		if [ $noreason -eq 1 ]; then
+			echo "$cls#$m"
+		else
+			err="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].$type\\[\"@type\"\\]" | cut -f2 -d= | tr -d '"; ')"
+			msg="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].$type\\[\"@message\"\\]" | cut -f2 -d= | tr -d '"; ')"
+            echo "$cls#$m - $err ($msg)"
+		fi
+	done
+	if xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@type"\]' >/dev/null; then
+		#found single test
+		m=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\["@name"\]' | cut -f2 -d= | tr -d "!; ')")
+		if [ $noreason -eq 1 ]; then
+			echo "$cls#$m"
+		else
+			err=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@type"\]' | cut -f2 -d= | tr -d "!; ')")
+			msg=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@message"\]' | cut -f2 -d= | tr -d "!; ')")
+            
+            echo "$cls#$m - $err ($msg)"
+		fi
+	fi
+
+}
+
 noreason=0
 nosum=0
 
@@ -43,33 +75,18 @@ if [ "$fail" -eq 0 ] && [ "$err" -eq 0 ]; then
 	exit
 else
 	echo ""
-	for cls in $(grep -E "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' | grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'); do
+	for cls in $(grep -E "Tests run: " test.log/* | grep FAILURE | cut -f2 -d! | cut -f4 -d' '); do
+		# for cls in $(grep -E "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' | grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'); do
 		# echo "Getting failures in $cls"
 		if [ ! -e ./target/surefire-reports/TEST-$cls.xml ]; then
-			echo "$cls"
+            # if [ "$noreason" -eq 1 ]; then
+    			echo "$cls"
+            # else 
+            #     echo "$cls (no more details available)"
+            # fi
 			continue
 		fi
-		failures=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[0-9]*\].failure\["@type"\]' | cut -f 2 -d '[' | cut -f1 -d ']')
-		for id in $(echo $failures); do
-			# echo "ID: '$id'"
-			# xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; '
-			m="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; ')"
-			if [ $noreason -eq 1 ]; then
-				echo "$cls#$m"
-			else
-				err="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].failure\\[\"@type\"\\]" | cut -f2 -d= | tr -d '"; ')"
-				echo "$cls#$m - $err"
-			fi
-		done
-		errors=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[1-9]*\].error\["@type"\]' | cut -f2 -d '[' | cut -f1 -d ']')
-		for id in $(echo $errors); do
-			m="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\]\\[\"@name\"\\]" | cut -f2 -d= | tr -d '"; ')"
-			if [ "$noreason" -eq 1 ]; then
-				echo "$cls#$m"
-			else
-				err="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].error\\[\"@type\"\\]" | cut -f2 -d= | tr -d '"; ')"
-				echo "$cls#$m - $err"
-			fi
-		done
+        getFailure $cls "failure"
+        getFailure $cls "error"
 	done
 fi
