@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 @SuppressWarnings("WeakerAccess")
 public abstract class DriverBase implements MorphiumDriver {
     private final Logger log = LoggerFactory.getLogger(DriverBase.class);
-    private volatile AtomicInteger rqid = new AtomicInteger((int)System.currentTimeMillis()%1000000);
+    private volatile AtomicInteger rqid = new AtomicInteger(Math.abs((int)(System.currentTimeMillis()%100000)));
     private int maxWait = 1000;
     private int maxBsonObjectSize= 12*1025*1024;
     private int maxMessageSize = 16 * 1024 * 1024;
