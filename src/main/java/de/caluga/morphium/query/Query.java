@@ -984,7 +984,8 @@ public class Query<T> implements Cloneable {
 
     private de.caluga.morphium.driver.ReadPreference getRP() {
         if (readPreferenceLevel == null) {
-            return null;
+            var t=morphium.getReadPreferenceForClass(getType());
+            return t;
         }
 
         switch (readPreferenceLevel) {
