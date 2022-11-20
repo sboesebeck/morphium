@@ -1,6 +1,6 @@
 #!/bin/bash
-echo "Checking for JDK 1.8"
-java -version 2>&1 | grep 11. || { echo "Wrong java version, exiting"; exit 2; }
+#echo "Checking for JDK 1.8"
+#java -version 2>&1 | grep 11. || { echo "Wrong java version, exiting"; exit 2; }
 
 
 branch=$(git symbolic-ref --short HEAD)
