@@ -16,19 +16,19 @@ if [ $branch != "develop" ]; then
 fi
 
 
-mvn clean release:clean release:prepare || exit 1
+mvn clean release:clean release:prepare >test.log/release.log || exit 1
 version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -f2 -d=)
 tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
-mvn release:perform  || exit 1
+mvn release:perform >>test.log/release.log || exit 1
 # mvn nexus-staging:release -Ddescription="Latest release" -DstagingRepositoryId="sonatype-nexus-staging" ||
 
 git checkout master
 git merge $tag
 git push
 
-./create_bundle.sh
+./create_bundle.sh >> test.log/release.log
 git checkout develop
 #. ./slackurl.inc
 #curl -X POST -H 'Content-type: application/json' --data "{'text':'Deployed current $version to sonatype oss and maven central'}" $SLACKURL
