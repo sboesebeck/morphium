@@ -16,7 +16,7 @@ if [ $branch != "develop" ]; then
 fi
 
 
-mvn clean release:clean release:prepare >test.log/release.log || exit 1
+mvn clean release:clean release:prepare || exit 1
 version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -f2 -d=)
 tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
