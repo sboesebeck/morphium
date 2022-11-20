@@ -99,7 +99,7 @@ public class HelloCommand extends MongoCommand<HelloCommand> {
         }
         ret.put("$db", "admin");
         String driverName = "unknown";
-        if (getConnection() != null && getConnection() != null && getConnection().getDriver() != null) {
+        if (getConnection() != null && getConnection().getDriver() != null) {
             driverName = getConnection().getDriver().getName();
         }
         if (includeClient) {
