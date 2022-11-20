@@ -20,3 +20,5 @@ slackurl.inc
 test.pid
 
 failed.txt
+pom.xml.releaseBackup
+release.properties
