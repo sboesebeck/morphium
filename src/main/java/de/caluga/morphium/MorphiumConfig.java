@@ -1,12 +1,12 @@
 package de.caluga.morphium;
 
-
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
@@ -145,15 +145,19 @@ public class MorphiumConfig {
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
+
         if (prefix != null) {
             prefix += ".";
         } else {
             prefix = "";
         }
+        
         for (Field f : flds) {
             String fName = prefix + f.getName();
             Object setting = resolver.resolveSetting(fName);
-            if (setting == null) continue;
+
+            if (setting == null) { continue; }
+
             f.setAccessible(true);
 
             try {
@@ -170,9 +174,11 @@ public class MorphiumConfig {
                     lst = lst.replaceAll("[\\[\\]]", "");
                     Collections.addAll(l, lst.split(","));
                     List<String> ret = new ArrayList<>();
+
                     for (String n : l) {
                         ret.add(n.trim());
                     }
+
                     f.set(this, ret);
                 } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
                     f.set(this, setting.equals("true"));
@@ -183,17 +189,31 @@ public class MorphiumConfig {
                 throw new RuntimeException(e);
             }
         }
+
+
+
+        if (resolver.resolveSetting(prefix + "driver_class")!=null) {
+            LoggerFactory.getLogger(MorphiumConfig.class).warn("Deprecated setting - use driver name instead of class!");
+            var s = resolver.resolveSetting(prefix + "driver_class");
+
+            if (s.equals(InMemoryDriver.class.getName())) {
+                setDriverName(InMemoryDriver.driverName);
+            } else {
+                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
+            }
+        }
+
         if (hostSeed == null || hostSeed.isEmpty()) {
             String lst = (String) resolver.resolveSetting(prefix + "hosts");
+
             if (lst != null) {
                 lst = lst.replaceAll("[\\[\\]]", "");
+
                 for (String s : lst.split(",")) {
                     addHostToSeed(s);
                 }
             }
         }
-
-
     }
 
     public MorphiumConfig() {
@@ -205,13 +225,12 @@ public class MorphiumConfig {
         this.maxConnections = maxConnections;
         this.globalCacheValidTime = globalCacheValidTime;
         this.housekeepingTimeout = housekeepingTimeout;
-
     }
 
     public static List<String> getPropertyNames(String prefix) {
         @SuppressWarnings("unchecked") List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
-
         List<String> ret = new ArrayList<>();
+
         for (String f : flds) {
             ret.add(prefix + "." + f);
         }
@@ -219,23 +238,25 @@ public class MorphiumConfig {
         return ret;
     }
 
-
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
-    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException,
+    InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
             @SuppressWarnings("CastCanBeRemovedNarrowingVariableType") String k = (String) ko;
             String value = cfg.restoreData.get(k).toString();
+
             if (k.equals("hosts") || k.equals("hostSeed")) {
                 value = value.replaceAll("\\[", "").replaceAll("]", "");
+
                 for (String adr : value.split(",")) {
                     String[] a = adr.split(":");
                     cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
                 }
-
             }
         }
+
         return cfg;
     }
 
@@ -247,7 +268,6 @@ public class MorphiumConfig {
         this.messagingWindowSize = messagingWindowSize;
     }
 
-
     public static MorphiumConfig fromProperties(String prefix, Properties p) {
         return new MorphiumConfig(prefix, p);
     }
@@ -255,7 +275,6 @@ public class MorphiumConfig {
     public static MorphiumConfig fromProperties(Properties p) {
         return new MorphiumConfig(p);
     }
-
 
     public boolean isAtlas() {
         return atlasUrl != null;
@@ -286,7 +305,6 @@ public class MorphiumConfig {
         this.valueEncryptionProviderClass = valueEncryptionProviderClass;
         return this;
     }
-
 
     public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
         return encryptionKeyProviderClass;
@@ -322,6 +340,7 @@ public class MorphiumConfig {
         if (driverName != null) {
             this.driverName = driverName;
         }
+
         return this;
     }
 
@@ -335,6 +354,7 @@ public class MorphiumConfig {
         } else {
             indexCheck = IndexCheck.NO_CHECK;
         }
+
         return this;
     }
 
@@ -371,6 +391,7 @@ public class MorphiumConfig {
             LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
+
         this.retriesOnNetworkError = retriesOnNetworkError;
         return this;
     }
@@ -425,7 +446,6 @@ public class MorphiumConfig {
         return this;
     }
 
-
     public int getGlobalW() {
         return globalW;
     }
@@ -465,8 +485,8 @@ public class MorphiumConfig {
         if (bufferedWriter == null) {
             bufferedWriter = new BufferedMorphiumWriterImpl();
         }
-        return bufferedWriter;
 
+        return bufferedWriter;
     }
 
     public MorphiumConfig setBufferedWriter(MorphiumWriter bufferedWriter) {
@@ -478,6 +498,7 @@ public class MorphiumConfig {
         if (writer == null) {
             writer = new MorphiumWriterImpl();
         }
+
         return writer;
     }
 
@@ -494,7 +515,6 @@ public class MorphiumConfig {
         this.connectionTimeout = connectionTimeout;
         return this;
     }
-
 
     public int getMaxWaitTime() {
         return maxWaitTime;
@@ -549,15 +569,17 @@ public class MorphiumConfig {
         if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoAuthDb();
         }
-        try {
 
+        try {
             var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
             ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
             ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
             var authdb = "admin";
+
             if (getMongoAuthDb() != null) {
                 authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
             }
+
             return authdb;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -568,8 +590,8 @@ public class MorphiumConfig {
         if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoLogin();
         }
-        try {
 
+        try {
             var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
             ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
             ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
@@ -583,8 +605,8 @@ public class MorphiumConfig {
         if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
             return getMongoLogin();
         }
-        try {
 
+        try {
             var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
             ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
             ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
@@ -632,23 +654,23 @@ public class MorphiumConfig {
 
     public MorphiumConfig setDefaultReadPreferenceType(String stringDefaultReadPreference) {
         this.defaultReadPreferenceType = stringDefaultReadPreference;
-
         ReadPreferenceType readPreferenceType;
+
         try {
             readPreferenceType = ReadPreferenceType.valueOf(stringDefaultReadPreference.toUpperCase());
         } catch (IllegalArgumentException e) {
             readPreferenceType = null;
         }
+
         if (readPreferenceType == null) {
             throw new RuntimeException("Could not set defaultReadPreferenceByString " + stringDefaultReadPreference);
         }
+
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
         this.defaultReadPreference = defaultReadPreference;
-
         return this;
     }
-
 
     public int getWriteCacheTimeout() {
         return writeCacheTimeout;
@@ -671,13 +693,14 @@ public class MorphiumConfig {
 
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
         hostSeed.clear();
+
         for (int i = 0; i < str.size(); i++) {
             String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
             hostSeed.add(host);
         }
+
         return this;
     }
-
 
     public List<String> getHostSeed() {
         return hostSeed;
@@ -685,18 +708,22 @@ public class MorphiumConfig {
 
     public MorphiumConfig setHostSeed(String... hostPorts) {
         hostSeed.clear();
+
         for (String h : hostPorts) {
             addHostToSeed(h);
         }
+
         return this;
     }
 
     public MorphiumConfig setHostSeed(String hostPorts) {
         hostSeed.clear();
         String[] h = hostPorts.split(",");
+
         for (String host : h) {
             addHostToSeed(host);
         }
+
         return this;
     }
 
@@ -706,6 +733,7 @@ public class MorphiumConfig {
         ports = ports.replaceAll(" ", "");
         String[] h = hosts.split(",");
         String[] p = ports.split(",");
+
         for (int i = 0; i < h.length; i++) {
             if (p.length < i) {
                 addHostToSeed(h[i], 27017);
@@ -713,27 +741,31 @@ public class MorphiumConfig {
                 addHostToSeed(h[i], Integer.parseInt(p[i]));
             }
         }
-        return this;
 
+        return this;
     }
 
     public MorphiumConfig addHostToSeed(String host, int port) {
         host = host.replaceAll(" ", "") + ":" + port;
+
         if (hostSeed == null) {
             hostSeed = new ArrayList<>();
         }
+
         hostSeed.add(host);
         return this;
     }
 
     public MorphiumConfig addHostToSeed(String host) {
         host = host.replaceAll(" ", "");
+
         if (host.contains(":")) {
             String[] h = host.split(":");
             addHostToSeed(h[0], Integer.parseInt(h[1]));
         } else {
             addHostToSeed(host, 27017);
         }
+
         return this;
     }
 
@@ -757,7 +789,6 @@ public class MorphiumConfig {
 
     public MorphiumConfig setGlobalCacheValidTime(int globalCacheValidTime) {
         this.globalCacheValidTime = globalCacheValidTime;
-
         return this;
     }
 
@@ -802,11 +833,11 @@ public class MorphiumConfig {
         }
     }
 
-
     public MorphiumWriter getAsyncWriter() {
         if (asyncWriter == null) {
             asyncWriter = new AsyncWriterImpl();
         }
+
         return asyncWriter;
     }
 
@@ -893,15 +924,19 @@ public class MorphiumConfig {
         } else {
             prefix = prefix + ".";
         }
+
         MorphiumConfig defaults = new MorphiumConfig();
         Properties p = new Properties();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
+
         for (Field f : flds) {
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
+
             f.setAccessible(true);
+
             try {
                 if (f.get(this) != null && !f.get(this).equals(f.get(defaults)) || f.getName().equals("database")) {
                     p.put(prefix + f.getName(), f.get(this).toString());
@@ -916,6 +951,7 @@ public class MorphiumConfig {
 
             for (Object sysk : sysprop.keySet()) {
                 String k = (String) sysk;
+
                 if (k.startsWith("morphium.")) {
                     String value = sysprop.get(k).toString();
                     k = k.substring(9);
@@ -923,6 +959,7 @@ public class MorphiumConfig {
                 }
             }
         }
+
         return p;
     }
 
@@ -1074,7 +1111,6 @@ public class MorphiumConfig {
         return this;
     }
 
-
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
@@ -1147,7 +1183,6 @@ public class MorphiumConfig {
         return this;
     }
 
-
     public String getDefaultTags() {
         return defaultTags;
     }
@@ -1158,21 +1193,23 @@ public class MorphiumConfig {
         } else {
             defaultTags = "";
         }
+
         defaultTags += name + ":" + value;
         return this;
     }
-
 
     public List<Map<String, String>> getDefaultTagSet() {
         if (defaultTags == null) {
             return null;
         }
+
         List<Map<String, String>> tagList = new ArrayList<>();
 
         for (String t : defaultTags.split(",")) {
             String[] tag = t.split(":");
             tagList.add(UtilsMap.of(tag[0], tag[1]));
         }
+
         return tagList;
     }
 
@@ -1208,7 +1245,6 @@ public class MorphiumConfig {
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
     }
-
 
     public int getReadTimeout() {
         return readTimeout;
