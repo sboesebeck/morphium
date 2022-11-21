@@ -351,7 +351,7 @@ public class Msg {
             throw new RuntimeException("Cannot send a message without name!");
         }
         if (ttl == 0) {
-            LoggerFactory.getLogger(Msg.class).warn("Defaulting msg ttl to 30sec");
+            LoggerFactory.getLogger(Msg.class).debug("Defaulting msg ttl to 30sec");
             ttl = 30000;
         }
         if (deleteAt == null) {

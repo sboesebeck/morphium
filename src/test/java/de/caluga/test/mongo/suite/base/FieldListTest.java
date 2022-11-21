@@ -62,6 +62,7 @@ public class FieldListTest extends MorphiumTestBase {
         StoreMongoCommand cmd = new StoreMongoCommand(morphium.getDriver().getPrimaryConnection(null));
         cmd.setDb(morphium.getDatabase()).setColl("read_only_object").setDocuments(lst);
         cmd.execute();
+        cmd.releaseConnection();
         Thread.sleep(100);
         morphium.reread(ro);
         assert (ro.readOnlyValue.equals("stored in db"));

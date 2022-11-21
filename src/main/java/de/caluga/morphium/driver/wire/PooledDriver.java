@@ -356,10 +356,13 @@ public class PooledDriver extends DriverBase {
             }
 
             if (rp == null) { rp = getDefaultReadPreference(); }
-            var type=rp.getType();
-            if (isTransactionInProgress()){
-                type=ReadPreferenceType.PRIMARY;
+
+            var type = rp.getType();
+
+            if (isTransactionInProgress()) {
+                type = ReadPreferenceType.PRIMARY;
             }
+
             switch (type) {
             case PRIMARY:
                 return borrowConnection(primaryNode);
@@ -649,8 +652,16 @@ public class PooledDriver extends DriverBase {
     }
 
     public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
-        CurrentOpCommand cmd = new CurrentOpCommand(getPrimaryConnection(null)).setColl("admin").setSecsRunning(threshold);
-        return cmd.execute();
+        CurrentOpCommand cmd = null;
+
+        try {
+            cmd = new CurrentOpCommand(getPrimaryConnection(null)).setColl("admin").setSecsRunning(threshold);
+            return cmd.execute();
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
     }
 
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
