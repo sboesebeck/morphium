@@ -463,7 +463,11 @@ public class PooledDriver extends DriverBase {
             c = new Connection((SingleMongoConnection) con);
         }
 
-        connectionPool.get(con.getConnectedTo()).add(c);
+        synchronized (connectionPool) {
+            connectionPool.putIfAbsent(con.getConnectedTo(), new CopyOnWriteArrayList<>());
+            connectionPool.get(con.getConnectedTo()).add(c);
+        }
+
         stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
     }
 
