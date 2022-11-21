@@ -32,6 +32,11 @@ public class Utils {
         }
         return sw.toString();
     }
+    
+
+    public static <T,U>  Map<T,U> getMap(T k, U v) {
+        return UtilsMap.of(k,v);
+    }
 
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     public static void writeJson(Object o, Writer out) throws IOException {
