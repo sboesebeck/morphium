@@ -63,6 +63,7 @@ public class AnnotationAndReflectionHelper {
         this.hasAdditionalData = new ConcurrentHashMap<>();
         this.annotationCache = new ConcurrentHashMap<>();
         this.fieldNameCache = new ConcurrentHashMap<>();
+
         if (classNameByType == null) {
             classNameByType = new ConcurrentHashMap<>();
             init();
@@ -70,38 +71,37 @@ public class AnnotationAndReflectionHelper {
     }
 
     private void init() {
-
         //initializing type IDs
         try (ScanResult scanResult =
-                     new ClassGraph()
-                             //                     .verbose()             // Enable verbose logging
-                             .enableAnnotationInfo()
-//                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-                             .scan()) {
+         new ClassGraph()
+         //                     .verbose()             // Enable verbose logging
+         .enableAnnotationInfo()
+         //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+         .scan()) {
             ClassInfoList entities =
-                    scanResult.getClassesWithAnnotation(Entity.class.getName());
+             scanResult.getClassesWithAnnotation(Entity.class.getName());
             entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             logger.info("Found " + entities.size() + " entities in classpath");
+
             for (String cn : entities.getNames()) {
                 ClassInfo ci = scanResult.getClassInfo(cn);
                 AnnotationInfoList an = ci.getAnnotationInfo();
+
                 for (AnnotationInfo ai : an) {
                     String name = ai.getName();
+
                     if (name.equals(Entity.class.getName()) || name.equals(Embedded.class.getName())) {
                         for (AnnotationParameterValue param : ai.getParameterValues()) {
-
                             //logger.info("Class " + cn + "   Param " + param.getName() + " = " + param.getValue());
                             if (param.getName().equals("typeId")) {
                                 classNameByType.put(param.getValue().toString(), cn);
                             }
+
                             classNameByType.put(cn, cn);
-
                         }
-
                     }
                 }
             }
-
         }
     }
 
@@ -113,21 +113,22 @@ public class AnnotationAndReflectionHelper {
         cls = getRealClass(cls);
         Entity e = (Entity) cls.getAnnotation(Entity.class);
         Embedded em = (Embedded) cls.getAnnotation(Embedded.class);
+
         if (e != null && !e.typeId().equals(".")) {
             return e.typeId();
         } else if (em != null && !em.typeId().equals(".")) {
             return em.typeId();
         }
+
         return cls.getName();
     }
 
     public Class getClassForTypeId(String typeId) throws ClassNotFoundException {
-
         if (classNameByType.containsKey(typeId)) {
             return Class.forName(classNameByType.get(typeId));
         }
-        return Class.forName(typeId);
 
+        return Class.forName(typeId);
     }
 
     public <T extends Annotation> boolean isAnnotationPresentInHierarchy(final Class<?> aClass, final Class<? extends T> annotationClass) {
@@ -135,9 +136,10 @@ public class AnnotationAndReflectionHelper {
     }
 
     public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class<? extends Annotation>annotationClass) {
-        for (Field f:getAllFields(aClass)){
-            if (f.getAnnotation(annotationClass)!=null) return true;
+        for (Field f : getAllFields(aClass)) {
+            if (f.getAnnotation(annotationClass) != null) { return true; }
         }
+
         return false;
     }
 
@@ -149,31 +151,39 @@ public class AnnotationAndReflectionHelper {
      * @return the Annotation
      */
     public <T extends Annotation> T getAnnotationFromHierarchy(final Class<?> superClass, final Class<? extends T> annotationClass) {
-        if (superClass == null) return null;
+        if (superClass == null) { return null; }
+
         final Class<?> aClass = getRealClass(superClass);
         Map<Class<? extends Annotation>, Annotation> cacheForClass = annotationCache.get(aClass);
+
         if (cacheForClass != null) {
             // Must be done with containsKey to enable caching of null
             if (cacheForClass.containsKey(annotationClass)) {
                 return (T) cacheForClass.get(annotationClass);
             }
         }
+
         T annotation = aClass.getAnnotation(annotationClass);
+
         if (annotation == null) {
             annotation = annotationOfClassHierarchy(aClass, annotationClass);
         }
-        annotationCache.computeIfAbsent(aClass, k -> new HashMap<>()).put(annotationClass, annotation);
+
+        annotationCache.computeIfAbsent(aClass, k->new HashMap<>()).put(annotationClass, annotation);
         return annotation;
     }
 
     private <T extends Annotation> T annotationOfClassHierarchy(Class<?> aClass, Class<? extends T> annotationClass) {
         T annotation = null;
         Class<?> tmpClass = aClass;
+
         while (!tmpClass.equals(Object.class)) {
             if ((annotation = tmpClass.getAnnotation(annotationClass)) != null) {
                 return annotation; //found it on the "downmost" inheritence level
             }
+
             tmpClass = tmpClass.getSuperclass();
+
             if (tmpClass == null) {
                 break;
             }
@@ -182,15 +192,19 @@ public class AnnotationAndReflectionHelper {
         //check interfaces if nothing was found yet
         ArrayDeque<Class<?>> interfaces = new ArrayDeque<>();
         Collections.addAll(interfaces, aClass.getInterfaces());
+
         while (!interfaces.isEmpty()) {
             Class<?> anInterface = interfaces.pollFirst();
+
             if (anInterface != null) {
                 if ((annotation = anInterface.getAnnotation(annotationClass)) != null) {
                     return annotation; //no need to look further, found annotation
                 }
+
                 Collections.addAll(interfaces, anInterface.getInterfaces());
             }
         }
+
         return null;
     }
 
@@ -201,14 +215,17 @@ public class AnnotationAndReflectionHelper {
 
     public <T> Class<? extends T> getRealClass(final Class<? extends T> superClass) {
         Class realClass = realClassCache.get(superClass);
+
         if (realClass != null) {
             return (Class<? extends T>) realClass;
         }
+
         if (isProxy(superClass)) {
             realClass = realClassOf(superClass);
         } else {
             realClass = superClass;
         }
+
         realClassCache.put(superClass, realClass);
         return realClass;
     }
@@ -217,7 +234,6 @@ public class AnnotationAndReflectionHelper {
         WriteBuffer wb = getAnnotationFromHierarchy(aClass, WriteBuffer.class);
         return wb != null && wb.value();
     }
-
 
     public boolean hasAdditionalData(Class aClass) {
         if (hasAdditionalData.get(aClass) == null) {
@@ -242,31 +258,34 @@ public class AnnotationAndReflectionHelper {
      */
     @SuppressWarnings("StatementWithEmptyBody")
     public String getMongoFieldName(Class clz, String field) {
-        return getMongoFieldName(clz,field,isAnnotationOnAnyField(clz,AdditionalData.class));
+        return getMongoFieldName(clz, field, isAnnotationOnAnyField(clz, AdditionalData.class));
     }
-    public String getMongoFieldName(Class clz, String field,boolean ignoreUnknownField) {
+    public String getMongoFieldName(Class clz, String field, boolean ignoreUnknownField) {
         Class cls = getRealClass(clz);
+
         if (field.contains(".") || field.contains("(") || field.contains("$")) {
             //searching for a sub-element?
             //no check possible
             return field;
         }
+
         if (fieldNameCache.containsKey(clz) && fieldNameCache.get(clz).get(field) != null) {
             return fieldNameCache.get(clz).get(field);
         }
 
-
         String ret = field;
-
         List<Class> inf = Arrays.asList(clz.getInterfaces());
+
         if ((inf.contains(List.class)) || inf.contains(Map.class) || inf.contains(Collection.class) || inf.contains(Set.class) || clz.isArray()) {
             //not diving into maps
             //TODO: check for generics type and dive into collecion/Maps
         } else {
             Field f = getField(cls, field);
+
             if (f == null && hasAdditionalData(clz)) {
                 return field;
             }
+
             if (f == null) {
                 if (ignoreUnknownField) {
                     if (ccc) {
@@ -275,38 +294,42 @@ public class AnnotationAndReflectionHelper {
                         return field;
                     }
                 }
+
                 throw new AnnotationAndReflectionException("Field not found " + field + " in cls: " + clz.getName());
             }
+
             if (f.isAnnotationPresent(Property.class)) {
                 Property p = f.getAnnotation(Property.class);
+
                 if (!p.fieldName().equals(".")) {
                     return p.fieldName();
                 }
             }
-
 
             if (f.isAnnotationPresent(Reference.class)) {
                 Reference p = f.getAnnotation(Reference.class);
+
                 if (!p.fieldName().equals(".")) {
                     return p.fieldName();
                 }
             }
+
             if (f.isAnnotationPresent(Id.class)) {
                 return "_id";
             }
 
-
             ret = f.getName();
             Entity ent = getAnnotationFromHierarchy(cls, Entity.class);
             Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);
+
             if ((ccc && ent != null && ent.translateCamelCase())
-                    || (ccc && emb != null && emb.translateCamelCase())) {
+             || (ccc && emb != null && emb.translateCamelCase())) {
                 ret = convertCamelCase(ret);
             }
         }
-        fieldNameCache.computeIfAbsent(cls, k -> new HashMap<>()).put(field, ret);
-        return ret;
 
+        fieldNameCache.computeIfAbsent(cls, k->new HashMap<>()).put(field, ret);
+        return ret;
     }
 
     /**
@@ -323,14 +346,18 @@ public class AnnotationAndReflectionHelper {
         StringBuilder sb = new StringBuilder(f[0].substring(0, 1).toLowerCase());
         //String ret =
         sb.append(f[0].substring(1));
+
         for (int i = 1; i < f.length; i++) {
             sb.append(f[i].substring(0, 1).toUpperCase());
             sb.append(f[i].substring(1));
         }
+
         String ret = sb.toString();
+
         if (capitalize) {
             ret = ret.substring(0, 1).toUpperCase() + ret.substring(1);
         }
+
         return ret;
     }
 
@@ -345,13 +372,17 @@ public class AnnotationAndReflectionHelper {
         if (!ccc) {
             return n;
         }
+
         StringBuilder b = new StringBuilder();
+
         for (int i = 0; i < n.length(); i++) {
             if (Character.isUpperCase(n.charAt(i)) && i > 0) {
                 b.append("_");
             }
+
             b.append(n.substring(i, i + 1).toLowerCase());
         }
+
         //b.append(n.substring(n.length() - 1));
         return b.toString();
     }
@@ -366,22 +397,26 @@ public class AnnotationAndReflectionHelper {
         if (fieldListCache.containsKey(clz)) {
             return fieldListCache.get(clz);
         }
-        Class<?> cls = getRealClass(clz);
 
+        Class<?> cls = getRealClass(clz);
         List<Field> ret = new ArrayList<>();
         Class sc = cls;
         //getting class hierachy
         List<Class> hierachy = new ArrayList<>();
+
         while (!sc.equals(Object.class)) {
             hierachy.add(sc);
             sc = sc.getSuperclass();
         }
+
         Collections.addAll(hierachy, cls.getInterfaces());
+
         //now we have a list of all classed up to Object
         //we need to run through it in the right order
         //in order to allow Inheritance to "shadow" fields
         for (Class c : hierachy) {
             Field[] declaredFields = c.getDeclaredFields();
+
             if (declaredFields.length > 0) {
                 for (Field declaredField : declaredFields) {
                     if (!declaredField.getName().startsWith("$jacoco")) {
@@ -390,6 +425,7 @@ public class AnnotationAndReflectionHelper {
                 }
             }
         }
+
         fieldListCache.put(clz, ret);
         return ret;
     }
@@ -405,33 +441,33 @@ public class AnnotationAndReflectionHelper {
     public Field getField(Class clz, String fld) {
         String key = clz.toString() + "->" + fld;
         Field val = fieldCache.get(key);
+
         if (val != null) {
             return val;
         }
+
         Map<String, Field> fc = fieldCache;
         Class cls = getRealClass(clz);
         List<Field> flds = getAllFields(cls);
         Field ret = null;
+
         for (Field f : flds) {
             if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName()) && f.getAnnotation(Property.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
-
                 fc.put(key, f);
                 ret = f;
-
             }
 
             if (ret == null && f.isAnnotationPresent(Reference.class) && !".".equals(f.getAnnotation(Reference.class).fieldName()) && f.getAnnotation(Reference.class).fieldName().equals(fld)) {
                 f.setAccessible(true);
-
                 fc.put(key, f);
                 ret = f;
-
             }
 
             if (ret == null && f.isAnnotationPresent(Aliases.class)) {
                 Aliases aliases = f.getAnnotation(Aliases.class);
                 String[] v = aliases.value();
+
                 for (String field : v) {
                     if (field.equals(fld)) {
                         f.setAccessible(true);
@@ -440,16 +476,19 @@ public class AnnotationAndReflectionHelper {
                     }
                 }
             }
+
             if (ret == null && fld.equals("_id") && f.isAnnotationPresent(Id.class)) {
                 f.setAccessible(true);
                 fc.put(key, f);
                 ret = f;
             }
+
             if (ret == null && f.getName().equals(fld)) {
                 f.setAccessible(true);
                 fc.put(key, f);
                 ret = f;
             }
+
             if (ret == null && ccc && convertCamelCase(f.getName()).equals(fld)) {
                 f.setAccessible(true);
                 fc.put(key, f);
@@ -459,17 +498,16 @@ public class AnnotationAndReflectionHelper {
             if (ret != null) {
                 break;
             }
-
         }
-        fieldCache = fc;
 
+        fieldCache = fc;
         //unknown field
         return ret;
     }
 
-
     public boolean isEntity(Object o) {
         Class cls;
+
         if (o == null) {
             return false;
         }
@@ -479,6 +517,7 @@ public class AnnotationAndReflectionHelper {
         } else {
             cls = getRealClass(o.getClass());
         }
+
         return isAnnotationPresentInHierarchy(cls, Entity.class) || isAnnotationPresentInHierarchy(cls, Embedded.class);
     }
 
@@ -486,17 +525,20 @@ public class AnnotationAndReflectionHelper {
         if (o == null) {
             return null;
         }
+
         try {
             Field f = getField(o.getClass(), fld);
-            if (f == null) return null;
+
+            if (f == null) { return null; }
+
             if (!Modifier.isStatic(f.getModifiers())) {
                 o = getRealObject(o);
                 return f.get(o);
             }
         } catch (IllegalAccessException e) {
             logger.error("Illegal access to field " + fld + " of type " + o.getClass().getSimpleName());
-
         }
+
         return null;
     }
 
@@ -504,10 +546,13 @@ public class AnnotationAndReflectionHelper {
         if (o == null) {
             return;
         }
+
         try {
             Field field = getField(getRealClass(o.getClass()), fld);
+
             if (!Modifier.isStatic(field.getModifiers())) {
                 o = getRealObject(o);
+
                 try {
                     field.set(o, value);
                 } catch (Exception e) {
@@ -515,8 +560,10 @@ public class AnnotationAndReflectionHelper {
                         if (logger.isDebugEnabled()) {
                             logger.debug("Setting of value (" + value.getClass().getSimpleName() + ") failed for field " + field.getName() + "- trying type-conversion");
                         }
+
                         field.set(o, convertType(value, fld, field.getType()));
                     }
+
                     if (logger.isDebugEnabled()) {
                         logger.debug("Type conversion was successful");
                     }
@@ -532,6 +579,7 @@ public class AnnotationAndReflectionHelper {
         //Doing some type conversions... lots of :-(
         if (value instanceof Number) {
             Number n = (Number) value;
+
             if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
                 return n.intValue();
             } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
@@ -560,6 +608,7 @@ public class AnnotationAndReflectionHelper {
             }
         } else if (value instanceof Boolean) {
             Boolean b = (Boolean) value;
+
             if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
                 return b ? 1 : 0;
             } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
@@ -582,6 +631,7 @@ public class AnnotationAndReflectionHelper {
         } else if (value instanceof Date) {
             //Date/String mess-up?
             Date d = (Date) value;
+
             if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
                 return d.getTime();
             } else if (fieldType.equals(GregorianCalendar.class)) {
@@ -602,6 +652,7 @@ public class AnnotationAndReflectionHelper {
             }
         } else if (value instanceof String) {
             String s = (String) value;
+
             try {
                 if (fieldType.equals(Date.class)) {
                     //Fucking date / timestamp mixup
@@ -625,7 +676,9 @@ public class AnnotationAndReflectionHelper {
                 }
             } catch (Exception e) {
             }
+
             Method convertMethod = getConvertMethod(fieldType);
+
             if (convertMethod != null) {
                 try {
                     return convertMethod.invoke(null, s);
@@ -635,6 +688,7 @@ public class AnnotationAndReflectionHelper {
         } else if (fieldType.isArray() && value instanceof List) {
             Object arr = Array.newInstance(fieldType, ((List) value).size());
             int idx = 0;
+
             for (Object io : ((List) value)) {
                 try {
                     Array.set(arr, idx, io);
@@ -642,14 +696,16 @@ public class AnnotationAndReflectionHelper {
                     Array.set(arr, idx, ((Integer) io).byteValue());
                 }
             }
+
             return arr;
         } else if (value instanceof byte[]) {
-            if(fieldType.equals(UUID.class)) {
+            if (fieldType.equals(UUID.class)) {
                 // Convert Java Legacy UUID from byte array to object
                 ByteBuffer bb = ByteBuffer.wrap((byte[]) value);
                 return new UUID(bb.getLong(), bb.getLong());
             }
         }
+
         throw AnnotationAndReflectionException.wrongFieldType(fieldName, fieldType.toString(), value.getClass().toString());
     }
 
@@ -683,9 +739,9 @@ public class AnnotationAndReflectionHelper {
                 }
             }
         }
+
         return null;
     }
-
 
     public Object getId(Object o) {
         if (o == null) {
@@ -693,11 +749,14 @@ public class AnnotationAndReflectionHelper {
         }
 
         Field f = getIdField(o);
+
         if (f == null) {
             throw new IllegalArgumentException("Object ID field not found " + o.getClass().getSimpleName());
         }
+
         try {
             o = getRealObject(o);
+
             if (o != null) {
                 return f.get(o);
             } else {
@@ -712,6 +771,7 @@ public class AnnotationAndReflectionHelper {
 
     public String getIdFieldName(Object o) {
         Class<?> cls;
+
         if (o instanceof Class) {
             cls = getRealClass((Class<?>) o);
         } else {
@@ -719,14 +779,17 @@ public class AnnotationAndReflectionHelper {
         }
 
         List<String> flds = getFields(cls, Id.class);
+
         if (flds == null || flds.isEmpty()) {
             throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
         }
+
         return flds.get(0);
     }
 
     public Field getIdField(Object o) {
         Class<?> cls;
+
         if (o instanceof Class) {
             cls = getRealClass((Class<?>) o);
         } else {
@@ -734,9 +797,11 @@ public class AnnotationAndReflectionHelper {
         }
 
         List<String> flds = getFields(cls, Id.class);
+
         if (flds == null || flds.isEmpty()) {
             throw new IllegalArgumentException("Object has no id defined: " + o.getClass().getSimpleName());
         }
+
         return getField(cls, flds.get(0));
     }
 
@@ -756,61 +821,75 @@ public class AnnotationAndReflectionHelper {
 
     @SuppressWarnings("CommentedOutCode")
     public List<String> getFields(Class cls, boolean ignoreEntity, Class<? extends Annotation>... annotations) {
-        if (cls == null) return new ArrayList<>();
+        if (cls == null) { return new ArrayList<>(); }
+
         StringBuilder stringBuilder = new StringBuilder(cls.toString());
+
         for (Class<? extends Annotation> a : annotations) {
             stringBuilder.append("/");
             stringBuilder.append(a.toString());
         }
+
         List<String> strings = fieldAnnotationListCache.get(stringBuilder.toString());
+
         if (strings != null) {
             return strings;
         }
+
         Map<String, List<String>> fa = fieldAnnotationListCache;
         List<String> ret = new ArrayList<>();
         Class sc = cls;
         sc = getRealClass(sc);
         Entity entity = getAnnotationFromHierarchy(sc, Entity.class);
         Embedded embedded = getAnnotationFromHierarchy(sc, Embedded.class);
+
         if (embedded != null && entity != null && !ignoreEntity) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
-//
-//        if (embedded == null && entity == null && !ignoreEntity) {
-//            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
-//        }
 
+        //
+        //        if (embedded == null && entity == null && !ignoreEntity) {
+        //            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
+        //        }
         boolean tcc = true;
-        if (embedded != null)
+
+        if (embedded != null) {
             tcc = embedded.translateCamelCase();
-        if (entity != null) tcc = entity.translateCamelCase();
+        }
+
+        if (entity != null) { tcc = entity.translateCamelCase(); }
 
         IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
-
         List<String> fieldsToIgnore = new ArrayList<>();
         List<String> ignoreContains = new ArrayList<>();
         List<Pattern> ignoreRexex = new ArrayList<>();
+
         if (ignoreFields != null && ignoreFields.value().length != 0) {
             for (String f : ignoreFields.value()) {
                 if (f.startsWith("~")) {
                     ignoreContains.add(f.substring(1));
                     continue;
                 }
+
                 if (f.startsWith("/") && f.endsWith("/")) {
                     ignoreRexex.add(Pattern.compile(f.substring(1).substring(0, f.length() - 2)));
                     continue;
                 }
+
                 fieldsToIgnore.add(f);
             }
         }
 
         List<String> fieldsToLimitTo = new ArrayList<>();
+
         if (limitToFields != null && limitToFields.value().length != 0) {
             fieldsToLimitTo.addAll(Arrays.asList(limitToFields.value()));
         }
+
         if (limitToFields != null && !limitToFields.type().equals(Object.class)) {
             List<Field> flds = getAllFields(limitToFields.type());
+
             for (Field f : flds) {
                 fieldsToLimitTo.add(getMongoFieldName(limitToFields.type(), f.getName()));
             }
@@ -818,15 +897,18 @@ public class AnnotationAndReflectionHelper {
 
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
+
         for (Field f : fld) {
             if (annotations.length > 0) {
                 boolean found = false;
+
                 for (Class<? extends Annotation> a : annotations) {
                     if (f.isAnnotationPresent(a)) {
                         found = true;
                         break;
                     }
                 }
+
                 if (!found) {
                     //no annotation found
                     continue;
@@ -837,25 +919,27 @@ public class AnnotationAndReflectionHelper {
                 ret.add(f.getAnnotation(Reference.class).fieldName());
                 continue;
             }
+
             if (f.isAnnotationPresent(Property.class) && !".".equals(f.getAnnotation(Property.class).fieldName())) {
                 ret.add(f.getAnnotation(Property.class).fieldName());
                 continue;
             }
+
             if (f.isAnnotationPresent(Transient.class)) {
                 continue;
             }
 
             //ignoring fields...
-
             boolean ignore = false;
             String conv = f.getName().replaceAll("\\$", "");
+
             if (tcc && ccc) {
                 conv = convertCamelCase(f.getName());
             }
+
             if (fieldsToIgnore.contains(conv) || fieldsToIgnore.contains(f.getName())) {
                 ignore = true;
             }
-
 
             if (!ignore) {
                 for (String ign : ignoreContains) {
@@ -878,7 +962,6 @@ public class AnnotationAndReflectionHelper {
                 ignore = true;
             }
 
-
             if (!ignore) {
                 ret.add(conv);
             }
@@ -888,7 +971,6 @@ public class AnnotationAndReflectionHelper {
         fieldAnnotationListCache = fa;
         return ret;
     }
-
 
     public <T> T getRealObject(T o) {
         if (isProxy(o.getClass())) {
@@ -903,21 +985,23 @@ public class AnnotationAndReflectionHelper {
                 logger.error("Exception: ", e);
             }
         }
+
         return o;
     }
 
     public final Class getTypeOfField(Class<?> cls, String fld) {
         Field f = getField(cls, fld);
+
         if (f == null) {
             return null;
         }
+
         return f.getType();
     }
 
     public boolean storesLastChange(Class<?> cls) {
         return isAnnotationPresentInHierarchy(cls, LastChange.class);
     }
-
 
     public boolean storesLastAccess(Class<?> cls) {
         return isAnnotationPresentInHierarchy(cls, LastAccess.class);
@@ -926,7 +1010,6 @@ public class AnnotationAndReflectionHelper {
     public boolean storesCreation(Class<?> cls) {
         return isAnnotationPresentInHierarchy(cls, CreationTime.class);
     }
-
 
     @SuppressWarnings("unused")
     public Long getLongValue(Object o, String fld) {
@@ -952,6 +1035,7 @@ public class AnnotationAndReflectionHelper {
         cls = getRealClass(cls);
         List<Annotation> ret = new ArrayList<>();
         Class<?> z = cls;
+
         while (!z.equals(Object.class)) {
             if (z.getAnnotations().length != 0) {
                 if (anCls.length == 0) {
@@ -966,6 +1050,7 @@ public class AnnotationAndReflectionHelper {
                     }
                 }
             }
+
             z = z.getSuperclass();
 
             if (z == null) {
@@ -976,53 +1061,60 @@ public class AnnotationAndReflectionHelper {
         return ret;
     }
 
-
     @SuppressWarnings({"unchecked", "unused"})
     public String getLastChangeField(Class<?> cls) {
         if (!storesLastChange(cls)) {
             return null;
         }
+
         List<String> lst = getFields(cls, LastChange.class);
+
         if (lst == null || lst.isEmpty()) {
             return null;
         }
+
         return lst.get(0);
     }
-
 
     @SuppressWarnings({"unchecked", "unused"})
     public String getLastAccessField(Class<?> cls) {
         if (!storesLastAccess(cls)) {
             return null;
         }
+
         List<String> lst = getFields(cls, LastAccess.class);
+
         if (lst == null || lst.isEmpty()) {
             return null;
         }
+
         return lst.get(0);
     }
 
     public String getAdditionalDataField(Class<?> cls) {
         List<String> lst = getFields(cls, AdditionalData.class);
+
         if (lst == null || lst.isEmpty()) {
             return null;
         }
+
         return lst.get(0);
     }
-
 
     @SuppressWarnings({"unchecked", "unused"})
     public String getCreationTimeField(Class<?> cls) {
         if (!storesCreation(cls)) {
             return null;
         }
+
         List<String> lst = getFields(cls, CreationTime.class);
+
         if (lst == null || lst.isEmpty()) {
             return null;
         }
+
         return lst.get(0);
     }
-
 
     public void callLifecycleMethod(Class<? extends Annotation> type, Object on) {
         callLifecycleMethod(type, on, new ArrayList());
@@ -1032,6 +1124,7 @@ public class AnnotationAndReflectionHelper {
         if (on == null) {
             return;
         }
+
         if (isProxy(on.getClass())) {
             try {
                 Field f1 = on.getClass().getDeclaredField("CGLIB$CALLBACK_0");
@@ -1039,6 +1132,7 @@ public class AnnotationAndReflectionHelper {
                 Object delegate = f1.get(on);
                 Method m = delegate.getClass().getMethod("__getPureDeref");
                 on = m.invoke(delegate);
+
                 if (on == null) {
                     return;
                 }
@@ -1050,19 +1144,26 @@ public class AnnotationAndReflectionHelper {
         if (calledOn.contains(on)) {
             return;
         }
+
         calledOn.add(on);
         //No synchronized block - might cause the methods to be put twice into the
         //hashtabel - but for performance reasons, it's ok...
         Class<?> cls = on.getClass();
+
         //No Lifecycle annotation - no method calling
         if (!isAnnotationPresentInHierarchy(cls, Lifecycle.class)) {
             return;
         }
+
         List<String> flds = getFields(on.getClass());
+
         for (String f : flds) {
             Field field = getField(on.getClass(), f);
-            if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) && isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
+
+            if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) &&
+             isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
                 field.setAccessible(true);
+
                 try {
                     callLifecycleMethod(type, field.get(on), calledOn);
                 } catch (IllegalAccessException e) {
@@ -1070,6 +1171,7 @@ public class AnnotationAndReflectionHelper {
                 }
             }
         }
+
         //Already stored - should not change during runtime
         if (lifeCycleMethods.get(cls) != null) {
             if (lifeCycleMethods.get(cls).get(type) != null) {
@@ -1079,23 +1181,28 @@ public class AnnotationAndReflectionHelper {
                     throw AnnotationAndReflectionException.of(e);
                 } catch (InvocationTargetException e) {
                     if (e.getCause().getClass().equals(MorphiumAccessVetoException.class)) {
-                        throw (RuntimeException) e.getCause();
+                        throw(RuntimeException) e.getCause();
                     }
+
                     throw AnnotationAndReflectionException.of(e);
                 }
             }
+
             return;
         }
 
         Map<Class<? extends Annotation>, Method> methods = new HashMap<>();
+
         //Methods must be public
         for (Method m : cls.getMethods()) {
             for (Annotation a : m.getAnnotations()) {
                 methods.put(a.annotationType(), m);
             }
         }
+
         Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;
         lc.put(cls, methods);
+
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
@@ -1103,6 +1210,7 @@ public class AnnotationAndReflectionHelper {
                 throw AnnotationAndReflectionException.of(e);
             }
         }
+
         lifeCycleMethods = lc;
     }
 
@@ -1112,7 +1220,8 @@ public class AnnotationAndReflectionHelper {
     }
 
     private <T> boolean isProxy(Class<? extends T> aClass) {
-        if (aClass == null) return false;
+        if (aClass == null) { return false; }
+
         return aClass.getName().contains("$$EnhancerByCGLIB$$");
     }
 
@@ -1125,7 +1234,6 @@ public class AnnotationAndReflectionHelper {
     }
 
     private static final class AnnotationAndReflectionException extends RuntimeException {
-
 
         private AnnotationAndReflectionException(Exception e) {
             super(e);
