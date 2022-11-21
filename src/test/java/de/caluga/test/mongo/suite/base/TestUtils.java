@@ -43,6 +43,13 @@ public class TestUtils {
         return m.createQueryFor(UncachedObject.class).countAll();
     }
 
+    public static void logDriverStats(Logger log,Morphium m){
+        var stats=m.getDriver().getDriverStats();
+        for (var e:stats.entrySet()){
+            log.info(String.format("Stats %s: %f ",e.getKey().name(),e.getValue()));
+        }
+    }
+
     public static void waitForWrites(Morphium morphium, Logger log) {
         int count = 0;
 

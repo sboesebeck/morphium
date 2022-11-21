@@ -32,7 +32,6 @@ public class CollStatsCommand extends MongoCommand<CollStatsCommand> {
             setConnection(con);
             var ret = super.executeAsync();
             setConnection(null);
-            con.release();
             return ret;
         } finally {
             if (con != null)

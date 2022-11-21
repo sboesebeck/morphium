@@ -669,7 +669,8 @@ public class Query<T> implements Cloneable {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add where when raw query is defined!");
         }
-        FilterExpression w=new FilterExpression();
+
+        FilterExpression w = new FilterExpression();
         w.setField("$where");
         w.setValue(wh);
         andExpr.add(w);
@@ -984,7 +985,7 @@ public class Query<T> implements Cloneable {
 
     private de.caluga.morphium.driver.ReadPreference getRP() {
         if (readPreferenceLevel == null) {
-            var t=morphium.getReadPreferenceForClass(getType());
+            var t = morphium.getReadPreferenceForClass(getType());
             return t;
         }
 
@@ -1017,7 +1018,6 @@ public class Query<T> implements Cloneable {
         Map<String, Object> o = new LinkedHashMap<>();
         List<Map<String, Object>> lst = new ArrayList<>();
         boolean onlyAnd = orQueries.isEmpty() && norQueries.isEmpty();
-
 
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
@@ -1170,11 +1170,14 @@ public class Query<T> implements Cloneable {
             long start = System.currentTimeMillis();
             Map<String, Object> lst = getFieldListForQuery();
             List<Map<String, Object>> ret = new ArrayList<>();
+            var fnd = getFindCmd();
 
             try {
-                ret = getFindCmd().execute();
+                ret = fnd.execute();
             } catch (Exception e) {
                 throw new RuntimeException(e);
+            } finally {
+                fnd.releaseConnection();
             }
 
             //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
@@ -1197,13 +1200,15 @@ public class Query<T> implements Cloneable {
             long start = System.currentTimeMillis();
             Map<String, Object> lst = getFieldListForQuery();
             List<Map<String, Object>> ret = new ArrayList<>();
+            FindCommand settings = getFindCmd();
 
             try {
-                FindCommand settings = getFindCmd();
                 ret = settings.execute();
                 srv = (String) settings.getMetaData().get("server");
             } catch (Exception e) {
                 throw new RuntimeException(e);
+            } finally {
+                settings.releaseConnection();
             }
 
             //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
@@ -1242,9 +1247,9 @@ public class Query<T> implements Cloneable {
         Map<String, Object> lst = getFieldListForQuery();
         List<T> ret = new ArrayList<>();
         ret.clear();
+        FindCommand cmd = getFindCmd();
 
         try {
-            FindCommand cmd = getFindCmd();
             Map<String, Object> queryObject = toQueryObject();
 
             if (queryObject != null) { cmd.setFilter(Doc.of(queryObject)); }
@@ -1265,10 +1270,12 @@ public class Query<T> implements Cloneable {
                     morphium.firePostLoadEvent(unmarshall);
                 }
             }
-
-            cmd.getConnection().release();
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            if (cmd != null && cmd.getConnection() != null) {
+                cmd.getConnection().release();
+            }
         }
 
         //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
@@ -1304,7 +1311,13 @@ public class Query<T> implements Cloneable {
     }
 
     public MorphiumCursor getCursor() throws MorphiumDriverException {
-        return getFindCmd().executeIterable(getBatchSize());
+        var fnd = getFindCmd();
+
+        try {
+            return fnd.executeIterable(getBatchSize());
+        } finally {
+            fnd.releaseConnection();
+        }
     }
 
     public QueryIterator<T> asIterable(int windowSize, Class<? extends QueryIterator<T>> it) {

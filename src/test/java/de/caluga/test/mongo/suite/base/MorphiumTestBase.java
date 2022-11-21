@@ -198,6 +198,7 @@ public class MorphiumTestBase {
                 settings.setComment("Dropping from morphiumg test base");
                 settings.setDb(morphium.getConfig().getDatabase());
                 settings.execute();
+                settings.releaseConnection();
             }
         } catch (MorphiumDriverException e) {
             e.printStackTrace();

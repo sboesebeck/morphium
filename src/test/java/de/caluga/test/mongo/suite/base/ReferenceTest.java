@@ -147,6 +147,7 @@ public class ReferenceTest extends MorphiumTestBase {
         InsertMongoCommand cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(null)).setColl("reference_container")
                 .setDb(morphium.getDatabase()).setDocuments(lst);
         cmd.execute();
+        cmd.releaseConnection();
         Thread.sleep(1000);
 
         assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
@@ -155,6 +156,7 @@ public class ReferenceTest extends MorphiumTestBase {
         ;
         assert (container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
         assert (container.uc.getCounter() == referenced.getCounter());
+
 
     }
 
