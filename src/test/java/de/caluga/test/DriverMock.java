@@ -453,4 +453,16 @@ public class DriverMock implements MorphiumDriver {
     public Map<DriverStatsKey, Double> getDriverStats() {
         return null;
     }
+
+    @Override
+    public int getIdleSleepTime() {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
+    public void setIdleSleepTime(int sl) {
+        // TODO Auto-generated method stub
+        
+    }
 }
