@@ -163,8 +163,8 @@ public class Morphium implements AutoCloseable {
             }
         };
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-          TimeUnit.MILLISECONDS, queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)->{
+           TimeUnit.MILLISECONDS, queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -217,7 +217,7 @@ public class Morphium implements AutoCloseable {
             });
 
             try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-             .scan()) {
+                .scan()) {
                 ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
 
                 // entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
@@ -423,49 +423,49 @@ public class Morphium implements AutoCloseable {
         if (capped != null && !capped.isEmpty()) {
             for (Class cls : capped.keySet()) {
                 switch (config.getCappedCheck()) {
-                case WARN_ON_STARTUP:
-                    log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
-                    break;
+                    case WARN_ON_STARTUP:
+                        log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
+                        break;
 
-                case CONVERT_EXISTING_ON_STARTUP:
-                    try {
-                        if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                            log.warn("Existing collection is not capped - ATTENTION!");
-                            // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
-                        }
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    break;
-
-                case CREATE_ON_STARTUP:
-                    try {
-                        if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                            MongoConnection primaryConnection = null;
-
-                            try {
-                                primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                                CreateCommand cmd = new CreateCommand(primaryConnection);
-                                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
-                                var ret = cmd.execute();
-                                log.debug("Created capped collection");
-                            } catch (MorphiumDriverException e) {
-                                throw new RuntimeException(e);
-                            } finally {
-                                if (primaryConnection != null) { primaryConnection.release(); }
+                    case CONVERT_EXISTING_ON_STARTUP:
+                        try {
+                            if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                                log.warn("Existing collection is not capped - ATTENTION!");
+                                // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"), null);
                             }
+                        } catch (MorphiumDriverException e) {
+                            throw new RuntimeException(e);
                         }
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
-                    }
 
-                case CREATE_ON_WRITE_NEW_COL:
-                case NO_CHECK:
-                    break;
+                        break;
 
-                default:
-                    throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
+                    case CREATE_ON_STARTUP:
+                        try {
+                            if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                                MongoConnection primaryConnection = null;
+
+                                try {
+                                    primaryConnection = morphiumDriver.getPrimaryConnection(null);
+                                    CreateCommand cmd = new CreateCommand(primaryConnection);
+                                    cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
+                                    var ret = cmd.execute();
+                                    log.debug("Created capped collection");
+                                } catch (MorphiumDriverException e) {
+                                    throw new RuntimeException(e);
+                                } finally {
+                                    if (primaryConnection != null) { primaryConnection.release(); }
+                                }
+                            }
+                        } catch (MorphiumDriverException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                    case CREATE_ON_WRITE_NEW_COL:
+                    case NO_CHECK:
+                        break;
+
+                    default:
+                        throw new IllegalArgumentException("Unknow value for cappedcheck " + config.getCappedCheck());
                 }
             }
         }
@@ -780,7 +780,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        Runnable r = ()->{
+        Runnable r = ()-> {
             String coll = getMapper().getCollectionName(c);
             //                DBCollection collection = null;
 
@@ -3851,7 +3851,8 @@ public class Morphium implements AutoCloseable {
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         try {
             MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-            WatchCommand settings = new WatchCommand(primaryConnection).setDb(config.getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
+            WatchCommand settings = new WatchCommand(primaryConnection).setDb(config.getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline).setFullDocument(
+            updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
                 boolean b = true;
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
@@ -3879,7 +3880,7 @@ public class Morphium implements AutoCloseable {
 
     public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
-        asyncOperationsThreadPool.execute(()->{
+        asyncOperationsThreadPool.execute(()-> {
             watchDb(dbName, updateFull, null, runningFlag, lst);
             log.debug("watch async finished");
         });
@@ -3912,7 +3913,7 @@ public class Morphium implements AutoCloseable {
         try {
             con = getDriver().getPrimaryConnection(null);
             WatchCommand cmd = new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup :
-              WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
+            WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
                     ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, data);
@@ -4139,11 +4140,11 @@ public class Morphium implements AutoCloseable {
 
         // initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-         //                     .verbose()             // Enable verbose logging
-         .enableAnnotationInfo()
-         //                             .enableFieldInfo()
-         .enableClassInfo()                   // Scan classes, methods, fields, annotations
-         .scan()) {
+            //                     .verbose()             // Enable verbose logging
+            .enableAnnotationInfo()
+            //                             .enableFieldInfo()
+            .enableClassInfo()                   // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
             if (filter != null) {
@@ -4203,10 +4204,49 @@ public class Morphium implements AutoCloseable {
         Query<T> q = createQueryFor(cls);
 
         for (String f : getARHelper().getFields(cls, LockedAt.class)) {
-            q.f(f).lt(System.currentTimeMillis() - ms);
+            q.f(f).lt(System.currentTimeMillis() - ms).f(f).gt(0);
         }
 
         return q;
+    }
+
+    public int releaseLocksOutdated(Class<?> cls, int ms) {
+        try {
+            UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(cls)));
+
+            try {
+                var q = getOutdatedLocksQuery(cls, ms);
+                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls));
+                var updates = Doc.of();
+
+                for (String f : getARHelper().getFields(cls, LockedBy.class)) {
+                    updates.put(f, 1);
+                }
+
+                for (String f : getARHelper().getFields(cls, LockedAt.class)) {
+                    updates.put(f, 1);
+                }
+                var count=0;
+                while (true) {
+                    cmd.addUpdate(Doc.of("q", q.toQueryObject(), "u", Doc.of("$unset",updates), "multi", false, "upsert", false));
+                    var result = cmd.execute();
+
+                    if (result.containsKey("errmsg")) {
+                        throw new RuntimeException("Error releasing lock:" + result.get("errmsg"));
+                    }
+                    if (Integer.valueOf(0).equals(result.get("nModified"))){
+                        return count;
+                    }
+                    count=count+(Integer)result.get("nModified");
+                }
+
+            } finally {
+                cmd.releaseConnection();
+            }
+        } catch (Exception e) {
+            log.error("Locking failed", e);
+            return 0;
+        }
     }
 
     //Limit done via query
