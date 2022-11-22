@@ -60,7 +60,10 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         }
         long start = System.currentTimeMillis();
         while (incomingQueue.size() == 0) {
-            Thread.yield();
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+            }
             if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
                 log.warn("Did not receive message in time!");
                 return null;

@@ -223,7 +223,10 @@ public class SingleMongoConnection implements MongoConnection {
                     log.error("Reader-Thread error", e);
                 }
 
-                Thread.yield();
+                try {
+                    Thread.sleep(20);
+                } catch (InterruptedException e) {
+                }
             }
 //                log.info("Reader Thread terminated");
             synchronized (incoming) {
@@ -241,7 +244,10 @@ public class SingleMongoConnection implements MongoConnection {
             incoming.notifyAll();
         }
         while (readerThread.isAlive()) {
-            Thread.yield();
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+            }
         }
         connected = false;
         try {
