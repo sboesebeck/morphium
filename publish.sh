@@ -13,7 +13,7 @@ if [ $branch != "develop" ]; then
     echo "you should only run publish from develop branch? Continue? <enter> | CTRL-C"
     read
 fi
-
+mvn clean compile > /dev/null || exit 1
 
 mvn clean release:clean release:prepare || exit 1
 version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -f2 -d=)
