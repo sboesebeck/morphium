@@ -31,7 +31,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.StatisticValue;
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -48,7 +47,6 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.ConnectionType;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
-import de.caluga.morphium.writer.MorphiumWriterImpl;
 
 /**
  * User: Stephan Bösebeck
@@ -342,7 +340,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (multithreadded) {
                     //wait for preprocessing to finish
                     while (threadPool != null && threadPool.getActiveCount() > 0) {
-                        Thread.yield();
+                        Thread.sleep(20);
                     }
                 }
             } catch (Exception e) {
@@ -1232,7 +1230,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 try {
                     //throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
-                        Thread.yield();
+                        Thread.sleep(20);
                     }
 
                     threadPool.execute(r);
@@ -1525,7 +1523,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 return null;
             }
 
-            Thread.yield();
+            Thread.sleep(20);
         }
 
         if (log.isDebugEnabled()) {
@@ -1575,7 +1573,11 @@ public class Messaging extends Thread implements ShutdownListener {
                 throw new SystemShutdownException("Messaging shutting down - abort waiting!");
             }
 
-            Thread.yield();
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                //ignore
+            }
         }
 
         waitingForMessages.remove(theMessage.getMsgId());

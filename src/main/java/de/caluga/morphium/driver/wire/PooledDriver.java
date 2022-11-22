@@ -313,7 +313,11 @@ public class PooledDriver extends DriverBase {
                         }
                     }
 
-                    Thread.yield();
+                    try {
+                        Thread.sleep(20);
+                    } catch (InterruptedException e) {
+                        // ignore
+                    }
                 }
 
                 try {

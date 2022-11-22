@@ -249,7 +249,10 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 + "ms");
                         }
 
-                        Thread.yield();
+                        try {
+                            Thread.sleep(20);
+                        } catch (InterruptedException e1) {
+                        }
 
                         try {
                             if (opLog.get(type) == null || opLog.get(type).size() < size) {
