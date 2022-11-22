@@ -39,6 +39,7 @@ public class MorphiumConfig {
     //    private MongoDbMode mode;
     private int maxConnections = 10, housekeepingTimeout = 5000;
     private int minConnections = 1;
+    private int idleSleepTime=20;
 
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
@@ -259,6 +260,8 @@ public class MorphiumConfig {
 
         return cfg;
     }
+
+
 
     public int getMessagingWindowSize() {
         return messagingWindowSize;
@@ -1323,4 +1326,15 @@ public class MorphiumConfig {
         CREATE_ON_WRITE_NEW_COL,
         CONVERT_EXISTING_ON_STARTUP,
     }
+
+
+
+    public int getIdleSleepTime() {
+        return idleSleepTime;
+    }
+
+    public void setIdleSleepTime(int idleSleepTime) {
+        this.idleSleepTime = idleSleepTime;
+    }
+
 }

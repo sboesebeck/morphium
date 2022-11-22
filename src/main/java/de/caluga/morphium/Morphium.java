@@ -282,6 +282,7 @@ public class Morphium implements AutoCloseable {
             morphiumDriver.setMaxConnectionIdleTime(config.getMaxConnectionIdleTime());
             morphiumDriver.setMaxConnectionLifetime(config.getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(config.getMaxWaitTime());
+            morphiumDriver.setIdleSleepTime(config.getIdleSleepTime());
             //
             // morphiumDriver.setServerSelectionTimeout(config.getServerSelectionTimeout());
             //            morphiumDriver.setUuidRepresentation(config.getUuidRepresentation());

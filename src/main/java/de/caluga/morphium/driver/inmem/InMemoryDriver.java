@@ -133,7 +133,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>> >> database = new ConcurrentHashMap<>();
-
+    private int idleSleepTime=20;
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
@@ -3006,5 +3006,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+    }
+
+    @Override
+    public int getIdleSleepTime() {
+        return 0;
+    }
+
+    @Override
+    public void setIdleSleepTime(int sl) {
+        // TODO Auto-generated method stub
+        
     }
 }

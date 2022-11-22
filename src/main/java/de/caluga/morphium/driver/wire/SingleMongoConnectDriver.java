@@ -58,6 +58,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
     private SingleMongoConnection connection;
     private ConnectionType connectionType = ConnectionType.PRIMARY;
+    private int idleSleepTime=20;
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
@@ -878,6 +879,16 @@ public class SingleMongoConnectDriver extends DriverBase {
         public void release() {
             getDriver().releaseConnection(this);
         }
+    }
+
+    @Override
+    public int getIdleSleepTime() {
+        return idleSleepTime;
+    }
+
+    @Override
+    public void setIdleSleepTime(int sl) {
+       idleSleepTime=sl; 
     }
 
 }

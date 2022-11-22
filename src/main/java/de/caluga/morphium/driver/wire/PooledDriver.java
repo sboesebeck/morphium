@@ -23,6 +23,7 @@ public class PooledDriver extends DriverBase {
     private Map<String, AtomicInteger> borrowedConnectionsByCaller = new ConcurrentHashMap<>();
     private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
+    private int idleSleepTime = 20;
     private String fastestHost = "";
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
     private String primaryNode;
@@ -314,7 +315,7 @@ public class PooledDriver extends DriverBase {
                     }
 
                     try {
-                        Thread.sleep(20);
+                        Thread.sleep(idleSleepTime);
                     } catch (InterruptedException e) {
                         // ignore
                     }
@@ -481,6 +482,18 @@ public class PooledDriver extends DriverBase {
         }
 
         return false;
+    }
+
+
+    @Override
+    public int getIdleSleepTime() {
+   
+        return idleSleepTime;
+    }
+
+    @Override
+    public void setIdleSleepTime(int sl) {
+       idleSleepTime=sl; 
     }
 
     @Override
