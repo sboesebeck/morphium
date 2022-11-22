@@ -250,7 +250,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         }
 
                         try {
-                            Thread.sleep(20);
+                            Thread.sleep(morphium.getConfig().getIdleSleepTime());
                         } catch (InterruptedException e1) {
                         }
 

@@ -340,7 +340,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (multithreadded) {
                     //wait for preprocessing to finish
                     while (threadPool != null && threadPool.getActiveCount() > 0) {
-                        Thread.sleep(20);
+                        Thread.sleep(morphium.getConfig().getIdleSleepTime());
                     }
                 }
             } catch (Exception e) {
@@ -1230,7 +1230,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 try {
                     //throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
-                        Thread.sleep(20);
+                        Thread.sleep(morphium.getConfig().getIdleSleepTime());
                     }
 
                     threadPool.execute(r);
@@ -1523,7 +1523,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 return null;
             }
 
-            Thread.sleep(20);
+            try {
+                Thread.sleep(morphium.getConfig().getIdleSleepTime());
+            } catch (InterruptedException e) {
+            }
         }
 
         if (log.isDebugEnabled()) {
@@ -1574,7 +1577,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             try {
-                Thread.sleep(20);
+                Thread.sleep(morphium.getConfig().getIdleSleepTime());
             } catch (InterruptedException e) {
                 //ignore
             }

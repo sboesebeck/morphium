@@ -30,6 +30,8 @@ public interface MorphiumDriver extends Closeable {
     //|_______/    |_______|    |__|        |__|     |__| |__| \__|  \______| |_______/
     String getName();
 
+    int getIdleSleepTime();
+    void setIdleSleepTime(int sl);
     @SuppressWarnings("unused")
     int getMaxBsonObjectSize();
 
