@@ -27,11 +27,12 @@ import java.util.*;
 @WriteSafety(level = SafetyLevel.MAJORITY)
 @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
-@Index({"sender,processed_by,in_answer_to",
-        "sender,locked_by,processed_by",
-        "msgId,sender,locked_by,processed_by,name,priority,timestamp",
-        "msgId,locked_by,processed_by,name",
-        "locked_by,processed_by,priority,timestamp"
+@Index({
+    "sender,processed_by,in_answer_to",
+    "sender,locked_by,processed_by",
+    "msgId,sender,locked_by,processed_by,name,priority,timestamp",
+    "msgId,locked_by,processed_by,name",
+    "locked_by,processed_by,priority,timestamp"
 })
 public class Msg {
     @Index
@@ -59,20 +60,22 @@ public class Msg {
     private long timestamp;
     @Index(options = "expireAfterSeconds:0")
     private Date deleteAt;
-
-    private int priority=1000;
-//    @Transient
-//    private Boolean exclusive = false;
+    private boolean timingOut = true;
+    private boolean deleteAfterProcessing = false;
+    private int deleteAfterProcessingTime=30000;
+    private int priority = 1000;
+    //    @Transient
+    //    private Boolean exclusive = false;
 
     public Msg() {
         // msgId = UUID.randomUUID().toString();
         lockedBy = "ALL";
-//        exclusive = false;
+        //        exclusive = false;
     }
 
-  public Msg(String name, String msg, String value) {
-      this(name, msg, value, 30000, false);
-  }
+    public Msg(String name, String msg, String value) {
+        this(name, msg, value, 30000, false);
+    }
 
     public Msg(String name, String msg, String value, long ttl) {
         this(name, msg, value, ttl, false);
@@ -85,7 +88,14 @@ public class Msg {
         this.value = value;
         this.ttl = ttl;
         setExclusive(exclusive);
+    }
+    public boolean isTimingOut() {
+        return timingOut;
+    }
 
+    public Msg setTimingOut(boolean tm) {
+        timingOut = tm;
+        return this;
     }
 
     public int getPriority() {
@@ -96,6 +106,25 @@ public class Msg {
         this.priority = priority;
         return this;
     }
+
+    public int getDeleteAfterProcessingTime() {
+        return deleteAfterProcessingTime;
+    }
+
+    public Msg setDeleteAfterProcessingTime(int deleteAfterProcessingTime) {
+        this.deleteAfterProcessingTime = deleteAfterProcessingTime;
+        return this;
+    }
+
+    public boolean isDeleteAfterProcessing() {
+        return deleteAfterProcessing;
+    }
+
+    public Msg setDeleteAfterProcessing(boolean deleteAfterProcessing) {
+        this.deleteAfterProcessing = deleteAfterProcessing;
+        return this;
+    }
+
 
     public boolean isExclusive() {
         return getLockedBy() == null || !getLockedBy().equals("ALL");
@@ -112,6 +141,7 @@ public class Msg {
         } else {
             lockedBy = null;
         }
+
         return this;
     }
 
@@ -137,20 +167,21 @@ public class Msg {
     public Msg addRecipient(String id) {
         if (recipients == null) {
             recipients = new ArrayList<>();
-
         }
+
         if (!recipients.contains(id)) {
             recipients.add(id);
         }
+
         return this;
     }
 
     @SuppressWarnings("unused")
     public Msg removeRecipient(String id) {
         if (recipients != null) {
-
             recipients.remove(id);
         }
+
         return this;
     }
 
@@ -158,6 +189,7 @@ public class Msg {
         if (mapValue == null) {
             mapValue = new HashMap<>();
         }
+
         mapValue.put(key, value);
         return this;
     }
@@ -167,6 +199,7 @@ public class Msg {
         if (mapValue == null) {
             return this;
         }
+
         mapValue.remove(key);
         return this;
     }
@@ -230,6 +263,7 @@ public class Msg {
         if (processedBy == null) {
             processedBy = new ArrayList<>();
         }
+
         return processedBy;
     }
 
@@ -301,6 +335,7 @@ public class Msg {
         if (additional == null) {
             additional = new ArrayList<>();
         }
+
         additional.add(value);
     }
 
@@ -309,6 +344,7 @@ public class Msg {
         if (additional == null) {
             return;
         }
+
         additional.remove(value);
     }
 
@@ -324,21 +360,21 @@ public class Msg {
     @Override
     public String toString() {
         return "Msg{" +
-                " msgId='" + msgId + '\'' +
-                ", inAnswerTo='" + inAnswerTo + '\'' +
-                ", lockedBy='" + lockedBy + '\'' +
-                ", locked=" + locked +
-                ", ttl=" + ttl +
-                ", sender='" + sender + '\'' +
-                ", name='" + name + '\'' +
-                ", msg='" + msg + '\'' +
-                ", value='" + value + '\'' +
-                ", timestamp=" + timestamp +
-                ", additional='" + additional + '\'' +
-                ", mapValue='" + mapValue + '\'' +
-                ", recipient='" + recipients + '\'' +
-                ", processedBy=" + processedBy +
-                '}';
+               " msgId='" + msgId + '\'' +
+               ", inAnswerTo='" + inAnswerTo + '\'' +
+               ", lockedBy='" + lockedBy + '\'' +
+               ", locked=" + locked +
+               ", ttl=" + ttl +
+               ", sender='" + sender + '\'' +
+               ", name='" + name + '\'' +
+               ", msg='" + msg + '\'' +
+               ", value='" + value + '\'' +
+               ", timestamp=" + timestamp +
+               ", additional='" + additional + '\'' +
+               ", mapValue='" + mapValue + '\'' +
+               ", recipient='" + recipients + '\'' +
+               ", processedBy=" + processedBy +
+               '}';
     }
 
     @SuppressWarnings({"unused", "CommentedOutCode"})
@@ -347,19 +383,29 @@ public class Msg {
         if (sender == null) {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
+
         if (name == null) {
             throw new RuntimeException("Cannot send a message without name!");
         }
-        if (ttl == 0) {
-            LoggerFactory.getLogger(Msg.class).debug("Defaulting msg ttl to 30sec");
-            ttl = 30000;
+
+        if (timingOut) {
+            if (ttl == 0) {
+                LoggerFactory.getLogger(Msg.class).debug("Defaulting msg ttl to 30sec");
+                ttl = 30000;
+            }
+
+            if (deleteAt == null) {
+                deleteAt = new Date(System.currentTimeMillis() + ttl);
+            }
+        } else {
+            deleteAt = null;
+            ttl = 0;
         }
-        if (deleteAt == null) {
-            deleteAt = new Date(System.currentTimeMillis() + ttl);
-        }
+
         if (getProcessedBy().size() == 0) {
             processedBy = null;
         }
+
         timestamp = System.currentTimeMillis();
     }
 
@@ -384,7 +430,8 @@ public class Msg {
     }
 
     public Msg setRecipient(String id) {
-        if (recipients == null) recipients = new ArrayList<>();
+        if (recipients == null) { recipients = new ArrayList<>(); }
+
         recipients.clear();
         recipients.add(id);
         return this;
@@ -398,11 +445,12 @@ public class Msg {
         this.recipients = recipients;
     }
 
-
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Msg)) return false;
+        if (this == o) { return true; }
+
+        if (!(o instanceof Msg)) { return false; }
+
         Msg msg = (Msg) o;
         return Objects.equals(getMsgId(), msg.getMsgId());
     }
