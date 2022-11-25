@@ -50,6 +50,24 @@ public class TestUtils {
         }
     }
 
+    public static void wait(int secs){
+        wait("Waiting "+secs+"s: ",secs);
+    }
+    public static void wait(String msg,int secs){
+        System.out.print(msg);
+        for (int i=secs;i>0;i--){
+            if (i%10==0){
+                System.out.print(i);
+            } 
+            System.out.print(".");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
+        }
+        System.out.println("done");
+    }
+
     public static void waitForWrites(Morphium morphium, Logger log) {
         int count = 0;
 

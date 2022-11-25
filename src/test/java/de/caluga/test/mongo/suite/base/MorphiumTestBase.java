@@ -218,13 +218,18 @@ public class MorphiumTestBase {
         for (ShutdownListener l : morphium.getShutDownListeners()) {
             if (l instanceof Messaging) {
                 ((Messaging) l).terminate();
-                log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                long start=System.currentTimeMillis();
+                var id=((Messaging) l).getSenderId();
+                log.info("Terminating still running messaging..." + id);
                 while (((Messaging) l).isRunning()) {
                     log.info("Waiting for messaging to finish");
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
                         //swallow
+                    }
+                    if (System.currentTimeMillis()-start > 5000){
+                        throw new RuntimeException("Could not kill Messaging: "+id);
                     }
                 }
                 toRemove.add(l);
