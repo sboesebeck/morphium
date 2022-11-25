@@ -347,6 +347,15 @@ public class MorphiumConfig {
         return this;
     }
 
+    public MorphiumConfig setDriverClass(String cls){
+        if (cls.equals(InMemoryDriver.class.getName())){
+            driverName=InMemoryDriver.driverName;
+        } else {
+            throw new IllegalArgumentException("Cannot set driver class "+cls+" - please use setDriverName with the proper name.");
+        }
+        return this;
+    }
+
     public boolean isAutoIndexAndCappedCreationOnWrite() {
         return indexCheck.equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
     }
