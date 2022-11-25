@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
+import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.locking.Lockable;
@@ -20,7 +24,6 @@ import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 public class LockEntityTest extends MorphiumTestBase {
-
     @Test
     public void simpleLocking() throws Exception {
         morphium.dropCollection(LockedEntity.class);
@@ -86,20 +89,24 @@ public class LockEntityTest extends MorphiumTestBase {
         Vector<Integer> values = new Vector<Integer>();
 
         for (int i = 0; i < 10; i++) {
-            var t=i;
-            Runnable r = ()-> {
+            var t = i;
+            Runnable r = ()->{
                 var q = morphium.createQueryFor(LockedEntity.class).sort("value").limit(1);
 
                 try {
                     while (true) {
-                        var res = morphium.lockEntities(q, "thr_"+t, 1000);
+                        var res = morphium.lockEntities(q, "thr_" + t, 1000);
+
                         if (res == null || res.isEmpty()) { return; }
-                        assertEquals(1,res.size());
-                        if (values.contains(res.get(0).value)){
+
+                        assertEquals(1, res.size());
+
+                        if (values.contains(res.get(0).value)) {
                             log.error("Error - duplicate entry!");
                         } else {
                             values.add(res.get(0).value);
                         }
+
                         morphium.delete(res.get(0));
                     }
                 } catch (MorphiumDriverException e) {
@@ -109,13 +116,11 @@ public class LockEntityTest extends MorphiumTestBase {
             new Thread(r).start();
         }
 
-        while (morphium.createQueryFor(LockedEntity.class).countAll()!=0){
-            log.info("Waiting for queue to be processed..."+morphium.createQueryFor(LockedEntity.class).countAll());
-            Thread.sleep(500);       
+        while (morphium.createQueryFor(LockedEntity.class).countAll() != 0) {
+            log.info("Waiting for queue to be processed..." + morphium.createQueryFor(LockedEntity.class).countAll());
+            Thread.sleep(500);
         }
-
     }
-
 
     @Test
     public void multithreaddedLocking() throws Exception {
@@ -194,4 +199,5 @@ public class LockEntityTest extends MorphiumTestBase {
         public long lockedAt;
 
     }
+
 }
