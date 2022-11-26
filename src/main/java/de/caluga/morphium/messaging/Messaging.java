@@ -70,6 +70,9 @@ public class Messaging extends Thread implements ShutdownListener {
     private final Morphium morphium;
     private boolean running;
     private int pause;
+    private int autoUnlockAfter=0;
+
+
     private String id;
     private boolean autoAnswer = false;
     private String hostname;
@@ -81,6 +84,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
     private Map<String, List<MessageListener>> listenerByName;
     private String queueName;
+    
 
     private ThreadPoolExecutor threadPool;
     private final ScheduledThreadPoolExecutor decouplePool;
@@ -199,6 +203,13 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public String getStatusInfoListenerName() {
         return statusInfoListenerName;
+    }
+    public int getAutoUnlockAfter() {
+        return autoUnlockAfter;
+    }
+
+    public void setAutoUnlockAfter(int autoUnlockAfter) {
+        this.autoUnlockAfter = autoUnlockAfter;
     }
 
     public void setStatusInfoListenerName(String statusInfoListenerName) {
@@ -485,6 +496,16 @@ public class Messaging extends Thread implements ShutdownListener {
                     findAndProcessMessages(processMultiple);
                 } else {
                     morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
+                }
+
+                //unlocking locked stuff
+                if (autoUnlockAfter != 0){
+                    var q=morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName()).f(Msg.Fields.lockedBy).nin(Arrays.asList("ALL",null))
+                        .f(Msg.Fields.lockedBy).lt(System.currentTimeMillis()-autoUnlockAfter);
+                    var ret=q.set(Msg.Fields.lockedBy,null,false,true);
+                    if (ret.containsKey("nModified")){
+                        log.info("Released lock of "+ret.get("nModified")+" messages!");
+                    }
                 }
             } catch (Throwable e) {
                 if (running) {
