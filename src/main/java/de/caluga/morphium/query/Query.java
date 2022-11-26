@@ -1729,6 +1729,23 @@ public class Query<T> implements Cloneable {
         return morphium.set(this, map, false, false);
     }
 
+    public Map<String,Object> unset(boolean multiple, Enum... field){
+        return morphium.unsetQ(this, multiple, field);
+    }
+
+    
+    public Map<String,Object> unset(boolean multiple, String... field){
+        return morphium.unsetQ(this, multiple, field);
+    }
+
+    public Map<String,Object> unset(Enum... fields){
+        return morphium.unsetQ(this, fields);
+    }
+
+    public Map<String,Object> unset(String... fields){
+        return morphium.unsetQ(this, fields);
+    }
+
     public void push(String field, Object value) {
         morphium.push(this, field, value);
     }
