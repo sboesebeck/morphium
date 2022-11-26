@@ -70,8 +70,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private final Morphium morphium;
     private boolean running;
     private int pause;
-    private int autoUnlockAfter=0;
-
+    private int autoUnlockAfter = 0;
 
     private String id;
     private boolean autoAnswer = false;
@@ -84,7 +83,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
     private Map<String, List<MessageListener>> listenerByName;
     private String queueName;
-    
 
     private ThreadPoolExecutor threadPool;
     private final ScheduledThreadPoolExecutor decouplePool;
@@ -437,6 +435,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
                             return running;
                         }
+                        
 
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
 
@@ -445,6 +444,9 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (obj.getProcessedBy().contains(id)) {
+                            return running;
+                        }
+                        if (obj.getProcessedBy()!=null &&obj.isExclusive() && obj.getProcessedBy().size()>0){
                             return running;
                         }
 
@@ -465,9 +467,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (pauseMessages.containsKey(obj.getName())) { return running; }
 
-                        if (obj != null && obj.isExclusive()
-                        && (obj.getLockedBy() == null || obj.getLockedBy().equals(id))
-                        && (obj.getRecipients() == null || obj.getRecipients().contains(id))) {
+                        if (obj != null && obj.isExclusive() && (obj.getLockedBy() == null || obj.getLockedBy().equals(id)) && (obj.getRecipients() == null || obj.getRecipients().contains(id))) {
                             // locking
                             lockAndProcess(obj);
                         } else if (!obj.isExclusive() && !obj.getProcessedBy().contains(id)) {
@@ -499,12 +499,18 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
 
                 //unlocking locked stuff
-                if (autoUnlockAfter != 0){
-                    var q=morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName()).f(Msg.Fields.lockedBy).nin(Arrays.asList("ALL",null))
-                        .f(Msg.Fields.lockedBy).lt(System.currentTimeMillis()-autoUnlockAfter);
-                    var ret=q.set(Msg.Fields.lockedBy,null,false,true);
-                    if (ret.containsKey("nModified")){
-                        log.info("Released lock of "+ret.get("nModified")+" messages!");
+                if (autoUnlockAfter > 0) {
+                    var q = morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName())
+                     .f(Msg.Fields.lockedBy).nin(Arrays.asList("ALL", null))
+                     .f(Msg.Fields.locked).lt(System.currentTimeMillis() - autoUnlockAfter);
+                    var ret = q.set(Msg.Fields.lockedBy, null, false, true);
+
+                    if (ret.containsKey("nModified")) {
+                        int amount = Integer.valueOf((Integer)ret.get("nModified"));
+
+                        if (amount > 0) {
+                            log.info("Released lock of " + ret.get("nModified") + " messages!");
+                        }
                     }
                 }
             } catch (Throwable e) {
@@ -567,8 +573,7 @@ public class Messaging extends Thread implements ShutdownListener {
         pauseMessages.putIfAbsent(name, System.currentTimeMillis());
     }
 
-
-    public List<String> getPausedMessageNames(){
+    public List<String> getPausedMessageNames() {
         return new ArrayList<>(pauseMessages.keySet());
     }
 
@@ -943,7 +948,7 @@ public class Messaging extends Thread implements ShutdownListener {
             processing.remove(msg.getMsgId());
             return;
         }
-
+        
         if (msg.isExclusive() && !msg.getLockedBy().equals(null) && !msg.getLockedBy().equals(getSenderId())) {
             if (log.isDebugEnabled()) {
                 log.debug("Not processing " + msg.getMsgId() + " - locked by someone else");
@@ -1310,6 +1315,7 @@ public class Messaging extends Thread implements ShutdownListener {
         } else {
             listenerByName.get(n).add(l);
         }
+
         skipped.incrementAndGet();
     }
 
@@ -1436,6 +1442,7 @@ public class Messaging extends Thread implements ShutdownListener {
         } else {
             listeners.add(l);
         }
+
         skipped.incrementAndGet();
     }
 

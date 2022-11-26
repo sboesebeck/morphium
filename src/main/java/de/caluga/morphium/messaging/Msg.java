@@ -30,6 +30,7 @@ import java.util.*;
 @Index({
     "sender,processed_by,in_answer_to",
     "sender,locked_by,processed_by",
+    "locked_by","locked",
     "msgId,sender,locked_by,processed_by,name,priority,timestamp",
     "msgId,locked_by,processed_by,name",
     "locked_by,processed_by,priority,timestamp"
