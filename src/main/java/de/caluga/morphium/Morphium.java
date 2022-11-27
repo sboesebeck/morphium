@@ -834,7 +834,7 @@ public class Morphium implements AutoCloseable {
     public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
             Map<String, Object> ret = new HashMap<>();
-            @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
 
             for (Object o : lst) {
                 if (o instanceof Map) {
