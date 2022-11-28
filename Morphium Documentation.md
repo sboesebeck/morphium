@@ -9,21 +9,19 @@ _Morphium_ started as a feature rich access layer and POJO mapper for MongoDB in
 But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customisable and stable. 
 
 ## About this document
-This document is a documentation for _Morphium_ in the current (4.2) version. It would be best, if you had a basic
-understanding of MongoDB and installed and maybe used _Morphium_ already. If you want to know about MongoDB's features,
+This document is a documentation for _Morphium_ in the current (5.0) version. It would be best, if you had a basic
+understanding of MongoDB and have it installed and maybe used _Morphium_ already. If you want to know about MongoDB's features,
 that _Morphium_ makes available in java and are referenced here, have a look at the official MongoDB pages and the
 documentation there.
-
-This documentation covers all features _Morphium_ has to offer.
 
 Later in this document there are chapters about the POJO mapping, querying data and using the aggregation framework.
 Also a chapter about the InMemory driver, which is quite useful for testing. But let's start with the messaging
 subsystem first.
 
-## Using _Morphium_ as a messaging system
+## Using _Morphium_ as a message queueing system
 _Morphium_ itself is simple to use, easy to customise to your needs and was built for high performance and scalability. The messaging system is no different. It relies on the `watch` functionality, that MongoDB offers since V3.6 (you can also use messaging with older versions of MongoDB, but it will result in polling for new messages). With that feature, the messages are _pushed_ to all listeners. This makes it a very efficient messaging system based on MongoDB.
 
-### why _Morphium_ messaging
+### why _Morphium_ message queueing
 There is a ton of messaging solutions out there. All of them have their advantages and offer lots of features. But only few of them offer the things that _Morphium_ has:
 
 - the message queue can easily be inspected and you can use mongo search queries to find the messages you are looking for[^you can even use aggregation on it, to gather more information about your messages]
@@ -66,6 +64,7 @@ messaging.queueMessage(new Msg("name","A message","the value");
 ```
 
 queueMessage is running asynchronously, which means, that the message is _not_ directly stored. If you need more speed and shorter reaction time, you should use `sendMessage` instead (directly storing message to mongo).
+
 
 
 ### Answering messages
@@ -287,6 +286,40 @@ The listener only need to implement the standard `onMessage`-Method to get this 
 Since _Morphium_ V4.2 it is also possible to send an exclusive message to certain recipients[^does only make sense, when there is more than one recipient usually]. 
 
 The behaviour is the same: the message will only be processed by _one_ of the specified recipients, whereas it will be processed by _all_ recipients, if not exclusive.
+
+### changing behaviour
+
+#### mark message as already processed
+By default, messages are marked as processed _after_ the listener's `onMessage`
+is finishes. If you need this behaviour to be changed, implement the method
+`markAsProcessedBeforeExec` and have it return `true`, depending on your needs
+
+#### auto release locks
+An exclusivee message is being locked by a listener before it might be
+processed. This lock by default exists limitless, meaning if one listner locked
+a message for itself, the lock is never releaser
+IF you wan to modify this behaviour, you can set a non 0 value to
+`autoUnlockAfter`in messaging instance. This will make sure, that locks are
+removed after the specified amount of milliseconds and a message might be
+processed by others. Caveat: do not set this value to low as it might interfere
+with message processing. Good values should be significantly larger than the
+pause setting on messaging.
+
+#### timeout specifications 
+Usually, messages just time out, they are being deleted by mongodb when the
+timeout is reached (default 30 seconds). But it might be useful to have the
+message around longer, not timing out until it is processed. 
+
+There are two settings in a Msg-Object that specify that
+- `boolean deleteAfterProcessing` : if true, message will be marked for deletion
+  after processing
+  - `int deleteAfterProcessingTime`: time offset (in ms) when this message
+    should be deleted. 
+
+these delete flags, do work in combination. E.g. by default messages are deleted
+after 30seconds, but directly after processing (`deleteAfterProcessingTime=0`
+and `deleteAfterProcessing=true`).
+
 
 
 ## InMemory Driver
