@@ -26,10 +26,10 @@ Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Feature
 - support for complex queries
 - support inheritance and polymorphism
 - support for javax.validation annotations
-- lifecycle methods of pojos
+- lifecycle methods of POJOs
 - Support for References, including lazy loaded references
 - Support for partial updated objects (when writing, only the changes of the object are transferred)
-- Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
+- Almost any operation Morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
 
 for questions and feature requests / bug reports also have a look at the google group
 join us on _slack_ [link](https://join.slack.com/t/team-morphium/shared_invite/enQtMjgwODMzMzEzMTU5LTA1MjdmZmM5YTM3NjRmZTE2ZGE4NDllYTA0NTUzYjU2MzkxZTJhODlmZGQ2MThjMGY0NmRkMWE1NDE2YmQxYjI)
@@ -1166,7 +1166,7 @@ public class MyEntity {
 
 # how does it work
 
-When a reference is being lazy loaded, the corresponding field will be set with a Proxy for an instance of the correct type, where only the ObjectID is set. Any access to it will be catched by the proxy, and any method will cause the object to be read from DB and unmarshalled. Hence this object will only be loaded upon first access.
+When a reference is being lazy loaded, the corresponding field will be set with a Proxy for an instance of the correct type, where only the ObjectID is set. Any access to it will be caught by the proxy, and any method will cause the object to be read from DB and unmarshalled. Hence this object will only be loaded upon first access.
 
 It should be noted that when using Object.toString(); for testing that the object will be loaded from the database and appear to not be lazy loaded. In order to test Lazy Loading you should load the base object with the lazy reference and access it directly and it will be null. Additionally the referenced object will be null until the references objects fields are accessed.
 
@@ -1214,7 +1214,7 @@ Introduced with V2.2.23BETA3 you can define a LogDelegate to be used instead of 
 
 Of course you can define your own LoggerDelegate, just implement the interface `de.caluga.morphium.LoggerDelegate` and add your classname as file.
 
-_Attention_: The log delegate will be instanciated with every new Logger instance!
+_Attention_: The log delegate will be instantiated with every new Logger instance!
 
 # Mapping Objects from and to Strings
 
@@ -1224,7 +1224,7 @@ yes, the whole Mongo communication is based on BSON-Objects which is totally fin
 
 ## How does it work
 
-I added one new dependency to a "Simple JSon Parser" which does excactly, what the name states: simply parsing Json. In our case into BSon representation. This can than easily be put into the "normal" mapping algorithm to create the corresponding Java-Class.
+I added one new dependency to a "Simple JSon Parser" which does exactly, what the name states: simply parsing Json. In our case into BSon representation. This can than easily be put into the "normal" mapping algorithm to create the corresponding Java-Class.
 
 ```java
     String json=morphium.getMapper().marshall(myEntity).toString();
@@ -1252,7 +1252,7 @@ for (Type t:q.asIterable()) {
 }
 ```
 
-This creates an iterator, reading all objects from the query in chunks of 10... if you want to read them one by one, you only ned to give the chunk-size to the call:
+This creates an iterator, reading all objects from the query in chunks of 10... if you want to read them one by one, you only need to give the chunk-size to the call:
 
 ```java
 for (Type t:q.asIterable(1)) {
@@ -1271,7 +1271,7 @@ You can also use the iterator as in the "good ol' days".
    }
 ```
 
-If you use the MorphiumIterator as the type it acutally is, you'd get even more information:
+If you use the MorphiumIterator as the type it actually is, you'd get even more information:
 
 ```java
    MorphiumIterator<Type> it=q.asIterable(100);
