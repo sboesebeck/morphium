@@ -8,6 +8,24 @@ _Morphium_ started as a feature rich access layer and POJO mapper for MongoDB in
 
 But with time, the MongoDB based messaging became one of the most popular features in _Morphium_. It is fast, reliable, customisable and stable.
 
+### _Morphium V5_ 
+With morphium V5 we did a _big_ rewrite and started at the bottom: the dirver to
+access MongoDB. The official MongoDB-Java-Driver does have a lot more features,
+that morphium either did implement differently or just does not use. Hence a way
+smaller, easier to maintain Driver helps a lot. 
+
+We started writing a mongodb wire protocol dirver, that supports Mongodb 5 and
+upwards. It is tested with mongo 5 and 6 (Morphium V5.0.5). It is minimalistic
+and built especially for _Morphium_'s needs.
+
+We then started adapting the Morphium Driver Interface, integrating it into
+_Morphium_ itself. Hence, V4 and V5 are _mostly_ source compatible with each
+other, but some driver related calls and settings are just working differently
+now. So when upgrading: please be aware
+
+**Caveat: Morphium V5 is working with JDK11 and following - no JDK1.8 support
+anymore!**
+
 ## About this document
 
 This document is a documentation for _Morphium_ in the current (5.0) version. It would be best, if you had a basic
@@ -342,34 +360,13 @@ and `deleteAfterProcessing=true`).
 
 One main purpose of the `InMemoryDriver` is to be able to do testing without having a MongoDB installed. The InMemoryDriver adds the opportunity to let all MongoDB-code run in Memory, with a couple of exceptions
 
-- unfortunately, the InMemoryDriver cannot do aggregations. It will throw an Exception, when trying Aggregations with this driver
 - the inMemoryDriver is also not capable to return cluster information, run mongodb commands
 - it does not support spacial indexes or queries
-
-If you want to mock those things in testing, you need to:
-
-1. create a subclass of the inMemoryDriver
-2. override the corresponding method, for example `aggregate()` for aggregation and return the properly mocked data
-3. set the driver back to default in order to have it work
-
-```java
-		@Test
-		public void mockAggregation() throws Exception{
-		    MorphiumDriver original=morphium.getDriver();
-		    morphium.setDriver(new InMemoryDriver(){
-		        @Override
-                public List<Map<String, Object>>aggregate(String db,String collection,List<Map<String, Object>>pipeline,boolean explain,boolean allowDiskUse,Collation collation,ReadPreference readPreference)throws MorphiumDriverException{
-        return Arrays.asList(UtilsMap.of("MockedData",123.0d));
-        }
-		    });
-
-	    Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-	    //...
-	    assert(agg.aggregate().get(0).get("MockedData").equals(123.0d)); //checking mocked data
-	    morphium.getDriver().close();
-	    morphium.setDriver(original);
-	   }
-```
+- it is limited with javascript functionality (like $where queries)
+- the InMemoryDriver prior to V4.2.0 did not have the ability to do
+  aggregations. 
+- With Morphium V5.0 the InMemoryDriver also gained Expr-support in aggregations
+  and queries 
 
 ### how to use the inMemory Driver
 
@@ -378,7 +375,7 @@ you just need to set the Driver properly in your _Morphium_ configuration.
     	MorphiumConfig cfg = new MorphiumConfig();
     	cfg.addHostToSeed("inMem");
     	cfg.setDatabase("test");
-    	cfg.setDriverClass(InMemoryDriver.class.getName());
+    	cfg.setDriverName(InMemoryDriver.driverName);
     	cfg.setReplicasetMonitoring(false);
     	morphium = new Morphium(cfg);
 
@@ -386,7 +383,7 @@ Of course, the _InMemDriver_ does not need hosts to connect to, but for compatib
 
 You can also set the Driver in the settings, e.g. in properties:
 
-    morphium.driverClass = "de.caluga.morphium.driver.inmem.InMemoryDriver"
+    morphium.driverName = "InMemDriver"
 
 After that initialisation you can use this _Morphium_ instance as always, except that it will "persist" data only in Memory.
 
@@ -604,19 +601,19 @@ Hence we built **Morphium** and we named it similar to _morphia_ to show where t
 
 _Morphium_ is built with flexibility, thread safety, performance and cluster awareness in mind.
 
-- flexibility: it is possible to exchange most of the internal implementations of _Morphium_. You could have your own
-  Driver class for connecting to MongoDB or have a custom implementation for the query processing.
 - thread safety: all aspects of _Morphium_ were tested multithreaded so that it can be used in production
 - performance: one of the main goals of _Morphium_ was to improve performance. The Object Mapping in use is a custom
-  implementation that was built especially for _Morphium_, is very fast and to improve speed even further, caching is
+  implementation that was built especially for _Morphium_, is very fast (faster than other Json-Mappers) and to improve speed even further, caching is
   part of the core features of _Morphium_
 - cluster awareness: this is essential nowadays for high availability or just mere speed. _Morphium_s caches are all
-  cluster aware which means you will not end up with dirty reads in a clustered environment when using \_Morphium_
+  cluster aware (if configured to be) which means you will not end up with dirty reads in a clustered environment when using \_Morphium_
 - independent from mongoDB Driver: _Morphium_ does not have a direct dependency on the mongoDB java driver, instead it
   considers it to be provided. This means, you can have a different version of the driver in use than the one _Morphium_
   was last tested with (you do not need the latest and grates, usually it is backward compatible). In addition to
   that, _Morphium_ does not directly use MongoDB or BSON classes but offers its own implementation. For example
-  the `MorphiumId`, wich is a drop in replacement for `ObjectId`.
+  the `MorphiumId`, wich is a drop in replacement for `ObjectId`. With V5.0 this
+  independence was put to the next level - Morphium uses it's own driver to
+  access MongoDB (see above)
 - Clear Design Idea: code for reading from MongoDB is encapsulated in `Query` or `QueryImpl` respectively. All code for
   writing to MongoDB is encapsulated in `Morphium` itself. For convenience there are some calls from one to another, but
   the actual code is located as stated.
