@@ -1,14 +1,20 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
@@ -80,30 +86,57 @@ public class RejectTests extends MorphiumTestBase {
     public void lotsofclientsTest() throws Exception {
         Messaging sender = null;
         List<Messaging> clients = new ArrayList<>();
-
+        AtomicInteger recs=new AtomicInteger();
         try {
             sender = new Messaging(morphium, 100, false);
             sender.setSenderId("sender");
-
-            for (int i = 0; i < 100; i++) {
+            log.info("Creating listeners...");
+            for (int i = 0; i < 10; i++) {
                 Messaging m = new Messaging(morphium, 100, false);
                 m.setSenderId("Rec" + i);
+                log.info(m.getSenderId());
                 m.start();
 
                 m.addMessageListener(new MessageListener<Msg>() {
-
+                    Map<MorphiumId,AtomicInteger> cnt=new HashMap<>();
                     @Override
                     public Msg onMessage(Messaging msg, Msg m) {
-                        
+                        recs.incrementAndGet();
+                        cnt.putIfAbsent(m.getMsgId(),new AtomicInteger());
+                        if (cnt.get(m.getMsgId()).incrementAndGet()==1){
+                            throw new MessageRejectedException("rejecting at first: "+msg.getSenderId(),true);
+                        }
                         return null;
                     }
                     
                 });
                 clients.add(m);
             }
+            log.info("done - sending message");
+            Msg m=new Msg("Test","value","msg");
+            m.setDeleteAfterProcessing(true);
+            m.setDeleteAfterProcessingTime(0);
+            m.setExclusive(true);
 
+            sender.sendMessage(m);
+            TestUtils.waitForConditionToBecomeTrue(5000, "not all listeners received", ()->recs.get()==clients.size());
 
+            Thread.sleep(1000);
+            //mst not raise
+            assertEquals(clients.size(),recs.get(),"Additional messages coming in????");
+            assertEquals(1,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
+
+            //all processed exclusive messages will have an intact lock (and should be deleted!)
+                morphium.createQueryFor(Msg.class,sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).set(Msg.Fields.processedBy,null,false,true);
+
+            Thread.sleep(1000);
+            assertEquals(clients.size()+1,recs.get(), "Should have beend processed!");
+
+            assertEquals(0,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
+            
         } finally {
+            sender.terminate();
+            for (var m:clients) m.terminate();
         }
     }
 
