@@ -126,8 +126,12 @@ public class RejectTests extends MorphiumTestBase {
             assertEquals(clients.size(),recs.get(),"Additional messages coming in????");
             assertEquals(1,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
 
-            //all processed exclusive messages will have an intact lock (and should be deleted!)
-                morphium.createQueryFor(Msg.class,sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).set(Msg.Fields.processedBy,null,false,true);
+            //all processed exclusive messages will have an intact lock (and should have been deleted!)
+            //so, if we want to reatry already processed messages, we need to just reset processed_by 
+            //if the lockedBy field is null.
+            //check if processed_By.0 exists to be 100% sure not to interfere!
+            //the lock property should have the timestamp this message was last processed (or tried to process)
+            morphium.createQueryFor(Msg.class,sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).f("processed_by.0").ne(null).set(Msg.Fields.processedBy,null,false,true);
 
             Thread.sleep(1000);
             assertEquals(clients.size()+1,recs.get(), "Should have beend processed!");
