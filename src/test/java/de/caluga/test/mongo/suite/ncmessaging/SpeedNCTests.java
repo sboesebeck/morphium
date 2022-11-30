@@ -52,7 +52,7 @@ public class SpeedNCTests extends MorphiumTestBase {
 
         receiver.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
@@ -97,14 +97,14 @@ public class SpeedNCTests extends MorphiumTestBase {
 
         receiver.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
         });
         receiver2.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }

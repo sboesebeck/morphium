@@ -64,7 +64,7 @@ public class SpeedTests extends MultiDriverTestBase {
 
                 receiver.addMessageListener(new MessageListener() {
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                    public Msg onMessage(Messaging msg, Msg m)  {
                         recCount.incrementAndGet();
                         return null;
                     }

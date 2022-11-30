@@ -116,7 +116,7 @@ public class ReplicaSetStatusTest extends MorphiumTestBase {
 
 
     @Test
-    public void rsStatusListenerTest() throws InterruptedException {
+    public void rsStatusListenerTest()  {
         if (!morphium.isReplicaSet()) {
             log.warn("Cannot test replicaset on non-replicaset installation");
             return;
@@ -145,7 +145,10 @@ public class ReplicaSetStatusTest extends MorphiumTestBase {
             }
         });
         log.info("Waiting for RSMonitor to inform us: " + morphium.getConfig().getReplicaSetMonitoringTimeout() * 2);
-        Thread.sleep(morphium.getConfig().getReplicaSetMonitoringTimeout() * 2);
+        try {
+            Thread.sleep(morphium.getConfig().getReplicaSetMonitoringTimeout() * 2);
+        } catch (InterruptedException e) {
+        }
         assert (cnt.get() > 0);
     }
 

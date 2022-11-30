@@ -101,7 +101,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     @SuppressWarnings("RedundantThrows")
     @Override
-    public JMSMessage onMessage(Messaging msg, JMSMessage m) throws InterruptedException {
+    public JMSMessage onMessage(Messaging msg, JMSMessage m) {
         log.info("Incoming message...");
         if (getMessageListener() != null) {
             getMessageListener().onMessage(m);

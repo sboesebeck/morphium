@@ -70,7 +70,7 @@ public class RoundTripTests extends MorphiumTestBase {
             Thread.sleep(1000);
             m2.addListenerForMessageNamed("ping", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                public Msg onMessage(Messaging msg, Msg m)  {
                     pingReceived.add(System.currentTimeMillis());
                     msg.sendMessage(new Msg("pong", "msg", "v", 30000, exclusive));
                     pongSent.add(System.currentTimeMillis());
@@ -80,7 +80,7 @@ public class RoundTripTests extends MorphiumTestBase {
 
             m1.addListenerForMessageNamed("pong", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                public Msg onMessage(Messaging msg, Msg m)  {
                     pongReceived.add(System.currentTimeMillis());
                     //log.info("got pong back...");
                     return null;

@@ -4,7 +4,10 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
+
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     private final List<Msg> list = new ArrayList<>();
-    private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
@@ -22,6 +24,9 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     public boolean error = false;
     public MorphiumId lastMsgId;
     public AtomicInteger procCounter = new AtomicInteger(0);
+    private Logger log= LoggerFactory.getLogger(InMemPausingUnpausingTests.class);
+
+
 
     @Test
     public void pauseUnpauseProcessingTest() throws Exception {
@@ -98,7 +103,10 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
             }
             lastTS.set(System.currentTimeMillis());
             log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp() + " " + lst);
-            Thread.sleep(250);
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+            }
             list.add(m);
             msg.unpauseProcessingOfMessagesNamed(m.getName());
             return null;
@@ -158,7 +166,10 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("pause");
             log.info("Processing pause  message");
-            Thread.sleep(2000);
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+            }
             cnt.incrementAndGet();
             msg.unpauseProcessingOfMessagesNamed("pause");
 

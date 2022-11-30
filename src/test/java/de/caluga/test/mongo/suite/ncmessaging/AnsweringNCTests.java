@@ -428,7 +428,10 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m2.addListenerForMessageNamed("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             msg.sendMessage(answer);
-            Thread.sleep(1000);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
             answer = m.createAnswerMsg();
             return answer;
         });
@@ -517,7 +520,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage1 = false;
         recipient.addListenerForMessageNamed("query", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 gotMessage1 = true;
                 Msg answer = m.createAnswerMsg();
                 answer.setName("queryAnswer");
@@ -529,7 +532,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage2 = false;
         sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 gotMessage2 = true;
                 assertNotNull(m.getInAnswerTo());
                 ;

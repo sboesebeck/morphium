@@ -19,7 +19,7 @@ import java.util.Date;
 public class ExpireIndexTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void testExpiry(Morphium morphium) throws InterruptedException {
+    public void testExpiry(Morphium morphium)  throws Exception {
         log.info("==========> Running test with: "+morphium.getDriver().getName());
         try (morphium) {
             morphium.dropCollection(UCobj.class);

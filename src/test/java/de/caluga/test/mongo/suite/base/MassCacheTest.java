@@ -27,7 +27,7 @@ public class MassCacheTest extends MorphiumTestBase {
     private static final Logger log = LoggerFactory.getLogger(MassCacheTest.class);
 
     @Test
-    public void massiveParallelWritingTest() throws InterruptedException {
+    public void massiveParallelWritingTest()  throws Exception {
 
         log.info("\nMassive parallel writing - single creating objects");
         long start = System.currentTimeMillis();

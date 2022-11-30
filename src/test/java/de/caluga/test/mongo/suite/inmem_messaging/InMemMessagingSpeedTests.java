@@ -57,7 +57,7 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
 
             receiver.addMessageListener(new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                public Msg onMessage(Messaging msg, Msg m)  {
                     recCount.incrementAndGet();
                     return null;
                 }

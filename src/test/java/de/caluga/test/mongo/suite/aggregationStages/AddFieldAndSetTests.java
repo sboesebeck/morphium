@@ -36,7 +36,7 @@ public class AddFieldAndSetTests extends MorphiumTestBase {
 
     }
 
-    private void prepareData() throws InterruptedException {
+    private void prepareData()  throws Exception {
         morphium.clearCollection(Student.class);
         Thread.sleep(100);
         Student s1 = new Student();

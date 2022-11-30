@@ -208,7 +208,7 @@ public class MorphiumTestBase {
     }
 
     @AfterEach
-    public void tearDown() throws InterruptedException {
+    public void tearDown() throws Exception {
         if (morphium == null) return;
         logStats(morphium);
         morphium.getCache().resetCache();

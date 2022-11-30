@@ -192,7 +192,7 @@ public class ObjectMapperImplTest {
     }
 
     @Test
-    public void complexObjectTest() throws InterruptedException {
+    public void complexObjectTest()  {
         UncachedObject ee = new UncachedObject();
         ee.setCounter(12345);
         ee.setStrValue("Embedded value");
@@ -322,7 +322,7 @@ public class ObjectMapperImplTest {
     }
 
     @Test
-    public void objectMapperSpeedTest() throws InterruptedException {
+    public void objectMapperSpeedTest()  {
         //Thread.sleep(20000);
         UncachedObject o = new UncachedObject();
         o.setCounter(42);
@@ -350,7 +350,7 @@ public class ObjectMapperImplTest {
     }
 
     @Test
-    public void objectMapperSpeedTest2() throws InterruptedException {
+    public void objectMapperSpeedTest2()  {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);
         o.setStrValue("The meaning of life");
