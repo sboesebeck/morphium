@@ -48,7 +48,7 @@ public class MorphiumInMemTestBase {
     }
 
     @AfterEach
-    public void tearDown() throws InterruptedException {
+    public void tearDown() throws Exception {
         log.info("Cleaning up...");
 
         try {

@@ -22,7 +22,7 @@ public class TestSkipChecks extends MorphiumTestBase {
         checkStartup(100, true, false, 100);
     }
 
-    private void checkStartup(int pause, boolean multiple, boolean multith, int window) throws InterruptedException {
+    private void checkStartup(int pause, boolean multiple, boolean multith, int window)  throws Exception {
         morphium.resetStatistics();
         Messaging m = new Messaging(morphium, pause, multiple, multith, window);
         m.start();
@@ -53,14 +53,14 @@ public class TestSkipChecks extends MorphiumTestBase {
         m.start();
         m.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m) {
                 return null;
             }
         });
         Messaging m2 = new Messaging(morphium, 100, true, true, 100);
         m2.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m) {
                 return null;
             }
         });

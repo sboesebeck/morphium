@@ -123,27 +123,27 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     private void addListeners(Messaging m1, Messaging m2) {
         m1.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 return null;
             }
         });
         m1.addListenerForMessageNamed("test1", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 return null;
             }
         });
 
         m2.addListenerForMessageNamed("test1", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 return null;
             }
         });
 
         m2.addListenerForMessageNamed("test2", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m)  {
                 return null;
             }
         });

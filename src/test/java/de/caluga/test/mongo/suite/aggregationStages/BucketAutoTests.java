@@ -86,7 +86,7 @@ public class BucketAutoTests extends MorphiumTestBase {
 
     }
 
-    private void prepData() throws InterruptedException {
+    private void prepData() throws Exception {
         morphium.clearCollection(Artwork.class);
         Thread.sleep(100);
 

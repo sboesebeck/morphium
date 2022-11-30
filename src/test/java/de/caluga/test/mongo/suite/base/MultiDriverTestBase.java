@@ -285,7 +285,7 @@ public class MultiDriverTestBase {
 //    }
 
     @AfterEach
-    public void tearDown() throws InterruptedException {
+    public void tearDown()  {
 
     }
 

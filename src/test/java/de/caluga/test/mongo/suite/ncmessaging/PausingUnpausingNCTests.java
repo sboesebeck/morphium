@@ -98,7 +98,10 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
             }
             lastTS.set(System.currentTimeMillis());
             log.info("Incoming paused message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp() + " " + lst);
-            Thread.sleep(250);
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+            }
             list.add(m);
             msg.unpauseProcessingOfMessagesNamed(m.getName());
             return null;
@@ -156,7 +159,10 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("pause");
             log.info("Processing pause  message");
-            Thread.sleep(2000);
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+            }
             cnt.incrementAndGet();
             msg.unpauseProcessingOfMessagesNamed("pause");
 

@@ -177,8 +177,8 @@ public class UpdateTest extends MultiDriverTestBase {
         }
     }
 
-    private void checkValue(Morphium morphium, UncachedObject uc, String value)
-    throws InterruptedException {
+    private void checkValue(Morphium morphium, UncachedObject uc, String value) throws Exception 
+     {
         Thread.sleep(100);
         assert(uc.getStrValue().equals(value))
             : "Value wrong: " + uc.getStrValue() + " but should be " + value;

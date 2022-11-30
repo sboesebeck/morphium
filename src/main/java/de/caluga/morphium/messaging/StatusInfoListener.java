@@ -11,7 +11,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String morphiumConfigKey = "morphium.config";
 
     @Override
-    public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+    public Msg onMessage(Messaging msg, Msg m) {
         if (m.isAnswer()) return null;
         Msg answer = m.createAnswerMsg();
         answer.setMapValue(new HashMap<>());

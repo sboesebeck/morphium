@@ -242,7 +242,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 m.addMessageListener((ms, msg) -> {
                     ms.pauseProcessingOfMessagesNamed(msg.getName());
                     log.info("incoming message to " + ms.getSenderId());
-                    Thread.sleep(250);
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException e) {
+                    }
                     cnt.incrementAndGet();
                     countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
                     countById.get(ms.getSenderId()).incrementAndGet();
@@ -290,7 +293,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 m.addMessageListener((ms, msg) -> {
                     ms.pauseProcessingOfMessagesNamed(msg.getName());
                     log.info("incoming message to " + ms.getSenderId());
-                    Thread.sleep(250);
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException e) {
+                    }
                     cnt.incrementAndGet();
                     countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
                     countById.get(ms.getSenderId()).incrementAndGet();
@@ -338,7 +344,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             for (Messaging m : messagings) {
                 m.addListenerForMessageNamed("test", (ms, msg) -> {
                     //log.info("incoming message to "+ms.getSenderId());
-                    Thread.sleep(250);
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException e) {
+                    }
                     cnt.incrementAndGet();
                     countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
                     countById.get(ms.getSenderId()).incrementAndGet();
@@ -388,7 +397,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             for (Messaging m : messagings) {
                 m.addListenerForMessageNamed("test", (ms, msg) -> {
                     //log.info("incoming message to "+ms.getSenderId());
-                    Thread.sleep(250);
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException e) {
+                    }
                     cnt.incrementAndGet();
                     countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
                     countById.get(ms.getSenderId()).incrementAndGet();

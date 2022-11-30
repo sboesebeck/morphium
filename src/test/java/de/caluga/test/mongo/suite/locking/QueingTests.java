@@ -53,7 +53,7 @@ public class QueingTests extends MorphiumTestBase {
                         return true;
                     }
                     @Override
-                    public Msg onMessage(Messaging m, Msg msg) throws InterruptedException {
+                    public Msg onMessage(Messaging m, Msg msg)  {
                         // log.info("incoming!");
                         if (!running.get()) { return null; }
 

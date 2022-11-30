@@ -1656,7 +1656,10 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         try {
             MessageListener messageListener = (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("m");
-                Thread.sleep((long) (300 * Math.random()));
+                try {
+                    Thread.sleep((long) (300 * Math.random()));
+                } catch (InterruptedException e) {
+                }
                 //log.info("R1: Incoming message "+m.getValue());
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
@@ -1774,7 +1777,10 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
         try {
             MessageListener messageListener = (msg, m) -> {
-                Thread.sleep((long) (500 * Math.random()));
+                try {
+                    Thread.sleep((long) (500 * Math.random()));
+                } catch (InterruptedException e) {
+                }
                 received.incrementAndGet();
                 recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 recieveCount.get(msg.getSenderId()).incrementAndGet();
@@ -1951,7 +1957,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                 receivers.add(receiver1);
                 receiver1.addMessageListener(new MessageListener() {
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                    public Msg onMessage(Messaging msg, Msg m)  {
                         receivedBy.add(msg.getSenderId());
                         return null;
                     }

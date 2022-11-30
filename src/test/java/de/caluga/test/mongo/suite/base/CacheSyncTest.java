@@ -485,7 +485,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
     }
 
-    private void checkForClearedCache(Morphium m1, Morphium m2) throws InterruptedException {
+    private void checkForClearedCache(Morphium m1, Morphium m2) throws Exception  {
         printstats(m1, "X-Entries for:.*");
         assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
         Thread.sleep(1000);

@@ -59,7 +59,10 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
                     }
                 }
 
-                Thread.sleep(250);
+                try {
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {
+                }
                 return null;
             };
             for (int i = 0; i < receivers; i++) {
@@ -187,7 +190,7 @@ public class AdvancedInMemMessagingTests extends MorphiumInMemTestBase {
         try {
             consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                public Msg onMessage(Messaging msg, Msg m)  {
                     log.info("incoming message, replying with answer");
                     Msg answer = m.createAnswerMsg();
                     answer.setName("answer");

@@ -267,7 +267,7 @@ public class AnsweringTests extends MorphiumTestBase {
             //checking wait for
             MessageListener<Msg> listener = new MessageListener<Msg>() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+                public Msg onMessage(Messaging msg, Msg m)  {
                     return m.createAnswerMsg();
                 }
             };
@@ -408,7 +408,10 @@ public class AnsweringTests extends MorphiumTestBase {
         m2.addListenerForMessageNamed("q_getAnswer", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             msg.sendMessage(answer);
-            Thread.sleep(1000);
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }
             answer = m.createAnswerMsg();
             return answer;
         });

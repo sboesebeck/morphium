@@ -65,7 +65,7 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
 
         MessageListener l = new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) throws InterruptedException {
+            public Msg onMessage(Messaging msg, Msg m) {
                 count.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 log.info(msg.getSenderId() + ": Got message: " + count.get(msg.getSenderId()).incrementAndGet());
                 try {
