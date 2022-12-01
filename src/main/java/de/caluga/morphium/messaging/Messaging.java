@@ -627,8 +627,14 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
         if (listenerByName.isEmpty() && listeners.isEmpty()) {
-            //No listeners - only answers will be processed
-            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).idList();
+            if (getReceiveAnswers().equals(ReceiveAnswers.ALL)){
+                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).ne(null).limit(windowSize).idList();
+            } else if (getReceiveAnswers().equals(ReceiveAnswers.ONLY_MINE)){
+                //No listeners - only answers will be processed
+                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).limit(windowSize).idList();
+            } else { //NO_ANSWER_PROCESSING
+                return new ArrayList<>();
+            }
         }
 
         //locking messages..
@@ -881,37 +887,9 @@ public class Messaging extends Thread implements ShutdownListener {
             cmd.addUpdate(qobj, update, null, false, processMultiple, null, null, null);
             Map<String, Object> result = cmd.execute();
 
-            // log.debug("Result from locking: "+Utils.toJsonString(result));
-            // log.debug("Results: "+result.get("nModified"));
-            // log.debug("       : "+result.get("nModified").getClass().getName());
-            //            Map<String, Object> result = morphium.getDriver().update(morphium.getConfig().getDatabase(), getCollectionName(), qobj, update, processMultiple, false, null, null); //always locking single message
-            // obj=morphium.reread(obj);
-            // if (obj==null){
-            // log.debug("Message was deleted");
-            // return;
-            // }
-            // if (obj.getLockedBy()==null){
-            //     log.error("Locking failed? - still null!");
-            //     return;
-            // }
             if (result.get("nModified") != null && result.get("nModified").equals(Integer.valueOf(1))) {
-                //     || result.get("n")!=null &&result.get("n").equals(Long.valueOf(1))) {
-                // if (obj.getLockedBy().equals(id)){
-                //                if (log.isDebugEnabled())
-                //                    log.debug("locked msg " + obj.getMsgId() + " for " + id);
-                //updated
                 obj.setLocked((Long) values.get("locked"));
                 obj.setLockedBy((String) values.get("locked_by"));
-                // obj=morphium.reread(obj);
-                // if (obj.getLockedBy()==null || !obj.getLockedBy().equals(id)){
-                //     log.error("object was not locked, although update result states so");
-                //     Thread.sleep(100);
-                //     obj=morphium.reread(obj);
-                //     if (obj.getLockedBy()==null || !obj.getLockedBy().equals(id)){
-                //         log.error("Retry failed!");
-                //         return;
-                //     }
-                // }
                 processMessage(obj);
             }
         } catch (Exception e) {
