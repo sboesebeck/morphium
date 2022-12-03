@@ -1637,8 +1637,8 @@ public class Query<T> implements Cloneable {
         }
     }
 
-    public void delete () {
-        morphium.delete(this);
+    public Map<String,Object> delete () {
+        return morphium.delete(this);
     }
 
     public Map<String, Object> set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
