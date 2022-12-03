@@ -1,20 +1,20 @@
 package de.caluga.test.mongo.suite.locking;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 
-import de.caluga.morphium.annotations.CreationTime;
+import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.locking.Lockable;
 import de.caluga.morphium.annotations.locking.LockedAt;
 import de.caluga.morphium.annotations.locking.LockedBy;
@@ -188,7 +188,63 @@ public class LockEntityTest extends MorphiumTestBase {
         assertEquals(0, errors.get(), "Errors during processing");
     }
 
+    @Test
+    public void globalLockTest() throws Exception {
+        morphium.dropCollection(LockedEntity.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, LockedEntity.class);
+        int threads = 15;
+        LockedEntity globalLock = new LockedEntity();
+        morphium.insert(globalLock);
+        List<String> processing = new Vector<>();
+        Vector<String> lockedBy=new Vector<>();
+        
+
+        AtomicInteger processed=new AtomicInteger();
+        AtomicInteger running=new AtomicInteger();
+        for (int i = 0; i < threads; i++) {
+            String thrId="thr"+i;
+            Runnable r = ()->{
+                for (int x = 0; x < 20; x++) {
+                    //aquire Lock
+                    try {
+                        var q = morphium.createQueryFor(LockedEntity.class).f("_id").eq(globalLock.id);
+                        q.limit(1);
+                        var l = morphium.lockEntities(q, thrId, 1000);
+
+                        if (l != null && !l.isEmpty()) {
+                            //got lock
+                            assertEquals(0,lockedBy.size());
+                            lockedBy.add(thrId); 
+                            log.info(thrId+" did processing");
+                            processed.incrementAndGet();
+                            assertFalse(processing.contains(thrId));
+                            processing.add(thrId);
+                            Thread.sleep((int)(Math.random() * 100.0));
+                            processing.remove(thrId);
+                            lockedBy.remove(thrId);
+                            morphium.releaseLock(l.get(0));
+                        } else {
+                            // log.info(thrId+" did not get lock!");
+                            x--;
+                        }
+                    } catch (Exception e) {
+                        log.error("Error", e);
+                    }
+                }
+                running.decrementAndGet();
+            };
+            running.incrementAndGet();
+            new Thread(r).start();
+        }
+
+        Thread.sleep(1000);
+        assertTrue(processed.get()>0);
+        TestUtils.waitForConditionToBecomeTrue(150000,"threads did not finish",()->running.get()==0,()->log.info("Waiting for Threads: "+running.get()));
+        assertEquals(threads*20, processed.get(), "something went wrong");
+    }
+
     @Lockable @Entity
+    @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
     public static class LockedEntity {
         @Id
         MorphiumId id;
