@@ -10,12 +10,20 @@ public class TestUtils {
         boolean test() throws Exception;
     }
     public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, tst,null);
+    }
+    public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, Runnable statusMessage) {
         long start = System.currentTimeMillis();
-
+        int last=0;
         try {
             while (!tst.test()) {
                 if (System.currentTimeMillis() - start > maxDuration) {
                     throw new AssertionError(failMessage);
+                }
+                if (statusMessage != null && ((System.currentTimeMillis()-start)/1000)>last){
+                    last=(int) (System.currentTimeMillis()-start)/1000;
+                    statusMessage.run();
+                   
                 }
 
                 Thread.yield();
