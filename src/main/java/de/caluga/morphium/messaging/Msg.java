@@ -378,7 +378,6 @@ public class Msg {
                '}';
     }
 
-    @SuppressWarnings({"unused", "CommentedOutCode"})
     @PreStore
     public void preStore() {
         if (sender == null) {
@@ -401,6 +400,10 @@ public class Msg {
         } else {
             deleteAt = null;
             ttl = 0;
+        }
+
+        if (!timingOut && !deleteAfterProcessing){
+            LoggerFactory.getLogger(Msg.class).warn("This message will never be deleted! this is not recommended!");
         }
 
         if (getProcessedBy().size() == 0) {
