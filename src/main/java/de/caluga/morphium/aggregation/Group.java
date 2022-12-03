@@ -140,7 +140,7 @@ public class Group<T, R> {
 
     public Aggregator<T, R> end() {
         if (ended) {
-            log.info("Group.end() already called!");
+//            log.debug("Group.end() already called!");
             return aggregator;
         }
         Map<String, Object> params = new HashMap<>(id);
