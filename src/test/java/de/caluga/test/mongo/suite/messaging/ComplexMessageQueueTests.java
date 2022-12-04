@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 
@@ -126,9 +127,12 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
         Map<String, Integer> maxParallel = Map.of("msg1", 1, "msg3", 15, "msg4", 12, "msg5", 3);
         AtomicInteger counts = new AtomicInteger(0);
         AtomicInteger locks = new AtomicInteger(0);
+        AtomicInteger crons = new AtomicInteger(0);
+        AtomicLong lastCron = new AtomicLong(0);
         List<MorphiumId> processedIds = new Vector<>();
         List<String> lockedBy = new Vector<>();
         AtomicInteger busyClients = new AtomicInteger();
+        int cronInterval = 10000;
         GlobalLock gl = new GlobalLock();
         gl.scope = "global";
         morphium.insert(gl);
@@ -190,28 +194,63 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                 rec1.addListenerForMessageNamed("msg4", msgL);
                 rec1.addListenerForMessageNamed("msg5", msgL);
                 rec1.start();
-                // new Thread(()->{
-                //     while (!rec1.isRunning()) {
-                //         try {
-                //             Thread.sleep(10);
-                //         } catch (InterruptedException e) {
-                //         }
-                //     }
-                //     while (rec1.isRunning()) {
-                //         if (morphium.createQueryFor(Msg.class).countAll() != 0 && morphium.createQueryFor(MessageCount.class).countAll() == 0 ||
-                //         ) {
-                //             log.warn("There are queued messages, but not being processed.");
-                //             rec1.triggerCheck();
-                //        }
-                //
-                //         //check for strange locked messages...
-                //
-                //         try {
-                //             Thread.sleep(1000);
-                //         } catch (InterruptedException e) {
-                //         }
-                //     }
-                // }).start();
+                //   ____
+                //  / ___|_ __ ___  _ __
+                // | |   | '__/ _ \| '_ \
+                // | |___| | | (_) | | | |
+                //  \____|_|  \___/|_| |_|
+                new Thread(()->{
+                    while (!rec1.isRunning()) {
+                        try {
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                        }
+                    }
+
+                    while (rec1.isRunning()) {
+                        //  if (morphium.createQueryFor(Msg.class).countAll() != 0 && morphium.createQueryFor(MessageCount.class).countAll() == 0) {
+                        //      log.warn("There are queued messages, but not being processed.");
+                        //      rec1.triggerCheck();
+                        // }
+                        if (System.currentTimeMillis() - lastCron.get() > cronInterval) {
+                            //getting lock
+                            var q = morphium.createQueryFor(GlobalLock.class).f("_id").eq("global");
+                            q.limit(1);
+
+                            try {
+                                List<GlobalLock> lock = morphium.lockEntities(q, rec1.getSenderId(), 5000);
+
+                                if (lock != null && lock.size() != 0) {
+                                    log.info("Cron interval triggered...");
+                                    Msg m = new Msg("msg2", "cron", "value");
+                                    m.setDeleteAfterProcessing(true);
+                                    m.setDeleteAfterProcessingTime(0);
+                                    m.setLockedBy("Planner");
+                                    m.setTimingOut(false);
+                                    m.setLocked(System.currentTimeMillis());
+                                    sender.sendMessage(m); //need to have a different sender ID than myself - or I won't be able to run this task
+                                    crons.incrementAndGet();
+                                    lastCron.set(System.currentTimeMillis());
+                                    morphium.releaseLock(lock.get(0));
+                                }
+                            } catch (Exception e) {
+                                log.error("Something wrong in cron thread", e);
+                            }
+                        }
+
+                        try {
+                            Thread.sleep(5000);
+                        } catch (InterruptedException e) {
+                        }
+                    }
+                }).start();
+                ////////////////////////////////////////////////////////////////////////////////
+                ///////////////////////////////
+                //  ____  _
+                // |  _ \| | __ _ _ __  _ __   ___ _ __
+                // | |_) | |/ _` | '_ \| '_ \ / _ \ '__|
+                // |  __/| | (_| | | | | | | |  __/ |
+                // |_|   |_|\__,_|_| |_|_| |_|\___|_|
                 Runnable plan = ()->{
                     var q = morphium.createQueryFor(GlobalLock.class).f("_id").eq("global");
                     q.limit(1);
@@ -222,7 +261,6 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                         if (lock != null && lock.size() != 0) {
                             //plan ahead
                             // log.info("Planner: Got lock!");
-
                             locks.incrementAndGet();
 
                             if (locks.get() > 1) {
@@ -259,12 +297,10 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                                         try {
                                             morphium.updateUsingFields(m,  "locked_by");
                                         } catch (Exception e) {
-                                            log.error("Planner: update failed!");
+                                            log.error("Planner: update failed!", e);
                                         }
-
                                     }
                                 }
-
                             }
 
                             // log.info("Planner: release lock");
@@ -276,6 +312,8 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                         e.printStackTrace();
                     }
                 };
+
+
                 new Thread() {
                     public void run() {
                         morphium.watch(MessageCount.class, true, new ChangeStreamListener() {
@@ -348,8 +386,8 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                     // log.info("Inserted " + m.getMsgId());
                 }
             }).start();
-            TestUtils.waitForConditionToBecomeTrue(160000, "Not all processed?", ()->counts.get() >= amount, ()->{
-                log.info("Waiting for " + counts.get() + " to reach " + amount);
+            TestUtils.waitForConditionToBecomeTrue(160000, "Not all processed?", ()->(counts.get()) >= (amount + crons.get()), ()->{
+                log.info("Waiting for " + counts.get() + " to reach " + (amount + crons.get()));
                 log.info("  Active clients:" + busyClients.get());
                 log.info("  Message Queue: " + morphium.createQueryFor(Msg.class).countAll());
                 log.info("  processing   : " + morphium.createQueryFor(MessageCount.class).countAll());
@@ -360,8 +398,8 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                         Integer maxp = (Integer)maxParallel.get(e.get("_id"));
                         Integer current = (Integer)e.get("count");
 
-                        if (current > maxp + 1) {
-                            log.info("     " + e.get("_id") + " = " + e.get("count") + "(-1 maybe?)  max: " + maxParallel.get(e.get("_id")));
+                        if (current > maxp ) {
+                            log.info("     " + e.get("_id") + " = " + e.get("count") + "(-1?)  max: " + maxParallel.get(e.get("_id")));
                         } else if (current > maxp + 1) {
                             log.error("ERROR--->     " + e.get("_id") + " = " + e.get("count") + "  max: " + maxParallel.get(e.get("_id")));
                         } else {
@@ -371,9 +409,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                 }
                 log.info("------------------------------");
             });
-
-            Thread.sleep(1000);
-            assertEquals(amount, counts.get());
+            log.info(String.format("Messages planned: %d - processed: %d - cronjobs: %d", amount, counts.get(), crons.get()));
         } finally {
             for (Messaging m : clients) { m.terminate(); }
 
