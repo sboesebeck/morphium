@@ -1096,7 +1096,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         // if (log.isDebugEnabled()){
                         //     log.info("Message was rejected by listener", mre);
                         // } else {
-                            log.info("Message was rejected by listener");
+                            log.info("Message was rejected by listener: "+mre.getMessage());
                         // }
                         wasRejected = true;
                         rejections.add(mre);
