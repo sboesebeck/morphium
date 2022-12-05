@@ -1,5 +1,11 @@
 package de.caluga.morphium.messaging;
 
+import org.slf4j.LoggerFactory;
+
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+
 /**
  * User: Stephan Bösebeck
  * Date: 21.04.18
@@ -11,17 +17,55 @@ public class MessageRejectedException extends RuntimeException {
     private boolean continueProcessing;
     private boolean sendAnswer;
 
-    public MessageRejectedException(String reason){
-        this(reason,false,false);
+    private RejectionHandler handler = null;
+
+    public MessageRejectedException(String reason) {
+        this(reason, false, false);
     }
 
-    public MessageRejectedException(String reason,boolean continueProcessing){
-        this(reason,continueProcessing,false);
+    public MessageRejectedException(String reason, boolean continueProcessing) {
+        this(reason, continueProcessing, false);
     }
-    public MessageRejectedException(String reason,boolean continueProcessing,boolean sendAnswer){
+    public MessageRejectedException(String reason, boolean continueProcessing, boolean sendAnswer) {
         super(reason);
-        this.continueProcessing=continueProcessing;
-        this.sendAnswer=sendAnswer;
+        this.continueProcessing = continueProcessing;
+        this.sendAnswer = sendAnswer;
+        this.handler = (msg, m)->{
+            if (isSendAnswer()) {
+                Msg answer = new Msg(msg.getName(), "message rejected by listener", getMessage());
+                m.sendAnswer(msg,answer);
+            }
+
+            if (isContinueProcessing()) {
+                UpdateMongoCommand cmd = null;
+
+                try {
+                    cmd = new UpdateMongoCommand(msg.getMorphium().getDriver().getPrimaryConnection(msg.getMorphium().getWriteConcernForClass(Msg.class)));
+                    cmd.setColl(msg.getCollectionName()).setDb(msg.getMorphium().getDatabase());
+
+                    if (m.isExclusive()) {
+                        cmd.addUpdate(Doc.of("_id", m.getMsgId()), Doc.of("$set", Doc.of("locked_by", null)), null, false, false, null, null, null);
+                    }
+
+                    cmd.addUpdate(Doc.of("_id", m.getMsgId()), Doc.of("$addToSet", Doc.of("processed_by", msg.getSenderId())), null, false, false, null, null, null);
+                    cmd.execute();
+                } catch (MorphiumDriverException e) {
+                    LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
+                } finally {
+                    if (cmd != null) { cmd.getConnection().release(); }
+                }
+
+                LoggerFactory.getLogger(msg.getClass()).debug(msg.getSenderId()+ ": Message will be re-processed by others");
+            }
+
+        };
+    }
+
+    public void setCustomRejectionHandler(RejectionHandler hdl){
+        handler=hdl;
+    }
+    public RejectionHandler getRejectionHandler(){
+        return handler;
     }
 
     public boolean isContinueProcessing() {
@@ -38,5 +82,9 @@ public class MessageRejectedException extends RuntimeException {
 
     public void setSendAnswer(boolean sendAnswer) {
         this.sendAnswer = sendAnswer;
+    }
+
+    public static interface RejectionHandler {
+        public void handleRejection(Messaging msg, Msg m) throws Exception;
     }
 }
