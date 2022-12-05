@@ -2774,7 +2774,7 @@ public class Morphium implements AutoCloseable {
                         try {
                             wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
                         } catch (Exception e) {
-                            if (e.getMessage().contains("Index already exists with a different name:")) {
+                            if (e.getMessage() != null && e.getMessage().contains("Index already exists with a different name:")) {
                                 log.debug("Index already exists");
                             } else {
                                 throw e;
@@ -3491,26 +3491,26 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public <T> Map<String,Object> delete (Query<T> o) {
+    public <T> Map<String, Object> delete (Query<T> o) {
         return getWriterForClass(o.getType()).remove(o, null);
     }
 
-    public <T> Map<String,Object> delete (Query<T> o, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> delete (Query<T> o, final AsyncOperationCallback<T> callback) {
         return getWriterForClass(o.getType()).remove(o, callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> Map<String,Object> pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPull(push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> Map<String,Object> pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPullAll(push ? UpdateTypes.PUSH : UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
     @SuppressWarnings("unused")
-    public <T> Map<String,Object> pullAll(Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> pullAll(Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPullAll(UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
@@ -4143,7 +4143,7 @@ public class Morphium implements AutoCloseable {
          //                     .verbose()             // Enable verbose logging
          .enableAnnotationInfo()
          //                             .enableFieldInfo()
-         .enableClassInfo()                      // Scan classes, methods, fields, annotations
+         .enableClassInfo()                         // Scan classes, methods, fields, annotations
          .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
@@ -4252,16 +4252,23 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public <T> T lockEntity(T entity, String lockId, int maxLockTimeMs) throws MorphiumDriverException{
-        var q=createQueryFor(entity.getClass());
+    public <T> T lockEntity(T entity, String lockId, int maxLockTimeMs) throws MorphiumDriverException {
+        var q = createQueryFor(entity.getClass());
         q.f(getARHelper().getIdFieldName(entity.getClass())).eq(getARHelper().getId(entity));
         q.limit(1);
-        var l= lockEntities(q, lockId, maxLockTimeMs);
-        if (l!=null && l.size()!=0){
-            return (T)l.get(0);
-        }
-        return null;
+        var l = lockEntities(q, lockId, maxLockTimeMs);
 
+        if (l != null && l.size() != 0) {
+            T lock=(T)l.get(0);
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
+            lock=reread(lock);
+            return lock;
+        }
+
+        return null;
     }
     //Limit done via query
     public <T> List<T> lockEntities(Query<T> q, String lockId, int maxLockTimeMs) throws MorphiumDriverException {
@@ -4274,9 +4281,6 @@ public class Morphium implements AutoCloseable {
         var fields = getARHelper().getFields(q.getType(), LockedBy.class);
         var tsFields = getARHelper().getFields(q.getType(), LockedAt.class);
 
-        for (String f : fields) {
-            qRet.f(f).eq(lockId);
-        }
 
         UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(q.getType())));
         cmd.setDb(getDatabase()).setColl(q.getCollectionName());
@@ -4288,6 +4292,7 @@ public class Morphium implements AutoCloseable {
             for (String f : fields) {
                 //setting all those fields to
                 q.f(f).eq(null);
+                qRet.f(f).eq(lockId);
                 upd.put(f, lockId);
                 //.setUpdates(Arrays.asList(Doc.of("q", Doc.of(find), "u", Doc.of(update), "multi", false, "upsert", false)));
             }
@@ -4295,24 +4300,25 @@ public class Morphium implements AutoCloseable {
             for (String f : tsFields) {
                 upd.put(f, System.currentTimeMillis());
             }
-            if (q.getLimit()==0){
+
+            if (q.getLimit() == 0) {
                 //defaulting to 1
                 q.limit(1);
             }
+
             for (int i = 0; i < q.getLimit(); i++) {
                 updates.add(Doc.of("q", q.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
             }
 
             cmd.setUpdates(updates);
             var res = cmd.execute();
-            if (res.get("nModified").equals(Integer.valueOf(0))){
-                return new ArrayList<>();
-            }
+
             try {
-                Thread.sleep(100);
+                Thread.sleep(200);
                 //avoiding others?!?!?
             } catch (InterruptedException e) {
             }
+
             return qRet.asList();
         } finally {
             cmd.releaseConnection();

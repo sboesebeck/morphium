@@ -1920,99 +1920,100 @@ public class Query<T> implements Cloneable {
         return morphium.inc(this, field, value);
     }
 
-    public void dec(String field, Integer value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(String field, Integer value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(Enum field, Integer value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(Enum field, Integer value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(String field, Integer value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(String field, Integer value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(Enum field, Integer value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(Enum field, Integer value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public  Map<String,Object> dec(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String,Object> dec(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+       return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.dec(this, field, value, upsert, multiple, cb);
+    public Map<String,Object> dec(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public void dec(String field, Double value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(String field, Double value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(Enum field, Double value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(Enum field, Double value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(String field, Double value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(String field, Double value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(Enum field, Double value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(Enum field, Double value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(String field, Long value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(String field, Long value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(Enum field, Long value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(Enum field, Long value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(String field, Long value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(String field, Long value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(Enum field, Long value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(Enum field, Long value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(String field, Number value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(String field, Number value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(Enum field, Number value, boolean upsert, boolean multiple) {
-        morphium.dec(this, field, value, upsert, multiple);
+    public Map<String,Object> dec(Enum field, Number value, boolean upsert, boolean multiple) {
+        return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public void dec(String field, Number value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(String field, Number value) {
+        return morphium.dec(this, field, value);
     }
 
-    public void dec(Enum field, Number value) {
-        morphium.dec(this, field, value);
+    public Map<String,Object> dec(Enum field, Number value) {
+        return morphium.dec(this, field, value);
     }
 
     public int getNumberOfPendingRequests() {
