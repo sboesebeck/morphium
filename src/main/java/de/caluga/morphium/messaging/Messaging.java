@@ -449,6 +449,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (obj == null) {
                             return running; //was deleted?
                         }
+                        morphium.reread(obj);
 
                         if (obj.getProcessedBy().contains(id)) {
                             return running;
@@ -1045,7 +1046,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             Msg msg1 = morphium.reread(msg, getCollectionName());
-
+            if (msg1==null) return;
             if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id) || msg1.getLockedBy() == null) {
                 if (log.isDebugEnabled()) {
                     log.debug(msg1.getMsgId() + " was overlocked by " + msg1.getLockedBy());
