@@ -1269,8 +1269,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     var res = settings.execute();
                     long dur = System.currentTimeMillis() - start;
-                    //morphium.fireProfilingWriteEvent(
-                    // o.getClass(), o, dur, false, WriteAccessType.SINGLE_DELETE);
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemoveEvent(o);
