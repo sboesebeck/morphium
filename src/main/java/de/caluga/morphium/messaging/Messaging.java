@@ -440,7 +440,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         //ignore updates to processed_by - cannot trigger an execution
-                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().containsKey("processed_by")) {
+                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().size()==1 && evt.getUpdatedFields().containsKey("processed_by")) {
                             return running;
                         }
 

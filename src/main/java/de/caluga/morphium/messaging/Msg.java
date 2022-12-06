@@ -25,7 +25,7 @@ import java.util.*;
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
 @WriteSafety(level = SafetyLevel.MAJORITY)
-@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
+@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 @Lifecycle
 @Index({
     "sender,processed_by,in_answer_to",
