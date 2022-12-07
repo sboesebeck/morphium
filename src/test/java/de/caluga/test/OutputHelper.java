@@ -13,7 +13,7 @@ public class OutputHelper {
         var font = Figlet4s.loadFontInternal("starwars");
         RenderOptions options = new RenderOptions(
                 font,
-                120,
+                100,
                 HorizontalLayout.HORIZONTAL_FITTING,
                 PrintDirection.LEFT_TO_RIGHT,
                 Justification.FONT_DEFAULT);
