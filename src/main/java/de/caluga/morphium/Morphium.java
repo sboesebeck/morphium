@@ -4277,7 +4277,8 @@ public class Morphium implements AutoCloseable {
         }
 
         q = q.clone();
-        var qRet = q.q();
+        var tsQ=q.clone();
+        var qRet = q.clone();
         var fields = getARHelper().getFields(q.getType(), LockedBy.class);
         var tsFields = getARHelper().getFields(q.getType(), LockedAt.class);
 
@@ -4299,15 +4300,16 @@ public class Morphium implements AutoCloseable {
 
             for (String f : tsFields) {
                 upd.put(f, System.currentTimeMillis());
+                tsQ.f(f).lt(System.currentTimeMillis()-maxLockTimeMs);
             }
 
             if (q.getLimit() == 0) {
                 //defaulting to 1
                 q.limit(1);
             }
-
+            var query=q.q().or(q,tsQ);
             for (int i = 0; i < q.getLimit(); i++) {
-                updates.add(Doc.of("q", q.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
+                updates.add(Doc.of("q", query.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
             }
 
             cmd.setUpdates(updates);
