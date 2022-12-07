@@ -188,8 +188,8 @@ public class MorphiumTestBase {
             log.info("Morphium instanciated");
         }
         int num = number.incrementAndGet();
-        OutputHelper.figletOutput(log, "-------------");
-        OutputHelper.figletOutput(log, "--> Test#: " + num);
+        OutputHelper.figletOutput(log, "---------");
+        OutputHelper.figletOutput(log, "Test#: " + num);
 
         try {
             if (!morphium.getConfig().isAtlas()) {
