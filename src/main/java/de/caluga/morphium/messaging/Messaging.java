@@ -551,7 +551,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
             updateProcessedBy(obj);
 
-            if (!waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
+            if (waitingForMessages.containsKey(obj.getInAnswerTo()) && !waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
                 waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
             }
         }
@@ -952,9 +952,9 @@ public class Messaging extends Thread implements ShutdownListener {
         //outdated message
         if (msg.isTimingOut() && msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
             //Delete outdated msg!
-            if (log.isDebugEnabled()) {
-                log.debug(getSenderId() + ": Found outdated message - deleting it!");
-            }
+            // if (log.isDebugEnabled()) {
+            //     log.debug(getSenderId() + ": Found outdated message - deleting it!");
+            // }
 
             morphium.delete(msg, getCollectionName());
             processing.remove(msg.getMsgId());
