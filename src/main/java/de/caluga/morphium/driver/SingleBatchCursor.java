@@ -23,12 +23,15 @@ public class SingleBatchCursor extends MorphiumCursor {
     @Override
     public synchronized Map<String, Object> next() {
         idx++;
-        return iterator.next();
+
+        if (iterator.hasNext()) {
+            return iterator.next();
+        }
+        return null;
     }
 
     @Override
     public void close() {
-
     }
 
     @Override
@@ -43,11 +46,17 @@ public class SingleBatchCursor extends MorphiumCursor {
 
     @Override
     public synchronized void ahead(int skip) throws MorphiumDriverException {
-        if (getBatch() == null) throw new IllegalArgumentException("cannot jump that far");
+        if (getBatch() == null) {
+            throw new IllegalArgumentException("cannot jump that far");
+        }
+
         if (skip + idx > getBatch().size()) {
             throw new IllegalArgumentException("cannot jump that far");
         }
-        for (int i = 0; i < skip; i++) next();
+
+        for (int i = 0; i < skip; i++) {
+            next();
+        }
     }
 
     @Override

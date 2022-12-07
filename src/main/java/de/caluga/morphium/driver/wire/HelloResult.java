@@ -47,6 +47,7 @@ public class HelloResult {
     private Long operationTime;
 
     public static HelloResult fromMsg(Map<String, Object> msg) {
+        if (msg==null) return null;
         var fields = an.getAllFields(HelloResult.class);
         var ret = new HelloResult();
         for (Field f : fields) {

@@ -35,7 +35,7 @@ public abstract class WriteMongoCommand<T extends MongoCommand> extends MongoCom
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        if (!getConnection().isConnected()) throw new RuntimeException("Not connected");
+        if (!getConnection().isConnected()) throw new MorphiumDriverException("Not connected");
         MongoConnection con = getConnection();
 
         //noinspection unchecked

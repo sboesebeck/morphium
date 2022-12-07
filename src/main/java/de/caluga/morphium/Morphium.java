@@ -4260,11 +4260,11 @@ public class Morphium implements AutoCloseable {
 
         if (l != null && l.size() != 0) {
             T lock=(T)l.get(0);
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-            lock=reread(lock);
+            // try {
+            //     Thread.sleep(100);
+            // } catch (InterruptedException e) {
+            // }
+            // lock=reread(lock);
             return lock;
         }
 
@@ -4312,12 +4312,6 @@ public class Morphium implements AutoCloseable {
 
             cmd.setUpdates(updates);
             var res = cmd.execute();
-
-            try {
-                Thread.sleep(200);
-                //avoiding others?!?!?
-            } catch (InterruptedException e) {
-            }
 
             return qRet.asList();
         } finally {

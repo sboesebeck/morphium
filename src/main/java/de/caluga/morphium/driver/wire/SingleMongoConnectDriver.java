@@ -257,6 +257,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                     .setHelloOk(true)
                     .setIncludeClient(false);
                     var hello = cmd.execute();
+                    if (hello==null){
+                        log.warn("Could not run heartbeat!");
+                        return;
+                    }
 
                     if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
                         log.warn("wanted primary connection, changed to secondary, retrying");
