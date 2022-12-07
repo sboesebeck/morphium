@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.locking;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -241,6 +243,33 @@ public class LockEntityTest extends MorphiumTestBase {
         assertTrue(processed.get()>0);
         TestUtils.waitForConditionToBecomeTrue(150000,"threads did not finish",()->running.get()==0,()->log.info("Waiting for Threads: "+running.get()));
         assertEquals(threads*20, processed.get(), "something went wrong");
+    }
+
+
+    @Test
+    public void lockTimeoutTest() throws Exception {
+        morphium.dropCollection(LockedEntity.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, LockedEntity.class);
+        LockedEntity globalLock = new LockedEntity();
+        morphium.insert(globalLock);
+        LockedEntity globalLock2 = new LockedEntity();
+        morphium.insert(globalLock2);
+
+        var l=morphium.lockEntity(globalLock, "lock1", 500);
+        assertNotNull(l);
+        assertEquals("lock1",l.lockedBy);
+        l=morphium.lockEntity(globalLock2,"lock1",500);
+        assertNotNull(l);
+        assertEquals("lock1",l.lockedBy);
+        assertEquals(globalLock2.id,l.id);
+        l=morphium.lockEntity(globalLock, "lock2", 500);
+        assertNull(l);
+        Thread.sleep(1000);
+        l=morphium.lockEntity(globalLock, "lock2", 500);
+        assertNotNull(l);
+        assertEquals("lock2",l.lockedBy);
+        
+         
     }
 
     @Lockable @Entity
