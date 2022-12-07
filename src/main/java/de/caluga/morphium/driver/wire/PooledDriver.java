@@ -299,9 +299,9 @@ public class PooledDriver extends DriverBase {
                         throw new MorphiumDriverException("Could not get connection in time: " + getMaxWaitTime() + "ms");
                     }
 
-                    if (connectionPool.get(host).size() != 0) {
+                    if (connectionPool.size() != 0) {
                         synchronized (connectionPool) {
-                            if (connectionPool.size() != 0) {
+                            if (connectionPool.get(host).size() != 0) {
                                 log.debug("finally got connection...");
                                 c = connectionPool.get(host).remove(0);
 
@@ -484,16 +484,14 @@ public class PooledDriver extends DriverBase {
         return false;
     }
 
-
     @Override
     public int getIdleSleepTime() {
-   
         return idleSleepTime;
     }
 
     @Override
     public void setIdleSleepTime(int sl) {
-       idleSleepTime=sl; 
+        idleSleepTime = sl;
     }
 
     @Override
