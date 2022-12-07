@@ -1885,6 +1885,7 @@ public class Morphium implements AutoCloseable {
      * @return - entity
      */
     public <T> T reread(T o) {
+        if (o==null) return null;
         return reread(o, objectMapper.getCollectionName(o.getClass()));
     }
 
@@ -4143,7 +4144,7 @@ public class Morphium implements AutoCloseable {
          //                     .verbose()             // Enable verbose logging
          .enableAnnotationInfo()
          //                             .enableFieldInfo()
-         .enableClassInfo()                         // Scan classes, methods, fields, annotations
+         .enableClassInfo()                               // Scan classes, methods, fields, annotations
          .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
@@ -4252,6 +4253,9 @@ public class Morphium implements AutoCloseable {
         }
     }
 
+    public <T> T lockEntity(T entity, String lockId) throws MorphiumDriverException {
+        return lockEntity(entity, lockId, 0);
+    }
     public <T> T lockEntity(T entity, String lockId, int maxLockTimeMs) throws MorphiumDriverException {
         var q = createQueryFor(entity.getClass());
         q.f(getARHelper().getIdFieldName(entity.getClass())).eq(getARHelper().getId(entity));
@@ -4259,7 +4263,7 @@ public class Morphium implements AutoCloseable {
         var l = lockEntities(q, lockId, maxLockTimeMs);
 
         if (l != null && l.size() != 0) {
-            T lock=(T)l.get(0);
+            T lock = (T)l.get(0);
             // try {
             //     Thread.sleep(100);
             // } catch (InterruptedException e) {
@@ -4271,18 +4275,19 @@ public class Morphium implements AutoCloseable {
         return null;
     }
     //Limit done via query
+    public <T> List<T> lockEntities(Query<T> q, String lockId) throws MorphiumDriverException {
+        return lockEntities(q, lockId, 0);
+    }
     public <T> List<T> lockEntities(Query<T> q, String lockId, int maxLockTimeMs) throws MorphiumDriverException {
         if (!getARHelper().isAnnotationPresentInHierarchy(q.getType(), Lockable.class)) {
             throw new IllegalArgumentException("Type is not lockable " + q.getType().getName());
         }
 
         q = q.clone();
-        var tsQ=q.clone();
+        var tsQ = q.clone();
         var qRet = q.clone();
         var fields = getARHelper().getFields(q.getType(), LockedBy.class);
         var tsFields = getARHelper().getFields(q.getType(), LockedAt.class);
-
-
         UpdateMongoCommand cmd = new UpdateMongoCommand(getDriver().getPrimaryConnection(getWriteConcernForClass(q.getType())));
         cmd.setDb(getDatabase()).setColl(q.getCollectionName());
         List<Map<String, Object>> updates = new ArrayList<>();
@@ -4300,21 +4305,27 @@ public class Morphium implements AutoCloseable {
 
             for (String f : tsFields) {
                 upd.put(f, System.currentTimeMillis());
-                tsQ.f(f).lt(System.currentTimeMillis()-maxLockTimeMs);
+
+                if (maxLockTimeMs > 0) {
+                    tsQ.f(f).lt(System.currentTimeMillis() - maxLockTimeMs);
+                }
             }
 
             if (q.getLimit() == 0) {
                 //defaulting to 1
                 q.limit(1);
             }
-            var query=q.q().or(q,tsQ);
+
+            var query = q;
+
+            if (maxLockTimeMs > 0) { query = q.q().or(q, tsQ); }
+
             for (int i = 0; i < q.getLimit(); i++) {
                 updates.add(Doc.of("q", query.toQueryObject(), "u", Doc.of("$set", upd), "multi", false, "upsert", false));
             }
 
             cmd.setUpdates(updates);
             var res = cmd.execute();
-
             return qRet.asList();
         } finally {
             cmd.releaseConnection();
