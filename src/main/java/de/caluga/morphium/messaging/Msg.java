@@ -421,6 +421,7 @@ public class Msg {
         Msg ret = new Msg(name, msg, value, ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
+        ret.setPriority(priority);
         return ret;
     }
 

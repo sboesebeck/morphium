@@ -440,7 +440,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         //ignore updates to processed_by - cannot trigger an execution
-                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().size()==1 && evt.getUpdatedFields().containsKey("processed_by")) {
+                        if (evt.getUpdatedFields() != null && evt.getUpdatedFields().size() == 1 && evt.getUpdatedFields().containsKey("processed_by")) {
                             return running;
                         }
 
@@ -449,6 +449,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (obj == null) {
                             return running; //was deleted?
                         }
+
                         morphium.reread(obj);
 
                         if (obj.getProcessedBy().contains(id)) {
@@ -551,7 +552,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
             updateProcessedBy(obj);
 
-            if (waitingForMessages.containsKey(obj.getInAnswerTo()) && !waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
+            if (!waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
                 waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
             }
         }
@@ -955,7 +956,6 @@ public class Messaging extends Thread implements ShutdownListener {
             // if (log.isDebugEnabled()) {
             //     log.debug(getSenderId() + ": Found outdated message - deleting it!");
             // }
-
             morphium.delete(msg, getCollectionName());
             processing.remove(msg.getMsgId());
             return;
@@ -1046,7 +1046,11 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             Msg msg1 = morphium.reread(msg, getCollectionName());
-            if (msg1==null) return;
+
+            if (msg1 == null) {
+                return;
+            }
+
             if (msg1.isExclusive() && msg1.getLockedBy() != null && !msg1.getLockedBy().equals(id) || msg1.getLockedBy() == null) {
                 if (log.isDebugEnabled()) {
                     log.debug(msg1.getMsgId() + " was overlocked by " + msg1.getLockedBy());
@@ -1123,7 +1127,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         try {
                             mre.getRejectionHandler().handleRejection(this, msg);
                         } catch (Exception e) {
-                            log.error("Error in rejection handling",e);
+                            log.error("Error in rejection handling", e);
                         }
                     } else {
                         if (mre.isSendAnswer()) {
@@ -1276,8 +1280,10 @@ public class Messaging extends Thread implements ShutdownListener {
             Map<String, Object> ret = cmd.execute();
 
             if (ret.get("nModified") == null && ret.get("modified") == null || Integer.valueOf(0).equals(ret.get("nModified")) || Integer.valueOf(0).equals(ret.get("modified"))) {
-                log.warn("Could not update processed_by in msg " + msg.getMsgId());
-                log.warn(Utils.toJsonString(ret));
+                if (morphium.reread(msg != null)) {
+                    log.warn("Could not update processed_by in msg " + msg.getMsgId());
+                    log.warn(Utils.toJsonString(ret));
+                }
             }
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
@@ -1623,20 +1629,15 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
                     break;
                 }
-
-                //Reached number of expected answers
-                if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
-                    break;
-                }
-
                 //time up - return all answers that were received
             }
-
-            if (System.currentTimeMillis() - start > timeout) { break; }
 
             //Did not receive any message in time
             if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
                 throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
+            }
+            if (System.currentTimeMillis() - start > timeout) {
+                break;
             }
 
             if (!running) {

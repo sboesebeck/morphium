@@ -7,6 +7,8 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -200,17 +202,17 @@ public class AnsweringTests extends MorphiumTestBase {
                 return null;
             }));
 
-
+            Thread.sleep(1000);//messaging init
             //sending an answer to all (broadcast)
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             Msg answer = new Msg("test", "An answer", "42");
             answer.setInAnswerTo(new MorphiumId());
             m3.sendMessage(answer);
-            Thread.sleep(1000);
-            assert (receivedById.size() == 2);
-            assert (receivedById.get("m1").get() == 1);
-            assert (receivedById.get("m2").get() == 1);
+            long d = TestUtils.waitForConditionToBecomeTrue(5000, "Did not receive answers?", () -> receivedById.size() == 2);
+            log.info(String.format("It took %d ms to get two answers", d));
+            assertEquals(1, receivedById.get("m1").get());
+            assertEquals(1, receivedById.get("m2").get());
 
             //sending a direct message
             receivedById.clear();
@@ -319,6 +321,7 @@ public class AnsweringTests extends MorphiumTestBase {
         m1.start();
         m2.start();
         m3.start();
+        Thread.sleep(1000);
 
         m3.addListenerForMessageNamed("test_answer_exclusive", (msg, m) -> {
             log.info("Incoming message");
@@ -355,6 +358,7 @@ public class AnsweringTests extends MorphiumTestBase {
         m1.start();
         m2.start();
         mSrv.start();
+
 
         mSrv.addListenerForMessageNamed("query", (msg, m) -> {
             log.info("Incoming message - sending result");
