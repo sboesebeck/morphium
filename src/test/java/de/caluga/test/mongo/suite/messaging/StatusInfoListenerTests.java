@@ -7,6 +7,7 @@ import de.caluga.morphium.messaging.StatusInfoListener;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -143,10 +144,53 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
         m2.addListenerForMessageNamed("test2", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(Messaging msg, Msg m) {
                 return null;
             }
         });
+    }
+
+
+    @Test
+    public void testStatusInfoListener() throws Exception {
+        Messaging m = new Messaging(morphium);
+        m.start();
+        assertTrue(m.isStatusInfoListenerEnabled());
+        m.addMessageListener(new MessageListener() {
+            @Override
+            public Msg onMessage(Messaging msg, Msg m) {
+                log.info("Incoming message!");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+
+                }
+                return null;
+            }
+        });
+
+        Messaging sender = new Messaging(morphium);
+        sender.start();
+
+        ArrayList<Msg> lst = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            var msg = new Msg("something else", "no", "");
+            msg.setSender(sender.getSenderId());
+            msg.setTimingOut(false);
+            msg.setDeleteAfterProcessing(true);
+            msg.setDeleteAfterProcessingTime(0);
+            msg.setSenderHost("localhost");
+            lst.add(msg);
+        }
+
+        morphium.storeList(lst);
+        for (int i = 0; i < 10; i++) {
+            Thread.sleep(100);
+            var msg = new Msg("morphium.status_info", "", "");
+            msg.setPriority(10);
+            var answer = sender.sendAndAwaitFirstAnswer(msg, 5000, false);
+            assertNotNull(answer);
+        }
     }
 
     private void checkMessagingStats(Msg m, Map<String, Object> mapValue) {
