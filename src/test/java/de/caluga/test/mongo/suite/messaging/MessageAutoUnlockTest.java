@@ -27,10 +27,8 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
 
         try {
             prod.setPause(100);
-            prod.setAutoUnlockAfter(1000);
             prod.start();
             consumer.setPause(100);
-            consumer.setAutoUnlockAfter(1000);
             consumer.addMessageListener((m, msg)->{
                 msgCount.incrementAndGet();
                 return null;
@@ -38,8 +36,7 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
             consumer.start();
             //creating a locked Message
             var m = new Msg("test", "message", "value");
-            m.setLocked(System.currentTimeMillis());
-            m.setLockedBy("me");
+            m.setTtl(1000);
             prod.sendMessage(m);
             Thread.sleep(500);
             assertEquals(0, msgCount.get());
@@ -63,7 +60,6 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
         try {
             prod.setSenderId("prod");
             prod.setPause(100);
-            prod.setAutoUnlockAfter(1000);
             prod.start();
             MessageListener l = new MessageListener<Msg>() {
                 
@@ -87,13 +83,11 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
             };
             consumer2.setPause(100);
             consumer2.setSenderId("c2");
-            consumer2.setAutoUnlockAfter(1000);
             consumer2.addMessageListener(l);          
             consumer2.start();
             
             consumer.setSenderId("c1");
             consumer.setPause(100);
-            consumer.setAutoUnlockAfter(1000);
             assertTrue(msgCount.get()<10);
             consumer.addMessageListener(l);   
             consumer.start();
@@ -102,8 +96,6 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
             for (int i = 1; i <= 10; i++) {
                 var m = new Msg("test", "message", "value");
                 m.setExclusive(true);
-                m.setLocked(System.currentTimeMillis() + i * 1000);
-                m.setLockedBy("me");
                 prod.sendMessage(m);
             }
 

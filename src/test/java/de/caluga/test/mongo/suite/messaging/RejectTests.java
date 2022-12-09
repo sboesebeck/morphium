@@ -131,7 +131,7 @@ public class RejectTests extends MorphiumTestBase {
             //if the lockedBy field is null.
             //check if processed_By.0 exists to be 100% sure not to interfere!
             //the lock property should have the timestamp this message was last processed (or tried to process)
-            morphium.createQueryFor(Msg.class,sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).f("processed_by.0").ne(null).set(Msg.Fields.processedBy,null,false,true);
+            morphium.createQueryFor(Msg.class,sender.getCollectionName()).f("processed_by.0").ne(null).set(Msg.Fields.processedBy,null,false,true);
 
             Thread.sleep(1000);
             assertEquals(clients.size()+1,recs.get(), "Should have beend processed!");

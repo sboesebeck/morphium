@@ -52,26 +52,11 @@ public class AdvancedMessagingTests extends MorphiumTestBase {
 
 
             MessageListener<Msg> msgMessageListener = (msg, m) -> {
-                if (m.getLockedBy()==null){
-                    log.error("Received unlocked message?!?!?");
-                    log.error("Message is:\n"+Utils.toJsonString(morphium.getMapper().serialize(m)));
-                    error.set(true);
-                    throw new RuntimeException("Received unlocked message?!?!?");
-                }
-                if (!m.getLockedBy().equals(msg.getSenderId())) {
-                    log.error("Receiver ID did not lock message?!?!?!?");
-                    if (m.getLockedBy().equals("ALL")) {
-                        log.error("Broadcase message? " + m.toString());
-                    }
-                    error.set(true);
-                    return null;
-                }
                 //log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 counts.putIfAbsent(m.getMsgId(), 0);
                 counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
                 if (counts.get(m.getMsgId()) > 1) {
                     log.error("Msg: " + m.getMsgId() + " processed: " + counts.get(m.getMsgId()));
-                    log.error("... locked by " + m.getLockedBy() + " me: " + msg.getSenderId());
                     for (String id : m.getProcessedBy()) {
                         log.error("... processed by: " + id);
                     }

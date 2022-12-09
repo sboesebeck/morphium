@@ -20,7 +20,7 @@ import java.util.*;
  * write!t
  */
 @SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "CommentedOutCode"})
-@Entity(polymorph = true,typeId = "msg")
+@Entity(polymorph = true, typeId = "msg")
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
@@ -29,11 +29,16 @@ import java.util.*;
 @Lifecycle
 @Index({
     "sender,processed_by,in_answer_to",
-    "sender,locked_by,processed_by",
-    "locked_by","locked",
-    "msgId,sender,locked_by,processed_by,name,priority,timestamp",
-    "msgId,locked_by,processed_by,name",
-    "locked_by,processed_by,priority,timestamp"
+    "sender,processed_by",
+    "msgId,sender,processed_by,name,priority,timestamp",
+    "msgId,processed_by,name",
+    "processed_by,priority,timestamp"
+    // "sender,processed_by,in_answer_to",
+    // "sender,locked_by,processed_by",
+    // "locked_by","locked",
+    // "msgId,sender,locked_by,processed_by,name,priority,timestamp",
+    // "msgId,locked_by,processed_by,name",
+    // "locked_by,processed_by,priority,timestamp"
 })
 public class Msg {
     @Index
@@ -41,10 +46,10 @@ public class Msg {
     @Id
     private MorphiumId msgId;
     @Index
-    @UseIfnull
-    private String lockedBy;
-    @Index
-    private long locked;
+    // @UseIfnull
+    // private String lockedBy;
+    // @Index
+    // private long locked;
     private long ttl;
     private String sender;
     private String senderHost;
@@ -63,15 +68,14 @@ public class Msg {
     private Date deleteAt;
     private boolean timingOut = true;
     private boolean deleteAfterProcessing = false;
-    private int deleteAfterProcessingTime=30000;
+    private int deleteAfterProcessingTime = 0;
     private int priority = 1000;
-    //    @Transient
-    //    private Boolean exclusive = false;
+    private Boolean exclusive = false;
 
     public Msg() {
         // msgId = UUID.randomUUID().toString();
-        lockedBy = "ALL";
-        //        exclusive = false;
+        // lockedBy = "ALL";
+        exclusive = false;
     }
 
     public Msg(String name, String msg, String value) {
@@ -126,9 +130,9 @@ public class Msg {
         return this;
     }
 
-
     public boolean isExclusive() {
-        return getLockedBy() == null || !getLockedBy().equals("ALL");
+        if (exclusive==null) return false;
+        return exclusive.booleanValue();
     }
 
     /**
@@ -137,12 +141,12 @@ public class Msg {
      * @param exclusive
      */
     public Msg setExclusive(boolean exclusive) {
-        if (!exclusive) {
-            lockedBy = "ALL";
-        } else {
-            lockedBy = null;
-        }
-
+        // if (!exclusive) {
+        //     lockedBy = "ALL";
+        // } else {
+        //     lockedBy = null;
+        // }
+        this.exclusive = exclusive;
         return this;
     }
 
@@ -278,24 +282,24 @@ public class Msg {
         return this;
     }
 
-    public String getLockedBy() {
-        return lockedBy;
-    }
+    // public String getLockedBy() {
+    //     return lockedBy;
+    // }
+    //
+    // public Msg setLockedBy(String lockedBy) {
+    //     this.lockedBy = lockedBy;
+    //     return this;
+    // }
 
-    public Msg setLockedBy(String lockedBy) {
-        this.lockedBy = lockedBy;
-        return this;
-    }
-
-    @SuppressWarnings("unused")
-    public long getLocked() {
-        return locked;
-    }
-
-    public Msg setLocked(long locked) {
-        this.locked = locked;
-        return this;
-    }
+    // @SuppressWarnings("unused")
+    // public long getLocked() {
+    //     return locked;
+    // }
+    //
+    // public Msg setLocked(long locked) {
+    //     this.locked = locked;
+    //     return this;
+    // }
 
     public String getSender() {
         return sender;
@@ -363,8 +367,9 @@ public class Msg {
         return "Msg{" +
                " msgId='" + msgId + '\'' +
                ", inAnswerTo='" + inAnswerTo + '\'' +
-               ", lockedBy='" + lockedBy + '\'' +
-               ", locked=" + locked +
+               ", exclusive='"+exclusive+"'"+
+               // ", lockedBy='" + lockedBy + '\'' +
+               // ", locked=" + locked +
                ", ttl=" + ttl +
                ", sender='" + sender + '\'' +
                ", name='" + name + '\'' +
@@ -402,7 +407,7 @@ public class Msg {
             ttl = 0;
         }
 
-        if (!timingOut && !deleteAfterProcessing){
+        if (!timingOut && !deleteAfterProcessing) {
             LoggerFactory.getLogger(Msg.class).warn("This message will never be deleted! this is not recommended!");
         }
 
@@ -465,5 +470,5 @@ public class Msg {
         return Objects.hash(getMsgId());
     }
 
-    public enum Fields {msgId, lockedBy, locked, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
+    public enum Fields {msgId, exclusive,ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }
