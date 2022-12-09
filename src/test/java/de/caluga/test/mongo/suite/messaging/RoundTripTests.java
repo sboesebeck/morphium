@@ -86,21 +86,21 @@ public class RoundTripTests extends MorphiumTestBase {
                     return null;
                 }
             });
-            log.info("warming up...");
-            pingSent.clear();
-            pingReceived.clear();
-            pongSent.clear();
-            pongReceived.clear();
-            long start = System.currentTimeMillis();
-
-            for (int i = 0; i < warmUp; i++) {
-                m1.sendMessage(new Msg("ping", "msg", "v", 30000, exclusive));
-                pingSent.add(System.currentTimeMillis());
-            }
-            while (pongReceived.size() < warmUp) {
-                log.info("Waiting for pongs... got: " + pongReceived.size() + "/" + warmUp);
-                Thread.sleep(500);
-            }
+            // log.info("warming up...");
+            // pingSent.clear();
+            // pingReceived.clear();
+            // pongSent.clear();
+            // pongReceived.clear();
+            // long start = System.currentTimeMillis();
+            //
+            // for (int i = 0; i < warmUp; i++) {
+            //     m1.sendMessage(new Msg("ping", "msg", "v", 30000, exclusive));
+            //     pingSent.add(System.currentTimeMillis());
+            // }
+            // while (pongReceived.size() < warmUp) {
+            //     log.info("Waiting for pongs... got: " + pongReceived.size() + "/" + warmUp);
+            //     Thread.sleep(500);
+            // }
 
 
             log.info("Starting...");
@@ -108,18 +108,20 @@ public class RoundTripTests extends MorphiumTestBase {
             pingReceived.clear();
             pongSent.clear();
             pongReceived.clear();
-            start = System.currentTimeMillis();
+            var start = System.currentTimeMillis();
 
             for (int i = 0; i < amount; i++) {
                 m1.sendMessage(new Msg("ping", "msg", "v", 30000, false));
-                pingSent.add(System.currentTimeMillis());
                 Thread.sleep(50);
             }
             while (pongReceived.size() < amount) {
                 log.info("Waiting for answers...got: " + pongReceived.size() + "/" + amount);
                 Thread.sleep(500);
             }
-
+            Collections.sort(pingSent);
+            Collections.sort(pingReceived);
+            Collections.sort(pongSent);
+            Collections.sort(pongReceived);
 
             log.info("ping sent      : " + timesListString(start, pingSent));
             log.info("ping received  : " + timesListString(start, pingReceived));
