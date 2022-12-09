@@ -100,7 +100,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private final AtomicInteger skipped = new AtomicInteger(0);
 
-    private MorphiumDriver watchConnection;
 
     /**
      * attaches to the default queue named "msg"
@@ -176,20 +175,6 @@ public class Messaging extends Thread implements ShutdownListener {
         listeners = new CopyOnWriteArrayList<>();
         listenerByName = new HashMap<>();
 
-        if (m.getDriver().getName().equals(InMemoryDriver.driverName)) {
-            watchConnection = m.getDriver();
-        } else {
-            watchConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
-            watchConnection.setHostSeed(morphium.getConfig().getHostSeed());
-            watchConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
-            watchConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
-
-            try {
-                watchConnection.connect();
-            } catch (MorphiumDriverException e) {
-                log.error("Could not connect", e);
-            }
-        }
     }
 
     public void enableStatusInfoListener() {
@@ -1387,13 +1372,6 @@ public class Messaging extends Thread implements ShutdownListener {
         processing.clear();
         skipped.set(0);
 
-        if (!morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
-            try {
-                watchConnection.close();
-            } catch (IOException e1) {
-                //Swallowing during close!
-            }
-        }
 
         if (decouplePool != null) {
             try {
