@@ -187,8 +187,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         List<Map<String, Object>> dbLst = new ArrayList<>();
                         //        DBCollection collection =
                         // morphium.getDbName().getCollection(collectionName);
-                        WriteConcern wc =
-                         morphium.getWriteConcernForClass(lst.get(0).getClass());
+                        WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
                         HashMap<Object, Boolean> isNew = new HashMap<>();
 
                         for (Object o : lst) {
@@ -223,40 +222,45 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         long dur = System.currentTimeMillis() - start;
                         //morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true, WriteAccessType.BULK_UPDATE);
                         start = System.currentTimeMillis();
-                        MongoConnection con = morphium.getDriver().getPrimaryConnection(wc);
+                        MongoConnection con = null;
 
-                        while (dbLst.size() != 0) {
-                            InsertMongoCommand settings = new InsertMongoCommand(con)
-                             .setDb(morphium.getDatabase())
-                             .setColl(collectionName)
-                             .setOrdered(false)
-                             //.setBypassDocumentValidation(true)
-                            ;
+                        try {
+                            con = morphium.getDriver().getPrimaryConnection(wc);
 
-                            if (dbLst.size() > morphium.getConfig().getCursorBatchSize()) {
-                                settings.setDocuments(dbLst.subList(0, morphium.getConfig().getCursorBatchSize()));
-                                dbLst = dbLst.subList(morphium.getConfig().getCursorBatchSize(), dbLst.size());
-                            } else {
-                                settings.setDocuments(dbLst);
-                                dbLst = new ArrayList<>();
+                            while (dbLst.size() != 0) {
+                                InsertMongoCommand settings = new InsertMongoCommand(con)
+                                 .setDb(morphium.getDatabase())
+                                 .setColl(collectionName)
+                                 .setOrdered(false)
+                                 //.setBypassDocumentValidation(true)
+                                ;
+
+                                if (dbLst.size() > morphium.getConfig().getCursorBatchSize()) {
+                                    settings.setDocuments(dbLst.subList(0, morphium.getConfig().getCursorBatchSize()));
+                                    dbLst = dbLst.subList(morphium.getConfig().getCursorBatchSize(), dbLst.size());
+                                } else {
+                                    settings.setDocuments(dbLst);
+                                    dbLst = new ArrayList<>();
+                                }
+
+                                if (wc != null) {
+                                    settings.setWriteConcern(wc.asMap());
+                                }
+
+                                var writeResult = settings.execute();
+
+                                if (writeResult.containsKey("writeErrors")) {
+                                    int failedWrites =
+                                     ((List) writeResult.get("writeErrors")).size();
+                                    int success = (int) writeResult.get("n");
+                                    con.release();
+                                    throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+                                }
                             }
-
-                            if (wc != null) {
-                                settings.setWriteConcern(wc.asMap());
-                            }
-
-                            var writeResult = settings.execute();
-
-                            if (writeResult.containsKey("writeErrors")) {
-                                int failedWrites =
-                                 ((List) writeResult.get("writeErrors")).size();
-                                int success = (int) writeResult.get("n");
-                                con.release();
-                                throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
-                            }
+                        } finally {
+                            if (con != null) { con.release(); }
                         }
 
-                        con.release();
                         dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
 
@@ -1268,7 +1272,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     var res = settings.execute();
-                    long dur = System.currentTimeMillis() - start;
+                    // long dur = System.currentTimeMillis() - start;
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.firePostRemoveEvent(o);
@@ -1287,12 +1291,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         throw new RuntimeException(e);
                     }
 
-                    callback.onOperationError(AsyncOperationType.REMOVE,
-                     null,
-                     System.currentTimeMillis() - start,
-                     e.getMessage(),
-                     e,
-                     o);
+                    callback.onOperationError(AsyncOperationType.REMOVE, null, System.currentTimeMillis() - start, e.getMessage(), e, o);
                 } finally {
                     if (con != null) {
                         con.release();
@@ -1961,7 +1960,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                 for (String f : fields) {
                     toSet.put(morphium.getARHelper().getMongoFieldName(cls, f),
-                     "");                                                                                                             // value is ignored
+                     "");                                                                                                                   // value is ignored
                 }
 
                 Map<String, Object> update = UtilsMap.of("$unset", toSet);
