@@ -259,7 +259,6 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
                 if (ms.getNumberOfMessages() > 0) {
                     Query<Msg> q1 = morphium.createQueryFor(Msg.class, ms.getCollectionName());
                     q1.f(Msg.Fields.sender).ne(ms.getSenderId());
-                    q1.f(Msg.Fields.lockedBy).in(Arrays.asList(null, "ALL", ms.getSenderId()));
                     q1.f(Msg.Fields.processedBy).ne(ms.getSenderId());
                     List<Msg> ret = q1.asList();
                     for (Msg f : ret) {
@@ -326,9 +325,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
                 } else if (i == 160) {
                     pausedReciever.set(0);
                     receiver.unpauseProcessingOfMessagesNamed("test");
-                    //receiver.findAndProcessPendingMessages("test");
+                    receiver.findAndProcessPendingMessages("test");
                     receiver2.unpauseProcessingOfMessagesNamed("test");
-                    //receiver2.findAndProcessPendingMessages("test");
+                    receiver2.findAndProcessPendingMessages("test");
                 }
 
             }
@@ -338,7 +337,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll()+ " received: "+messageCount.get());
                 Thread.sleep(500);
-                assertThat(System.currentTimeMillis()-start).describedAs("Messages should be processed by now!").isLessThan(15000);
+                receiver.triggerCheck();
+                receiver2.triggerCheck();
+                // assertThat(System.currentTimeMillis()-start).describedAs("Messages should be processed by now!").isLessThan(15000);
             }
             assert (q.countAll() == 0) : "Count is wrong: " + q.countAll();
 //
@@ -494,7 +495,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.start();
 
-            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).countAll() == 3);
+            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3);
         } finally {
             sender.terminate();
             receiverNoListener.terminate();
@@ -527,7 +528,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
 
             for (int i = 0; i < 50; i++) {
                 if (i % 10 == 0) log.info("Msg sent");
-                sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, true));
+                sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, true).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
             }
             while (counts.get() < 50) {
                 log.info("Still waiting for incoming messages: " + counts.get());

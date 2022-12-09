@@ -56,7 +56,6 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Thread.sleep(100);
 
         var msg=morphium.createQueryFor(Msg.class).get();
-        assertNull(msg.getLockedBy());
     }
 
 
@@ -1172,7 +1171,6 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                 if (ms.getNumberOfMessages() > 0) {
                     Query<Msg> q1 = morphium.createQueryFor(Msg.class, ms.getCollectionName());
                     q1.f(Msg.Fields.sender).ne(ms.getSenderId());
-                    q1.f(Msg.Fields.lockedBy).in(Arrays.asList(null, "ALL", ms.getSenderId()));
                     q1.f(Msg.Fields.processedBy).ne(ms.getSenderId());
                     List<Msg> ret = q1.asList();
                     for (Msg f : ret) {
@@ -1871,7 +1869,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.setUseChangeStream(true).start();
 
-            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).countAll() == 3);
+            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3);
         } finally {
             sender.terminate();
             receiverNoListener.terminate();

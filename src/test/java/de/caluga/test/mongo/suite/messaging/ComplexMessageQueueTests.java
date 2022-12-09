@@ -111,7 +111,6 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
 
             // //releasing lock _after_ sending
             Msg m = new Msg("test", "msg", "value", 1000, true);
-            m.setLockedBy("someone");
             m.setTimingOut(false);
             sender.sendMessage(m);
             Thread.sleep(1000);

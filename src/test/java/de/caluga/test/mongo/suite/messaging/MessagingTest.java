@@ -672,7 +672,7 @@ public class MessagingTest extends MorphiumTestBase {
         final Messaging consumer = new Messaging(morphium, 10, true);
         producer.start();
         consumer.start();
-        Thread.sleep(2500);
+        Thread.sleep(500);
 
         try {
             final int[] processed = {0};
@@ -695,7 +695,8 @@ public class MessagingTest extends MorphiumTestBase {
             int amount = 1000;
 
             for (int i = 0; i < amount; i++) {
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+                if (i%100==0)log.info("Storing messages... "+i);
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i).setTimingOut(false).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
             }
 
             for (int i = 0; i < 50 && processed[0] < amount; i++) {

@@ -1172,7 +1172,6 @@ public class MessagingNCTest extends MorphiumTestBase {
                 if (ms.getNumberOfMessages() > 0) {
                     Query<Msg> q1 = morphium.createQueryFor(Msg.class, ms.getCollectionName());
                     q1.f(Msg.Fields.sender).ne(ms.getSenderId());
-                    q1.f(Msg.Fields.lockedBy).in(Arrays.asList(null, "ALL", ms.getSenderId()));
                     q1.f(Msg.Fields.processedBy).ne(ms.getSenderId());
                     List<Msg> ret = q1.asList();
                     for (Msg f : ret) {
@@ -1891,7 +1890,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.setUseChangeStream(false).start();
 
-            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).f(Msg.Fields.lockedBy).eq(null).countAll() == 3);
+            assert (morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3);
         } finally {
             sender.terminate();
             receiverNoListener.terminate();

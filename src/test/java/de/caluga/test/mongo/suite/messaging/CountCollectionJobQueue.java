@@ -146,9 +146,7 @@ public class CountCollectionJobQueue extends MorphiumTestBase {
                             Msg m = new Msg("msg2", "cron", "value");
                             m.setDeleteAfterProcessing(true);
                             m.setDeleteAfterProcessingTime(0);
-                            m.setLockedBy("Planner");
                             m.setTimingOut(false);
-                            m.setLocked(System.currentTimeMillis());
                             sender.sendMessage(m); //need to have a different sender ID than myself - or I won't be able to run this task
                             crons.incrementAndGet();
                             cronLocks.decrementAndGet();
@@ -212,19 +210,16 @@ public class CountCollectionJobQueue extends MorphiumTestBase {
                                 }
 
                                 for (var m : lst) {
-                                    if (m.getLockedBy().equals("Planner")) {
                                         MessageCount msgCount = new MessageCount();
                                         msgCount.id = m.getMsgId().toString();
                                         msgCount.name = m.getName();
                                         morphium.store(msgCount);
-                                        m.setLockedBy(null);
 
                                         try {
                                             morphium.updateUsingFields(m, "locked_by");
                                         } catch (Exception e) {
                                             log.error("Planner: update failed!", e);
                                         }
-                                    }
                                 }
 
                                 locks.decrementAndGet();
@@ -291,15 +286,6 @@ public class CountCollectionJobQueue extends MorphiumTestBase {
                                     // log.info("new Message!");
                                     Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
 
-                                    if (obj.getLockedBy() != null && obj.getLockedBy().equals("Planner")) {
-                                        if (rec1.getPausedMessageNames().contains(obj.getName())) {
-                                            return rec1.isRunning();
-                                        }
-
-                                        synchronized (plan) {
-                                            plan.run();
-                                        }
-                                    }
                                 }
 
                                 return rec1.isRunning();
@@ -335,9 +321,7 @@ public class CountCollectionJobQueue extends MorphiumTestBase {
                     Msg m = new Msg("msg" + mod, "msg", "value");
                     m.setDeleteAfterProcessing(true);
                     m.setDeleteAfterProcessingTime(0);
-                    m.setLockedBy("Planner");
                     m.setTimingOut(false);
-                    m.setLocked(System.currentTimeMillis());
                     m.setSenderHost("localhost");
                     m.setSender(sender.getSenderId());
                     assertTrue(m.isExclusive());

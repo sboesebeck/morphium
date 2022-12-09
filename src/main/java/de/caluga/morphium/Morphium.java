@@ -1770,11 +1770,28 @@ public class Morphium implements AutoCloseable {
         getWriterForClass(toSet.getClass()).inc(toSet, collection, field, i, callback);
     }
 
-    public <T> void delete (List<T> lst, String forceCollectionName) {
-        delete (lst, forceCollectionName, (AsyncOperationCallback<T>) null);
+
+
+    public <T> void remove(List<T> lst, String forceCollectionName) {
+        remove(lst, forceCollectionName, (AsyncOperationCallback<T>) null);
     }
 
-    public <T> void delete (List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
+    /**
+    ** Use remove instead, to make it more similar to mongosh
+    **/
+    @Deprecated
+    public <T> void delete(List<T> lst, String forceCollectionName) {
+        remove(lst, forceCollectionName, (AsyncOperationCallback<T>) null);
+    }
+
+    /**
+    ** Use remove instead, to make it more similar to mongosh
+    **/
+    @Deprecated
+    public <T> void delete(List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
+        remove(lst,forceCollectionName,callback);
+    }
+    public <T> void remove(List<T> lst, String forceCollectionName, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();
 
@@ -1796,7 +1813,10 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public <T> void delete (List<T> lst, AsyncOperationCallback<T> callback) {
+    public <T> void delete(List<T> lst, AsyncOperationCallback<T> callback) {
+        remove(lst,callback);
+    }
+    public <T> void remove (List<T> lst, AsyncOperationCallback<T> callback) {
         ArrayList<T> directDel = new ArrayList<>();
         ArrayList<T> bufferedDel = new ArrayList<>();
 
@@ -2294,7 +2314,7 @@ public class Morphium implements AutoCloseable {
      * @param cls - class
      */
     public void clearCollection(Class<?> cls) {
-        delete (createQueryFor(cls));
+        remove(createQueryFor(cls));
     }
 
     /**
@@ -2308,7 +2328,7 @@ public class Morphium implements AutoCloseable {
         Query q = createQueryFor(cls);
         q.setCollectionName(colName);
         //noinspection unchecked
-        delete (q);
+        remove(q);
     }
 
     /**
@@ -3490,11 +3510,17 @@ public class Morphium implements AutoCloseable {
         }
     }
 
-    public <T> Map<String, Object> delete (Query<T> o) {
+    public <T> Map<String, Object> delete(Query<T> o) {
+        return remove(o);
+    }
+    public <T> Map<String, Object> remove(Query<T> o) {
         return getWriterForClass(o.getType()).remove(o, null);
     }
 
-    public <T> Map<String, Object> delete (Query<T> o, final AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> delete(Query<T> o, final AsyncOperationCallback<T> callback) {
+        return remove(o,callback);
+    }
+    public <T> Map<String, Object> remove(Query<T> o, final AsyncOperationCallback<T> callback) {
         return getWriterForClass(o.getType()).remove(o, callback);
     }
 
@@ -3518,18 +3544,29 @@ public class Morphium implements AutoCloseable {
      *
      * @param o - entity
      */
-    public void delete (Object o) {
-        delete (o, getMapper().getCollectionName(o.getClass()));
+    public void remove(Object o) {
+        remove(o, getMapper().getCollectionName(o.getClass()));
     }
 
-    public void delete (Object o, String collection) {
+    public void delete(Object o) {
+        remove(o, getMapper().getCollectionName(o.getClass()));
+    }
+
+    public void remove(Object o, String collection) {
         getWriterForClass(o.getClass()).remove(o, collection, null);
     }
 
-    public <T> void delete (final T lo, final AsyncOperationCallback<T> callback) {
+    public void delete(Object o, String collection) {
+        remove(o,collection);
+    }
+
+    public <T> void delete(final T lo, final AsyncOperationCallback<T> callback) {
+        remove(lo,callback);
+    }
+    public <T> void remove(final T lo, final AsyncOperationCallback<T> callback) {
         if (lo instanceof Query) {
             //noinspection unchecked
-            delete ((Query) lo, callback);
+            remove((Query) lo, callback);
             return;
         }
 
@@ -3537,7 +3574,10 @@ public class Morphium implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public <T> void delete (final T lo, String collection, final AsyncOperationCallback<T> callback) {
+    public <T> void delete(final T lo, String collection, final AsyncOperationCallback<T> callback) {
+        remove(lo,collection,callback);
+    }
+    public <T> void remove(final T lo, String collection, final AsyncOperationCallback<T> callback) {
         getWriterForClass(lo.getClass()).remove(lo, collection, callback);
     }
 
