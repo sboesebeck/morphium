@@ -118,8 +118,8 @@ public class BaseMessagingTests extends MorphiumTestBase {
         sender.setSenderId("sender");
         sender.start();
         Messaging rec1 = new Messaging(morphium);
-        /* rec1.setUseChangeStream(false);
-         * rec1.setPause(10); */
+        // rec1.setUseChangeStream(false);
+        // rec1.setPause(10);
         rec1.setSenderId("rec1");
         rec1.start();
         Messaging rec2 = new Messaging(morphium);
@@ -128,7 +128,7 @@ public class BaseMessagingTests extends MorphiumTestBase {
         rec2.setSenderId("rec2");
         rec2.start();
         AtomicInteger count = new AtomicInteger(0);
-        MessageListener ml = new MessageListener() {
+        MessageListener<Msg> ml = new MessageListener<Msg>() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
                 count.incrementAndGet();
