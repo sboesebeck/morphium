@@ -91,7 +91,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
         });
         Messaging m2 = new Messaging(morphium, 100, false);
         m2.addMessageListener((msg, m) -> {
-            gotMessage2 = true;
+            // gotMessage2 = true;
             return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);

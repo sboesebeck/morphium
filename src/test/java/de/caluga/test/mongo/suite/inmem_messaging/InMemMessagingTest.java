@@ -1529,7 +1529,6 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
 
             Thread.sleep(1000);
             receiver.unpauseProcessingOfMessagesNamed("test");
-            receiver.findAndProcessPendingMessages("test");
             while (list.size() < 10) {
                 Thread.yield();
             }
