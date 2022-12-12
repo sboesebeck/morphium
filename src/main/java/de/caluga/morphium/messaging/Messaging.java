@@ -405,6 +405,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         try {
                             if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
+                                // log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
                                 lockAndProcess(obj);
                             } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
                                 // I need process this new message... it is either for all or for me directly
@@ -415,10 +416,11 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         processing.remove(obj.getMsgId());
-                    // } else if (evt.getOperationType().equals("delete")) {
-                    //     skipped.incrementAndGet();
+                        // } else if (evt.getOperationType().equals("delete")) {
+                        //     skipped.incrementAndGet();
                     } else if (evt.getOperationType().equals("update")) {
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+
                         if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
                             return running;
                         }
@@ -466,6 +468,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (obj.isExclusive()) {
                             // locking
+                            // log.info("Exclusive message update: " + obj.getMsgId());
                             lockAndProcess(obj);
                         } else {
                             processMessage(obj);
@@ -638,7 +641,8 @@ public class Messaging extends Thread implements ShutdownListener {
         var preLockedIds = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
         preLockedIds.addAll(new ArrayList<>(processing));
         var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
-        var q2 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).in(Arrays.asList(Boolean.FALSE, null));
+        var q2 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null,
+          id)).f(Msg.Fields.exclusive).in(Arrays.asList(Boolean.FALSE, null));
         q.or(q1, q2);
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
@@ -665,8 +669,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             // get IDs of messages to process
-            fnd = new FindCommand(
-                morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
+            fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             fnd.setDb(morphium.getDatabase());
             fnd.setFilter(q.toQueryObject());
             fnd.setProjection(Doc.of("_id", 1, "ttl", 1, "timing_out", 1, "exclusive", 1, "processed_by", 1));
@@ -703,7 +706,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             morphium.insert(l, getCollectionName() + "_lck", null);
                             lockedIds.add(l.getId());
                         } catch (Exception e) {
-                            // could not lock!
+                           // could not lock!
                         }
                     }
 
@@ -753,29 +756,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
-        if (obj.isExclusive() && obj.getProcessedBy() != null && obj.getProcessedBy().size() > 0) {
-            //exclusive message already processed!
-            return;
-        }
-
-        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
-        q.f(Msg.Fields.sender).ne(id);
-        // q.f(Msg.Fields.lockedBy).eq(id);
-        q.f(Msg.Fields.processedBy).ne(id);
-
-        if (processMultiple && q.countAll() >= windowSize) {
-            // locked and not processed!
-            skipped.incrementAndGet();
-            return; // not locking - windowsize reached!
-        }
-
-        q = q.q();
         MsgLock lck = new MsgLock(obj);
         lck.setLockId(id);
-
-        if (obj.getTtl() != 0 && obj.isTimingOut()) {
-            lck.setDeleteAt(new Date(System.currentTimeMillis() + obj.getTtl()));
-        }
 
         try {
             morphium.insert(lck, getCollectionName() + "_lck", null);
@@ -784,11 +766,11 @@ public class Messaging extends Thread implements ShutdownListener {
             skipped.incrementAndGet();
             return;
         }
-
         processMessage(obj);
     }
 
-    private synchronized void processMessage(Msg msg) {
+    private synchronized void processMessage(Msg ms) {
+        var msg=morphium.reread(ms);
         // Not locked by me
         if (msg == null) {
             if (log.isDebugEnabled()) {
@@ -814,12 +796,9 @@ public class Messaging extends Thread implements ShutdownListener {
             // }
             morphium.delete(msg, getCollectionName());
             processing.remove(msg.getMsgId());
-
             unlockIfExclusive(msg);
-
             return;
         }
-
         if (msg.isExclusive() && msg.getProcessedBy().size() > 0) {
             //exclusive message already processed!
             removeProcessingFor(msg);
@@ -828,6 +807,13 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
+        // if (msg.isExclusive()){
+        //     var cnt=morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").f("_id").eq(msg.getMsgId()).countAll();
+        //     if (cnt!=1){
+        //         log.error("Unlocked exclusive message processing!");
+        //     }
+        // }
+        //
         if (msg.getInAnswerTo() != null) {
             if (waitingForMessages.containsKey(msg.getInAnswerTo())) {
                 updateProcessedBy(msg);
@@ -840,10 +826,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (receiveAnswers.equals(ReceiveAnswers.NONE) || (receiveAnswers.equals(ReceiveAnswers.ONLY_MINE)
              && msg.getRecipients() != null && !msg.getRecipients().contains(id))) {
-            
                 unlockIfExclusive(msg);
                 removeProcessingFor(msg);
-
                 return;
             }
         }
@@ -858,8 +842,6 @@ public class Messaging extends Thread implements ShutdownListener {
             updateProcessedBy(msg);
             removeProcessingFor(msg);
             unlockIfExclusive(msg);
-
-
             return;
         }
 
@@ -965,8 +947,6 @@ public class Messaging extends Thread implements ShutdownListener {
                                 cmd = new UpdateMongoCommand(morphium.getDriver()
                                   .getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
                                 cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-
-
                                 cmd.addUpdate(Doc.of("_id", msg.getMsgId()),
                                  Doc.of("$addToSet", Doc.of("processed_by", id)), null, false, false, null, null,
                                  null);
@@ -988,7 +968,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (!pauseMessages.containsKey(msg.getName())) {
                     log.error("message was not processed - an error occured");
                 }
-
             } else if (wasProcessed && !msg.getProcessedBy().contains(id)) {
                 updateProcessedBy(msg);
             }
@@ -1002,10 +981,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void unlockIfExclusive(Msg msg) {
         if (msg.isExclusive()) {
-            //remove lock
+            //remove _own_ lock
             morphium.createQueryFor(MsgLock.class)
                 .setCollectionName(getCollectionName() + "_lck")
-                .f("_id").eq(msg.getMsgId()).remove();
+                .f("_id").eq(msg.getMsgId())
+                .f("lock_id").eq(id)
+                .remove();
         }
     }
 
@@ -1088,7 +1069,7 @@ public class Messaging extends Thread implements ShutdownListener {
         UpdateMongoCommand cmd = null;
 
         try {
-            cmd = new UpdateMongoCommand( morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();
