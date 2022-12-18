@@ -325,9 +325,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
                 } else if (i == 160) {
                     pausedReciever.set(0);
                     receiver.unpauseProcessingOfMessagesNamed("test");
-                    receiver.findAndProcessPendingMessages("test");
                     receiver2.unpauseProcessingOfMessagesNamed("test");
-                    receiver2.findAndProcessPendingMessages("test");
                 }
 
             }

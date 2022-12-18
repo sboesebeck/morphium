@@ -773,9 +773,9 @@ public class Messaging extends Thread implements ShutdownListener {
         var msg=morphium.reread(ms);
         // Not locked by me
         if (msg == null) {
-            if (log.isDebugEnabled()) {
-                log.debug("Message was deleted before processing could happen!");
-            }
+//            if (log.isDebugEnabled()) {
+//                log.debug("Message was deleted before processing could happen!");
+//            }
 
             return;
         }
@@ -1081,8 +1081,8 @@ public class Messaging extends Thread implements ShutdownListener {
                     log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
                     log.warn(id + ": " + Utils.toJsonString(ret));
                     log.warn(id + ": msg: " + msg.toString());
-                } else {
-                    log.warn("message deleted by someone lese!!!");
+//                } else {
+//                    log.debug("message deleted by someone else!!!");
                 }
             }
         } catch (MorphiumDriverException e) {

@@ -692,14 +692,14 @@ public class MessagingTest extends MorphiumTestBase {
                 }
                 return null;
             });
-            int amount = 1000;
+            int amount = 250;
 
             for (int i = 0; i < amount; i++) {
                 if (i%100==0)log.info("Storing messages... "+i);
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i).setTimingOut(false).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
+                producer.queueMessage(new Msg("Test " + i, "msg " + i, "value " + i).setTimingOut(false).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
             }
 
-            for (int i = 0; i < 50 && processed[0] < amount; i++) {
+            for (int i = 0; i < 70 && processed[0] < amount; i++) {
                 log.info("Still processing: " + processed[0]);
                 Thread.sleep(1000);
             }
@@ -930,7 +930,6 @@ public class MessagingTest extends MorphiumTestBase {
 
             Thread.sleep(1000);
             receiver.unpauseProcessingOfMessagesNamed("test");
-            receiver.findAndProcessPendingMessages("test");
 
             while (list.size() < 10) {
                 Thread.yield();
