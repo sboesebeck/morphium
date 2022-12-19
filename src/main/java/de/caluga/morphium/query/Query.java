@@ -83,6 +83,7 @@ public class Query<T> implements Cloneable {
         return batchSize;
     }
 
+    
     public Query<T> setBatchSize(int batchSize) {
         this.batchSize = batchSize;
         return this;
@@ -2397,5 +2398,109 @@ public class Query<T> implements Cloneable {
         mongo_default,
         none,
 
+    }
+
+    public static Logger getLog() {
+        return log;
+    }
+
+    public void setWhere(String where) {
+        this.where = where;
+    }
+
+    public Map<String, Object> getRawQuery() {
+        return rawQuery;
+    }
+
+    public void setRawQuery(Map<String, Object> rawQuery) {
+        this.rawQuery = rawQuery;
+    }
+
+    public List<FilterExpression> getAndExpr() {
+        return andExpr;
+    }
+
+    public void setAndExpr(List<FilterExpression> andExpr) {
+        this.andExpr = andExpr;
+    }
+
+    public List<Query<T>> getOrQueries() {
+        return orQueries;
+    }
+
+    public void setOrQueries(List<Query<T>> orQueries) {
+        this.orQueries = orQueries;
+    }
+
+    public List<Query<T>> getNorQueries() {
+        return norQueries;
+    }
+
+    public void setNorQueries(List<Query<T>> norQueries) {
+        this.norQueries = norQueries;
+    }
+
+    public boolean isAdditionalDataPresent() {
+        return additionalDataPresent;
+    }
+
+    public void setAdditionalDataPresent(boolean additionalDataPresent) {
+        this.additionalDataPresent = additionalDataPresent;
+    }
+
+    public void setLimit(int limit) {
+        this.limit = limit;
+    }
+
+    public void setSkip(int skip) {
+        this.skip = skip;
+    }
+
+    public void setSort(Map<String, Object> sort) {
+        this.sort = sort;
+    }
+
+    public String getSrv() {
+        return srv;
+    }
+
+    public void setSrv(String srv) {
+        this.srv = srv;
+    }
+
+    public Map<String, Object> getFieldList() {
+        return fieldList;
+    }
+
+    public void setFieldList(Map<String, Object> fieldList) {
+        this.fieldList = fieldList;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
+    }
+
+    public AnnotationAndReflectionHelper getArHelper() {
+        return arHelper;
+    }
+
+    public void setArHelper(AnnotationAndReflectionHelper arHelper) {
+        this.arHelper = arHelper;
+    }
+
+    public String getOverrideDB() {
+        return overrideDB;
+    }
+
+    public void setOverrideDB(String overrideDB) {
+        this.overrideDB = overrideDB;
+    }
+
+    public UtilsMap<String, UtilsMap<String, String>> getAdditionalFields() {
+        return additionalFields;
+    }
+
+    public void setAdditionalFields(UtilsMap<String, UtilsMap<String, String>> additionalFields) {
+        this.additionalFields = additionalFields;
     }
 }
