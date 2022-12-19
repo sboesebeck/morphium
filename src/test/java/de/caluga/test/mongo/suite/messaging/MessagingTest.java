@@ -683,8 +683,8 @@ public class MessagingTest extends MorphiumTestBase {
                 if (processed[0] % 50 == 1) {
                     log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
                 }
-                if (messageIds.contains(m.getMsgId().toString())){
-                    if (m.getProcessedBy().size()!=0 && m.getProcessedBy().contains(consumer.getSenderId())){
+                if (messageIds.contains(m.getMsgId().toString())) {
+                    if (m.getProcessedBy().size() != 0 && m.getProcessedBy().contains(consumer.getSenderId())) {
                         log.error("Was already processed by me!");
                     }
                 }
@@ -702,7 +702,7 @@ public class MessagingTest extends MorphiumTestBase {
             for (int i = 0; i < amount; i++) {
                 if (i % 100 == 0) { log.info("Storing messages... " + i); }
 
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i)); 
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
             }
 
             for (int i = 0; i < 70 && processed[0] < amount; i++) {
@@ -1014,4 +1014,110 @@ public class MessagingTest extends MorphiumTestBase {
         }
     }
 
+    @Test
+    public void broadCastMultiTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 10000, false);
+        sender.setSenderId("sender");
+        sender.start();
+        Map<String, List<MorphiumId>> receivedIds = new ConcurrentHashMap<String, List<MorphiumId>>();
+        List<Messaging> receivers = new ArrayList<Messaging>();
+
+        for (int i = 0; i < 10; i++) {
+            Messaging rec1 = new Messaging(morphium, 10, true);
+            rec1.setSenderId("rec" + i);
+            receivers.add(rec1);
+            rec1.start();
+            rec1.addListenerForMessageNamed("bcast", (msg, m)->{
+                receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
+
+                if (receivedIds.get(rec1.getSenderId()).contains(m.getMsgId())) {
+                    log.error("Duplicate processing!!!!");
+                } else if (m.isExclusive() && m.getProcessedBy() != null && m.getProcessedBy().size() != 0) {
+                    log.error("Duplicate processing Exclusive Message!!!!!");
+                }
+                receivedIds.get(rec1.getSenderId()).add(m.getMsgId());
+                return null;
+            });
+        }
+
+        int amount = 100;
+
+        for (int i = 0 ; i < amount; i++) {
+            sender.queueMessage(new Msg("bcast", "msg", "value", 4000000));
+            sender.queueMessage(new Msg("bcast", "msg", "value", 4000000, true));
+
+            if (i % 10 == 0) { log.info("Sent message #" + i); }
+        }
+
+        while (true) {
+            StringBuilder b = new StringBuilder();
+            int totalNum = 0;
+            log.info("-------------");
+
+            for (var e : receivedIds.entrySet()) {
+                b.setLength(0);
+                b.append(e.getKey());
+                b.append(": ");
+
+                for (int i = 0; i < e.getValue().size(); i++) {
+                    b.append("*");
+                }
+
+                totalNum += e.getValue().size();
+                b.append(" -> ");
+                b.append(e.getValue().size());
+                log.info(b.toString());
+            }
+
+            if (totalNum == amount * receivers.size() + amount) { break; }
+
+            Thread.sleep(1500);
+        }
+
+        Thread.sleep(1000);
+        log.info("--------");
+        StringBuilder b = new StringBuilder();
+        int totalNum = 0;
+        int bcast = 0;
+        int excl=0;
+        for (var e : receivedIds.entrySet()) {
+            b.setLength(0);
+            b.append(e.getKey());
+            b.append(": ");
+            int ex=0;
+            int bx=0;
+            for (int i = 0; i < e.getValue().size(); i++) {
+                var m=morphium.findById(Msg.class, e.getValue().get(i));
+                if (m.isExclusive()) {
+                    b.append("!");
+                    excl++;
+                    ex++;
+                } else {
+                    b.append("*");
+                    bcast++;
+                    bx++;
+                }
+            }
+
+            totalNum += e.getValue().size();
+            b.append(" -> ");
+            b.append(e.getValue().size());
+            b.append(" ( excl: ");
+            b.append(ex);
+            b.append(" + bcast: ");
+            b.append(bx);
+            b.append(")");
+            log.info(b.toString());
+        }
+
+        log.info("Total processed: " + totalNum);
+        log.info("    exclusives : "+excl);
+        log.info("    broadcasts : "+bcast);
+
+        for (Messaging m : receivers) {
+            m.terminate();
+        }
+
+        sender.terminate();
+    }
 }

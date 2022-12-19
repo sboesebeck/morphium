@@ -412,6 +412,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
                     }
                     dups.incrementAndGet();
                 }
+                log.info("Processed msg excl: "+m.isExclusive());
                 ids.put(m.getMsgId().toString(), System.currentTimeMillis());
                 recById.put(m.getMsgId().toString(), msg.getSenderId());
                 return null;
@@ -424,8 +425,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
             int broadcastAmount = 50;
             for (int i = 0; i < amount; i++) {
                 int rec = received.get();
-                long messageCount = 0;
-                messageCount += receiver.getPendingMessagesCount();
+                long messageCount = receiver.getPendingMessagesCount();
                 if (i % 100 == 0) log.info("Send " + i + " recieved: " + rec + " queue: " + messageCount);
                 Msg m = new Msg("m", "m", "v" + i, 3000000, true);
                 m.setExclusive(true);
@@ -434,7 +434,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
             for (int i = 0; i < broadcastAmount; i++) {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
-                if (i % 100 == 0) log.info("Send broadcast" + i + " recieved: " + rec + " queue: " + messageCount);
+                if (i % 100 == 0) log.info("Send broadcast " + i + " recieved: " + rec + " queue: " + messageCount);
                 Msg m = new Msg("m", "m", "v" + i, 3000000, false);
                 sender.sendMessage(m);
             }
@@ -442,7 +442,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase{
             while (received.get() != amount + broadcastAmount * 4) {
                 int rec = received.get();
                 long messageCount = sender.getPendingMessagesCount();
-                log.info("Send excl: " + amount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (amount + broadcastAmount * 4 - rec - messageCount));
+                log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount,broadcastAmount,rec,messageCount, (amount + broadcastAmount * 4 - rec - messageCount)));
+                log.info(String.format("Number of ids: %d",ids.size()));
                 assert (dups.get() == 0) : "got duplicate message";
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
