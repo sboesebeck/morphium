@@ -683,6 +683,11 @@ public class MessagingTest extends MorphiumTestBase {
                 if (processed[0] % 50 == 1) {
                     log.info(processed[0] + "... Got Message " + m.getName() + " / " + m.getMsg() + " / " + m.getValue());
                 }
+                if (messageIds.contains(m.getMsgId().toString())){
+                    if (m.getProcessedBy().size()!=0 && m.getProcessedBy().contains(consumer.getSenderId())){
+                        log.error("Was already processed by me!");
+                    }
+                }
                 assert(!messageIds.contains(m.getMsgId().toString())) : "Duplicate message: " + processed[0];
                 messageIds.add(m.getMsgId().toString());
                 //simulate processing
@@ -692,11 +697,12 @@ public class MessagingTest extends MorphiumTestBase {
                 }
                 return null;
             });
-            int amount = 250;
+            int amount = 1000;
 
             for (int i = 0; i < amount; i++) {
-                if (i%100==0)log.info("Storing messages... "+i);
-                producer.queueMessage(new Msg("Test " + i, "msg " + i, "value " + i).setTimingOut(false).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
+                if (i % 100 == 0) { log.info("Storing messages... " + i); }
+
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i)); 
             }
 
             for (int i = 0; i < 70 && processed[0] < amount; i++) {

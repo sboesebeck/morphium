@@ -640,9 +640,10 @@ public class Messaging extends Thread implements ShutdownListener {
         // locking messages.. and getting broadcasts
         var preLockedIds = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
         preLockedIds.addAll(new ArrayList<>(processing));
+        //q1: Exclusive messages, not locked yet, not processed yet
         var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
-        var q2 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null,
-          id)).f(Msg.Fields.exclusive).in(Arrays.asList(Boolean.FALSE, null));
+        //q2: non-exclusive messages, cannot be locked, not processed by me yet 
+        var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
         q.or(q1, q2);
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
@@ -652,10 +653,10 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         // Only handle messages we have listener for
-        if (listeners.isEmpty() && !listenerByName.isEmpty() && !listenerByName.keySet().isEmpty()) {
+        if (listeners.isEmpty() && !listenerByName.isEmpty()) {
             q.f(Msg.Fields.name).in(listenerByName.keySet());
         }
-
+        q.setLimit(windowSize);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
         List<MorphiumId> lockedIds = new ArrayList<>();
         // just trigger unprocessed messages for Changestream...
@@ -673,7 +674,7 @@ public class Messaging extends Thread implements ShutdownListener {
             fnd.setDb(morphium.getDatabase());
             fnd.setFilter(q.toQueryObject());
             fnd.setProjection(Doc.of("_id", 1, "ttl", 1, "timing_out", 1, "exclusive", 1, "processed_by", 1));
-            fnd.setLimit(q.getLimit());
+            fnd.setLimit(ws);
             fnd.setBatchSize(q.getBatchSize());
             fnd.setSort(q.getSort());
             fnd.setSkip(q.getSkip());
@@ -710,10 +711,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                     }
 
-                    if (lockedIds.size() >= ws) {
-                        skipped.incrementAndGet();
-                        return lockedIds;
-                    }
                 }
             }
 
@@ -804,6 +801,11 @@ public class Messaging extends Thread implements ShutdownListener {
             removeProcessingFor(msg);
             //remove lock
             unlockIfExclusive(msg);
+            return;
+        }
+        if (msg.getProcessedBy()!=null && msg.getProcessedBy().contains(id)){
+            unlockIfExclusive(msg);
+            removeProcessingFor(msg);
             return;
         }
 
