@@ -525,7 +525,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     @SuppressWarnings("CommentedOutCode")
-    private void handleAnswer(Msg obj) {
+    private synchronized void handleAnswer(Msg obj) {
         if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
             // we're expecting this message!
             updateProcessedBy(obj);
