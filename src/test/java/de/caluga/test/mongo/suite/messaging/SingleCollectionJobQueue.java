@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -25,6 +26,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
 public class SingleCollectionJobQueue extends MorphiumTestBase {
@@ -42,6 +44,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
         AtomicLong lastCron = new AtomicLong(0);
         AtomicInteger errors = new AtomicInteger(0);
         List<MorphiumId> processedIds = new Vector<>();
+        Map<MorphiumId,List<Object>> processedIdsMetaInfo=new ConcurrentHashMap<>();
         List<String> lockedBy = new Vector<>();
         AtomicInteger busyClients = new AtomicInteger();
         int cronInterval = 10000;
@@ -51,7 +54,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
         GlobalLock cl = new GlobalLock();
         cl.scope = "cron";
         morphium.insert(cl);
-        AtomicInteger onMessage=new AtomicInteger(0);
+        AtomicInteger onMessage = new AtomicInteger(0);
 
         try {
             var msgL = new MessageListener<Msg>() {
@@ -62,10 +65,20 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
                     onMessage.incrementAndGet();
+
+                     MsgLock msglock=morphium.createQueryFor(MsgLock.class).setCollectionName("msg_lck").f("_id").eq(m.getMsgId()).get();                        // plan ahead
+                    if (msglock==null){
+                        log.error("Not locked?!?!?!"+m.isExclusive() + " -> "+m.getName());
+                    } else {
+                        if (!msglock.getLockId().equals(msg.getSenderId())){
+                            log.error("Locked by someone else: "+msglock.getLockId());
+                        }
+                    }
                     try {
+                        busyClients.incrementAndGet();
                         // log.info(msg.getSenderId() + ": OnMessage " + m.getName());
                         if (maxParallel.containsKey(m.getName()) && maxParallel.get(m.getName()) != null) {
-                            var cnt = morphium.createQueryFor(Msg.class).f("name").eq(m.getName()).f("locked_by").ne("Planner").countAll();
+                            var cnt = morphium.createQueryFor(Msg.class).f("name").eq(m.getName()).f("processed_by.0").eq(null).countAll();
 
                             if (cnt > maxParallel.get(m.getName()) + 1) { // has to be bigger, as the entry is already
                                 // there
@@ -76,22 +89,29 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 var ex = new MessageRejectedException("MaxParallel exceeded", true);
                                 ex.setCustomRejectionHandler((messaging, message)->{
                                     message.setProcessedBy(new ArrayList<>());
-                                    // morphium.updateUsingFields(message,"locked_by","processed_by");
                                     morphium.store(message);
                                 });
                                 throw ex;
                             }
                         }
 
-                        busyClients.incrementAndGet();
-
+                        // if (m.getProcessedBy()!=null && m.getProcessedBy().size()>0){
+                        //     log.error("Message was already processed?!?!?!?");
+                        // }
                         // no maxParallel - can do our magic
                         if (processedIds.contains(m.getMsgId())) {
-                            log.error("Duplicate Message processing for ID " + m.getMsgId());
+                            log.error(msg.getSenderId()+": Duplicate Message processing for ID " + m.getMsgId());
+                            log.error(msg.getSenderId()+": Processed by: "+m.getProcessedBy().size());
+                            for (String p:m.getProcessedBy()){
+                                log.error("    Processed by: "+p);
+                            }
+                            List<Object> p=processedIdsMetaInfo.get(m.getMsgId());
+                            log.error(String.format("  processed %d ms ago - id %s",(System.currentTimeMillis()-(long)p.get(0)),p.get(1)));
                             errors.incrementAndGet();
                         }
 
                         processedIds.add(m.getMsgId());
+                        processedIdsMetaInfo.put(m.getMsgId(),Arrays.asList(System.currentTimeMillis(),msg.getSenderId()));
                         // simulate to process message
                         counts.incrementAndGet();
                         Thread.sleep(((int)(Math.random() * 500.0) + 1500));
@@ -111,9 +131,6 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                 }
             };
             final int noOfClients = 25;
-            GlobalLock lockGlobal = morphium.createQueryFor(GlobalLock.class).f("_id").eq("global").get();
-            GlobalLock lockCron = morphium.createQueryFor(GlobalLock.class).f("_id").eq("cron").get();
-            Thread.sleep(1000);
 
             for (int i = 0; i < noOfClients; i++) {
                 log.info("Creating client " + i);
@@ -167,6 +184,8 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 m.setDeleteAfterProcessing(true);
                                 m.setDeleteAfterProcessingTime(0);
                                 m.setTimingOut(false);
+                                m.setExclusive(true);
+                                m.setProcessedBy(Arrays.asList("Planner"));
                                 sender.sendMessage(m); // need to have a different sender ID than myself - or I
                                 // won't be able to run this task
                                 crons.incrementAndGet();
@@ -193,12 +212,11 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                 // |  __/| | (_| | | | | | | |  __/ |
                 // |_|   |_|\__,_|_| |_|_| |_|\___|_|
                 Runnable plan = ()->{
-                    var running = morphium.createQueryFor(Msg.class).f("locked_by").nin(Arrays.asList("Planner", "ALL")).countAll();
+                    var running = morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null).countAll();
 
                     if (noOfClients <= running) {
                         return;
                     }
-
 
                     var lock =  new GlobalLock();
                     lock.scope = "Planner";
@@ -218,11 +236,10 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                             errors.incrementAndGet();
                         }
 
-                        // plan ahead
                         try {
                             // log.info(rec1.getSenderId() + " Planner: Got lock!");
                             var agg = morphium.createAggregator(Msg.class, Map.class)
-                             .match(morphium.createQueryFor(Msg.class).f("locked_by").nin(Arrays.asList("Planner", "ALL")))
+                             .match(morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null))
                              .group("$name").sum("count", 1).end().aggregateMap();
 
                             for (var e : agg) {
@@ -236,7 +253,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 }
                             }
 
-                            var msgQuery = morphium.createQueryFor(Msg.class).f("locked_by").eq("Planner")
+                            var msgQuery = morphium.createQueryFor(Msg.class).f("processed_by").eq("Planner")
                              .f("name").nin(rec1.getPausedMessageNames())
                              .sort(Msg.Fields.priority, Msg.Fields.timestamp)
                              .addProjection("_id").addProjection("name")
@@ -254,33 +271,34 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 do {
                                     for (var m : lst) {
                                         // if (m.getLockedBy().equals("Planner")) {
-                                            if (maxParallel.containsKey(m.getName())) {
-                                                var cnt = morphium.createQueryFor(Msg.class).f("name")
-                                                 .eq(m.getName()).f("locked_by").nin(Arrays.asList("Planner", "ALL")).countAll();
+                                        if (maxParallel.containsKey(m.getName())) {
+                                            var cnt = morphium.createQueryFor(Msg.class).f("name")
+                                             .eq(m.getName()).f("processed_by.0").eq(null).countAll();
 
-                                                if (cnt >= (Integer) maxParallel.get(m.getName())) {
-                                                    rec1.pauseProcessingOfMessagesNamed(m.getName());
-                                                    continue;
-                                                }
+                                            if (cnt >= (Integer) maxParallel.get(m.getName())) {
+                                                rec1.pauseProcessingOfMessagesNamed(m.getName());
+                                                continue;
                                             }
+                                        }
 
-                                            added++;
-                                            // m.setLockedBy(null);
+                                        added++;
+                                        // m.setLockedBy(null);
+                                        m.setProcessedBy(null);
 
-                                            // try {
-                                            //     morphium.updateUsingFields(m, "locked_by");
-                                            // } catch (Exception e) {
-                                            //     log.error("Planner: update failed!", e);
-                                            //     m = morphium.reread(m);
-                                            //     log.error("Planner: "
-                                            //      + Utils.toJsonString(morphium.getMapper().serialize(m)));
-                                            //     errors.incrementAndGet();
-                                            // }
+                                        try {
+                                            morphium.createQueryFor(Msg.class).f("_id").eq(m.getMsgId()).unset("processed_by");
+                                        } catch (Exception e) {
+                                            log.error("Planner: update failed!", e);
+                                            m = morphium.reread(m);
+                                            log.error("Planner: "
+                                             + Utils.toJsonString(morphium.getMapper().serialize(m)));
+                                            errors.incrementAndGet();
+                                        }
                                         // }
                                     }
 
                                     if (added < (noOfClients - running)) {
-                                        msgQuery = morphium.createQueryFor(Msg.class).f("locked_by").eq("Planner")
+                                        msgQuery = morphium.createQueryFor(Msg.class).f("processed_by").eq("Planner")
                                          .f("name").nin(rec1.getPausedMessageNames())
                                          .sort(Msg.Fields.priority, Msg.Fields.timestamp)
                                          .addProjection("_id").addProjection("name")
@@ -322,27 +340,25 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 if (evt.getOperationType().equals("insert")) {
                                     // log.info("new Message!");
                                     Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                                    if (obj.getProcessedBy() != null && obj.getProcessedBy().contains("Planner")) {
+                                        if (rec1.getPausedMessageNames().contains(obj.getName())) {
+                                            return rec1.isRunning();
+                                        }
 
-                                    // if (obj.getLockedBy() != null && obj.getLockedBy().equals("Planner")) {
-                                    //     if (rec1.getPausedMessageNames().contains(obj.getName())) {
-                                    //         return rec1.isRunning();
-                                    //     }
-                                    //
-                                    //     plan.run();
-                                    // }
+                                        plan.run();
+                                    }
                                 } else if (evt.getOperationType().equals("delete")) {
                                     // log.info(rec1.getSenderId()+": incoming delete");
                                     for (String n : rec1.getPausedMessageNames()) {
                                         if (maxParallel.containsKey(n)) {
-                                            // if (morphium.createQueryFor(Msg.class).f("name").eq(n).f("locked_by")
-                                            // .nin(Arrays.asList("Planner", "ALL")).countAll() < maxParallel.get(n)) {
-                                            //     long dur = rec1.unpauseProcessingOfMessagesNamed(n);
-                                            //
-                                            //     // log.info(n + " was paused for " + dur + "ms");
-                                            //     if (dur > 15000) {
-                                            //         log.warn(n + " was paused too long: " + dur);
-                                            //     }
-                                            // }
+                                            if (morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null).countAll() < maxParallel.get(n)) {
+                                                long dur = rec1.unpauseProcessingOfMessagesNamed(n);
+
+                                                // log.info(n + " was paused for " + dur + "ms");
+                                                // if (dur > 15000) {
+                                                //     log.warn(n + " was paused too long: " + dur);
+                                                // }
+                                            }
                                         } else {
                                             rec1.unpauseProcessingOfMessagesNamed(n);
                                         }
@@ -386,6 +402,8 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                 m.setDeleteAfterProcessing(true);
                 m.setDeleteAfterProcessingTime(0);
                 m.setTimingOut(false);
+                m.setExclusive(true);
+                m.setProcessedBy(Arrays.asList("Planner"));
                 assertTrue(m.isExclusive());
                 m.setSender(sender.getSenderId());
                 m.setSenderHost("localhost");
@@ -426,9 +444,9 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                     log.info("  Active clients: " + busyClients.get() + " Max: " + maxRunning);
                     log.info("  Message Queue : " + morphium.createQueryFor(Msg.class).countAll());
                     log.info("  max scheduled : " + maxPlanned);
-                    log.info("  processing    : " + morphium.createQueryFor(Msg.class).f("locked_by").nin(Arrays.asList("Planner", "ALL")).countAll());
+                    log.info("  processing    : " + morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null).countAll());
                     var agg = morphium.createAggregator(Msg.class, Map.class)
-                     .match(morphium.createQueryFor(Msg.class).f("locked_by").nin(Arrays.asList("Planner", "ALL"))).group("$name")
+                     .match(morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null)).group("$name")
                      .sum("count", 1).end().sort("_id").aggregateMap();
 
                     for (var e : agg) {
@@ -447,7 +465,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                     }
 
                     agg = morphium.createAggregator(Msg.class, Map.class)
-                     .match(morphium.createQueryFor(Msg.class).f("locked_by").eq("Planner")).group("$name")
+                     .match(morphium.createQueryFor(Msg.class).f("processed_by").eq("Planner")).group("$name")
                      .sum("count", 1).end().sort("_id").aggregateMap();
                     log.info("  Messages queued: ");
 
@@ -467,7 +485,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                     maxRunning = busyClients.get();
                 }
 
-                var scheduled = (int) morphium.createQueryFor(Msg.class).f("locked_by").ne("Planner").countAll();
+                var scheduled = (int) morphium.createQueryFor(Msg.class).f("processed_by.0").eq(null).countAll();
 
                 if (scheduled > maxPlanned) {
                     maxPlanned = scheduled;

@@ -1,38 +1,27 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 
-import de.caluga.morphium.Utils;
-import de.caluga.morphium.annotations.DefaultReadPreference;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
-import de.caluga.morphium.changestream.ChangeStreamEvent;
-import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.MessageRejectedException.RejectionHandler;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 public class ComplexMessageQueueTests extends MorphiumTestBase {
 
     @Test
-    public void longRunningExclusivesWithIgnor() throws Exception {
+    public void longRunningExclusivesWithIgnore() throws Exception {
         Messaging sender = new Messaging(morphium);
         sender.setSenderId("sender");
         sender.start();
@@ -101,7 +90,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                 }
             };
 
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 5; i++) {
                 Messaging cl = new Messaging(morphium);
                 cl.setSenderId("cl" + i);
                 cl.addMessageListener(lst);
@@ -111,12 +100,18 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
 
             // //releasing lock _after_ sending
             Msg m = new Msg("test", "msg", "value", 1000, true);
+            m.setMsgId(new MorphiumId());
             m.setTimingOut(false);
+            MsgLock l=new MsgLock(m);
+            l.setLockId("someone");
+            morphium.save(l,"msg_lck",null);
             sender.sendMessage(m);
             Thread.sleep(1000);
             assertEquals(0, processedMessages.size());
-            var q = morphium.createQueryFor(Msg.class).f("_id").eq(m.getMsgId());
-            q.set("locked_by", null);
+            var q = morphium.createQueryFor(MsgLock.class).setCollectionName("msg_lck").f("_id").eq(m.getMsgId());
+            q.remove();
+            for (Messaging ms:clients) ms.triggerCheck();
+            //now it should be processed...
             Thread.sleep(1000);
             assertEquals(1, processedMessages.size(), "not processed");
         } finally {
