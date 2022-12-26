@@ -766,13 +766,6 @@ public class Messaging extends Thread implements ShutdownListener {
             processing.remove(obj.getMsgId());
             return;
         }
-        lck=morphium.reread(lck);
-        if (!lck.getLockId().equals(id)){
-            log.error("Lock failed!!!!");
-            processing.remove(obj.getMsgId());
-            skipped.incrementAndGet();
-            return;
-        }
         processMessage(obj);
     }
 
@@ -860,14 +853,6 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         Runnable r = ()->{
-            var reread = morphium.reread(msg);
-
-            if (reread == null || msg.getProcessedBy() != null && msg.getProcessedBy().size() > 0) {
-                removeProcessingFor(msg);
-                unlockIfExclusive(msg);
-                return;
-            }
-
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -894,14 +879,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         wasProcessed = false;
                         skipped.incrementAndGet();
                         break;
-                    }
-
-                    reread = morphium.reread(msg);
-
-                    if (reread == null || msg.isExclusive() && msg.getProcessedBy() != null && msg.getProcessedBy().size() > 0 || msg.getProcessedBy()!=null && msg.getProcessedBy().contains(id)) {
-                        removeProcessingFor(msg);
-                        unlockIfExclusive(msg);
-                        return;
                     }
 
                     if (l.markAsProcessedBeforeExec()) {
