@@ -270,7 +270,6 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
 
                                 do {
                                     for (var m : lst) {
-                                        // if (m.getLockedBy().equals("Planner")) {
                                         if (maxParallel.containsKey(m.getName())) {
                                             var cnt = morphium.createQueryFor(Msg.class).f("name")
                                              .eq(m.getName()).f("processed_by.0").eq(null).countAll();
