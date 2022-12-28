@@ -422,11 +422,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
 
             sender.sendMessage(new Msg("test", "message", "value", 3000000, true));
-            while (!gotMessage) {
-                Thread.sleep(500);
-            }
-            assert (gotMessage);
-            assert (gotMessage3);
+            TestUtils.waitForConditionToBecomeTrue(5000, "did not getMessage at all!", ()-> gotMessage && gotMessage3);
         } finally {
             sender.terminate();
             rec1.terminate();
