@@ -171,6 +171,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     public void testAsyncWriter(Morphium morphium) throws Exception {
         log.info("Running Test with "+morphium.getDriver().getName());
         try (morphium) {
+            morphium.getDriver().setMaxWaitTime(15000);
             morphium.dropCollection(AsyncObject.class);
             morphium.ensureIndicesFor(AsyncObject.class);
             Thread.sleep(2000);
