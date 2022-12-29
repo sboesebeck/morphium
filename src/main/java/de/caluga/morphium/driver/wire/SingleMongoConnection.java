@@ -354,6 +354,9 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(id, driver.getMaxWaitTime());
+        if (reply==null){
+            return null;
+        }
         if (reply.hasCursor()) {
             return getSingleDocAndKillCursor(reply);
         }
