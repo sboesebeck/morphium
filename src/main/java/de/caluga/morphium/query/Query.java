@@ -49,6 +49,8 @@ public class Query<T> implements Cloneable {
     private String collectionName;
     private String srv = null;
 
+    private Object hint;
+
     private Map<String, Object> fieldList;
 
     private boolean autoValuesEnabled = true;
@@ -73,6 +75,18 @@ public class Query<T> implements Cloneable {
 
     public Query(Morphium m) {
         setMorphium(m);
+    }
+    public Object getHint(){
+        return hint;
+    }
+
+    public Query<T> setHintString(String h){
+        hint=h;
+        return this;
+    }
+    public Query<T> setHintMap(Map<String,Object> h){
+        hint=h;
+        return this;
     }
 
     public int getBatchSize() {
@@ -2232,6 +2246,7 @@ public class Query<T> implements Cloneable {
              .setTailable(true)
              .setFilter(toQueryObject())
              .setSort(getSort())
+             .setHint(hint)
              .setLimit(getLimit())
              .setBatchSize(batchSize)
              .setMaxTimeMS(maxWait)
@@ -2374,6 +2389,7 @@ public class Query<T> implements Cloneable {
          .setProjection(getFieldListForQuery())
          .setSkip(getSkip())
          .setLimit(getLimit())
+         .setHint(hint)
          .setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
         settings.setBatchSize(getBatchSize());
         return settings;
