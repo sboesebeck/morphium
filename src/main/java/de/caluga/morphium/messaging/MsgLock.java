@@ -59,4 +59,8 @@ public class MsgLock {
         this.deleteAt = deleteAt;
     }
 
+    public enum Fields {
+        id,deleteAt,lockId,
+    }
+
 }
