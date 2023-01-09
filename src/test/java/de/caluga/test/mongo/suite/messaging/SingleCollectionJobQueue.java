@@ -15,11 +15,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.Utils;
-import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
@@ -379,7 +377,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
             }
 
             // sending some messages
-            int amount = 585;
+            int amount = 2585;
             var block = new ArrayList<>();
 
             for (int i = 0; i < amount; i++) {
@@ -387,13 +385,13 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
 
                 if (mod == 1) {
                     // too much of them
-                    if (Math.random() > 0.25) {
+                    if (Math.random() > 0.15) {
                         mod = 2; // no limit
                     }
                 }
 
                 if (mod == 5) {
-                    if (Math.random() > 0.5) {
+                    if (Math.random() > 0.3) {
                         mod = 2;
                     }
                 }
