@@ -15,9 +15,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
@@ -168,7 +170,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 morphium.insert(lock);
                             } catch (Exception e) {
                                 //lock failed
-                                return;
+                                continue;
                             }
 
                             try {
@@ -185,6 +187,8 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                                 m.setDeleteAfterProcessingTime(0);
                                 m.setTimingOut(false);
                                 m.setExclusive(true);
+                                //need to ensure that the message is not processed, before the planner did
+                                //better solution maybe -> add to locks with planner as scope 
                                 m.setProcessedBy(Arrays.asList("Planner"));
                                 sender.sendMessage(m); // need to have a different sender ID than myself - or I
                                 // won't be able to run this task
@@ -503,5 +507,6 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
     public static class GlobalLock {
         @Id
         public String scope;
+
     }
 }
