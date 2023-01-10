@@ -1,3 +1,3 @@
 #!/bin/bash
 
-multimarkdown -t html MorphiumDoku.md -o MorphiumDoku.html
+multimarkdown -t html Morphium\ Documentation.md -o Morphium\ Documentation.html
