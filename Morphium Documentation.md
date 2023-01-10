@@ -1543,7 +1543,7 @@ You can also specify your own query object (Map<String,Object>) in case of a ver
 ```java
         Map<String,Object> query=new HashMap<>();
         query.put("counter",UtilsMap.of("$lt",10));
-        Query<UncachedObject> q=MorphiumSingleton.get().createQueryFor(UncachedObject.class);
+        Query<UncachedObject> q=morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst=q.complexQuery(query);
 ```
 
@@ -1616,7 +1616,7 @@ For example:
        UncachedObject uc=new UncachedObject();
             uc.setCounter(u.getCounter()+1);
             uc.setValue("WRONG!");
-            MorphiumSingleton.get().store(uc);
+            morphium.store(uc);
             log.info("Current Counter: "+u.getCounter()+" and Value: "+u.getValue());
    }
 ```
