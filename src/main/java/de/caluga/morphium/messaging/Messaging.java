@@ -805,7 +805,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private synchronized void processMessage(Msg ms) {
-        var msg = morphium.reread(ms);
+        var msg = morphium.reread(ms,getCollectionName());
 
         // Not locked by me
         if (msg == null) {
@@ -1128,7 +1128,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
             if (ret.get("nModified") == null && ret.get("modified") == null
              || Integer.valueOf(0).equals(ret.get("nModified"))) {
-                if (morphium.reread(msg) != null) {
+                if (morphium.reread(msg,getCollectionName()) != null) {
                     if (!msg.getProcessedBy().contains(id)) {
                         log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
                         log.warn(id + ": " + Utils.toJsonString(ret));
