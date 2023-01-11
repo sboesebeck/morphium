@@ -2,6 +2,7 @@ package de.caluga.test.objectmapping;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +13,8 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
@@ -40,7 +43,7 @@ public class ObjectMapperTest {
         MorphiumObjectMapper mapper = new ObjectMapperImpl();
         Map<String, Object> marshall = mapper.serialize(c);
         assert(marshall.get("simple_id") instanceof ObjectId);
-        assert(((Map<?,?>) marshall.get("id_map")).get("1") instanceof ObjectId);
+        assert(((Map<?, ?>) marshall.get("id_map")).get("1") instanceof ObjectId);
 
         for (Object i : (List<?>) marshall.get("others")) {
             assert(i instanceof ObjectId);
@@ -48,9 +51,9 @@ public class ObjectMapperTest {
 
         ///
         c = mapper.deserialize(ListOfIdsContainer.class, marshall);
-        //noinspection ConstantConditions
+        // noinspection ConstantConditions
         assert(c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
-        //noinspection ConstantConditions
+        // noinspection ConstantConditions
         assert(c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assertNotNull(c.simpleId);
         ;
@@ -66,6 +69,7 @@ public class ObjectMapperTest {
         log.info(Utils.toJsonString(map));
         assertNotNull(map.get("class_name"));
     }
+
     @Test
     public void mapSerializationTest() {
         var OM = new ObjectMapperImpl();
@@ -96,45 +100,53 @@ public class ObjectMapperTest {
         MorphiumObjectMapper om = new ObjectMapperImpl();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
         om.setAnnotationHelper(an);
-        //        ObjectMapper jacksonOM = new ObjectMapper();
+        ObjectMapper jacksonOM = new ObjectMapper();
         UncachedObject uc = new UncachedObject("strValue", 144);
         uc.setBinaryData("Test".getBytes(StandardCharsets.UTF_8));
         long start = System.currentTimeMillis();
-        int amount = 10000;
+        int amount = 100000;
 
         for (int i = 0; i < amount; i++) {
             Map<String, Object> m = om.serialize(uc);
+            assertNotNull(m);
         }
 
         long dur = System.currentTimeMillis() - start;
-        log.info("Serialization took " + dur + " ms");
-        //        start = System.currentTimeMillis();
-        //        for (int i = 0; i < 1000; i++) {
-        //            jacksonOM.convertValue(uc, Map.class);
-        //        }
-        //        dur = System.currentTimeMillis() - start;
-        //        log.info("Jackson serialization took " + dur + " ms");
+        log.info("Morphium Serialization took " + dur + " ms");
+        start = System.currentTimeMillis();
+
+        for (int i = 0; i < amount; i++) {
+            var m=jacksonOM.convertValue(uc, Map.class);
+            assertNotNull(m);
+        }
+        dur = System.currentTimeMillis() - start;
+        log.info("Jackson serialization took " + dur + " ms");
         Map<String, Object> m = om.serialize(uc);
         start = System.currentTimeMillis();
 
         for (int i = 0; i < amount; i++) {
             UncachedObject uo = om.deserialize(UncachedObject.class, m);
+            assertNotNull(uo);
         }
 
         dur = System.currentTimeMillis() - start;
         log.info("De-Serialization took " + dur + " ms");
-        //        Map<String,Object> convNames=new HashMap<>();
-        //        for (Map.Entry<String,Object> e:m.entrySet()){
-        //            Field f = an.getField(UncachedObject.class,e.getKey());
-        //            convNames.put(f.getName(),e.getValue());
-        //        }
-        //        start = System.currentTimeMillis();
-        //        for (int i = 0; i < 1000; i++) {
-        //            UncachedObject uo = jacksonOM.convertValue(convNames,UncachedObject.class);
-        //        }
-        //        dur = System.currentTimeMillis() - start;
-        //
-        //        log.info("Jackson De-Serialization took " + dur + " ms");
+        Map<String, Object> convNames = new HashMap<>();
+
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            Field f = an.getField(UncachedObject.class, e.getKey());
+            convNames.put(f.getName(), e.getValue());
+        }
+
+        start = System.currentTimeMillis();
+
+        for (int i = 0; i < amount; i++) {
+            UncachedObject uo = jacksonOM.convertValue(convNames, UncachedObject.class);
+            assertNotNull(uo);
+        }
+
+        dur = System.currentTimeMillis() - start;
+        log.info("Jackson De-Serialization took " + dur + " ms");
     }
 
 }
