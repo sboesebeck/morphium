@@ -14,16 +14,14 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
-import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer;
+import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 public class ObjectMapperTest {
