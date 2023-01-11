@@ -259,10 +259,10 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                              .addProjection("_id").addProjection("name")
                              .limit((int)(noOfClients - running));
                             var lst = msgQuery.asList();
-                            log.info(String.format("%s: Planner: Got %s candidates", rec1.getSenderId(), lst.size()));
+                            // log.info(String.format("%s: Planner: Got %s candidates", rec1.getSenderId(), lst.size()));
 
                             if (lst.size() != 0) {
-                                log.info(String.format("Planner: Processing %d messages", lst.size()));
+                                // log.info(String.format("Planner: Processing %d messages", lst.size()));
                                 // for (String pn : rec1.getPausedMessageNames()) {
                                 // log.info(" " + pn);
                                 // }
@@ -385,13 +385,13 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
 
                 if (mod == 1) {
                     // too much of them
-                    if (Math.random() > 0.15) {
+                    if (Math.random() > 0.10) {
                         mod = 2; // no limit
                     }
                 }
 
                 if (mod == 5) {
-                    if (Math.random() > 0.3) {
+                    if (Math.random() > 0.35) {
                         mod = 2;
                     }
                 }
