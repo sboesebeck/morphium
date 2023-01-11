@@ -17,7 +17,9 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.caluga.morphium.AnnotationAndReflectionHelper;
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
@@ -56,6 +58,18 @@ public class ObjectMapperTest {
         assert (c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
         assertNotNull(c.simpleId);
         ;
+    }
+
+    @Test
+    public void serializeMsg() throws Exception{
+        var om=new ObjectMapperImpl();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
+        om.setAnnotationHelper(an);
+        Msg m= new Msg("test1","test2","test3");
+        var map=om.serialize(m);
+        log.info(Utils.toJsonString(map));
+        assertNotNull(map.get("class_name"));
+
     }
     @Test
     public void mapSerializationTest() {
