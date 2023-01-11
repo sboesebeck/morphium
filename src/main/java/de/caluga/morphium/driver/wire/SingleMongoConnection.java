@@ -1,6 +1,32 @@
 package de.caluga.morphium.driver.wire;
 
-import de.caluga.morphium.driver.*;
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.MSG_SENT;
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_IN_MEM;
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_PROCESSED;
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_RECEIVED;
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.THREADS_CREATED;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.SingleBatchCursor;
+import de.caluga.morphium.driver.SingleElementCursor;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
@@ -8,18 +34,6 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.Socket;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
 
 public class SingleMongoConnection implements MongoConnection {
 

@@ -1,5 +1,21 @@
 package de.caluga.morphium;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.UUID;
+
+import javax.net.ssl.SSLContext;
+
+import org.json.simple.parser.ParseException;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
@@ -17,29 +33,21 @@ import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
-import org.json.simple.parser.ParseException;
-import org.slf4j.LoggerFactory;
-
-import javax.net.ssl.SSLContext;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
 
 /**
  * Stores the configuration for the MongoDBLayer.
  *
  * @author stephan
  */
-@SuppressWarnings({"UnusedDeclaration", "UnusedReturnValue"})
+@SuppressWarnings({ "UnusedDeclaration", "UnusedReturnValue" })
 @Embedded
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
     private Map<String, Object> restoreData;
-    //    private MongoDbMode mode;
+    // private MongoDbMode mode;
     private int maxConnections = 10, housekeepingTimeout = 5000;
     private int minConnections = 1;
-    private int idleSleepTime=20;
+    private int idleSleepTime = 20;
 
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
@@ -57,21 +65,21 @@ public class MorphiumConfig {
     private boolean replicaset = true;
     private String atlasUrl = null;
 
-    //maximum number of tries to queue a write operation
+    // maximum number of tries to queue a write operation
     private int maximumRetriesBufferedWriter = 10;
     private int maximumRetriesWriter = 10;
     private int maximumRetriesAsyncWriter = 10;
-    //wait bewteen tries
+    // wait bewteen tries
     private int retryWaitTimeBufferedWriter = 200;
     private int retryWaitTimeWriter = 200;
     private int retryWaitTimeAsyncWriter = 200;
-    private int globalW = 1; //number of writes
+    private int globalW = 1; // number of writes
     private int maxWaitTime = 2000;
     private int threadConnectionMultiplier = 5;
     private int serverSelectionTimeout = 30000;
-    //default time for write buffer to be filled
+    // default time for write buffer to be filled
     private int writeBufferTime = 1000;
-    //ms for the pause of the main thread
+    // ms for the pause of the main thread
     private int writeBufferTimeGranularity = 100;
 
     private boolean useSSL = false;
@@ -144,7 +152,8 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
-        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); //settings always convert camel case
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); // settings always convert camel
+        // case
         List<Field> flds = an.getAllFields(MorphiumConfig.class);
 
         if (prefix != null) {
@@ -152,12 +161,14 @@ public class MorphiumConfig {
         } else {
             prefix = "";
         }
-        
+
         for (Field f : flds) {
             String fName = prefix + f.getName();
             Object setting = resolver.resolveSetting(fName);
 
-            if (setting == null) { continue; }
+            if (setting == null) {
+                continue;
+            }
 
             f.setAccessible(true);
 
@@ -165,7 +176,8 @@ public class MorphiumConfig {
                 if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                     f.set(this, Integer.parseInt((String) setting));
                 } else if (f.getType().isEnum()) {
-                    @SuppressWarnings("unchecked") Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                    @SuppressWarnings("unchecked")
+                    Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
                     f.set(this, value);
                 } else if (f.getType().equals(String.class)) {
                     f.set(this, setting);
@@ -191,16 +203,16 @@ public class MorphiumConfig {
             }
         }
 
-
-
-        if (resolver.resolveSetting(prefix + "driver_class")!=null) {
-            LoggerFactory.getLogger(MorphiumConfig.class).warn("Deprecated setting - use driver name instead of class!");
+        if (resolver.resolveSetting(prefix + "driver_class") != null) {
+            LoggerFactory.getLogger(MorphiumConfig.class)
+            .warn("Deprecated setting - use driver name instead of class!");
             var s = resolver.resolveSetting(prefix + "driver_class");
 
             if (s.equals(InMemoryDriver.class.getName())) {
                 setDriverName(InMemoryDriver.driverName);
             } else {
-                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
+                LoggerFactory.getLogger(MorphiumConfig.class)
+                .error("Cannot set driver class - using default driver instead!");
             }
         }
 
@@ -229,7 +241,8 @@ public class MorphiumConfig {
     }
 
     public static List<String> getPropertyNames(String prefix) {
-        @SuppressWarnings("unchecked") List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
+        @SuppressWarnings("unchecked")
+        List<String> flds = new AnnotationAndReflectionHelper(true).getFields(MorphiumConfig.class);
         List<String> ret = new ArrayList<>();
 
         for (String f : flds) {
@@ -240,12 +253,14 @@ public class MorphiumConfig {
     }
 
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
-    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException,
-    InvocationTargetException {
+    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException,
+               IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException,
+        InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
-            @SuppressWarnings("CastCanBeRemovedNarrowingVariableType") String k = (String) ko;
+            @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
+            String k = (String) ko;
             String value = cfg.restoreData.get(k).toString();
 
             if (k.equals("hosts") || k.equals("hostSeed")) {
@@ -260,8 +275,6 @@ public class MorphiumConfig {
 
         return cfg;
     }
-
-
 
     public int getMessagingWindowSize() {
         return messagingWindowSize;
@@ -304,7 +317,8 @@ public class MorphiumConfig {
         return valueEncryptionProviderClass;
     }
 
-    public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+    public MorphiumConfig setValueEncryptionProviderClass(
+        Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
         this.valueEncryptionProviderClass = valueEncryptionProviderClass;
         return this;
     }
@@ -347,12 +361,14 @@ public class MorphiumConfig {
         return this;
     }
 
-    public MorphiumConfig setDriverClass(String cls){
-        if (cls.equals(InMemoryDriver.class.getName())){
-            driverName=InMemoryDriver.driverName;
+    public MorphiumConfig setDriverClass(String cls) {
+        if (cls.equals(InMemoryDriver.class.getName())) {
+            driverName = InMemoryDriver.driverName;
         } else {
-            throw new IllegalArgumentException("Cannot set driver class "+cls+" - please use setDriverName with the proper name.");
+            throw new IllegalArgumentException(
+                "Cannot set driver class " + cls + " - please use setDriverName with the proper name.");
         }
+
         return this;
     }
 
@@ -383,8 +399,10 @@ public class MorphiumConfig {
     }
 
     /**
-     * if set to false, all checks if an entity is new when CreationTime is used is switched off
-     * if set to true, only those, whose CreationTime settings use checkfornew will work
+     * if set to false, all checks if an entity is new when CreationTime is used is
+     * switched off
+     * if set to true, only those, whose CreationTime settings use checkfornew will
+     * work
      * default false
      *
      * @param checkForNew boolean, check if object is really not stored yet
@@ -400,7 +418,8 @@ public class MorphiumConfig {
 
     public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
         if (retriesOnNetworkError == 0) {
-            LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
+            LoggerFactory.getLogger(MorphiumConfig.class)
+            .warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
 
@@ -437,10 +456,10 @@ public class MorphiumConfig {
 
     @SuppressWarnings("CommentedOutCode")
     public MorphiumCache getCache() {
-        //        if (cache == null) {
-        //            cache = new MorphiumCacheImpl();
+        // if (cache == null) {
+        // cache = new MorphiumCacheImpl();
         //
-        //        }
+        // }
         return cache;
     }
 
@@ -549,11 +568,14 @@ public class MorphiumConfig {
 
     /**
      * <p>
-     * Sets the server selection timeout in milliseconds, which defines how long the driver will wait for server selection to succeed before throwing an exception.
+     * Sets the server selection timeout in milliseconds, which defines how long the
+     * driver will wait for server selection to succeed before throwing an
+     * exception.
      * </p>
      *
      * <p>
-     * A value of 0 means that it will timeout immediately if no server is available. A negative value means to wait indefinitely.
+     * A value of 0 means that it will timeout immediately if no server is
+     * available. A negative value means to wait indefinitely.
      * </p>
      *
      * @param serverSelectionTimeout the server selection timeout, in milliseconds
@@ -927,7 +949,8 @@ public class MorphiumConfig {
 
     /**
      * @param prefix          prefix to use in property keys
-     * @param effectiveConfig when true, use the current effective config, including overrides from Environment
+     * @param effectiveConfig when true, use the current effective config, including
+     *                        overrides from Environment
      * @return the properties
      */
     public Properties asProperties(String prefix, boolean effectiveConfig) {
@@ -1147,12 +1170,19 @@ public class MorphiumConfig {
 
     /**
      * <p>
-     * Sets the local threshold. When choosing among multiple MongoDB servers to send a request, the MongoClient will only send that request to a server whose ping time is less than or equal to the server with the fastest ping time plus the local threshold.
+     * Sets the local threshold. When choosing among multiple MongoDB servers to
+     * send a request, the MongoClient will only send that request to a server whose
+     * ping time is less than or equal to the server with the fastest ping time plus
+     * the local threshold.
      * </p>
      *
      * <p>
-     * For example, let's say that the client is choosing a server to send a query when the read preference is {@code
-     * ReadPreference.secondary()}, and that there are three secondaries, server1, server2, and server3, whose ping times are 10, 15, and 16 milliseconds, respectively. With a local threshold of 5 milliseconds, the client will send the query to either server1 or server2 (randomly selecting between the two).
+     * For example, let's say that the client is choosing a server to send a query
+     * when the read preference is {@code
+     * ReadPreference.secondary()}, and that there are three secondaries, server1,
+     * server2, and server3, whose ping times are 10, 15, and 16 milliseconds,
+     * respectively. With a local threshold of 5 milliseconds, the client will send
+     * the query to either server1 or server2 (randomly selecting between the two).
      * </p>
      *
      * <p>
@@ -1160,7 +1190,8 @@ public class MorphiumConfig {
      * </p>
      *
      * @return the local threshold, in milliseconds
-     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold Local Threshold
+     * @mongodb.driver.manual reference/program/mongos/#cmdoption--localThreshold
+     *                        Local Threshold
      * @since 2.13.0
      */
     public MorphiumConfig setLocalThreshold(int localThreshold) {
@@ -1287,14 +1318,20 @@ public class MorphiumConfig {
     }
 
     /**
-     * Sets the UUID representation to use when encoding instances of {@link UUID} and when decoding BSON binary values with
+     * Sets the UUID representation to use when encoding instances of {@link UUID}
+     * and when decoding BSON binary values with
      * subtype of 3.
      *
-     * <p>The default is UNSPECIFIED, If your application stores UUID values in MongoDB, you must set this
-     * value to the desired representation.  New applications should prefer STANDARD, while existing Java
-     * applications should prefer JAVA_LEGACY. Applications wishing to interoperate with existing Python or
+     * <p>
+     * The default is UNSPECIFIED, If your application stores UUID values in
+     * MongoDB, you must set this
+     * value to the desired representation. New applications should prefer STANDARD,
+     * while existing Java
+     * applications should prefer JAVA_LEGACY. Applications wishing to interoperate
+     * with existing Python or
      * .NET applications should prefer PYTHON_LEGACY or C_SHARP_LEGACY,
-     * respectively. Applications that do not store UUID values in MongoDB don't need to set this value.
+     * respectively. Applications that do not store UUID values in MongoDB don't
+     * need to set this value.
      * </p>
      *
      * @param uuidRepresentation the UUID representation
@@ -1335,8 +1372,6 @@ public class MorphiumConfig {
         CREATE_ON_WRITE_NEW_COL,
         CONVERT_EXISTING_ON_STARTUP,
     }
-
-
 
     public int getIdleSleepTime() {
         return idleSleepTime;
