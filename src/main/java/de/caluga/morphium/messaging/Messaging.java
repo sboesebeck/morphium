@@ -937,13 +937,15 @@ public class Messaging extends Thread implements ShutdownListener {
 
                     if (msg.isDeleteAfterProcessing()) {
                         if (msg.getDeleteAfterProcessingTime() == 0) {
-                            morphium.delete(msg);
+                            morphium.delete(msg,getCollectionName());
                         } else {
                             msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                            morphium.set(msg, Msg.Fields.deleteAt, msg.getDeleteAt());
+                            morphium.set(msg,getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
 
                             if (!l.markAsProcessedBeforeExec()) {
-                                morphium.addToSet(morphium.createQueryFor(Msg.class).f("_id").eq(msg.getMsgId()), "processed_by", id);
+                                morphium.addToSet(morphium.createQueryFor(Msg.class)
+                                    .setCollectionName(getCollectionName())
+                                    .f("_id").eq(msg.getMsgId()), "processed_by", id);
                             }
                         }
                     }
@@ -961,10 +963,10 @@ public class Messaging extends Thread implements ShutdownListener {
 
                     if (msg.isDeleteAfterProcessing()) {
                         if (msg.getDeleteAfterProcessingTime() == 0) {
-                            morphium.delete(msg);
+                            morphium.delete(msg,getCollectionName());
                         } else {
                             msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                            morphium.set(msg, Msg.Fields.deleteAt, msg.getDeleteAt());
+                            morphium.set(msg,getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
                         }
                     }
                 }
