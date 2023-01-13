@@ -198,7 +198,7 @@ public interface Aggregator<T, R> {
     String getCollectionName();
 
     @SuppressWarnings("unused")
-    void setCollectionName(String cn);
+    Aggregator<T,R> setCollectionName(String cn);
 
     Group<T, R> group(Map<String, Object> id);
 
