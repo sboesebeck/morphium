@@ -259,8 +259,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public void setCollectionName(String cn) {
+    public Aggregator<T,R> setCollectionName(String cn) {
         collectionName = cn;
+        return this;
     }
 
     @Override

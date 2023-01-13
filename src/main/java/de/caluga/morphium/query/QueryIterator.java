@@ -8,6 +8,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.annotations.lifecycle.Lifecycle;
+import de.caluga.morphium.annotations.lifecycle.PostLoad;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 
@@ -39,16 +41,13 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
         return query;
     }
 
-
     public void setQuery(Query<T> q) {
         query = q.clone();
     }
 
-
     public long getCount() {
         return query.countAll();
     }
-
 
     public void ahead(int jump) {
         try {
@@ -57,7 +56,6 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
             throw new RuntimeException(e);
         }
     }
-
 
     public void back(int jump) {
         try {
@@ -78,41 +76,43 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
 
     @Override
     public boolean hasNext() {
-
-            return getMongoCursor().hasNext();
-
+        return getMongoCursor().hasNext();
     }
 
     @Override
     public Map<String, Object> nextMap() {
-
         return getMongoCursor().next();
-
     }
 
     @Override
-    public  T next() {
+    public T next() {
         if (query.getType() == null) {
             return (T) getMongoCursor().next();
         }
-        return query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
 
+        var ret = query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
+
+        if (query.getMorphium().getARHelper().isAnnotationPresentInHierarchy(query.getType(), Lifecycle.class)) {
+            query.getMorphium().getARHelper().callLifecycleMethod(PostLoad.class, ret);
+        }
+
+        return ret;
     }
 
     @Override
     public List<T> getCurrentBuffer() {
         List<T> ret = new ArrayList<>();
+
         for (Map<String, Object> o : getMongoCursor().getBatch()) {
             ret.add(query.getMorphium().getMapper().deserialize(query.getType(), o));
         }
+
         return ret;
     }
 
     @Override
     public void close() {
-
         getMongoCursor().close();
-
     }
 
     @Override
@@ -124,15 +124,18 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
         if (cursor == null) {
             try {
                 var cmd = query.getFindCmd();
+
                 if (windowSize != 0) {
                     cmd.setBatchSize(windowSize);
                 }
+
                 cursor = cmd.executeIterable(windowSize);
                 cmd.getConnection().release();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
         }
+
         return cursor;
     }
 }
