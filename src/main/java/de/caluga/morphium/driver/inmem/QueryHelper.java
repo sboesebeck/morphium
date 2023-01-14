@@ -168,9 +168,11 @@ public class QueryHelper {
                         if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
                             return coll.equals((String) toCheck.get(keyQuery), (String) commandMap.get(commandKey));
                         }
-
+                        if (toCheck.get(keyQuery) instanceof List){
+                            return ((List)toCheck.get(keyQuery)).contains(commandMap.get(commandKey));
+                        }
                         //noinspection unchecked
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) == 0;
+                        return toCheck.get(keyQuery).equals(commandMap.get(commandKey));
 
                     case "$lt":
 
@@ -182,9 +184,11 @@ public class QueryHelper {
                         if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
                             return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) < 0;
                         }
-
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) < 0;
-
+                        try {
+                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) < 0;
+                        } catch(Exception e){
+                            return false;
+                        }
                     case "$lte":
 
                         //noinspection unchecked
@@ -197,9 +201,12 @@ public class QueryHelper {
                         if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
                             return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) <= 0;
                         }
-
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) <= 0;
-
+                        try{
+                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) <= 0;
+                        } catch(Exception e){
+                            //type mismatch?
+                            return false;
+                        }
                     case "$gt":
 
                         //noinspection unchecked
@@ -212,9 +219,11 @@ public class QueryHelper {
                         if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
                             return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) > 0;
                         }
-
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) > 0;
-
+                        try {
+                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) > 0;
+                        } catch(Exception e){
+                            return false;
+                        }
                     case "$gte":
 
                         //noinspection unchecked
@@ -227,9 +236,11 @@ public class QueryHelper {
                         if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
                             return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) >= 0;
                         }
-
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) >= 0;
-
+                        try {
+                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) >= 0;
+                        } catch(Exception e){
+                            return false;
+                        }
                     case "$mod":
                         Number n = (Number) toCheck.get(keyQuery);
                         List arr = (List) commandMap.get(commandKey);
@@ -272,7 +283,7 @@ public class QueryHelper {
                             return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) != 0;
                         }
 
-                        return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) != 0;
+                        return !toCheck.get(keyQuery).equals(commandMap.get(commandKey));
 
                     case "$exists":
                         boolean exists = (toCheck.containsKey(keyQuery));
