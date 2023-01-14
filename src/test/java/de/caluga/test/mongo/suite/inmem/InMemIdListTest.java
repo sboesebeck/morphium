@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.inmem;
 
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 
@@ -22,5 +23,18 @@ public class InMemIdListTest extends MorphiumInMemTestBase {
         assertTrue(lst.get(0) instanceof MorphiumId);
         assertTrue(morphium.findById(UncachedObject.class, lst.get(0)) instanceof UncachedObject);
         assertNotNull(morphium.findById(UncachedObject.class, lst.get(0)));
+    }
+
+
+    @Test
+    public void inMemListTest() throws Exception {
+        ListContainer lc=new ListContainer();
+        lc.addString("string");
+        lc.addString("other");
+        morphium.store(lc);
+
+        var cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("other").countAll();
+        assertEquals(1,cnt);
+
     }
 }
