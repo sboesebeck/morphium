@@ -2587,30 +2587,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
                     if (dat.get("_id").toString().equals(o.get("_id").toString())) {
                         getCollection(db, collection).remove(dat);
+
+                        for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
+                            Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, keys);
+
+                            for (int bucketId : id.keySet()) {
+                                var lst = new ArrayList<Map<String, Object>>(id.get(bucketId));
+
+                                for (Map<String, Object> objectMap : lst) {
+                                    if (objectMap.get("_id").toString().equals(o.get("_id").toString())) {
+                                        id.get(bucketId).remove(objectMap);
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     if (dat.get("_id").equals(o.get("_id"))) {
                         getCollection(db, collection).remove(dat);
-                    }
-                }
-            }
-            //updating index data
-            for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
-                Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, keys);
-                int bucketId = iterateBucketId(0, o.get("_id"));
 
-                if (id != null && id.containsKey(bucketId)) {
-                    var lst = new ArrayList<Map<String, Object>>(id.get(bucketId));
+                        for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
+                            Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, keys);
 
-                    for (Map<String, Object> objectMap : lst) {
-                        if (objectMap.get("_id").equals(o.get("_id"))) {
-                            id.get(bucketId).remove(objectMap.get("_id"));
-                            break;
+                            for (int bucketId : id.keySet()) {
+                                var lst = new ArrayList<Map<String, Object>>(id.get(bucketId));
+
+                                for (Map<String, Object> objectMap : lst) {
+                                    if (objectMap.get("_id").equals(o.get("_id"))) {
+                                        id.get(bucketId).remove(objectMap);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
+            // updating index data
             notifyWatchers(db, collection, "delete", o);
         }
 
