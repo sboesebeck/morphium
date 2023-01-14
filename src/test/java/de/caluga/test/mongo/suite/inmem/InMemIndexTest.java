@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 public class InMemIndexTest extends MorphiumInMemTestBase {
@@ -107,5 +108,32 @@ public class InMemIndexTest extends MorphiumInMemTestBase {
         }
         dur = System.currentTimeMillis() - start;
         log.info("with index: " + dur + " ms");
+    }
+
+    @Test
+    public void deleteTest() throws Exception {
+
+        var uc=new UncachedObject("String",1000);
+        morphium.insert(uc);
+        boolean ex=false;
+        try {
+           morphium.insert(uc);
+        } catch (Exception e){
+            //expected
+            ex=true;
+        }
+        assertTrue(ex);
+        assertEquals(1,morphium.createQueryFor(UncachedObject.class).countAll());
+        morphium.delete(uc);
+        assertEquals(0,morphium.createQueryFor(UncachedObject.class).countAll());
+        ex=false;
+        try {
+            morphium.insert(uc);
+        } catch (Exception e){
+            e.printStackTrace();
+            ex=true;
+        }
+        assertFalse(ex);
+
     }
 }
