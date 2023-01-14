@@ -282,6 +282,9 @@ public class QueryHelper {
                         if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
                             return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) != 0;
                         }
+                        if (toCheck.get(keyQuery) instanceof List){
+                            return !((List)toCheck.get(keyQuery)).contains(commandMap.get(commandKey));
+                        }
 
                         return !toCheck.get(keyQuery).equals(commandMap.get(commandKey));
 
