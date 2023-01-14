@@ -861,7 +861,9 @@ public class QueryHelper {
                      || toCheck.get(keyQuery) instanceof ObjectId) {
                         return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
                     }
-
+                    if (toCheck.get(keyQuery) instanceof List){
+                        return ((List)toCheck.get(keyQuery)).contains(query.get(keyQuery));
+                    }
                     return toCheck.get(keyQuery).equals(query.get(keyQuery));
                 }
             }
