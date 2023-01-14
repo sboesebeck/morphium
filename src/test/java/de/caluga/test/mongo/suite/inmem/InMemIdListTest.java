@@ -36,5 +36,14 @@ public class InMemIdListTest extends MorphiumInMemTestBase {
         var cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("other").countAll();
         assertEquals(1,cnt);
 
+        lc=new ListContainer();
+        lc.addString("other");
+        morphium.store(lc);
+        cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("other").countAll();
+        assertEquals(2,cnt);
+
+        cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).ne("string").countAll();
+        assertEquals(1,cnt);
+
     }
 }
