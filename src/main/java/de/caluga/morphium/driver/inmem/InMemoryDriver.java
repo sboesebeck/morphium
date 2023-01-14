@@ -2001,7 +2001,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return indexDataByDBCollection.get(db).get(collection).get(fields);
     }
 
-    public List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
+    public synchronized List<Map<String, Object>> insert(String db, String collection, List<Map<String, Object>> objs,
      Map<String, Object> wc) throws MorphiumDriverException {
         int errors = 0;
         objs = new ArrayList<>(objs);
@@ -2127,7 +2127,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return (bucketId + o.hashCode());
     }
 
-    public Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs,
+    public synchronized Map<String, Integer> store(String db, String collection, List<Map<String, Object>> objs,
      Map<String, Object> wc) throws MorphiumDriverException {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
         int upd = 0;
@@ -2224,7 +2224,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @SuppressWarnings("ConstantConditions")
 
-    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort,
+    public synchronized Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort,
      Map<String, Object> op, boolean multiple, boolean upsert,
      Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
@@ -2576,7 +2576,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         eventQueue.add(r);
     }
 
-    public Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort,
+    public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort,
      boolean multiple, Map<String, Object> collation,
      WriteConcern wc) throws MorphiumDriverException {
         List<Map<String, Object>> toDel = new ArrayList<>(
@@ -2644,7 +2644,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return getDB(db).get(collection);
     }
 
-    public void drop(String db, String collection, WriteConcern wc) {
+    public synchronized void drop(String db, String collection, WriteConcern wc) {
         getDB(db).remove(collection);
 
         if (indexDataByDBCollection.containsKey(db)) {
@@ -2658,7 +2658,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         notifyWatchers(db, collection, "drop", null);
     }
 
-    public void drop(String db, WriteConcern wc) {
+    public synchronized void drop(String db, WriteConcern wc) {
         database.remove(db);
 
         if (indexDataByDBCollection.containsKey(db)) {
@@ -2809,7 +2809,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return r.get(0);
     }
 
-    public Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
+    public synchronized Map<String, Object> findAndOneAndUpdate(String db, String col, Map<String, Object> query,
      Map<String, Object> update, Map<String, Object> sort,
      Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
@@ -2817,7 +2817,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return ret.get(0);
     }
 
-    public Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query,
+    public synchronized Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query,
      Map<String, Object> replacement, Map<String, Object> sort,
      Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
