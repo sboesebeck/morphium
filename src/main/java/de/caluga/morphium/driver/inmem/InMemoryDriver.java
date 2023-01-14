@@ -1247,13 +1247,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     log.error("Too many keys for expire-index!!!");
                                 } else {
                                     try {
-                                        var candidates = find(db, coll,
-                                        Doc.of(keys[0],
-                                        Doc.of("$lte", new Date(System.currentTimeMillis()
-                                        - ((int) options.get("expireAfterSeconds")) * 1000))),
-                                        null, null, null, 0, 0, true);
+                                        var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null, null, null, 0, 0, true);
 
                                         for (Map<String, Object> o : candidates) {
+                                            if (!o.containsKey(keys[0])) continue;
                                             getCollection(db, coll).remove(o);
                                         }
                                     } catch (Exception e) {
