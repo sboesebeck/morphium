@@ -2479,7 +2479,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (insert) {
             store(db, collection, lst, wc);
         }
-
+        indexDataByDBCollection.get(db).remove(collection);
+        updateIndexData(db,collection,null);
         return Doc.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "nModified", count, "modified",
                 count);
     }
@@ -2584,7 +2585,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
                     if (dat.get("_id").toString().equals(o.get("_id").toString())) {
                         getCollection(db, collection).remove(dat);
-
+                        // indexDataByDBCollection.get(db).remove(collection);
+                        // updateIndexData(db,collection,null);
                         for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
                             Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, keys);
 
@@ -2602,6 +2604,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 } else {
                     if (dat.get("_id").equals(o.get("_id"))) {
                         getCollection(db, collection).remove(dat);
+                        // indexDataByDBCollection.get(db).remove(collection);
+                        // updateIndexData(db,collection,null);
 
                         for (String keys : indexDataByDBCollection.get(db).get(collection).keySet()) {
                             Map<Integer, List<Map<String, Object>>> id = getIndexDataForCollection(db, collection, keys);
@@ -3000,6 +3004,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void updateIndexData(String db, String collection, Map<String, Object> options)
     throws MorphiumDriverException {
+        //TODO: deal with options!
         StringBuilder b = new StringBuilder();
         indexDataByDBCollection.putIfAbsent(db, new ConcurrentHashMap<>());
         indexDataByDBCollection.get(db).putIfAbsent(collection, new ConcurrentHashMap<>());
