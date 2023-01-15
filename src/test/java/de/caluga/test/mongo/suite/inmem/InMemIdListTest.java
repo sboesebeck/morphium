@@ -25,33 +25,44 @@ public class InMemIdListTest extends MorphiumInMemTestBase {
         assertNotNull(morphium.findById(UncachedObject.class, lst.get(0)));
     }
 
+    @Test
+    public void removeTest() throws Exception {
+        UncachedObject o=new UncachedObject("val1", 42);
+        morphium.store(o);
+
+        assertEquals(1,morphium.createQueryFor(UncachedObject.class).countAll());
+        morphium.remove(o);
+        assertEquals(0,morphium.createQueryFor(UncachedObject.class).countAll());
+
+    }
+
 
     @Test
     public void inMemListTest() throws Exception {
         ListContainer lc=new ListContainer();
         lc.addString("string");
         lc.addString("other");
-        morphium.store(lc);
+        morphium.store(lc,"lc_test",null);
 
-        var cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("other").countAll();
+        var cnt=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).eq("other").countAll();
         assertEquals(1,cnt);
 
         lc=new ListContainer();
         lc.addString("other");
-        morphium.store(lc);
-        cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("other").countAll();
+        morphium.store(lc,"lc_test",null);
+        cnt=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).eq("other").countAll();
         assertEquals(2,cnt);
 
-        cnt=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).ne("string").countAll();
+        cnt=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).ne("string").countAll();
         assertEquals(1,cnt);
-        lc=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).ne("string").get();
+        lc=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).ne("string").get();
         assertNotNull(lc);
-        morphium.delete(lc);
+        morphium.delete(lc,"lc_test");
 
-        lc=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).ne("string").get();
+        lc=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).ne("string").get();
         assertNull(lc);
 
-        lc=morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).eq("string").get();
+        lc=morphium.createQueryFor(ListContainer.class,"lc_test").f(ListContainer.Fields.stringList).eq("string").get();
         assertNotNull(lc);
 
 
