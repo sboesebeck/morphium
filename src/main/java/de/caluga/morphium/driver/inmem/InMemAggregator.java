@@ -1578,7 +1578,11 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     private List<Map<String, Object>> doAggregation() {
-        List<Map<String, Object>> result = getMorphium().createQueryFor(getSearchType()).asMapList();
+        var q=getMorphium().createQueryFor(getSearchType());
+        if (getCollectionName()!=null){
+            q.setCollectionName(getCollectionName());
+        }
+        List<Map<String, Object>> result = q.asMapList();
 
         for (Map<String, Object> step : getPipeline()) {
             //evaluate each step
