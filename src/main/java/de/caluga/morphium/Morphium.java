@@ -84,6 +84,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
@@ -517,6 +518,10 @@ public class Morphium implements AutoCloseable {
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
+                        if (Msg.class.isAssignableFrom(cls)){
+                            //ignoring message class, messaging creates indexes
+                            continue;
+                        }
                         try {
                             if (config.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
                                 log.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
