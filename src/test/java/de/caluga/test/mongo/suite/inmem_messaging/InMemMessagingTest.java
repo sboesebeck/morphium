@@ -8,6 +8,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
@@ -56,6 +57,60 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
         Thread.sleep(100);
 
         var msg=morphium.createQueryFor(Msg.class).get();
+    }
+
+
+    @Test
+    public void preLockedMessagesTestPreStart() throws Exception {
+        AtomicInteger counter=new AtomicInteger();
+        Messaging receiver=new Messaging(morphium,100,false);
+        receiver.addListenerForMessageNamed("test", (mo,msg)->{
+            log.info("Incoming message...");
+            counter.incrementAndGet();
+            return null;
+        });
+        Msg m=new Msg("test","msg","value");
+        m.setMsgId(new MorphiumId());
+        m.setSender("me");
+        m.setSenderHost("mo.local");
+        MsgLock lck=new MsgLock(m);
+        lck.setLockId(receiver.getSenderId());
+        morphium.insert(lck,receiver.getLockCollectionName(),null);
+        morphium.insert(m,receiver.getCollectionName(),null);
+        Thread.sleep(1000);
+        assertEquals(0,counter.get());
+        log.info("Did not get message beforehand...");
+        receiver.start();
+
+        Thread.sleep(100);
+        assertEquals(1,counter.get());
+        receiver.terminate();
+
+    }
+
+    @Test
+    public void preLockedMessagesTest() throws Exception {
+        Messaging receiver=new Messaging(morphium,100,false);
+        receiver.start();
+        AtomicInteger counter=new AtomicInteger();
+        receiver.addListenerForMessageNamed("test", (m,msg)->{
+            log.info("Incoming message...");
+            counter.incrementAndGet();
+            return null;
+        });
+
+        Msg m=new Msg("test","msg","value");
+        m.setMsgId(new MorphiumId());
+        m.setSender("me");
+        m.setSenderHost("mo.local");
+        MsgLock lck=new MsgLock(m);
+        lck.setLockId(receiver.getSenderId());
+        morphium.insert(lck,receiver.getLockCollectionName(),null);
+        morphium.insert(m,receiver.getCollectionName(),null);
+        Thread.sleep(100);
+        assertEquals(1,counter.get());
+        receiver.terminate();
+
     }
 
 
@@ -1231,7 +1286,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
             m.setName("A message");
             // m.setTtl(10000000);
             // sender.queueMessage(m);
-            sender.sendMessage(m); 
+            sender.sendMessage(m);
             Thread.sleep(1000);
 
             int rec = 0;
@@ -1708,7 +1763,7 @@ public class InMemMessagingTest extends MorphiumInMemTestBase {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                 }
                 assertEquals(0,dups.get(),"Got duplicate message");
-                assertTrue((exclusiveAmount + broadcastAmount * 4 - rec - messageCount)>0); 
+                assertTrue((exclusiveAmount + broadcastAmount * 4 - rec - messageCount)>0);
                 Thread.sleep(1000);
             }
             int rec = received.get();
