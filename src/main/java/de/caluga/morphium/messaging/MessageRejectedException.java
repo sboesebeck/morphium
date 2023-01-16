@@ -61,8 +61,9 @@ public class MessageRejectedException extends RuntimeException {
         };
     }
 
-    public void setCustomRejectionHandler(RejectionHandler hdl){
+    public MessageRejectedException setCustomRejectionHandler(RejectionHandler hdl){
         handler=hdl;
+        return this;
     }
     public RejectionHandler getRejectionHandler(){
         return handler;
@@ -72,16 +73,18 @@ public class MessageRejectedException extends RuntimeException {
         return continueProcessing;
     }
 
-    public void setContinueProcessing(boolean continueProcessing) {
+    public MessageRejectedException setContinueProcessing(boolean continueProcessing) {
         this.continueProcessing = continueProcessing;
+        return this;
     }
 
     public boolean isSendAnswer() {
         return sendAnswer;
     }
 
-    public void setSendAnswer(boolean sendAnswer) {
+    public MessageRejectedException setSendAnswer(boolean sendAnswer) {
         this.sendAnswer = sendAnswer;
+        return this;
     }
 
     public static interface RejectionHandler {
