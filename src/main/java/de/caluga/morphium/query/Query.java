@@ -1,56 +1,29 @@
 package de.caluga.morphium.query;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.Collectors;
-
-import org.json.simple.parser.ContainerFactory;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Collation;
-import de.caluga.morphium.FilterExpression;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumAccessVetoException;
-import de.caluga.morphium.StatisticKeys;
-import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.annotations.AdditionalData;
-import de.caluga.morphium.annotations.Aliases;
-import de.caluga.morphium.annotations.DefaultReadPreference;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.LastAccess;
-import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.CountMongoCommand;
-import de.caluga.morphium.driver.commands.DistinctMongoCommand;
-import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
-import de.caluga.morphium.driver.commands.FindCommand;
-import de.caluga.morphium.driver.commands.GenericCommand;
-import de.caluga.morphium.driver.commands.GetMoreMongoCommand;
-import de.caluga.morphium.driver.commands.KillCursorsCommand;
-import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.wire.MongoConnection;
+import org.json.simple.parser.ContainerFactory;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 
 /**
  * User: Stpehan Bösebeck
@@ -197,8 +170,9 @@ public class Query<T> implements Cloneable {
         return executor;
     }
 
-    public void setExecutor(ThreadPoolExecutor executor) {
+    public Query<T> setExecutor(ThreadPoolExecutor executor) {
         this.executor = executor;
+        return this;
     }
 
     public String getWhere() {
@@ -209,23 +183,27 @@ public class Query<T> implements Cloneable {
         return morphium;
     }
 
-    public void setMorphium(Morphium m) {
+    public Query<T> setMorphium(Morphium m) {
         morphium = m;
         andExpr = new ArrayList<>();
         orQueries = new ArrayList<>();
         norQueries = new ArrayList<>();
 
-        if (m == null) { return; }
+        if (m == null) {
+            return this;
+        }
 
         setARHelper(m.getARHelper());
+        return this;
     }
 
     public ReadPreferenceLevel getReadPreferenceLevel() {
         return readPreferenceLevel;
     }
 
-    public void setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
+    public Query<T> setReadPreferenceLevel(ReadPreferenceLevel readPreferenceLevel) {
         this.readPreferenceLevel = readPreferenceLevel;
+        return this;
     }
 
     public Query<T> q() {
@@ -464,8 +442,9 @@ public class Query<T> implements Cloneable {
         return arHelper;
     }
 
-    public void setARHelper(AnnotationAndReflectionHelper ar) {
+    public Query<T> setARHelper(AnnotationAndReflectionHelper ar) {
         arHelper = ar;
+        return this;
     }
 
     public long complexQueryCount(Map<String, Object> query) {
@@ -1153,10 +1132,12 @@ public class Query<T> implements Cloneable {
         return type;
     }
 
-    public void setType(Class<? extends T> type) {
+    public Query<T> setType(Class<? extends T> type) {
         this.type = type;
 
-        if (morphium == null) { return; }
+        if (morphium == null) {
+            return this;
+        }
 
         DefaultReadPreference pr = getARHelper().getAnnotationFromHierarchy(type, DefaultReadPreference.class);
 
@@ -1166,6 +1147,7 @@ public class Query<T> implements Cloneable {
 
         @SuppressWarnings("unchecked") List<String> fields = getARHelper().getFields(type, AdditionalData.class);
         additionalDataPresent = fields != null && !fields.isEmpty();
+        return this;
     }
 
     public void asList(final AsyncOperationCallback<T> callback) {
@@ -1784,90 +1766,91 @@ public class Query<T> implements Cloneable {
         return morphium.unsetQ(this, multiple, field);
     }
 
-    public Map<String,Object> unset(Enum... fields){
+    public Map<String, Object> unset(Enum... fields) {
         return morphium.unsetQ(this, fields);
     }
 
-    public Map<String,Object> unset(String... fields){
+    public Map<String, Object> unset(String... fields) {
         return morphium.unsetQ(this, fields);
     }
 
-    public void push(String field, Object value) {
-        morphium.push(this, field, value);
+    public Map<String, Object> push(String field, Object value) {
+        return morphium.push(this, field, value);
     }
 
-    public void push(Enum field, Object value) {
-        morphium.push(this, field, value);
+    public Map<String, Object> push(Enum field, Object value) {
+        return morphium.push(this, field, value);
     }
 
-    public void push(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.push(this, field, value, upsert, multiple, cb);
+    public Map<String, Object> push(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.push(this, field, value, upsert, multiple, cb);
+
     }
 
-    public void push(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.push(this, field.name(), value, upsert, multiple, cb);
+    public Map<String, Object> push(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.push(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public void pushAll(String field, List value) {
-        morphium.pushAll(this, field, value, false, false);
+    public Map<String, Object> pushAll(String field, List value) {
+        return morphium.pushAll(this, field, value, false, false);
     }
 
-    public void pushAll(Enum field, List value) {
-        morphium.pushAll(this, field.name(), value, false, false);
+    public Map<String, Object> pushAll(Enum field, List value) {
+        return morphium.pushAll(this, field.name(), value, false, false);
     }
 
-    public void pushAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pushAll(this, field, value, upsert, multiple, cb);
+    public Map<String, Object> pushAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pushAll(this, field, value, upsert, multiple, cb);
     }
 
-    public void pushAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pushAll(this, field.name(), value, upsert, multiple, cb);
+    public Map<String, Object> pushAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pushAll(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public void pullAll(String field, List value) {
+    public Map<String, Object> pullAll(String field, List value) {
         //noinspection unchecked
-        morphium.pullAll(this, field, value, false, false);
+        return morphium.pullAll(this, field, value, false, false);
     }
 
-    public void pullAll(Enum field, List value) {
+    public Map<String, Object> pullAll(Enum field, List value) {
         //noinspection unchecked
-        morphium.pullAll(this, field.name(), value, false, false);
+        return morphium.pullAll(this, field.name(), value, false, false);
     }
 
-    public void pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pullAll(this, field, value, upsert, multiple, cb);
+    public Map<String, Object> pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pullAll(this, field, value, upsert, multiple, cb);
     }
 
-    public void pullAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pullAll(this, field.name(), value, upsert, multiple, cb);
+    public Map<String, Object> pullAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pullAll(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public void pull(String field, Object value) {
-        morphium.pull(this, field, value);
+    public Map<String, Object> pull(String field, Object value) {
+        return morphium.pull(this, field, value);
     }
 
-    public void pull(Enum field, Object value) {
-        morphium.pull(this, field, value);
+    public Map<String, Object> pull(Enum field, Object value) {
+        return morphium.pull(this, field, value);
     }
 
-    public void pull(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pull(this, field, value, upsert, multiple, cb);
+    public Map<String, Object> pull(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pull(this, field, value, upsert, multiple, cb);
     }
 
-    public void pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pull(this, field.name(), value, upsert, multiple, cb);
+    public Map<String, Object> pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pull(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public void pull(Enum field, Expr value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        morphium.pull(this, field.name(), value.toQueryObject(), upsert, multiple, cb);
+    public Map<String, Object> pull(Enum field, Expr value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+        return morphium.pull(this, field.name(), value.toQueryObject(), upsert, multiple, cb);
     }
 
-    public void pull(Enum field, Expr value, boolean upsert, boolean multiple) {
-        pull(field, value, upsert, multiple, null);
+    public Map<String, Object> pull(Enum field, Expr value, boolean upsert, boolean multiple) {
+        return pull(field, value, upsert, multiple, null);
     }
 
-    public void pull(Enum field, Expr value) {
-        pull(field, value, false, false, null);
+    public Map<String, Object> pull(Enum field, Expr value) {
+        return pull(field, value, false, false, null);
     }
 
     public Map<String, Object> inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
@@ -2447,103 +2430,119 @@ public class Query<T> implements Cloneable {
         return log;
     }
 
-    public void setWhere(String where) {
+    public Query<T> setWhere(String where) {
         this.where = where;
+        return this;
     }
 
     public Map<String, Object> getRawQuery() {
         return rawQuery;
     }
 
-    public void setRawQuery(Map<String, Object> rawQuery) {
+    public Query<T> setRawQuery(Map<String, Object> rawQuery) {
         this.rawQuery = rawQuery;
+        return this;
     }
 
     public List<FilterExpression> getAndExpr() {
         return andExpr;
     }
 
-    public void setAndExpr(List<FilterExpression> andExpr) {
+    public Query<T> setAndExpr(List<FilterExpression> andExpr) {
         this.andExpr = andExpr;
+        return this;
     }
 
     public List<Query<T>> getOrQueries() {
         return orQueries;
     }
 
-    public void setOrQueries(List<Query<T>> orQueries) {
+    public Query<T> setOrQueries(List<Query<T>> orQueries) {
         this.orQueries = orQueries;
+        return this;
     }
 
     public List<Query<T>> getNorQueries() {
         return norQueries;
     }
 
-    public void setNorQueries(List<Query<T>> norQueries) {
+    public Query<T> setNorQueries(List<Query<T>> norQueries) {
         this.norQueries = norQueries;
+        return this;
     }
 
     public boolean isAdditionalDataPresent() {
         return additionalDataPresent;
     }
 
-    public void setAdditionalDataPresent(boolean additionalDataPresent) {
+    public Query<T> setAdditionalDataPresent(boolean additionalDataPresent) {
         this.additionalDataPresent = additionalDataPresent;
+        return this;
     }
 
-    public void setLimit(int limit) {
+    public Query<T> setLimit(int limit) {
         this.limit = limit;
+        return this;
     }
 
-    public void setSkip(int skip) {
+    public Query<T> setSkip(int skip) {
         this.skip = skip;
+        return this;
     }
 
-    public void setSort(Map<String, Object> sort) {
+    public Query<T> setSort(Map<String, Object> sort) {
         this.sort = sort;
+        return this;
     }
 
     public String getSrv() {
         return srv;
     }
 
-    public void setSrv(String srv) {
+    public Query<T> setSrv(String srv) {
         this.srv = srv;
+        return this;
     }
 
     public Map<String, Object> getFieldList() {
         return fieldList;
     }
 
-    public void setFieldList(Map<String, Object> fieldList) {
+    public Query<T> setFieldList(Map<String, Object> fieldList) {
         this.fieldList = fieldList;
+        return this;
     }
 
-    public void setTags(String tags) {
+    public Query<T> setTags(String tags) {
         this.tags = tags;
+        return this;
     }
 
     public AnnotationAndReflectionHelper getArHelper() {
         return arHelper;
     }
 
-    public void setArHelper(AnnotationAndReflectionHelper arHelper) {
+    public Query<T> setArHelper(AnnotationAndReflectionHelper arHelper) {
+
         this.arHelper = arHelper;
+        return this;
     }
 
     public String getOverrideDB() {
         return overrideDB;
     }
 
-    public void setOverrideDB(String overrideDB) {
+    public Query<T> setOverrideDB(String overrideDB) {
         this.overrideDB = overrideDB;
+        return this;
     }
 
     public UtilsMap<String, UtilsMap<String, String>> getAdditionalFields() {
         return additionalFields;
     }
 
-    public void setAdditionalFields(UtilsMap<String, UtilsMap<String, String>> additionalFields) {
+    public Query<T> setAdditionalFields(UtilsMap<String, UtilsMap<String, String>> additionalFields) {
         this.additionalFields = additionalFields;
+        return this;
     }
 }
