@@ -1,10 +1,8 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.wire.MongoConnection;
-
 import java.util.Map;
+
+import de.caluga.morphium.driver.wire.MongoConnection;
 
 public class FindCommand extends ReadMongoCommand<FindCommand> {
     private Map<String, Object> filter;
@@ -37,7 +35,6 @@ public class FindCommand extends ReadMongoCommand<FindCommand> {
         this.batchSize = batchSize;
         return this;
     }
-
 
     public FindCommand(MongoConnection d) {
         super(d);
