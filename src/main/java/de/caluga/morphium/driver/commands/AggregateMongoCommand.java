@@ -4,6 +4,8 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Iterator;
@@ -155,6 +157,18 @@ public class AggregateMongoCommand extends ReadMongoCommand<AggregateMongoComman
         return "aggregate";
     }
 
+    public Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
+
+    }
     @Override
     public AggregateMongoCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);

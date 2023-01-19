@@ -3,7 +3,9 @@ package de.caluga.morphium.aggregation;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -234,6 +236,8 @@ public interface Aggregator<T, R> {
     @SuppressWarnings("unused")
     void setUseDisk(boolean useDisk);
 
+    Map<String,Object> explain() throws MorphiumDriverException;
+    Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException;
 
     enum GeoNearFields {
         near,

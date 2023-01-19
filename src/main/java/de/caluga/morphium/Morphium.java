@@ -19,6 +19,7 @@ import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
@@ -3788,6 +3789,16 @@ public class Morphium implements AutoCloseable {
     /////// MAP/REDUCE
     /////
 
+    public <T> Map<String,Object> explainMapReduce(Class<? extends T> type, String map, String reduce,ExplainVerbosity verbose) throws MorphiumDriverException {
+        MongoConnection readConnection = morphiumDriver.getReadConnection(getReadPreferenceForClass(type));
+
+        try {
+            MapReduceCommand mr = new MapReduceCommand(readConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setMap(map).setReduce(reduce);
+            return mr.explain(verbose);
+        } finally {
+            getDriver().releaseConnection(readConnection);
+        }
+    }
     public <T> List<T> mapReduce(Class<? extends T> type, String map, String reduce) throws MorphiumDriverException {
         MongoConnection readConnection = morphiumDriver.getReadConnection(getReadPreferenceForClass(type));
 

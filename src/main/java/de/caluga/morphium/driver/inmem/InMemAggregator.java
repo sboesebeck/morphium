@@ -4,10 +4,12 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.aggregation.*;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.SingleBatchCursor;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
@@ -1590,5 +1592,15 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return result;
+    }
+
+    @Override
+    public Map<String, Object> explain() throws MorphiumDriverException {
+        return explain(null);
+    }
+
+    @Override
+    public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
+        return Doc.of("err","not supported with inMemDriver","ok",0.0);
     }
 }

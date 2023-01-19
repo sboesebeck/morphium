@@ -2,10 +2,13 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
     private List<Doc> deletes;
@@ -54,7 +57,17 @@ public class DeleteMongoCommand extends WriteMongoCommand<DeleteMongoCommand> {
         return this;
     }
 
-
+    public Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
+    }
     public DeleteMongoCommand addDelete(Doc query, Integer limit, Doc collation, String hint) {
         if (deletes == null) deletes = new ArrayList<>();
 
