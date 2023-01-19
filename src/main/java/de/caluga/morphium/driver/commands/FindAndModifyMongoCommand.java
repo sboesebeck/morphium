@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.List;
@@ -137,6 +138,19 @@ public class FindAndModifyMongoCommand extends WriteMongoCommand<FindAndModifyMo
     @Override
     public String getCommandName() {
         return "findAndModify";
+    }
+
+    public Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
+
     }
 
     @Override

@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
@@ -18,7 +19,6 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
     public CountMongoCommand(MongoConnection d) {
         super(d);
     }
-
 
     public Map<String, Object> getQuery() {
         return query;
@@ -74,32 +74,52 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         return this;
     }
 
-
     @Override
     public String getCommandName() {
         return "count";
     }
 
+    public Map<String,Object> explain() throws MorphiumDriverException{
+        return explain(null);
+    }
+    public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m = asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg = explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
+    }
+
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
         if (getConnection().getDriver().isTransactionInProgress()) {
-            //log.warn("Cannot count while in transaction, will use IDlist!");
-            //TODO: use Aggregation
+            // log.warn("Cannot count while in transaction, will use IDlist!");
+            // TODO: use Aggregation
             FindCommand fs = new FindCommand(getConnection());
             fs.setMetaData(getMetaData());
             fs.setDb(getDb());
             fs.setColl(getColl());
             fs.setFilter(getQuery());
-            fs.setProjection(Doc.of("_id", 1)); //forcing ID-list
+            fs.setProjection(Doc.of("_id", 1)); // forcing ID-list
             fs.setCollation(getCollation());
             return Doc.of("n", fs.execute().size());
         }
+
         int id = executeAsync();
         return getConnection().readSingleAnswer(id);
     }
+
     public int getCount() throws MorphiumDriverException {
-        var ret=execute();
-        if (ret==null) return 0;
+        var ret = execute();
+
+        if (ret == null) {
+            return 0;
+        }
+
         return (int) ret.get("n");
     }
 
@@ -108,6 +128,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
         if (getConnection().getDriver().isTransactionInProgress()) {
             throw new MorphiumDriverException("Count during transaction is not allowed");
         }
+
         return super.executeAsync();
     }
 }

@@ -1,13 +1,10 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
+import java.util.Map;
+
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
-
-import java.util.Map;
 
 public abstract class AdminMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements SingleResultCommand {
     public AdminMongoCommand(MongoConnection d) {

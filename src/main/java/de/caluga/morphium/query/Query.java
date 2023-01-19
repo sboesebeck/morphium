@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import org.json.simple.parser.ContainerFactory;
 import org.json.simple.parser.JSONParser;
@@ -76,16 +77,18 @@ public class Query<T> implements Cloneable {
     public Query(Morphium m) {
         setMorphium(m);
     }
-    public Object getHint(){
+
+    public Object getHint() {
         return hint;
     }
 
-    public Query<T> setHintString(String h){
-        hint=h;
+    public Query<T> setHintString(String h) {
+        hint = h;
         return this;
     }
-    public Query<T> setHintMap(Map<String,Object> h){
-        hint=h;
+
+    public Query<T> setHintMap(Map<String, Object> h) {
+        hint = h;
         return this;
     }
 
@@ -97,7 +100,6 @@ public class Query<T> implements Cloneable {
         return batchSize;
     }
 
-    
     public Query<T> setBatchSize(int batchSize) {
         this.batchSize = batchSize;
         return this;
@@ -253,10 +255,26 @@ public class Query<T> implements Cloneable {
         return complexQuery(query, srt, skip, limit);
     }
 
+    public Map<String,Object> explain() throws MorphiumDriverException{
+        return explain(null);
+    }
+    public Map<String, Object> explain(ExplainCommand.ExplainVerbosity verbosity) throws MorphiumDriverException {
+        FindCommand cmd = null;
+
+        try {
+            cmd = getFindCmd();
+            return cmd.explain(verbosity);
+        } finally {
+            if (cmd != null) {
+                cmd.getConnection().release();
+            }
+        }
+    }
+
     @SuppressWarnings("ConstantConditions")
 
     public T findOneAndDelete() {
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
@@ -292,7 +310,9 @@ public class Query<T> implements Cloneable {
              .setColl(getCollectionName())
              .setDb(getDB());
 
-            if (collation != null) { settings.setCollation(Doc.of(collation.toQueryObject())); }
+            if (collation != null) {
+                settings.setCollation(Doc.of(collation.toQueryObject()));
+            }
 
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
@@ -313,7 +333,7 @@ public class Query<T> implements Cloneable {
 
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -341,7 +361,7 @@ public class Query<T> implements Cloneable {
     @SuppressWarnings("ConstantConditions")
 
     public T findOneAndUpdate(Map<String, Object> update) {
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
@@ -376,7 +396,9 @@ public class Query<T> implements Cloneable {
              .setQuery(Doc.of(toQueryObject()))
              .setUpdate(Doc.of(update));
 
-            if (collation != null) { settings.setCollation(Doc.of(collation.toQueryObject())); }
+            if (collation != null) {
+                settings.setCollation(Doc.of(collation.toQueryObject()));
+            }
 
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
@@ -399,7 +421,7 @@ public class Query<T> implements Cloneable {
 
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -463,7 +485,7 @@ public class Query<T> implements Cloneable {
         try {
             ret = cmd.getCount();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
+            // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
             con.release();
@@ -497,7 +519,7 @@ public class Query<T> implements Cloneable {
 
     @Deprecated
     public List<T> complexQuery(Map<String, Object> query, Map<String, Integer> sort, int skip, int limit) {
-        Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache ca = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = ca != null && ca.readCache() && morphium.isReadCacheEnabledForThread();
         Map<String, Object> lst = getFieldListForQuery();
         String ck = morphium.getCache().getCacheKey(type, query, sort, lst, getCollectionName(), skip, limit);
@@ -518,11 +540,13 @@ public class Query<T> implements Cloneable {
             .setSort(new LinkedHashMap<>(sort))
             .setLimit(limit);
 
-            if (collation != null) { settings.setCollation(getCollation().toQueryObject()); }
+            if (collation != null) {
+                settings.setCollation(getCollation().toQueryObject());
+            }
 
             obj = settings.execute();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
+            // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
             morphium.getDriver().releaseConnection(settings.getConnection());
@@ -538,7 +562,8 @@ public class Query<T> implements Cloneable {
 
         srv = (String) findMetaData.get("server");
 
-        //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
+        // ReadAccessType.AS_LIST);
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
@@ -549,7 +574,9 @@ public class Query<T> implements Cloneable {
     public Map<String, Object> getFieldListForQuery() {
         List<Field> fldlst = null;
 
-        if (type != null) { fldlst = getARHelper().getAllFields(type); }
+        if (type != null) {
+            fldlst = getARHelper().getAllFields(type);
+        }
 
         Map<String, Object> lst = new HashMap<>();
 
@@ -557,7 +584,7 @@ public class Query<T> implements Cloneable {
             Entity e = getARHelper().getAnnotationFromHierarchy(type, Entity.class);
 
             if (e.polymorph()) {
-                //            lst.put("class_name", 1);
+                // lst.put("class_name", 1);
                 return new HashMap<>();
             }
         }
@@ -595,7 +622,7 @@ public class Query<T> implements Cloneable {
             if (fldlst != null) {
                 for (Field f : fldlst) {
                     if (f.isAnnotationPresent(AdditionalData.class)) {
-                        //to enable additional data
+                        // to enable additional data
                         lst = new HashMap<>();
                         break;
                     }
@@ -608,7 +635,8 @@ public class Query<T> implements Cloneable {
 
                     String n = getARHelper().getMongoFieldName(type, f.getName());
 
-                    // prevent Query failed with error code 16410 and error message 'FieldPath field names may not start with '$'.'
+                    // prevent Query failed with error code 16410 and error message 'FieldPath field
+                    // names may not start with '$'.'
                     if (!n.startsWith("$jacoco")) {
                         lst.put(n, 1);
                     }
@@ -621,7 +649,33 @@ public class Query<T> implements Cloneable {
         return lst;
     }
 
-    public List distinct(String field) {
+
+    public Map<String,Object> explainDistinct(String field, ExplainVerbosity verbosity){
+        MongoConnection con = null;
+
+        try {
+            con = morphium.getDriver().getPrimaryConnection(null);
+            var cmd = new DistinctMongoCommand(con)
+             .setDb(getDB())
+             .setColl(getCollectionName())
+             .setKey(field)
+             .setQuery(Doc.of(toQueryObject()));
+
+            if (getCollation() != null) {
+                cmd.setCollation(getCollation().toQueryObject());
+            }
+
+            return cmd.explain(verbosity);
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        } finally {
+            if (con != null) {
+                con.release();
+            }
+        }
+
+    }
+    public List<?> distinct(String field) {
         MongoConnection con = null;
 
         try {
@@ -638,7 +692,6 @@ public class Query<T> implements Cloneable {
 
             return cmd.execute();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
             if (con != null) {
@@ -739,7 +792,7 @@ public class Query<T> implements Cloneable {
         return f(b.toString());
     }
 
-    @SuppressWarnings({"ConstantConditions", "CommentedOutCode"})
+    @SuppressWarnings({ "ConstantConditions", "CommentedOutCode" })
     public MongoField<T> f(String f) {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add field query when raw query is defined!");
@@ -768,15 +821,18 @@ public class Query<T> implements Cloneable {
                 if (field == null) {
                     log.warn("Field " + fieldNameInstance + " not found!");
                 } else {
-                    //                if (field.isAnnotationPresent(Reference.class)) {
-                    //                    //cannot join
-                    //                    throw new IllegalArgumentException("cannot subquery references: " + fieldNameInstance + " of type " + clz.getName() + " has @Reference");
-                    //                }
+                    // if (field.isAnnotationPresent(Reference.class)) {
+                    // //cannot join
+                    // throw new IllegalArgumentException("cannot subquery references: " +
+                    // fieldNameInstance + " of type " + clz.getName() + " has @Reference");
+                    // }
                     fieldPath.append(fieldNameInstance);
                     fieldPath.append('.');
                     clz = field.getType();
 
-                    if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz) || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz) || Map.class.isAssignableFrom(clz)) {
+                    if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz)
+                     || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz)
+                     || Map.class.isAssignableFrom(clz)) {
                         if (log.isDebugEnabled()) {
                             log.debug("Cannot check fields in generic lists or maps");
                         }
@@ -853,7 +909,8 @@ public class Query<T> implements Cloneable {
     }
 
     /**
-     * this does not check for existence of the Field! Key in the map can be any text
+     * this does not check for existence of the Field! Key in the map can be any
+     * text
      *
      * @param n
      * @return
@@ -925,18 +982,31 @@ public class Query<T> implements Cloneable {
 
             try {
                 long ret = countAll();
-                c.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, null, null, ret);
+                c.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, null,
+                 null, ret);
             } catch (Exception e) {
-                c.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
+                c.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
     }
 
+    public Map<String, Object> explainCount(ExplainVerbosity verbosity) throws MorphiumDriverException {
+        CountMongoCommand cmd=null;
+        try {
+            cmd=getCountCommand(getMorphium().getDriver().getReadConnection(getRP()));
+            return cmd.explain(verbosity);
+        } finally{
+            if (cmd!=null && cmd.getConnection()!=null) cmd.getConnection().release();
+        }
+    }
+
     public long countAll() {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
-        long ret;
+        long ret = 0;
+        ;
 
         if (where != null) {
             log.warn("efficient counting with $where is not possible... need to iterate!");
@@ -946,7 +1016,7 @@ public class Query<T> implements Cloneable {
             limit = 0;
             Map<String, Object> fld = fieldList;
             fieldList = null;
-            addProjection("_id"); //only read ids
+            addProjection("_id"); // only read ids
             int count = 0;
 
             for (T elem : asIterable()) {
@@ -962,46 +1032,44 @@ public class Query<T> implements Cloneable {
         MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
 
         try {
-            if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
-                try {
-                    CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB())
-                     .setColl(getCollectionName())
-                     //.setQuery(Doc.of(this.toQueryObject()))
-                    ;
-
-                    if (getCollation() != null) {
-                        settings.setCollation(getCollation().toQueryObject());
-                    }
-
-                    ret = settings.getCount();
-                    //                            .setReadConcern(getRP().);
-                } catch (MorphiumDriverException e) {
-                    log.error("Error counting", e);
-                    ret = 0;
-                }
-            } else {
-                try {
-                    var cmd = new CountMongoCommand(con)
-                     .setDb(getDB())
-                     .setColl(getCollectionName())
-                     .setQuery(Doc.of(toQueryObject()));
-
-                    if (getCollation() != null) {
-                        cmd.setCollation(getCollation().toQueryObject());
-                    }
-
-                    ret = cmd.getCount();
-                } catch (MorphiumDriverException e) {
-                    // TODO: Implement Handling
-                    throw new RuntimeException(e);
-                }
-            }
+            CountMongoCommand cmd = getCountCommand(con);
+            ret = cmd.getCount();
+        } catch (MorphiumDriverException e) {
+            log.error("Error counting", e);
         } finally {
             con.release();
         }
 
-        //morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() - start, ReadAccessType.COUNT);
+        // morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() -
+        // start, ReadAccessType.COUNT);
         return ret;
+    }
+
+    private CountMongoCommand getCountCommand(MongoConnection con) {
+        if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
+            CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB())
+             .setColl(getCollectionName())
+             // .setQuery(Doc.of(this.toQueryObject()))
+            ;
+
+            if (getCollation() != null) {
+                settings.setCollation(getCollation().toQueryObject());
+            }
+
+            return settings;
+            // .setReadConcern(getRP().);
+        } else {
+            var cmd = new CountMongoCommand(con)
+             .setDb(getDB())
+             .setColl(getCollectionName())
+             .setQuery(Doc.of(toQueryObject()));
+
+            if (getCollation() != null) {
+                cmd.setCollation(getCollation().toQueryObject());
+            }
+
+            return cmd;
+        }
     }
 
     private de.caluga.morphium.driver.ReadPreference getRP() {
@@ -1063,9 +1131,8 @@ public class Query<T> implements Cloneable {
             }
 
             if (o.get("$and") != null) {
-                //noinspection unchecked
-                ((List<Map<String, Object>>) o.get("$and")).
-                add(UtilsMap.of("$or", lst));
+                // noinspection unchecked
+                ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$or", lst));
             } else {
                 o.put("$or", lst);
             }
@@ -1077,9 +1144,8 @@ public class Query<T> implements Cloneable {
             }
 
             if (o.get("$and") != null) {
-                //noinspection unchecked
-                ((List<Map<String, Object>>) o.get("$and")).
-                add(UtilsMap.of("$nor", lst));
+                // noinspection unchecked
+                ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$nor", lst));
             } else {
                 o.put("$nor", lst);
             }
@@ -1116,15 +1182,15 @@ public class Query<T> implements Cloneable {
 
     public Query<T> matchesJsonSchema(String schemaDef) throws ParseException {
         JSONParser jsonParser = new JSONParser();
-        @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef, new ContainerFactory() {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) jsonParser.parse(schemaDef, new ContainerFactory() {
             public Map createObjectContainer() {
                 return new HashMap<>();
             }
             public List creatArrayContainer() {
                 return new ArrayList();
             }
-        }
-          );
+        });
         return matchesJsonSchema(map);
     }
 
@@ -1145,7 +1211,8 @@ public class Query<T> implements Cloneable {
             setReadPreferenceLevel(pr.value());
         }
 
-        @SuppressWarnings("unchecked") List<String> fields = getARHelper().getFields(type, AdditionalData.class);
+        @SuppressWarnings("unchecked")
+        List<String> fields = getARHelper().getFields(type, AdditionalData.class);
         additionalDataPresent = fields != null && !fields.isEmpty();
         return this;
     }
@@ -1160,9 +1227,11 @@ public class Query<T> implements Cloneable {
 
             try {
                 List<T> lst = asList();
-                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, lst, null);
+                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 lst, null);
             } catch (Exception e) {
-                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
+                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
@@ -1174,7 +1243,7 @@ public class Query<T> implements Cloneable {
         morphium.inc(StatisticKeys.READS);
 
         if (type != null) {
-            Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+            Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
             boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
             Class type = Map.class;
             String ck = morphium.getCache().getCacheKey(this);
@@ -1182,7 +1251,7 @@ public class Query<T> implements Cloneable {
             if (useCache) {
                 if (morphium.getCache().isCached(type, ck)) {
                     morphium.inc(StatisticKeys.CHITS);
-                    //noinspection unchecked
+                    // noinspection unchecked
                     return morphium.getCache().getFromCache(type, ck);
                 }
 
@@ -1204,10 +1273,11 @@ public class Query<T> implements Cloneable {
                 fnd.releaseConnection();
             }
 
-            //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+            // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
+            // ReadAccessType.AS_LIST);
 
             if (useCache) {
-                //noinspection unchecked
+                // noinspection unchecked
                 morphium.getCache().addToCache(ck, type, ret);
             }
 
@@ -1235,7 +1305,8 @@ public class Query<T> implements Cloneable {
                 settings.releaseConnection();
             }
 
-            //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+            // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
+            // ReadAccessType.AS_LIST);
             return new ArrayList<>(ret);
         }
     }
@@ -1252,7 +1323,7 @@ public class Query<T> implements Cloneable {
         }
 
         morphium.inc(StatisticKeys.READS);
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
 
@@ -1276,11 +1347,17 @@ public class Query<T> implements Cloneable {
         try {
             Map<String, Object> queryObject = toQueryObject();
 
-            if (queryObject != null) { cmd.setFilter(Doc.of(queryObject)); }
+            if (queryObject != null) {
+                cmd.setFilter(Doc.of(queryObject));
+            }
 
-            if (collation != null) { cmd.setCollation(Doc.of(collation.toQueryObject())); }
+            if (collation != null) {
+                cmd.setCollation(Doc.of(collation.toQueryObject()));
+            }
 
-            if (sort != null) { cmd.setSort(new Doc(sort)); }
+            if (sort != null) {
+                cmd.setSort(new Doc(sort));
+            }
 
             var query = cmd.execute();
             srv = (String) cmd.getMetaData().get("server");
@@ -1302,7 +1379,8 @@ public class Query<T> implements Cloneable {
             }
         }
 
-        //morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start, ReadAccessType.AS_LIST);
+        // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
+        // ReadAccessType.AS_LIST);
 
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
@@ -1347,7 +1425,7 @@ public class Query<T> implements Cloneable {
     public QueryIterator<T> asIterable(int windowSize, Class<? extends QueryIterator<T>> it) {
         try {
             QueryIterator<T> ret = it.getDeclaredConstructor().newInstance();
-            //            ret.setWindowSize(windowSize);
+            // ret.setWindowSize(windowSize);
             return asIterable(ret);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -1365,7 +1443,8 @@ public class Query<T> implements Cloneable {
         }
 
         if (getARHelper().isAnnotationPresentInHierarchy(type, LastAccess.class)) {
-            @SuppressWarnings("unchecked") List<String> lst = getARHelper().getFields(type, LastAccess.class);
+            @SuppressWarnings("unchecked")
+            List<String> lst = getARHelper().getFields(type, LastAccess.class);
 
             for (String ctf : lst) {
                 Field f = getARHelper().getField(type, ctf);
@@ -1374,7 +1453,8 @@ public class Query<T> implements Cloneable {
                     MongoConnection con = null;
 
                     try {
-                        con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
+                        con = getMorphium().getDriver()
+                         .getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
                         long currentTime = System.currentTimeMillis();
 
                         if (f.getType().equals(Date.class)) {
@@ -1388,11 +1468,13 @@ public class Query<T> implements Cloneable {
                         }
 
                         Object id = getARHelper().getId(unmarshall);
-                        //Cannot use store, as this would trigger an update of last changed...
+                        // Cannot use store, as this would trigger an update of last changed...
                         UpdateMongoCommand settings = new UpdateMongoCommand(con)
                          .setDb(getDB())
                          .setColl(getCollectionName())
-                         .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u", Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                         .setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
+                          Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation",
+                          collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -1405,11 +1487,11 @@ public class Query<T> implements Cloneable {
                 }
             }
 
-            //Storing access timestamps
-            //            List<T> l=new ArrayList<T>();
-            //            l.add(deserialize);
-            //            morphium.getWriterForClass(deserialize.getClass()).store(l,null);
-            //            morphium.store(deserialize);
+            // Storing access timestamps
+            // List<T> l=new ArrayList<T>();
+            // l.add(deserialize);
+            // morphium.getWriterForClass(deserialize.getClass()).store(l,null);
+            // morphium.store(deserialize);
         }
     }
 
@@ -1426,9 +1508,11 @@ public class Query<T> implements Cloneable {
                 T res = getById(id);
                 List<T> result = new ArrayList<>();
                 result.add(res);
-                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, result, res);
+                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 result, res);
             } catch (Exception e) {
-                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
+                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 e.getMessage(), e, null);
             }
         };
         getExecutor().submit(c);
@@ -1436,15 +1520,16 @@ public class Query<T> implements Cloneable {
 
     @Deprecated
     public T getById(Object id) {
-        @SuppressWarnings("unchecked") List<String> flds = getARHelper().getFields(type, Id.class);
+        @SuppressWarnings("unchecked")
+        List<String> flds = getARHelper().getFields(type, Id.class);
 
         if (flds == null || flds.isEmpty()) {
             throw new RuntimeException("Type does not have an ID-Field? " + type.getSimpleName());
         }
 
-        //should only be one
+        // should only be one
         String f = flds.get(0);
-        Query<T> q = q().f(f).eq(id); //prepare
+        Query<T> q = q().f(f).eq(id); // prepare
         return q.get();
     }
 
@@ -1460,16 +1545,18 @@ public class Query<T> implements Cloneable {
                 List<T> ret = new ArrayList<>();
                 T ent = get();
                 ret.add(ent);
-                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, ret, ent);
+                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 ret, ent);
             } catch (Exception e) {
-                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
+                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
     }
 
     public T get() {
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); //type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
@@ -1503,7 +1590,7 @@ public class Query<T> implements Cloneable {
             settings = getFindCmd();
             srch = settings.execute();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
+            // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
             settings.getConnection().release();
@@ -1526,7 +1613,7 @@ public class Query<T> implements Cloneable {
         srv = (String) findMetaData.get("server");
         List<T> lst = new ArrayList<>(1);
         long dur = System.currentTimeMillis() - start;
-        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
+        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {
             T unmarshall = morphium.getMapper().deserialize(type, ret);
@@ -1561,9 +1648,11 @@ public class Query<T> implements Cloneable {
 
             try {
                 List<Object> ret = idList();
-                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, null, null, ret);
+                callback.onOperationSucceeded(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 null, null, ret);
             } catch (Exception e) {
-                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
+                callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start,
+                 e.getMessage(), e, null);
             }
         };
         getExecutor().submit(r);
@@ -1572,7 +1661,7 @@ public class Query<T> implements Cloneable {
     @SuppressWarnings("CommentedOutCode")
 
     public <R> List<R> idList() {
-        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);//type.getAnnotation(Cache.class);
+        Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);// type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
@@ -1581,8 +1670,8 @@ public class Query<T> implements Cloneable {
         if (useCache) {
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
-                //casts are not nice... any idea how to change that?
-                //noinspection unchecked
+                // casts are not nice... any idea how to change that?
+                // noinspection unchecked
                 return (List<R>) morphium.getCache().getFromCache(type, ck);
             }
 
@@ -1592,9 +1681,11 @@ public class Query<T> implements Cloneable {
         }
 
         long start = System.currentTimeMillis();
-        //        DBCollection collection = morphium.getDatabase().getCollection(getCollectionName());
-        //        setReadPreferenceFor(collection);
-        //                DBCursor query = collection.find(toQueryObject(), new HashMap<String, Object>("_id", 1)); //only get IDs
+        // DBCollection collection =
+        // morphium.getDatabase().getCollection(getCollectionName());
+        // setReadPreferenceFor(collection);
+        // DBCursor query = collection.find(toQueryObject(), new HashMap<String,
+        // Object>("_id", 1)); //only get IDs
         List<Map<String, Object>> query;
         FindCommand settings = null;
 
@@ -1604,19 +1695,21 @@ public class Query<T> implements Cloneable {
             query = settings.execute();
             srv = (String) settings.getMetaData().get("server");
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
+            // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            if (settings != null) { settings.getConnection().release(); }
+            if (settings != null) {
+                settings.getConnection().release();
+            }
         }
 
-        //noinspection unchecked
+        // noinspection unchecked
         List<R> ret = query.stream().map(o->(R) o.get("_id")).collect(Collectors.toList());
         long dur = System.currentTimeMillis() - start;
 
-        //morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
+        // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
-            //noinspection unchecked
+            // noinspection unchecked
             morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
         }
 
@@ -1625,7 +1718,8 @@ public class Query<T> implements Cloneable {
 
     public Query<T> clone() {
         try {
-            @SuppressWarnings("unchecked") Query<T> ret = (Query<T>) super.clone();
+            @SuppressWarnings("unchecked")
+            Query<T> ret = (Query<T>) super.clone();
 
             if (andExpr != null) {
                 ret.andExpr = new ArrayList<>();
@@ -1661,23 +1755,26 @@ public class Query<T> implements Cloneable {
         }
     }
 
-     public Map<String,Object> remove(){
+    public Map<String, Object> remove() {
         return morphium.remove(this);
     }
 
-    public Map<String,Object> delete() {
+    public Map<String, Object> delete () {
         return morphium.delete(this);
     }
 
-    public Map<String, Object> set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> set(String field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.set(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> set(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> set(Enum field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.set(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         Map<String, Object> m = new HashMap<>();
 
         for (Map.Entry<Enum, Object> e : map.entrySet()) {
@@ -1687,7 +1784,8 @@ public class Query<T> implements Cloneable {
         return set(m, upsert, multiple, cb);
     }
 
-    public Map<String, Object> set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> set(Map<String, Object> map, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.set(this, map, upsert, multiple, cb);
     }
 
@@ -1757,20 +1855,19 @@ public class Query<T> implements Cloneable {
         return morphium.set(this, map, false, false);
     }
 
-    public Map<String,Object> unset(boolean multiple, Enum... field){
+    public Map<String, Object> unset(boolean multiple, Enum ... field) {
         return morphium.unsetQ(this, multiple, field);
     }
 
-    
-    public Map<String,Object> unset(boolean multiple, String... field){
+    public Map<String, Object> unset(boolean multiple, String ... field) {
         return morphium.unsetQ(this, multiple, field);
     }
 
-    public Map<String, Object> unset(Enum... fields) {
+    public Map<String, Object> unset(Enum ... fields) {
         return morphium.unsetQ(this, fields);
     }
 
-    public Map<String, Object> unset(String... fields) {
+    public Map<String, Object> unset(String ... fields) {
         return morphium.unsetQ(this, fields);
     }
 
@@ -1782,12 +1879,13 @@ public class Query<T> implements Cloneable {
         return morphium.push(this, field, value);
     }
 
-    public Map<String, Object> push(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> push(String field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.push(this, field, value, upsert, multiple, cb);
-
     }
 
-    public Map<String, Object> push(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> push(Enum field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.push(this, field.name(), value, upsert, multiple, cb);
     }
 
@@ -1799,29 +1897,33 @@ public class Query<T> implements Cloneable {
         return morphium.pushAll(this, field.name(), value, false, false);
     }
 
-    public Map<String, Object> pushAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pushAll(String field, List value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pushAll(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> pushAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pushAll(Enum field, List value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pushAll(this, field.name(), value, upsert, multiple, cb);
     }
 
     public Map<String, Object> pullAll(String field, List value) {
-        //noinspection unchecked
+        // noinspection unchecked
         return morphium.pullAll(this, field, value, false, false);
     }
 
     public Map<String, Object> pullAll(Enum field, List value) {
-        //noinspection unchecked
+        // noinspection unchecked
         return morphium.pullAll(this, field.name(), value, false, false);
     }
 
-    public Map<String, Object> pullAll(String field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pullAll(String field, List value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pullAll(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> pullAll(Enum field, List value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pullAll(Enum field, List value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pullAll(this, field.name(), value, upsert, multiple, cb);
     }
 
@@ -1833,15 +1935,18 @@ public class Query<T> implements Cloneable {
         return morphium.pull(this, field, value);
     }
 
-    public Map<String, Object> pull(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pull(String field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pull(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> pull(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pull(Enum field, Object value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pull(this, field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> pull(Enum field, Expr value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> pull(Enum field, Expr value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.pull(this, field.name(), value.toQueryObject(), upsert, multiple, cb);
     }
 
@@ -1853,7 +1958,8 @@ public class Query<T> implements Cloneable {
         return pull(field, value, false, false, null);
     }
 
-    public Map<String, Object> inc(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(String field, Integer value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.inc(this, field, value, upsert, multiple, cb);
     }
 
@@ -1873,7 +1979,8 @@ public class Query<T> implements Cloneable {
         return morphium.inc(this, field, value);
     }
 
-    public Map<String, Object> inc(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(String field, Double value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.inc(this, field, value, upsert, multiple, cb);
     }
 
@@ -1893,23 +2000,28 @@ public class Query<T> implements Cloneable {
         return morphium.inc(this, field, value);
     }
 
-    public Map<String, Object> inc(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(Enum field, Number value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return inc(field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> inc(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(Enum field, Integer value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return inc(field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> inc(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(Enum field, Double value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return inc(field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> inc(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(Enum field, Long value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return inc(field.name(), value, upsert, multiple, cb);
     }
 
-    public Map<String, Object> inc(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(String field, Long value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.inc(this, field, value, upsert, multiple, cb);
     }
 
@@ -1929,7 +2041,8 @@ public class Query<T> implements Cloneable {
         return morphium.inc(this, field, value);
     }
 
-    public Map<String, Object> inc(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> inc(String field, Number value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.inc(this, field, value, upsert, multiple, cb);
     }
 
@@ -1949,99 +2062,107 @@ public class Query<T> implements Cloneable {
         return morphium.inc(this, field, value);
     }
 
-    public Map<String,Object> dec(String field, Integer value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(String field, Integer value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Enum field, Integer value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Enum field, Integer value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(String field, Integer value) {
+    public Map<String, Object> dec(String field, Integer value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(Enum field, Integer value) {
+    public Map<String, Object> dec(Enum field, Integer value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(Enum field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(Enum field, Integer value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(String field, Integer value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(String field, Integer value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public  Map<String,Object> dec(Enum field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(Enum field, Double value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(String field, Double value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(String field, Double value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(Enum field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(Enum field, Long value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(String field, Long value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(String field, Long value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(Enum field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-       return morphium.dec(this, field, value, upsert, multiple, cb);
-    }
-
-    public Map<String,Object> dec(String field, Number value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
+    public Map<String, Object> dec(Enum field, Number value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
         return morphium.dec(this, field, value, upsert, multiple, cb);
     }
 
-    public Map<String,Object> dec(String field, Double value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(String field, Number value, boolean upsert, boolean multiple,
+     AsyncOperationCallback<T> cb) {
+        return morphium.dec(this, field, value, upsert, multiple, cb);
+    }
+
+    public Map<String, Object> dec(String field, Double value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Enum field, Double value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Enum field, Double value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(String field, Double value) {
+    public Map<String, Object> dec(String field, Double value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(Enum field, Double value) {
+    public Map<String, Object> dec(Enum field, Double value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(String field, Long value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(String field, Long value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Enum field, Long value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Enum field, Long value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(String field, Long value) {
+    public Map<String, Object> dec(String field, Long value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(Enum field, Long value) {
+    public Map<String, Object> dec(Enum field, Long value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(String field, Number value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(String field, Number value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(Enum field, Number value, boolean upsert, boolean multiple) {
+    public Map<String, Object> dec(Enum field, Number value, boolean upsert, boolean multiple) {
         return morphium.dec(this, field, value, upsert, multiple);
     }
 
-    public Map<String,Object> dec(String field, Number value) {
+    public Map<String, Object> dec(String field, Number value) {
         return morphium.dec(this, field, value);
     }
 
-    public Map<String,Object> dec(Enum field, Number value) {
+    public Map<String, Object> dec(Enum field, Number value) {
         return morphium.dec(this, field, value);
     }
 
@@ -2074,7 +2195,8 @@ public class Query<T> implements Cloneable {
         return text(null, lang, caseSensitive, diacriticSensitive, text);
     }
 
-    public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive, boolean diacriticSensitive, String ... text) {
+    public Query<T> text(String metaScoreField, TextSearchLanguages lang, boolean caseSensitive,
+     boolean diacriticSensitive, String ... text) {
         FilterExpression f = new FilterExpression();
         f.setField("$text");
         StringBuilder b = new StringBuilder();
@@ -2090,7 +2212,7 @@ public class Query<T> implements Cloneable {
         f.setValue(srch);
 
         if (lang != null) {
-            //noinspection unchecked
+            // noinspection unchecked
             ((Map<String, Object>) f.getValue()).put("$language", lang.toString());
         }
 
@@ -2109,7 +2231,7 @@ public class Query<T> implements Cloneable {
 
     @Deprecated
     public List<T> textSearch(String ... texts) {
-        //noinspection deprecation
+        // noinspection deprecation
         return textSearch(TextSearchLanguages.mongo_default, texts);
     }
 
@@ -2126,10 +2248,10 @@ public class Query<T> implements Cloneable {
         StringBuilder b = new StringBuilder();
 
         for (String t : texts) {
-            //            b.append("\"");
+            // b.append("\"");
             b.append(t);
             b.append(" ");
-            //            b.append("\" ");
+            // b.append("\" ");
         }
 
         txt.put("search", b.toString());
@@ -2152,15 +2274,17 @@ public class Query<T> implements Cloneable {
             result = cmd.getConnection().readSingleAnswer(cmd.executeAsync());
             cmd.getConnection().release();
         } catch (MorphiumDriverException e) {
-            //TODO: Implement Handling
+            // TODO: Implement Handling
             throw new RuntimeException(e);
         }
 
-        @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
         List<T> ret = new ArrayList<>();
 
         for (Object o : lst) {
-            @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) o;
+            @SuppressWarnings("unchecked")
+            Map<String, Object> obj = (Map<String, Object>) o;
             T unmarshall = morphium.getMapper().deserialize(getType(), obj);
 
             if (unmarshall != null) {
@@ -2241,15 +2365,19 @@ public class Query<T> implements Cloneable {
      * do a tail query
      *
      * @param batchSize - determins how much data is read in one step
-     * @param maxWait   - how long to wait _at most_ for data, throws Exception otherwise
-     * @param cb        - the callback being called for _every single document_ - the entity field is filled, lists will be null
+     * @param maxWait   - how long to wait _at most_ for data, throws Exception
+     *                  otherwise
+     * @param cb        - the callback being called for _every single document_ -
+     *                  the entity field is filled, lists will be null
      */
 
     public void tail(int batchSize, int maxWait, AsyncOperationCallback<T> cb) {
         var con = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(type));
         boolean running = true;
 
-        if (maxWait == 0) { maxWait = Integer.MAX_VALUE; }
+        if (maxWait == 0) {
+            maxWait = Integer.MAX_VALUE;
+        }
 
         try {
             FindCommand cmd = new FindCommand(con)
@@ -2263,7 +2391,9 @@ public class Query<T> implements Cloneable {
              .setDb(morphium.getDatabase())
              .setColl(getCollectionName());
 
-            if (collation != null) { cmd.setCollation(collation.toQueryObject()); }
+            if (collation != null) {
+                cmd.setCollation(collation.toQueryObject());
+            }
 
             long start = System.currentTimeMillis();
             var msgId = cmd.executeAsync();
@@ -2289,7 +2419,8 @@ public class Query<T> implements Cloneable {
 
                 for (Map<String, Object> doc : batch) {
                     try {
-                        cb.onOperationSucceeded(AsyncOperationType.READ, this, System.currentTimeMillis() - start, null, morphium.getMapper().deserialize(type, doc));
+                        cb.onOperationSucceeded(AsyncOperationType.READ, this, System.currentTimeMillis() - start, null,
+                         morphium.getMapper().deserialize(type, doc));
                     } catch (MorphiumAccessVetoException ex) {
                         running = false;
                         break;
@@ -2305,8 +2436,9 @@ public class Query<T> implements Cloneable {
             }
 
             if (cursorId != 0) {
-                //killing cursors
-                KillCursorsCommand kill = new KillCursorsCommand(con).setCursorIds(cursorId).setColl(cmd.getColl()).setDb(cmd.getDb());
+                // killing cursors
+                KillCursorsCommand kill = new KillCursorsCommand(con).setCursorIds(cursorId).setColl(cmd.getColl())
+                 .setDb(cmd.getDb());
                 kill.execute();
             }
 
@@ -2523,7 +2655,6 @@ public class Query<T> implements Cloneable {
     }
 
     public Query<T> setArHelper(AnnotationAndReflectionHelper arHelper) {
-
         this.arHelper = arHelper;
         return this;
     }
