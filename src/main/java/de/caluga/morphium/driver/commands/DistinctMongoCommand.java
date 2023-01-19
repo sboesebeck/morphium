@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.commands;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
 
@@ -60,7 +61,17 @@ public class DistinctMongoCommand extends MongoCommand<DistinctMongoCommand> {
         return this;
     }
 
-
+    public Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
+    }
     public List<Object> execute() throws MorphiumDriverException {
         MongoConnection connection = getConnection();
         if (connection == null) throw new IllegalArgumentException("you need to set the connection!");

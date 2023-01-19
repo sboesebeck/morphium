@@ -4,6 +4,7 @@ import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.query.Query;
 
 import java.util.List;
@@ -93,6 +94,7 @@ public interface MorphiumWriter {
     @SuppressWarnings("unused")
     <T> Map<String,Object> remove(Query<T> q, boolean multiple, AsyncOperationCallback<T> callback);
 
+    <T> Map<String,Object> explainRemove(ExplainVerbosity verbosity,T o, String Collection );
     <T> void remove(T o, String collection, AsyncOperationCallback<T> callback);
 
     /**
@@ -101,6 +103,7 @@ public interface MorphiumWriter {
      * @param q the query
      */
     <T> Map<String,Object> remove(Query<T> q, AsyncOperationCallback<T> callback);
+    <T> Map<String,Object> explainRemove(ExplainVerbosity verbosity, Query<T> q);
 
     <T> Map<String,Object> pushPull(MorphiumStorageListener.UpdateTypes type, Query<T> query, String field, Object value, boolean insertIfNotExist, boolean multiple, AsyncOperationCallback<T> callback);
 
