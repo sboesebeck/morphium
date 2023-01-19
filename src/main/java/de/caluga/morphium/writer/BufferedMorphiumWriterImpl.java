@@ -15,6 +15,7 @@ import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
 import de.caluga.morphium.driver.bulk.InsertBulkRequest;
 import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
 import de.caluga.morphium.driver.commands.CreateCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 
@@ -1420,5 +1421,15 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             T entity,
             Object... param) {
         }
+    }
+
+    @Override
+    public <T> Map<String, Object> explainRemove(ExplainVerbosity verbosity, T o, String Collection) {
+        return directWriter.explainRemove(verbosity,o,Collection);
+    }
+
+    @Override
+    public <T> Map<String, Object> explainRemove(ExplainVerbosity verbosity, Query<T> q) {
+        return directWriter.explainRemove(verbosity,q);
     }
 }
