@@ -3598,6 +3598,9 @@ public class Morphium implements AutoCloseable {
         return remove(o);
     }
 
+    public <T> Map<String,Object> explainRemove(Query<T> q){
+        return config.getWriter().explainRemove(null,q);
+    }
     public <T> Map<String, Object> remove(Query<T> o) {
         return getWriterForClass(o.getType()).remove(o, null);
     }
@@ -3650,6 +3653,9 @@ public class Morphium implements AutoCloseable {
         remove(lo, callback);
     }
 
+    public <T> Map<String,Object> explainRemove(ExplainVerbosity verbosity,T o){
+        return config.getWriter().explainRemove(verbosity, o, getMapper().getCollectionName(o.getClass()));
+    }
     public <T> void remove(final T lo, final AsyncOperationCallback<T> callback) {
         if (lo instanceof Query) {
             //noinspection unchecked
