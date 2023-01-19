@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.objectmapping.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
@@ -152,6 +153,19 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         Map<String, Object> o = UtilsMap.of("$addFields", ret);
         params.add(o);
         return this;
+    }
+    public Map<String,Object> explain() throws MorphiumDriverException{
+        return explain(null);
+    }
+
+    @Override
+    public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
+        var cmd=getAggregateCmd();
+        try {
+            return cmd.explain(verbosity);
+        } finally {
+            cmd.getConnection().release();
+        }
     }
 
     @Override
@@ -406,8 +420,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 .setExplain(isExplain())
                 .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
                 .setAllowDiskUse(isUseDisk());
-
-        //TODO .setReadConcern(morphium.getReadPreferenceForC)
 
         if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
         return cmd;

@@ -4,7 +4,7 @@ import java.util.Map;
 
 import de.caluga.morphium.driver.wire.MongoConnection;
 
-public class ExplainCommand extends ReadMongoCommand<ExplainCommand> {
+public class ExplainCommand extends MongoCommand<ExplainCommand> {
     // db.runCommand(
     // {
     // explain: { count: "products", query: { quantity: { $gt: 50 } } },
@@ -13,7 +13,7 @@ public class ExplainCommand extends ReadMongoCommand<ExplainCommand> {
     // )
 
     private Map<String,Object> command;
-    private String verbosity;
+    private ExplainVerbosity verbosity;
 
     public ExplainCommand(MongoConnection d) {
         super(d);
@@ -40,12 +40,16 @@ public class ExplainCommand extends ReadMongoCommand<ExplainCommand> {
         this.command = command;
     }
 
-    public String getVerbosity() {
+    public ExplainVerbosity getVerbosity() {
         return verbosity;
     }
 
-    public void setVerbosity(String verbosity) {
+    public void setVerbosity(ExplainVerbosity verbosity) {
         this.verbosity = verbosity;
+    }
+
+    public enum ExplainVerbosity {
+        allPlansExecution,executionStats,queryPlanner
     }
 
 }

@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import java.util.Map;
 
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 
 public class FindCommand extends ReadMongoCommand<FindCommand> {
@@ -259,6 +260,18 @@ public class FindCommand extends ReadMongoCommand<FindCommand> {
 
     public Boolean getAllowDiskUse() {
         return allowDiskUse;
+    }
+
+    public Map<String,Object> explain(ExplainCommand.ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
     }
 
 }

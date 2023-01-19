@@ -1,6 +1,8 @@
 package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import org.slf4j.LoggerFactory;
 
@@ -170,6 +172,18 @@ public class MapReduceCommand extends ReadMongoCommand<MapReduceCommand> {
     @Override
     public String getCommandName() {
         return "mapReduce";
+    }
+
+    public Map<String,Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException{
+        ExplainCommand explainCommand = new ExplainCommand(getConnection());
+        explainCommand.setVerbosity(verbosity);
+        var m=asMap();
+        m.remove("$db");
+        m.remove("$coll");
+        explainCommand.setCommand(m);
+        explainCommand.setDb(getDb()).setColl(getColl());
+        int msg=explainCommand.executeAsync();
+        return explainCommand.getConnection().readSingleAnswer(msg);
     }
 
     @Override
