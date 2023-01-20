@@ -2034,9 +2034,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 q.put(k, o.get(k));
                             }
-                            if (q.size()>1){
+                            if (q.size()!=1){
                                 //need to add and query
-                                List<Map<String,Object> and=new ArrayList();
+                                List<Map<String,Object>> and=new ArrayList();
                                 for (var e:q.entrySet()){
                                     and.add(Doc.of(e.getKey(),e.getValue()));
                                 }
