@@ -57,7 +57,7 @@ public class PooledDriver extends DriverBase {
     private Map<String, AtomicInteger> borrowedConnectionsByCaller = new ConcurrentHashMap<>();
     private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
-    private int idleSleepTime = 20;
+    private int idleSleepTime = 5;
     private String fastestHost = "";
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
     private String primaryNode;
