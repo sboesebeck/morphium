@@ -2034,7 +2034,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                                 q.put(k, o.get(k));
                             }
-
+                            if (q.size()>1){
+                                //need to add and query
+                                List<Map<String,Object> and=new ArrayList();
+                                for (var e:q.entrySet()){
+                                    and.add(Doc.of(e.getKey(),e.getValue()));
+                                }
+                                q=Doc.of("$and",and);
+                            }
                             if (find(db, collection, q, null, null, 0, 0).size() > 0) {
                                 log.error("Cannot store - unique index!");
                                 writeErrors.add(o);
