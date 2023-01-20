@@ -85,6 +85,7 @@ import de.caluga.morphium.driver.commands.DeleteMongoCommand;
 import de.caluga.morphium.driver.commands.DistinctMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.DropMongoCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand;
 import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.GenericCommand;
@@ -411,6 +412,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public int runCommand(SaslAuthCommand cmd) {
         return 0;
+    }
+
+    public int runCommand(ExplainCommand cmd){
+        int ret = commandNumber.incrementAndGet();
+        commandResults.put(ret, prepareResult(Doc.of("ok", 0, "errmsg", "no explain possible yet - in Memory!")));
+        return ret;
+
     }
 
     public int runCommand(GenericCommand cmd) {
