@@ -99,7 +99,6 @@ public class SequenceGenerator {
         lock.setName(name);
         lock.setLockedAt(new Date());
         lock.setLockedBy(id);
-        start = System.currentTimeMillis();
 
         while (true) {
             if (System.currentTimeMillis() - start > 30000) {
