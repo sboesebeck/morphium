@@ -252,10 +252,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             dbLst.add(morphium.getMapper().serialize(o));
                         }
 
-                        long dur = System.currentTimeMillis() - start;
-                        // morphium.fireProfilingWriteEvent(lst.get(0).getClass(), lst, dur, true,
+                        // long dur = System.currentTimeMillis() - start;
                         // WriteAccessType.BULK_UPDATE);
-                        start = System.currentTimeMillis();
+                        // start = System.currentTimeMillis();
                         MongoConnection con = null;
 
                         try {
@@ -297,7 +296,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             }
                         }
 
-                        dur = System.currentTimeMillis() - start;
+                        // dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
 
                         for (Object o : lst) {
