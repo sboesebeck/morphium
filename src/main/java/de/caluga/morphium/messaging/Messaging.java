@@ -39,7 +39,9 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -681,7 +683,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             // get IDs of messages to process
-            fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
+            fnd = new FindCommand(
+                morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             fnd.setDb(morphium.getDatabase());
             fnd.setFilter(q.toQueryObject());
             fnd.setProjection(Doc.of("_id", 1, "ttl", 1, "timing_out", 1, "exclusive", 1, "processed_by", 1));
@@ -719,11 +722,23 @@ public class Messaging extends Thread implements ShutdownListener {
                                 l.setDeleteAt(new Date(System.currentTimeMillis() + ttl));
                             }
 
+                            MongoConnection con = null;
+
                             try {
-                                morphium.insert(l, getCollectionName() + "_lck", null);
+                                con = morphium.getDriver()
+                                 .getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class));
+                                InsertMongoCommand insert = new InsertMongoCommand(con);
+                                insert.setDb(morphium.getDatabase()).setColl(getLockCollectionName());
+                                insert.setDocuments(Arrays.asList(morphium.getMapper().serialize(l)));
+                                insert.executeAsync();
+                                // morphium.insert(l, getCollectionName() + "_lck", null);
                                 lockedIds.add(l.getId());
                             } catch (Exception e) {
                                 // could not lock!
+                            } finally {
+                                if (con != null) {
+                                    con.release();
+                                }
                             }
                         }
                     }
@@ -811,11 +826,22 @@ public class Messaging extends Thread implements ShutdownListener {
             lck.setDeleteAt(delAt);
         }
 
+        MongoConnection con = null;
+
         try {
-            morphium.insert(lck, getCollectionName() + "_lck", null);
+            con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class));
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb(morphium.getDatabase()).setColl(getLockCollectionName());
+            insert.setDocuments(Arrays.asList(morphium.getMapper().serialize(lck)));
+            insert.executeAsync();
             return true;
         } catch (Exception e) {
+            // could not lock!
             return false;
+        } finally {
+            if (con != null) {
+                con.release();
+            }
         }
     }
 
@@ -1015,7 +1041,7 @@ public class Messaging extends Thread implements ShutdownListener {
                                 cmd.addUpdate(Doc.of("_id", msg.getMsgId()),
                                  Doc.of("$addToSet", Doc.of("processed_by", id)), null, false, false, null, null,
                                  null);
-                                cmd.execute();
+                                cmd.executeAsync();
                                 unlockIfExclusive(msg);
                             } catch (MorphiumDriverException e) {
                                 log.error("Error unlocking message", e);
@@ -1386,7 +1412,20 @@ public class Messaging extends Thread implements ShutdownListener {
 
         m.setSender(id);
         m.setSenderHost(hostname);
-        morphium.insert(m, getCollectionName(), cb);
+        MongoConnection con = null;
+
+        try {
+            con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class));
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb(morphium.getDatabase()).setColl(getCollectionName());
+            insert.setDocuments(Arrays.asList(morphium.getMapper().serialize(m)));
+            insert.executeAsync();
+        } catch (Exception e) {
+        } finally {
+            if (con != null) {
+                con.release();
+            }
+        }
     }
 
     public void sendMessageToSelf(Msg m) {
@@ -1398,18 +1437,11 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void sendMessageToSelf(Msg m, boolean async) {
-        AsyncOperationCallback cb = null;
-
-        // noinspection StatementWithEmptyBody
-        if (async) {
-            // noinspection unused,unused
-            cb = new AsyncCallbackAdapter<>();
-        }
 
         m.setSender("self");
         m.addRecipient(id);
         m.setSenderHost(hostname);
-        morphium.insert(m, getCollectionName(), cb);
+        morphium.insertAsync(m, getCollectionName());
     }
 
     public boolean isAutoAnswer() {
