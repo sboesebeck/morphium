@@ -1586,6 +1586,8 @@ public class Morphium implements AutoCloseable {
         return getWriterForClass(query.getType()).inc(query, name, amount, upsert, multiple, callback);
     }
 
+
+
     public <T> Map<String, Object> inc(final Query<T> query, final Enum<?> field, final int amount,
      final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         return inc(query, field.name(), amount, upsert, multiple, callback);
@@ -3458,6 +3460,22 @@ public class Morphium implements AutoCloseable {
 
     public <T> void insertList(List arrayList) {
         insertList(arrayList, null, null);
+    }
+
+    public <T> void insertAsync(T o, String collection){
+        MongoConnection con = null;
+        try {
+            con = getDriver().getPrimaryConnection(getWriteConcernForClass(o.getClass()));
+            InsertMongoCommand insert = new InsertMongoCommand(con);
+            insert.setDb(morphium.getDatabase()).setColl(getMapper().getCollectionName(o.getClass()));
+            insert.setDocuments(Arrays.asList(getMapper().serialize(o)));
+            insert.executeAsync();
+        } catch (Exception e) {
+        } finally {
+            if (con != null) {
+                con.release();
+            }
+        }
     }
 
     /**

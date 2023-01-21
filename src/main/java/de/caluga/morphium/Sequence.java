@@ -1,5 +1,7 @@
 package de.caluga.morphium;
 
+import java.util.Date;
+
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 
@@ -14,30 +16,16 @@ import de.caluga.morphium.annotations.caching.NoCache;
  * commit the write. This is best compromise between performance and security (as usually you'd call nextValue on the
  * generator, not getcurrentvalue all the time.
  */
-@Entity
+@Entity(typeId = "sequence")
 @NoCache
-@Index({"name,locked_by"})
 @WriteSafety(timeout = 10000, level = SafetyLevel.WAIT_FOR_SLAVE)
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
 public class Sequence {
     @Id
     private String name;
     private Long currentValue;
-    @Index
-    private String lockedBy;
-    private long lockedAt;
 
 
-    public long getLockedAt() {
-        return lockedAt;
-    }
-
-    @SuppressWarnings("unused")
-    public void setLockedAt(long lockedAt) {
-        this.lockedAt = lockedAt;
-    }
-
-    @SuppressWarnings("unused")
     public String getName() {
         return name;
     }
@@ -54,24 +42,46 @@ public class Sequence {
         this.currentValue = currentValue;
     }
 
-    @SuppressWarnings("unused")
-    public String getLockedBy() {
-        return lockedBy;
-    }
-
-    public void setLockedBy(String lockedBy) {
-        this.lockedBy = lockedBy;
-    }
 
     @Override
     public String toString() {
         return "Sequence{" +
                 "name='" + name + '\'' +
                 ", currentValue=" + currentValue +
-                ", lockedBy='" + lockedBy + '\'' +
                 '}';
     }
 
 
-    public enum Fields {lockedAt, lockedBy, name, currentValue}
+    public enum Fields {name, currentValue}
+
+    @Entity(typeId = "seq_lock")
+    public static class SeqLock{
+        @Id
+        private String name;
+        @Index
+        private String lockedBy;
+
+        @Index(options = {"expireAfterSeconds:30"})
+        private Date lockedAt;
+        public String getName() {
+            return name;
+        }
+        public void setName(String name) {
+            this.name = name;
+        }
+        public String getLockedBy() {
+            return lockedBy;
+        }
+        public void setLockedBy(String lockedBy) {
+            this.lockedBy = lockedBy;
+        }
+        public Date getLockedAt() {
+            return lockedAt;
+        }
+        public void setLockedAt(Date lockedAt) {
+            this.lockedAt = lockedAt;
+        }
+
+
+    }
 }

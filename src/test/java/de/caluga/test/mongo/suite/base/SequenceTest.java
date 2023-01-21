@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,7 +42,7 @@ public class SequenceTest extends MorphiumTestBase {
         assertEquals (1,v);
         v = sg2.getNextValue();
         v = sg2.getNextValue();
-        assertEquals (2,v); 
+        assertEquals (2,v);
 
         v = sg1.getNextValue();
         assertEquals(2,v);
@@ -57,10 +58,14 @@ public class SequenceTest extends MorphiumTestBase {
         sg.getNextValue(); //initializing
 
         Sequence s = morphium.createQueryFor(Sequence.class).f(Sequence.Fields.name).eq("test").get();
-        s.setLockedBy("noone");
         morphium.store(s);
+        Sequence.SeqLock l=new Sequence.SeqLock();
+        l.setLockedBy("noone");
+        l.setLockedAt(new Date());
+        l.setName(s.getName());
+        morphium.store(l);
         TestUtils.waitForWrites(morphium,log);
-        //now sequence is blocked by someone else... waiting 30s
+        //now sequence is blocked by someone else... waiting 30-60s
         long v = sg.getNextValue();
         log.info("Got next Value: " + v);
         assertEquals (v,2);
@@ -219,5 +224,24 @@ public class SequenceTest extends MorphiumTestBase {
             assertEquals(i,values.get(i),"Values not ordered properly!");
         }
 
+    }
+
+    @Test
+    public void sequenceSpeedTest() throws Exception {
+        morphium.dropCollection(Sequence.class);
+        Thread.sleep(100); //wait for the drop to be persisted
+
+        SequenceGenerator sg=new SequenceGenerator(morphium,"test1");
+        log.info("Starting...");
+        long start=System.currentTimeMillis();
+        int amount=200;
+        for (int i =0;i<amount;i++){
+            if (i%25==0){
+                log.info(i+"..."+(System.currentTimeMillis()-start));
+            }
+            sg.getNextValue();
+        }
+        long dur=System.currentTimeMillis()-start;
+        log.info(String.format("Took %s ms for %s calls",dur,amount));
     }
 }

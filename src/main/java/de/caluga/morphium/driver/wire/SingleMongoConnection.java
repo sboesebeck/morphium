@@ -227,7 +227,7 @@ public class SingleMongoConnection implements MongoConnection {
                         synchronized (incomingTimes) {
                             if (incomingTimes.get(k) == null) continue;
                             if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
-                                log.warn("Discarding unused answer " + k);
+                                // log.warn("Discarding unused answer " + k);
                                 incoming.remove(k);
                                 incomingTimes.remove(k);
                             }
