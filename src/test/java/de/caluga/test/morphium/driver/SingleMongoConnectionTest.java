@@ -465,4 +465,35 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
 
     }
 
+
+
+    @Test
+    public void speedTests() throws Exception {
+        var con=getConnection();
+        //try accessing something
+        long start=System.currentTimeMillis();
+        InsertMongoCommand insert = new InsertMongoCommand(con);
+        insert.setDb("test");
+        insert.setDocuments(Arrays.asList(Doc.of("value", "test", "count", 1213)));
+        insert.setColl("testcoll");
+        insert.setOrdered(true);
+        var reply = insert.execute();
+        long dur=System.currentTimeMillis();
+        log.info("Insert took: "+dur);
+
+        start=System.currentTimeMillis();
+        HelloCommand h=new HelloCommand(con);
+        h.setColl("admin");
+        h.setDb("test");
+        h.setHelloOk(true);
+        h.setIncludeClient(false);
+        h.execute();
+        dur=System.currentTimeMillis()-start;
+
+        log.info("Hello took: "+dur);
+
+
+
+    }
+
 }
