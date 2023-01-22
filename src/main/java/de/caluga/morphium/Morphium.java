@@ -3467,7 +3467,7 @@ public class Morphium implements AutoCloseable {
         try {
             con = getDriver().getPrimaryConnection(getWriteConcernForClass(o.getClass()));
             InsertMongoCommand insert = new InsertMongoCommand(con);
-            insert.setDb(morphium.getDatabase()).setColl(getMapper().getCollectionName(o.getClass()));
+            insert.setDb(getDatabase()).setColl(getMapper().getCollectionName(o.getClass()));
             insert.setDocuments(Arrays.asList(getMapper().serialize(o)));
             insert.executeAsync();
         } catch (Exception e) {
