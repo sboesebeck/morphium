@@ -268,7 +268,7 @@ public class InMemAnsweringTests extends MorphiumInMemTestBase {
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "46").setRecipient("m1"), 1400);
             Thread.sleep(1000);
-            assert (receivedById.size() == 1);
+            assert (receivedById.size() == 0); // only received by the listener returning a message!
 
             receivedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
