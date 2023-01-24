@@ -3007,7 +3007,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (index.size() == 2 && index.containsKey("_id") && index.containsKey("$options")) {
                 // ignoring attempt to re-create_id index
             } else {
-                log.error("Index with those keys already exists: " + Utils.toJsonString(index));
+                log.warn("Index with those keys already exists: " + Utils.toJsonString(index));
                 // throw new MorphiumDriverException("Index with those keys already exists");
             }
 
