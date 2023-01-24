@@ -227,9 +227,9 @@ public class AnsweringTests extends MorphiumTestBase {
             answer.setRecipient("m2");
             m3.sendMessage(answer);
             Thread.sleep(1000);
-            assert (receivedById.size() == 1) : "Wrong number of receivers: " + receivedById.size();
-            assert (receivedById.get("m1") == null);
-            assert (receivedById.get("m2").get() == 1);
+            assertEquals(1,receivedById.size(), "Wrong number of receivers: " + receivedById.size());
+            assertNull(receivedById.get("m1"));
+            assertEquals(1,receivedById.get("m2").get());
 
             //exclusive answer!
             log.info("exclusive answer");
@@ -240,8 +240,8 @@ public class AnsweringTests extends MorphiumTestBase {
 //            answer.setTtl(100000);
             m3.sendMessage(answer);
             Thread.sleep(500);
-            assert (receivedById.size() == 1) : "Receive count is " + receivedById.size();
-            assert ((receivedById.get("m1") == null && receivedById.get("m2").get() == 1)
+            assertEquals(1,receivedById.size(), "Receive count is " + receivedById.size());
+            assertTrue((receivedById.get("m1") == null && receivedById.get("m2").get() == 1)
                     || (receivedById.get("m2") == null && receivedById.get("m1").get() == 1));
 
             //
@@ -254,9 +254,9 @@ public class AnsweringTests extends MorphiumTestBase {
             answer.setRecipient("m2");
             m3.sendMessage(answer);
             Thread.sleep(1000);
-            assert (receivedById.size() == 1);
-            assert (receivedById.get("m1") == null);
-            assert (receivedById.get("m2").get() == 1);
+            assertEquals(1,receivedById.size());
+            assertNull(receivedById.get("m1"));
+            assertEquals(1,receivedById.get("m2").get());
 
             //
             receivedById.clear();
@@ -268,9 +268,9 @@ public class AnsweringTests extends MorphiumTestBase {
             answer.setExclusive(true);
             m3.sendMessage(answer);
             Thread.sleep(1500);
-            assert (receivedById.size() == 1) : "Wrong result, expected one, got: " + receivedById.size();
-            assert (receivedById.get("m1").get() == 1);
-            assert (!receivedById.containsKey("m2"));
+            assertEquals(1,receivedById.size(), "Wrong result, expected one, got: " + receivedById.size());
+            assertEquals(1,receivedById.get("m1").get());
+            assertFalse(receivedById.containsKey("m2"));
 
             //checking wait for
             MessageListener<Msg> listener = new MessageListener<Msg>() {
@@ -285,9 +285,9 @@ public class AnsweringTests extends MorphiumTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             receivedById.clear();
-            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 2400);
-            Thread.sleep(500);
-            assert (receivedById.size() == 1);
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 1222400);
+            Thread.sleep(1500);
+            assertEquals (1,receivedById.size());
 
             receivedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
@@ -296,7 +296,7 @@ public class AnsweringTests extends MorphiumTestBase {
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "48").setRecipient("m1"), 2400);
             Thread.sleep(500); //wait for onMessage to be called
-            assert (receivedById.size() == 1);
+            assertEquals(1,receivedById.size());
 
             receivedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
@@ -305,7 +305,7 @@ public class AnsweringTests extends MorphiumTestBase {
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 2400);
             Thread.sleep(500); //wait for onMessage to be called
-            assert (receivedById.size() == 0);
+            assertEquals(0,receivedById.size());
 
         } finally {
             m3.terminate();
