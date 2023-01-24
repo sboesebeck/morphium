@@ -52,6 +52,9 @@ public class AnsweringTests extends MorphiumTestBase {
         m1 = new Messaging(morphium, 100, true);
         m2 = new Messaging(morphium, 100, true);
         onlyAnswers = new Messaging(morphium, 100, true);
+        m1.setSenderId("m1");
+        m2.setSenderId("m2");
+        onlyAnswers.setSenderId("onlyAnswers");
         try {
 
             m1.start();
@@ -106,7 +109,7 @@ public class AnsweringTests extends MorphiumTestBase {
                 assertNotNull(m.getInAnswerTo(), "was not an answer? " + m);
                 assert (m.getMapValue().size() == 1);
                 assert (m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
-                log.info("M3 got answer " + m);
+                log.info(msg.getSenderId()+" got answer " + m);
                 assertNotNull(lastMsgId, "Last message == null?");
                 assert (m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
                 //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
@@ -121,27 +124,30 @@ public class AnsweringTests extends MorphiumTestBase {
             Thread.sleep(3000);
             long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             log.info("Answers in mongo: " + cnt);
-            assert (cnt == 2);
-            assert (gotMessage3) : "no answer got back?";
-            assert (gotMessage1) : "Question not received by m1";
-            assert (gotMessage2) : "Question not received by m2";
-            assert (!error);
+            assertEquals(2,cnt);
+            assertTrue(gotMessage3) ;//: "no answer got back?";
+            assertTrue (gotMessage1,"Question not received by m1");
+            assertTrue(gotMessage2, "Question not received by m2");
+            assertFalse(error);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
             Thread.sleep(2000);
-            assert (!error);
+            assertFalse (error);
 
-            assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
+            assertTrue(!gotMessage3 && !gotMessage1 && !gotMessage2,"Message processing repeat?");
 
-            question = new Msg("QMsg", "This is the message text", "A question param", 30000, true);
+            question = new Msg("QMsg", "This is the message text #2", "A question param", 30000, true);
             question.setMsgId(new MorphiumId());
             lastMsgId = question.getMsgId();
             onlyAnswers.sendMessage(question);
             log.info("Send Message with id: " + question.getMsgId());
             Thread.sleep(1000);
+            if (gotMessage1) log.info("Received by m1");
+            if (gotMessage2) log.info("Received by m2");
+            if (gotMessage3) log.info("Received by onlyAnswers");
             cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-            assert (cnt == 1);
+            assertEquals (1,cnt);
 
         } finally {
             m1.terminate();
