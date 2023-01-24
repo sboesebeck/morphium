@@ -17,7 +17,7 @@ import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.Document;

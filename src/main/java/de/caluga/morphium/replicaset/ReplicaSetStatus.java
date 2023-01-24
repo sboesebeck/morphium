@@ -1,6 +1,6 @@
 package de.caluga.morphium.replicaset;
 
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;

@@ -28,7 +28,7 @@ import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;

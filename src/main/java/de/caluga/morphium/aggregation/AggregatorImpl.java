@@ -9,7 +9,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.driver.MorphiumDriverException;
