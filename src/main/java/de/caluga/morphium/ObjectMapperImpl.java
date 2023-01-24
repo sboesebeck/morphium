@@ -1,4 +1,4 @@
-package de.caluga.morphium.objectmapping;
+package de.caluga.morphium;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -58,14 +58,6 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.BinarySerializedObject;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumAccessVetoException;
-import de.caluga.morphium.MorphiumReference;
-import de.caluga.morphium.NameProvider;
-import de.caluga.morphium.Utils;
-import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Aliases;
@@ -78,6 +70,7 @@ import de.caluga.morphium.annotations.UseIfnull;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.LineString;
 import de.caluga.morphium.query.geospatial.MultiLineString;
