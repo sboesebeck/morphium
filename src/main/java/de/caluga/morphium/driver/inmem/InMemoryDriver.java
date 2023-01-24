@@ -114,7 +114,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ClassInfoList;

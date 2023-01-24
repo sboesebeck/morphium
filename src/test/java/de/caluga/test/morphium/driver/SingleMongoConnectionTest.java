@@ -10,7 +10,7 @@ import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
