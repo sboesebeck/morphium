@@ -2,7 +2,7 @@ package de.caluga.morphium.driver.commands;
 
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.replicaset.ReplicaSetStatus;
 
 import java.util.Map;

@@ -3,7 +3,7 @@ package de.caluga.morphium.aggregation;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.driver.MorphiumId;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;

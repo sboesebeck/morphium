@@ -10,7 +10,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.SingleBatchCursor;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
