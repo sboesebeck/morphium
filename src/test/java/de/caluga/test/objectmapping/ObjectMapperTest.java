@@ -21,7 +21,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer;
 import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;

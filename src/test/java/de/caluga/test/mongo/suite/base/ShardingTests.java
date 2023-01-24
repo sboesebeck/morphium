@@ -34,7 +34,7 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
-import de.caluga.morphium.objectmapping.ObjectMapperImpl;
+import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
