@@ -203,10 +203,9 @@ public class MorphiumConfig {
             }
         }
 
-        if (resolver.resolveSetting(prefix + "driver_class") != null) {
-            LoggerFactory.getLogger(MorphiumConfig.class)
-            .warn("Deprecated setting - use driver name instead of class!");
+        if (resolver.resolveSetting(prefix + "driver_class") != null || resolver.resolveSetting(prefix+"driverClass")!=null) {
             var s = resolver.resolveSetting(prefix + "driver_class");
+            if (s==null) s=resolver.resolveSetting(prefix+"driverClass");
 
             if (s.equals(InMemoryDriver.class.getName())) {
                 setDriverName(InMemoryDriver.driverName);

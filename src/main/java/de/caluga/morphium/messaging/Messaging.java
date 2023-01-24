@@ -629,22 +629,25 @@ public class Messaging extends Thread implements ShutdownListener {
         preLockedIds.addAll(new ArrayList<>(processing));
         // q1: Exclusive messages, not locked yet, not processed yet
         var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients)
-         .in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
+         .eq(null).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
         // q2: non-exclusive messages, cannot be locked, not processed by me yet
-        var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id))
+        var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).eq(null)
          .f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
-        q.or(q1, q2);
+        var q3 = q.q().f(Msg.Fields.recipients).eq(id).f(Msg.Fields.processedBy).ne(id); //answers or direct messages!
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
         // not searching for paused messages
         if (!pauseMessages.isEmpty()) {
-            q.f(Msg.Fields.name).nin(pausedMessagesKeys);
+            q1.f(Msg.Fields.name).nin(pausedMessagesKeys);
+            q2.f(Msg.Fields.name).nin(pausedMessagesKeys);
         }
 
         // Only handle messages we have listener for
         if (listeners.isEmpty() && !listenerByName.isEmpty()) {
-            q.f(Msg.Fields.name).in(listenerByName.keySet());
+            q1.f(Msg.Fields.name).in(listenerByName.keySet());
+            q2.f(Msg.Fields.name).in(listenerByName.keySet());
         }
+        q.or(q1, q2, q3);
 
         q.setLimit(windowSize);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
@@ -737,6 +740,14 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
+    /**
+     * not supported anymore, if you need to manually trigger
+     * message processing use triggerCheck() instead
+     */
+    @Deprecated
+    public void findAndProcessPendingMessages(String msg){
+        triggerCheck();
+    }
     public void triggerCheck() {
         skipped.incrementAndGet();
     }
