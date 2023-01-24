@@ -1387,13 +1387,14 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             };
         }
+
         if (m.getMsgId() == null) m.setMsgId(new MorphiumId());
         m.setSender(id);
         m.setSenderHost(hostname);
         MongoConnection con = null;
-
+        m.preStore();
         try {
-            con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class));
+            con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class));
             InsertMongoCommand insert = new InsertMongoCommand(con);
             insert.setDb(morphium.getDatabase()).setColl(getCollectionName());
             insert.setDocuments(Arrays.asList(morphium.getMapper().serialize(m)));
