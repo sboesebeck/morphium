@@ -240,7 +240,7 @@ public class PooledDriver extends DriverBase {
                         } catch (MorphiumDriverException ex) {
                             if (!ex.getMessage().contains("closed")) {
                                 log.error("Error talking to " + e.getKey(), ex);
-                                copy.get(e.getKey()).remove(c);
+                                copy.get(e.getKey()).remove(c);  //Works because the copy has a reference to the list!!!
 
                                 try {
                                     c.getCon().close();
@@ -490,10 +490,10 @@ public class PooledDriver extends DriverBase {
     public void closeConnection(MongoConnection con) {
         releaseConnection(con);
 
-        synchronized(connectionPool){
-            for(String k: connectionPool.keySet()){
-                for (Connection c:new ArrayList<>(connectionPool.get(k))){ //avoid concurrendModification
-                    if (c.getCon()==con){
+        synchronized (connectionPool) {
+            for (String k : connectionPool.keySet()) {
+                for (Connection c : new ArrayList<>(connectionPool.get(k))) { // avoid concurrendModification
+                    if (c.getCon() == con) {
                         connectionPool.get(k).remove(c);
                         return;
                     }
@@ -524,7 +524,7 @@ public class PooledDriver extends DriverBase {
         var c = borrowedConnections.remove(con.getSourcePort());
 
         if (c == null) {
-            log.error("Returning not borrowed connection!?!?");
+            // log.error("Returning not borrowed connection!?!?");
             c = new Connection((SingleMongoConnection) con);
         }
 
