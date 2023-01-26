@@ -246,6 +246,7 @@ public interface MorphiumDriver extends Closeable {
     MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException;
 
     void releaseConnection(MongoConnection con);
+    void closeConnection(MongoConnection con);
 
     boolean exists(String db, String coll) throws MorphiumDriverException;
 

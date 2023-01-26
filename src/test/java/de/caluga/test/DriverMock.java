@@ -1,24 +1,22 @@
 package de.caluga.test;
 
+import java.net.MalformedURLException;
+import java.util.List;
+import java.util.Map;
+
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
-import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.WriteConcern;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.commands.MultiResultCommand;
-import de.caluga.morphium.driver.commands.SingleResultCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
-import de.caluga.morphium.driver.commands.result.CursorResult;
-import de.caluga.morphium.driver.commands.result.ListResult;
-import de.caluga.morphium.driver.commands.result.SingleElementResult;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import org.slf4j.LoggerFactory;
-
-import java.net.MalformedURLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Logger;
 
 public class DriverMock implements MorphiumDriver {
 
@@ -463,6 +461,17 @@ public class DriverMock implements MorphiumDriver {
     @Override
     public void setIdleSleepTime(int sl) {
         // TODO Auto-generated method stub
-        
+
+    }
+
+    @Override
+    public String toString() {
+        return "DriverMock{}";
+    }
+
+    @Override
+    public void closeConnection(MongoConnection con) {
+        // TODO Auto-generated method stub
+
     }
 }
