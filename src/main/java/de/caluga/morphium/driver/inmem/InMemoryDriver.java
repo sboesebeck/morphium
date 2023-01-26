@@ -1095,6 +1095,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void releaseConnection(MongoConnection con) {
     }
 
+
+    @Override
+    public void closeConnection(MongoConnection con) {
+
+    }
+
     @Override
     public String getName() {
         return driverName;
