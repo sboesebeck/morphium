@@ -240,7 +240,7 @@ public class PooledDriver extends DriverBase {
                         } catch (MorphiumDriverException ex) {
                             if (!ex.getMessage().contains("closed")) {
                                 log.error("Error talking to " + e.getKey(), ex);
-                                copy.get(e.getKey()).remove(c);  //Works because the copy has a reference to the list!!!
+                                copy.get(e.getKey()).remove(c); // Works because the copy has a reference to the list!!!
 
                                 try {
                                     c.getCon().close();
@@ -524,8 +524,12 @@ public class PooledDriver extends DriverBase {
         var c = borrowedConnections.remove(con.getSourcePort());
 
         if (c == null) {
-            // log.error("Returning not borrowed connection!?!?");
-            c = new Connection((SingleMongoConnection) con);
+            log.debug("Returning not borrowed connection!?!?");
+            if (con.isConnected()) {
+                c = new Connection((SingleMongoConnection) con);
+            } else {
+                return;
+            }
         }
 
         synchronized (connectionPool) {
