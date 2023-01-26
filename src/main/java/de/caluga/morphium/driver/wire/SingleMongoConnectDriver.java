@@ -350,6 +350,13 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
     }
 
+
+    @Override
+    public void closeConnection(MongoConnection con) {
+        releaseConnection(con);
+
+    }
+
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
         return getConnection();
@@ -892,7 +899,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public void setIdleSleepTime(int sl) {
-       idleSleepTime=sl; 
+       idleSleepTime=sl;
     }
 
 }

@@ -277,6 +277,8 @@ public class SingleMongoConnection implements MongoConnection {
         in = null;
         out = null;
         s = null;
+        driver.closeConnection(this);
+
     }
 
     @Override
