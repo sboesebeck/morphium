@@ -276,7 +276,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public long getPendingMessagesCount() {
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName());
         q1.f(Msg.Fields.sender).ne(id)
-        .f(Msg.Fields.processedBy).eq(null);
+        .f("processed_by").eq(null);
         return q1.countAll();
     }
 
@@ -412,12 +412,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (obj.getProcessedBy().contains(id)) {
                             return running;
                         }
-
-                        if (processing.contains(obj.getMsgId())) {
-                            // already processing it
-                            return running;
-                        }
-
                         processing.add(obj.getMsgId());
 
                         if (obj.getSender().equals(id)

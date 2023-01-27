@@ -1578,8 +1578,8 @@ public class Query<T> implements Cloneable {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
         }
 
-        long start = System.currentTimeMillis();
-        Map<String, Object> fl = getFieldListForQuery();
+        // long start = System.currentTimeMillis();
+        // Map<String, Object> fl = getFieldListForQuery();
         Map<String, Object> findMetaData = new HashMap<>();
         List<Map<String, Object>> srch = null;
         int lim = getLimit();
@@ -1612,7 +1612,7 @@ public class Query<T> implements Cloneable {
         ret = srch.get(0);
         srv = (String) findMetaData.get("server");
         List<T> lst = new ArrayList<>(1);
-        long dur = System.currentTimeMillis() - start;
+        // long dur = System.currentTimeMillis() - start;
         // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.GET);
 
         if (ret != null) {

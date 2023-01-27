@@ -20,7 +20,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 
 public class DriverMock implements MorphiumDriver {
 
-    private int maxWaitTime = 1000;
+    private int maxWaitTime = 99991000;
 
     @Override
     public String getName() {

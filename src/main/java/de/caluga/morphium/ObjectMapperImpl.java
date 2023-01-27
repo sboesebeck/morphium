@@ -70,10 +70,21 @@ import de.caluga.morphium.annotations.UseIfnull;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.objectmapping.AtomicBooleanMapper;
+import de.caluga.morphium.objectmapping.AtomicIntegerMapper;
+import de.caluga.morphium.objectmapping.AtomicLongMapper;
+import de.caluga.morphium.objectmapping.BigDecimalMapper;
 import de.caluga.morphium.objectmapping.BigIntegerTypeMapper;
 import de.caluga.morphium.objectmapping.BsonGeoMapper;
+import de.caluga.morphium.objectmapping.ByteMapper;
+import de.caluga.morphium.objectmapping.CharacterMapper;
+import de.caluga.morphium.objectmapping.InstantMapper;
+import de.caluga.morphium.objectmapping.LocalDateMapper;
+import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
+import de.caluga.morphium.objectmapping.LocalTimeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
+import de.caluga.morphium.objectmapping.ShortMapper;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.LineString;
 import de.caluga.morphium.query.geospatial.MultiLineString;
@@ -112,7 +123,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         mongoTypes = new ArrayList<>();
 
         mongoTypes.add(String.class);
-        mongoTypes.add(Character.class);
         mongoTypes.add(Integer.class);
         mongoTypes.add(Long.class);
         mongoTypes.add(Float.class);
@@ -120,17 +130,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         mongoTypes.add(Date.class);
         mongoTypes.add(Boolean.class);
         mongoTypes.add(Byte.class);
-        mongoTypes.add(Short.class);
-        mongoTypes.add(AtomicBoolean.class);
-        mongoTypes.add(AtomicInteger.class);
-        mongoTypes.add(AtomicLong.class);
+        // mongoTypes.add(Short.class);
+        // mongoTypes.add(AtomicInteger.class);
+        // mongoTypes.add(AtomicLong.class);
         mongoTypes.add(Pattern.class);
-        mongoTypes.add(BigDecimal.class);
+
         mongoTypes.add(UUID.class);
-        mongoTypes.add(Instant.class);
-        mongoTypes.add(LocalDate.class);
-        mongoTypes.add(LocalTime.class);
-        mongoTypes.add(LocalDateTime.class);
+        // mongoTypes.add(Instant.class);
+        // mongoTypes.add(LocalDate.class);
+        // mongoTypes.add(LocalTime.class);
+        // mongoTypes.add(LocalDateTime.class);
         containerFactory = new ContainerFactory() {
             @Override
             public Map createObjectContainer() {
@@ -142,7 +151,15 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return new ArrayList();
             }
         };
-
+        customMappers.put(Character.class,new CharacterMapper());
+        customMappers.put(AtomicBoolean.class,new AtomicBooleanMapper());
+        customMappers.put(AtomicInteger.class,new AtomicIntegerMapper());
+        customMappers.put(AtomicLong.class,new AtomicLongMapper());
+        customMappers.put(LocalDate.class,new LocalDateMapper());
+        customMappers.put(LocalTime.class,new LocalTimeMapper());
+        customMappers.put(LocalDateTime.class,new LocalDateTimeMapper());
+        customMappers.put(Instant.class,new InstantMapper());
+        customMappers.put(BigDecimal.class, new BigDecimalMapper());
         customMappers.put(BigInteger.class, new BigIntegerTypeMapper());
         customMappers.put(Geo.class, new BsonGeoMapper());
         customMappers.put(Point.class, new BsonGeoMapper());
