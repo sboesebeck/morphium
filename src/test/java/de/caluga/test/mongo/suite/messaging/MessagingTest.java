@@ -45,6 +45,41 @@ public class MessagingTest extends MorphiumTestBase {
 
     private final AtomicInteger queueCount = new AtomicInteger(1000);
 
+
+    @Test
+    public void execAfterRelease() throws Exception {
+        morphium.dropCollection(Msg.class);
+        morphium.dropCollection(Msg.class, "mmsg_msg2", null);
+        Messaging m = new Messaging(morphium);
+        m.setSenderId("sender");
+        // m.start();
+
+        AtomicInteger received=new AtomicInteger();
+        Messaging rec=new Messaging(morphium);
+        rec.setSenderId("rec");
+        rec.start();
+        rec.addMessageListener((mess,msg)->{
+            received.incrementAndGet();
+            return null;
+        });
+
+        Msg msg=new Msg("test", "msg1", "value1");
+        msg.setProcessedBy(Arrays.asList("Paused"));
+        msg.setExclusive(true);
+        m.sendMessage(msg);
+
+        Thread.sleep(1000);
+        assertEquals(0,received.get());
+
+        msg.setProcessedBy(new ArrayList<>());
+        morphium.store(msg,m.getCollectionName(),null);
+        Thread.sleep(1000);
+        assertEquals(1, received.get(), "Did not get message?");
+
+        m.terminate();
+        rec.terminate();
+
+    }
     @Test
     public void testMsgQueName() throws Exception {
         morphium.dropCollection(Msg.class);
