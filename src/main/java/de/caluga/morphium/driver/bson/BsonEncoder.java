@@ -218,7 +218,7 @@ public class BsonEncoder {
             cString(n);
             writeBytes(((MorphiumId) v).getBytes());
 
-        } else if (v.getClass().isAssignableFrom(Boolean.class)) {
+        } else if ((v instanceof Boolean) || (v.getClass().equals(boolean.class))) {
             boolean b = (Boolean) v;
             writeByte(8);
             cString(n);
@@ -227,15 +227,15 @@ public class BsonEncoder {
             } else {
                 writeByte(0);
             }
-        } else if (v.getClass().isAssignableFrom(Date.class)) {
+        } else if (Date.class.isAssignableFrom(v.getClass())) {
             writeByte(9);
             cString(n);
             writeLong(((Date) v).getTime());
-        } else if (v.getClass().isAssignableFrom(Calendar.class)) {
+        } else if (Calendar.class.isAssignableFrom(v.getClass())) {
             writeByte(9);
             cString(n);
             writeLong(((Calendar) v).getTimeInMillis());
-        } else if (v.getClass().isAssignableFrom(Pattern.class)) {
+        } else if (Pattern.class.isAssignableFrom(v.getClass())) {
             Pattern p = (Pattern) v;
             String flags = "";
             int f = p.flags();
@@ -275,6 +275,21 @@ public class BsonEncoder {
                 string(s.getJs());
 
             }
+        } else if (v.getClass().isAssignableFrom(Byte.class)) {
+            writeByte(0x10);
+            cString(n);
+            int val = ((Byte) v).intValue();
+            writeInt(val);
+        } else if (v.getClass().isAssignableFrom(Character.class)) {
+            writeByte(0x10);
+            cString(n);
+            int val = (int)((Character) v).charValue();
+            writeInt(val);
+        } else if (v.getClass().isAssignableFrom(Short.class)) {
+            writeByte(0x10);
+            cString(n);
+            int val = ((Short) v).intValue();
+            writeInt(val);
         } else if (v.getClass().isAssignableFrom(Integer.class)) {
             writeByte(0x10);
             cString(n);
