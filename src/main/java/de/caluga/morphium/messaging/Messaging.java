@@ -412,6 +412,12 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (obj.getProcessedBy().contains(id)) {
                             return running;
                         }
+
+                        if (processing.contains(obj.getMsgId())) {
+                            // already processing it
+                            return running;
+                        }
+
                         processing.add(obj.getMsgId());
 
                         if (obj.getSender().equals(id)
@@ -438,11 +444,6 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
 
-                        if (processing.contains(obj.getMsgId())) {
-                            skipped.incrementAndGet();
-                            processing.remove(obj.getMsgId());
-                            return running;
-                        }
 
                         if (obj.isExclusive()) {
                             // locking
