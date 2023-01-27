@@ -411,9 +411,9 @@ public class Msg {
             LoggerFactory.getLogger(Msg.class).warn("This message will never be deleted! this is not recommended!");
         }
 
-        if (getProcessedBy().size() == 0) {
-            processedBy = null;
-        }
+        // if (getProcessedBy().size() == 0) {
+        //     processedBy = null;
+        // }
 
         timestamp = System.currentTimeMillis();
     }
