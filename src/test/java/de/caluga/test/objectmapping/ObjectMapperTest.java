@@ -1,7 +1,9 @@
 package de.caluga.test.objectmapping;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -56,8 +59,7 @@ public class ObjectMapperTest {
         assert(c.idMap != null && c.idMap.get("1") != null && c.idMap.get("1") instanceof MorphiumId);
         // noinspection ConstantConditions
         assert(c.others.size() == 4 && c.others.get(0) instanceof MorphiumId);
-        assertNotNull(c.simpleId);
-        ;
+        assertNotNull(c.simpleId);;
     }
 
     @Test
@@ -117,9 +119,10 @@ public class ObjectMapperTest {
         start = System.currentTimeMillis();
 
         for (int i = 0; i < amount; i++) {
-            var m=jacksonOM.convertValue(uc, Map.class);
+            var m = jacksonOM.convertValue(uc, Map.class);
             assertNotNull(m);
         }
+
         dur = System.currentTimeMillis() - start;
         log.info("Jackson serialization took " + dur + " ms");
         Map<String, Object> m = om.serialize(uc);
@@ -148,6 +151,88 @@ public class ObjectMapperTest {
 
         dur = System.currentTimeMillis() - start;
         log.info("Jackson De-Serialization took " + dur + " ms");
+    }
+
+    @Test
+    public void binarySerializedObjectTest() throws Exception {
+        var om = new ObjectMapperImpl();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
+        om.setAnnotationHelper(an);
+        TestClass cl = new TestClass();
+        cl.justAString = "str";
+        var m = om.serialize(cl);
+        assertNotNull(m);
+        assertNotNull(m.get("_b64data"));
+        TestClass cl2 = om.deserialize(TestClass.class, m);
+        assertNotNull(cl2);
+        assertEquals(cl.justAString, cl2.justAString);
+    }
+
+    @Test
+    public void binarySerializedObjectInEntityTest() throws Exception {
+        var om = new ObjectMapperImpl();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
+        om.setAnnotationHelper(an);
+        TestClass cl = new TestClass();
+        cl.justAString = "str";
+        TestClassContainer tcc = new TestClassContainer();
+        tcc.id = new MorphiumId();
+        tcc.tst = cl;
+        var m = om.serialize(tcc);
+        assertNotNull(m);
+        assertNotNull(m.get("tst"));
+        assertTrue(m.get("tst") instanceof Map);
+        assertNotNull(((Map) m.get("tst")).get("_b64data"));
+        var tcc2 = om.deserialize(TestClassContainer.class, m);
+        assertNotNull(tcc2);
+        assertNotNull(tcc2.id);
+        assertNotNull(tcc2.tst);
+        assertEquals(cl.justAString, tcc2.tst.justAString);
+    }
+
+    @Test
+    public void binarySerializedObjecListtInEntityTest() throws Exception {
+        var om = new ObjectMapperImpl();
+        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
+        om.setAnnotationHelper(an);
+        List<TestClass> lst = new ArrayList<>();
+
+        for (int i = 0; i < 10; i++) {
+            TestClass cl = new TestClass();
+            cl.justAString = "str" + i;
+            lst.add(cl);
+        }
+
+        TestClassContainer tcc = new TestClassContainer();
+        tcc.id = new MorphiumId();
+        tcc.elements=lst;
+        var m = om.serialize(tcc);
+        assertNotNull(m);
+        assertNotNull(m.get("elements"));
+        assertTrue(m.get("elements") instanceof List );
+        assertEquals(10,((List)m.get("elements")).size());
+        var tcc2 = om.deserialize(TestClassContainer.class, m);
+        assertNotNull(tcc2);
+        assertNotNull(tcc2.id);
+        assertEquals(tcc.elements.size(),tcc2.elements.size());
+        for (int i=0;i<10;i++){
+            assertEquals("str"+i,tcc2.elements.get(i).justAString);
+        }
+    }
+
+    @Entity
+    public static class TestClassContainer {
+        @Id
+        public MorphiumId id;
+        public TestClass tst;
+
+        public List<TestClass> elements;
+        public Map<String, TestClass> map;
+
+    }
+
+    public static class TestClass implements Serializable {
+        public String justAString;
     }
 
 }
