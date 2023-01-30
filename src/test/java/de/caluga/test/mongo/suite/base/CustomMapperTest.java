@@ -15,6 +15,7 @@ import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,17 +67,16 @@ public class CustomMapperTest extends MorphiumTestBase {
         cls.localDateValue = LocalDate.now();
         cls.localTimeValue = LocalTime.now();
         cls.localDateTimeValue = LocalDateTime.now();
+        cls.timestamp = Timestamp.valueOf(cls.localDateTimeValue);
         var m = morphium.getMapper().serialize(cls);
         var o = morphium.getMapper().deserialize(MongoTypesTestClass.class, m);
         o.checkNotNull();
         morphium.store(cls);
         Thread.sleep(1000);
-
-        FindCommand fnd=new FindCommand(morphium.getDriver().getPrimaryConnection(null));
+        FindCommand fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(null));
         fnd.setDb(morphium.getDatabase()).setColl(morphium.getMapper().getCollectionName(MongoTypesTestClass.class));
-        m=fnd.execute().get(0);
+        m = fnd.execute().get(0);
         var cls2 = morphium.findById(MongoTypesTestClass.class, cls.id);
-
         assertEquals(cls.stringValue, cls2.stringValue);
         assertEquals(cls.charValue, cls2.charValue);
         assertEquals(cls.integerValue, cls2.integerValue);
@@ -96,7 +96,6 @@ public class CustomMapperTest extends MorphiumTestBase {
         assertEquals(cls.localDateValue, cls2.localDateValue);
         assertEquals(cls.localDateTimeValue, cls2.localDateTimeValue);
         assertEquals(cls.localTimeValue, cls2.localTimeValue);
-
     }
 
     @Entity()
@@ -120,6 +119,7 @@ public class CustomMapperTest extends MorphiumTestBase {
         public BigDecimal bigDecimalValue;
         public UUID uuidValue;
         public Instant instantValue;
+        public Timestamp timestamp;
         public LocalDate localDateValue;
         public LocalTime localTimeValue;
         public LocalDateTime localDateTimeValue;
@@ -144,6 +144,7 @@ public class CustomMapperTest extends MorphiumTestBase {
             assertNotNull(localDateValue);
             assertNotNull(localDateTimeValue);
             assertNotNull(localTimeValue);
+            assertNotNull(timestamp);
         }
     }
 
