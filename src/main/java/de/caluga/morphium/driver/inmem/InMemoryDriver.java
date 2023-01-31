@@ -135,7 +135,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>> >> database = new ConcurrentHashMap<>();
-    private int idleSleepTime = 20;
+    // private int idleSleepTime = 20;
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
