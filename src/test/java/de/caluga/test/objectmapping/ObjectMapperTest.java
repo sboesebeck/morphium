@@ -75,26 +75,26 @@ public class ObjectMapperTest {
 
     @Test
     public void mapSerializationTest() {
-        var OM = new ObjectMapperImpl();
+        var om = new ObjectMapperImpl();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
-        OM.setAnnotationHelper(an);
-        Map<String, Object> map = OM.serialize(new ObjectMapperImplTest.Simple());
+        om.setAnnotationHelper(an);
+        Map<String, Object> map = om.serialize(new ObjectMapperImplTest.Simple());
         log.info("Got map");
         assert(map.get("test").toString().startsWith("test"));
-        ObjectMapperImplTest.Simple s = OM.deserialize(ObjectMapperImplTest.Simple.class, map);
+        ObjectMapperImplTest.Simple s = om.deserialize(ObjectMapperImplTest.Simple.class, map);
         log.info("Got simple");
         Map<String, Object> m = new HashMap<>();
         m.put("test", "testvalue");
         m.put("simple", s);
-        map = OM.serializeMap(m, null);
+        map = om.serializeMap(m, null);
         assert(map.get("test").equals("testvalue"));
         List<ObjectMapperImplTest.Simple> lst = new ArrayList<>();
         lst.add(new ObjectMapperImplTest.Simple());
         lst.add(new ObjectMapperImplTest.Simple());
         lst.add(new ObjectMapperImplTest.Simple());
-        List<Object> serializedList = OM.serializeIterable(lst, null, null);
+        List<Object> serializedList = om.serializeIterable(lst, null, null);
         assert(serializedList.size() == 3);
-        List<ObjectMapperImplTest.Simple> deserializedList = OM.deserializeList(serializedList);
+        List<ObjectMapperImplTest.Simple> deserializedList = om.deserializeList(serializedList);
         log.info("Deserialized " + deserializedList.size());
     }
 
