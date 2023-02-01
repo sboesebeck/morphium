@@ -18,18 +18,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.Collator;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.ConcurrentModificationException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
@@ -2230,13 +2219,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         Set<Object> modified = new HashSet<>();
 
-        // $set:{"field":"value", "other_field": 123}        for (Map<String, Object> obj : lst) {
+        for (Map<String, Object> obj : lst) {
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
 
                 switch (operand) {
                 case "$set":
+                    // $set:{"field":"value", "other_field": 123}
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         if (entry.getValue() != null) {
                             var v = entry.getValue();
@@ -2258,6 +2248,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$unset":
+                    // $unset: { <field1>: "", ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         obj.remove(entry.getKey());
                     }
@@ -2265,6 +2256,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$inc":
+                    // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
 
@@ -2328,11 +2320,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$currentDate":
+                    // TODO: Fix it
+                    // $currentDate: { <field1>: <typeSpecification1>, ... }
                     // log.info("current date");
                     obj.put((String) cmd.keySet().toArray()[0], new Date());
                     break;
 
                 case "$mul":
+                    // $mul: { <field1>: <number1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
 
@@ -2360,6 +2355,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$rename":
+                    // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         if (obj.get(entry.getKey()) != null) {
                             obj.put((String) entry.getValue(), obj.get(entry.getKey()));
@@ -2374,6 +2370,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$min":
+                    // $min: { <field1>: <value1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Comparable value = (Comparable) obj.get(entry.getKey());
 
@@ -2387,6 +2384,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$max":
+                    // $max: { <field1>: <value1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Comparable value = (Comparable) obj.get(entry.getKey());
 
@@ -2400,14 +2398,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$pull":
-                case "$pullAll":
-                    log.error("Not implemented yet");
-                    throw new RuntimeExeption ("$pull / $pullAll need implementation");
+                    // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
+                    // Examples:
+                    // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
+                    // $pull: { votes: { $gte: 6 } }
+                    // $pull: { results: { score: 8 , item: "B" } }
+                    // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
 
+                    log.error("Not implemented yet");
+                    throw new RuntimeException ("$pull need implementation");
+
+                case "$pullAll":
+                    // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
+                    // Examples:
+                    // $pullAll: { scores: [ 0, 5 ] }
+
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        List v = new ArrayList((List) obj.get(entry.getKey()));
+                        List objectsToBeDeleted = (List) entry.getValue();
+
+                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> objectsToBeDeleted.contains(object));
+                        if(valueIsChanged) {
+                            modified.add(obj.get("_id"));
+                        }
+                        v.removeAll(objectsToBeDeleted);
+                        obj.put(entry.getKey(), v);
+                    }
+
+                    break;
 
                 case "$addToSet":
                 case "$push":
                 case "$pushAll":
+                    // $addToSet: { <field1>: <value1>, ... }
                     //$push:{"field":"value"}
                     //$pushAll:{"field":["value","value",...]}
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
