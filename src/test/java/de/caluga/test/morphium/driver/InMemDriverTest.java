@@ -10,17 +10,20 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
+import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class InMemDriverTest {
+public class InMemDriverTest extends MorphiumInMemTestBase {
     private Logger log = LoggerFactory.getLogger(InMemDriverTest.class);
     private String db = "testing";
     private String coll = "testcoll";
@@ -206,6 +209,33 @@ public class InMemDriverTest {
         drv.close();
     }
 
+    @Test
+    public void testUpdate_pullAll() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
+        String morphiumId = "12345";
+        //   db.testcoll.insertOne({_id: "12345", scores: [0,2,5,5,1,0]})
+        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0,2,5,5,1,0))));
+        var insertResult = insert.execute();
+
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
+        //   db.testcoll.updateAll({_id: "12345"}, {$pullAll: {"scores": [0,5]}} )
+        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5))), null, false, false, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        //   db.testcoll.find({_id: "12345"})
+        List<Map<String, Object>> ret = drv.find(db, coll, Doc.of("_id", morphiumId), null, null, 0, 0);
+        log.info("Got result: " + ret.size());
+        List scores = (List) ret.get(0).get("scores");
+        assertTrue(ret.size() == 1);
+        assertTrue(scores.get(0) == Integer.valueOf(2));
+        assertTrue(scores.get(1) == Integer.valueOf(1));
+
+        drv.close();
+    }
 
     @Test
     public void testCapped() throws Exception {
