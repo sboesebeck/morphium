@@ -13,10 +13,11 @@ import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
+import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -94,6 +95,30 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void testManualJsonDump() throws Exception {
+        createUncachedObjects(100);
+        Map<Class, List<Map<String,Object>>> dump = new HashMap<>();
+
+        for (String cn : morphium.listCollections()) {
+            Class type = morphium.getMapper().getClassForCollectionName(cn);
+            var entities = morphium.createQueryFor(type).asMapList();
+            dump.put(type, entities);
+        }
+
+        morphium.dropCollection(UncachedObject.class);
+
+        //data is gone
+        //restore
+        for (var e : dump.entrySet()) {
+            for (var entity:e.getValue()){
+                morphium.insert(morphium.getMapper().deserialize(e.getKey(), entity));
+            }
+        }
+
+        assertEquals(100, morphium.createQueryFor(UncachedObject.class).countAll());
+    }
+
+    @Test
     public void testManualDump() throws Exception {
         createUncachedObjects(100);
         Map<Class, List<Object>> dump = new HashMap<>();
@@ -112,7 +137,7 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
             morphium.insert(e.getValue());
         }
 
-        assertEquals(100,morphium.createQueryFor(UncachedObject.class).countAll());
+        assertEquals(100, morphium.createQueryFor(UncachedObject.class).countAll());
     }
 
     @Entity
