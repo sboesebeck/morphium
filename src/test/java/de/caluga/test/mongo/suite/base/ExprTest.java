@@ -32,6 +32,16 @@ public class ExprTest {
         context.put("test", null);
         assertTrue((boolean) ne.evaluate(context));
     }
+
+    @Test
+    public void neBooleanTest() {
+        Expr ne = Expr.ne(Expr.field("test"), Expr.bool(false));
+        Doc context = Doc.of("test", Boolean.FALSE);
+        assertFalse((boolean) ne.evaluate(context));
+        context.put("test", Expr.bool(true));
+        assertTrue((boolean) ne.evaluate(context));
+    }
+
     @Test
     public void eqNPETest() {
         Expr eq = Expr.eq(Expr.field("test"), Expr.string("tst"));
