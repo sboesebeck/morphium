@@ -215,24 +215,94 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         drv.connect();
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
-        String morphiumId = "12345";
+        String id = "12345";
         //   db.testcoll.insertOne({_id: "12345", scores: [0,2,5,5,1,0]})
-        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0,2,5,5,1,0))));
+        insert.setDocuments(Arrays.asList(Doc.of("_id", id, "scores", Arrays.asList(0,2,5,5,1,0))));
         var insertResult = insert.execute();
 
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
-        //   db.testcoll.updateAll({_id: "12345"}, {$pullAll: {"scores": [0,5]}} )
-        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5))), null, false, false, null, null, null);
+        //   db.testcoll.updateMany({_id: "12345"}, {$pullAll: {"scores": [0,5]}} )
+        update.addUpdate(Doc.of("_id", id), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5))), null, false, false, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
         //   db.testcoll.find({_id: "12345"})
-        List<Map<String, Object>> ret = drv.find(db, coll, Doc.of("_id", morphiumId), null, null, 0, 0);
+        List<Map<String, Object>> ret = drv.find(db, coll, Doc.of("_id", id), null, null, 0, 0);
         log.info("Got result: " + ret.size());
         List scores = (List) ret.get(0).get("scores");
         assertTrue(ret.size() == 1);
         assertTrue(scores.get(0) == Integer.valueOf(2));
         assertTrue(scores.get(1) == Integer.valueOf(1));
+
+        drv.close();
+    }
+
+
+    @Test
+    public void testUpdate_pull_remove_all_items_that_equal_to_a_specified_value() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
+        String id1 = "1", id2 = "2";
+        // db.testcoll.insertMany( [{_id: 1, fruits: [ "apples", "pears", "oranges", "grapes", "bananas" ],
+        //        vegetables: [ "carrots", "celery", "squash", "carrots" ]},
+        //    {_id: 2, fruits: [ "plums", "kiwis", "oranges", "bananas", "apples" ],
+        //       vegetables: [ "broccoli", "zucchini", "carrots", "onions" ]}] )
+        insert.setDocuments(Arrays.asList(Doc.of("_id", id1, "fruits", Arrays.asList("apples", "pears", "oranges", "grapes", "bananas"),
+                        "vegetables", Arrays.asList("carrots", "celery", "squash", "carrots")),
+                Doc.of("_id", id2, "fruits", Arrays.asList("plums", "kiwis", "oranges", "bananas", "apples"),
+                        "vegetables", Arrays.asList("broccoli", "zucchini", "carrots", "onions"))));
+        var insertResult = insert.execute();
+
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
+        //   db.testcoll.updateMany( { }, { $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" } })
+        update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("fruits", Doc.of("$in", Arrays.asList("apples", "oranges")),
+                "vegetables", "carrots")), null, false, true, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        //   db.testcoll.find({_id: "1"})
+        //       { _id: 1, fruits: [ "pears", "grapes", "bananas" ], vegetables: [ "celery", "squash" ] },
+        List<Map<String, Object>> ret1 = drv.find(db, coll, Doc.of("_id", id1), null, null, 0, 0);
+        List fruits1 = (List) ret1.get(0).get("fruits");
+        List vegetables1 = (List) ret1.get(0).get("vegetables");
+        assertTrue(fruits1.equals(List.of("pears", "grapes", "bananas")));
+        assertTrue(vegetables1.equals(List.of("celery", "squash")));
+
+        //   db.testcoll.find({_id: "2"})
+        //      { _id: 2, fruits: [ "plums", "kiwis", "bananas" ], vegetables: [ "broccoli", "zucchini", "onions" ] }
+        List<Map<String, Object>> ret2 = drv.find(db, coll, Doc.of("_id", id2), null, null, 0, 0);
+        List fruits2 = (List) ret2.get(0).get("fruits");
+        List vegetables2 = (List) ret2.get(0).get("vegetables");
+        assertTrue(fruits2.equals(List.of("plums", "kiwis", "bananas")));
+        assertTrue(vegetables2.equals(List.of("broccoli", "zucchini", "onions")));
+
+        drv.close();
+    }
+
+    @Test
+    public void testUpdate_pull_remove_all_items_that_match_a_specified_condition() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
+        String id1 = "1";
+        // db.testcoll.insertOne( { _id: 1, votes: [ 3, 5, 6, 7, 7, 8 ] } )
+        insert.setDocuments(Arrays.asList(Doc.of("_id", id1, "votes", Arrays.asList(3, 5, 6, 7, 7, 8))));
+        var insertResult = insert.execute();
+
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
+        //   db.testcoll.updateOne( { _id: 1 }, { $pull: { votes: { $gte: 6 } } } )
+        update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("votes", Doc.of("$gte", 6))), null, false, false, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        //   db.testcoll.find({_id: "1"})
+        //       { _id: 1, votes: [  3,  5 ] },
+        List<Map<String, Object>> ret1 = drv.find(db, coll, Doc.of("_id", id1), null, null, 0, 0);
+        List votes = (List) ret1.get(0).get("votes");
+        assertTrue(votes.equals(List.of(3,  5)));
 
         drv.close();
     }

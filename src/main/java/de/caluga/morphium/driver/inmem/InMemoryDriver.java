@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -2405,10 +2406,40 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // $pull: { results: { score: 8 , item: "B" } }
                     // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
 
-                    log.error("Not implemented yet");
-                    throw new RuntimeException ("$pull need implementation");
+                    // Case 1:   $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        Set<String> objectsToBeDeleted = new HashSet<>();
+                        List<String> v = new ArrayList<>((List) obj.get(entry.getKey()));
+                        Object entryValue = entry.getValue();
+                        if(entryValue instanceof Map) {
+                            Map<String, Object> entryValueAsMap = (Map<String, Object>) entryValue;
+                            for (Map.Entry<String, Object> submapEntry : entryValueAsMap.entrySet()) {
+                                if(submapEntry.getKey().startsWith("$")) {
+                                    Expr entryValueParsed = Expr.parse(entryValue);
+                                    String jsonString = Utils.toJsonString(entryValueParsed.toQueryObject());
+                                    System.out.println("jsonString=" + jsonString);
+                                    var exprValue = entryValueParsed.evaluate(obj);
+                                    List<Expr.ValueExpr> exprValueAsList = (List<Expr.ValueExpr>) exprValue;
+                                    objectsToBeDeleted.addAll(exprValueAsList.stream().map(o -> o.toQueryObject().toString()).collect(Collectors.toList()));
+                                    break;
+                                }
+                            }
+                        } else if(entryValue instanceof String) {
+                            String entryValueAsString = (String) entryValue;
+                            objectsToBeDeleted.add(entryValueAsString);
+                        }
 
-                case "$pullAll":
+                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> v.contains( object));
+                        if(valueIsChanged) {
+                            modified.add(obj.get("_id"));
+                        }
+                        v.removeAll(objectsToBeDeleted);
+                        obj.put(entry.getKey(), v);
+                    }
+
+                    break;
+
+                    case "$pullAll":
                     // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
                     // Examples:
                     // $pullAll: { scores: [ 0, 5 ] }
@@ -2417,7 +2448,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         List v = new ArrayList((List) obj.get(entry.getKey()));
                         List objectsToBeDeleted = (List) entry.getValue();
 
-                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> objectsToBeDeleted.contains(object));
+                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> v.contains(object));
                         if(valueIsChanged) {
                             modified.add(obj.get("_id"));
                         }
