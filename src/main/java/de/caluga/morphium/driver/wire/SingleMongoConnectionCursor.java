@@ -163,14 +163,14 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
                 .setColl(getCollection())
                 .setBatchSize(getBatchSize());
 
-        try {
+        // try {
             reply = more.execute();
             setCursorId(reply.getCursorId()); //setting 0 if end of iteration
             return reply.getBatch();
-        } catch (MorphiumDriverException e) {
-            log.error("Error ", e);
-        }
-        return null;
+        // } catch (MorphiumDriverException e) {
+        //     log.error("Error ", e);
+        // }
+        // return null;
     }
 
 

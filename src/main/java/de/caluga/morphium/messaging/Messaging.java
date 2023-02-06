@@ -281,6 +281,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void removeMessage(Msg m) {
+        unlockIfExclusive(m);
         morphium.delete(m, getCollectionName());
     }
 
@@ -796,7 +797,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public boolean releaseLock(Msg m) {
-        var ret = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck")
+        var ret = morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName())
          .f("_id").eq(m.getMsgId()).delete();
         return (ret.containsKey("n") && ret.get("n").equals(Integer.valueOf(1)));
     }
@@ -994,9 +995,14 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (msg.isDeleteAfterProcessing()) {
                         if (msg.getDeleteAfterProcessingTime() == 0) {
                             morphium.delete(msg, getCollectionName());
+                            unlockIfExclusive(msg);
                         } else {
                             msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
                             morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
+                            if (msg.isExclusive()){
+                                morphium.createQueryFor(MsgLock.class,getLockCollectionName()).f("_id").eq(msg.getMsgId()).set(MsgLock.Fields.deleteAt,msg.getDeleteAt());
+                            }
+
                         }
                     }
                 }
@@ -1061,7 +1067,7 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg.isExclusive()) {
             // remove _own_ lock
             morphium.createQueryFor(MsgLock.class)
-            .setCollectionName(getCollectionName() + "_lck")
+            .setCollectionName(getLockCollectionName())
             .f("_id").eq(msg.getMsgId())
             .f("lock_id").eq(id)
             .remove();
