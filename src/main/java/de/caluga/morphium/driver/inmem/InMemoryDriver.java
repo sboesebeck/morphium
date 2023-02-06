@@ -124,7 +124,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public final static String driverName = "InMemDriver";
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object>> >> database = new ConcurrentHashMap<>();
-    // private int idleSleepTime = 20;
+    private int idleSleepTime = 20;
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
@@ -2414,6 +2414,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // $pullAll: { scores: [ 0, 5 ] }
 
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        if (obj.get(entry.getKey())==null){
+                            break;
+                        }
                         List v = new ArrayList((List) obj.get(entry.getKey()));
                         List objectsToBeDeleted = (List) entry.getValue();
 
