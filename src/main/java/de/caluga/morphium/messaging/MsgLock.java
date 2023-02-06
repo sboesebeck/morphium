@@ -15,9 +15,9 @@ public class MsgLock {
     @Id
     private MorphiumId id;
 
-    @Index("expireAfterSeconds:0")
+    @Index(options = { "expireAfterSeconds:0" })
     private Date deleteAt;
- 
+
     @Index
     private String lockId;
 
