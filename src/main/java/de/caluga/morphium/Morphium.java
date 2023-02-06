@@ -1,4 +1,4 @@
-/*
+/*Morphium.ja
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
@@ -3042,7 +3042,7 @@ public class Morphium implements AutoCloseable {
                 try {
                     wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
                 } catch (Exception e) {
-                    if (e.getMessage().contains("Index already exists with a different name:")) {
+                    if (e.getMessage().contains("already exists")) {
                         log.debug("Index already exists");
                     } else {
                         throw(e);
