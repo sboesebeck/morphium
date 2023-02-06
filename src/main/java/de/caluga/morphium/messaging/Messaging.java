@@ -995,9 +995,14 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (msg.isDeleteAfterProcessing()) {
                         if (msg.getDeleteAfterProcessingTime() == 0) {
                             morphium.delete(msg, getCollectionName());
+                            unlockIfExclusive(msg);
                         } else {
                             msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
                             morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
+                            if (msg.isExclusive()){
+                                morphium.createQueryFor(MsgLock.class,getLockCollectionName()).f("_id").eq(msg.getMsgId()).set(MsgLock.Fields.deleteAt,msg.getDeleteAt());
+                            }
+
                         }
                     }
                 }
