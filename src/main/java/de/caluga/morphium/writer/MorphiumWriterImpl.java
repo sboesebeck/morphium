@@ -1340,7 +1340,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     }
 
     @Override
-    public <T> void remove(final T o, final String collection, AsyncOperationCallback<T> callback) {
+    public <T> void remove(final T o, String collection, AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             @Override
@@ -1358,15 +1358,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 MongoConnection con = null;
 
                 try {
-                    if (collection == null) {
-                        morphium.getMapper().getCollectionName(o.getClass());
-                    }
-
                     con = morphium.getDriver().getPrimaryConnection(wc);
                     DeleteMongoCommand settings = new DeleteMongoCommand(con)
                      .setDb(getDbName())
-                     .setColl(collection)
                      .setDeletes(Arrays.asList(Doc.of("q", db, "limit", 1)));
+
+                    if (collection == null) {
+                        settings.setColl(morphium.getMapper().getCollectionName(o.getClass()));
+                    } else {
+                        settings.setColl(collection);
+                    }
 
                     if (wc != null) {
                         settings.setWriteConcern(wc.asMap());

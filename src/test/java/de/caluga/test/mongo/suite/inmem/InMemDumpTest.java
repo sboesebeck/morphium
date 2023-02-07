@@ -89,8 +89,8 @@ public class InMemDumpTest extends MorphiumInMemTestBase {
         assertEquals(100, morphium.createQueryFor(ComplexObject.class).countAll());
 
         for (ComplexObject co : morphium.createQueryFor(ComplexObject.class).asList()) {
-            assertNotNull(co.getEinText());;
-            assertNotNull(co.getRef());;
+            assertNotNull(co.getEinText());
+            assertNotNull(co.getRef());
         }
     }
 
