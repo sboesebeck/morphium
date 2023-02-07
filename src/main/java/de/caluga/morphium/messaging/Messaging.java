@@ -832,7 +832,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+        if (msg.getProcessedBy().contains(id)) {
             unlockIfExclusive(msg);
             removeProcessingFor(msg);
             return;
