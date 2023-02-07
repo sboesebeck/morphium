@@ -26,13 +26,11 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
-
 public class ExclusiveMessageTests extends MorphiumTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;
     private boolean gotMessage3 = false;
     private boolean gotMessage4 = false;
-
 
     @Test
     public void ignoringExclusiveMessagesTest() throws Exception {
@@ -84,7 +82,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     @Test
     public void deleteAfterProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
+        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", ()->!morphium.exists(Msg.class));
         Messaging sender = new Messaging(morphium, 100, false);
         sender.setQueueName("t1");
         sender.start();
@@ -94,19 +92,19 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage4 = false;
         Messaging m1 = new Messaging(morphium, 100, false);
         m1.setQueueName("t1");
-        m1.addMessageListener((msg, m) -> {
+        m1.addMessageListener((msg, m)->{
             gotMessage1 = true;
             return null;
         });
         Messaging m2 = new Messaging(morphium, 100, false);
         m2.setQueueName("t1");
-        m2.addMessageListener((msg, m) -> {
+        m2.addMessageListener((msg, m)->{
             // gotMessage2 = true;
             return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);
         m3.setQueueName("t1");
-        m3.addMessageListener((msg, m) -> {
+        m3.addMessageListener((msg, m)->{
             gotMessage3 = true;
             return null;
         });
@@ -168,7 +166,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     @Test
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
+        TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", ()->!morphium.exists(Msg.class));
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
         gotMessage1 = false;
@@ -176,17 +174,17 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
         Messaging m1 = new Messaging(morphium, 100, false);
-        m1.addMessageListener((msg, m) -> {
+        m1.addMessageListener((msg, m)->{
             gotMessage1 = true;
             return null;
         });
         Messaging m2 = new Messaging(morphium, 100, false);
-        m2.addMessageListener((msg, m) -> {
+        m2.addMessageListener((msg, m)->{
             // gotMessage2 = true;
             return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);
-        m3.addMessageListener((msg, m) -> {
+        m3.addMessageListener((msg, m)->{
             gotMessage3 = true;
             return null;
         });
@@ -262,28 +260,28 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage4 = false;
             m1 = new Messaging(morphium, "test", 100, false);
             m1.setSenderId("m1");
-            m1.addMessageListener((msg, m) -> {
+            m1.addMessageListener((msg, m)->{
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
             m2 = new Messaging(morphium, "test", 100, false);
             m2.setSenderId("m2");
-            m2.addMessageListener((msg, m) -> {
+            m2.addMessageListener((msg, m)->{
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
             m3 = new Messaging(morphium, "test2", 100, false);
             m3.setSenderId("m3");
-            m3.addMessageListener((msg, m) -> {
+            m3.addMessageListener((msg, m)->{
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
             m4 = new Messaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
-            m4.addMessageListener((msg, m) -> {
+            m4.addMessageListener((msg, m)->{
                 gotMessage4 = true;
                 log.info("Got message m4");
                 return null;
@@ -391,14 +389,14 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
         try {
             Thread.sleep(100);
-            receiver.addMessageListener((msg, m) -> {
+            receiver.addMessageListener((msg, m)->{
                 //                log.info("R1: Incoming message");
                 messageCount.incrementAndGet();
                 assertThat(pausedReciever.get()).describedAs("Should not get message when paused").isNotEqualTo(1);
 
                 return null;
             });
-            receiver2.addMessageListener((msg, m) -> {
+            receiver2.addMessageListener((msg, m)->{
                 //                log.info("R2: Incoming message");
                 messageCount.incrementAndGet();
                 assertThat(pausedReciever.get()).describedAs("Should not get message when paused").isNotEqualTo(2);
@@ -487,7 +485,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(100);
 
         try {
-            MessageListener messageListener = (msg, m) -> {
+            MessageListener messageListener = (msg, m)->{
                 try {
                     Thread.sleep((long)(500 * Math.random()));
                 } catch (InterruptedException e) {
@@ -550,7 +548,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 int rec = received.get();
                 long messageCount = sender.getPendingMessagesCount();
                 log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
-                        (amount + broadcastAmount * 4 - rec - messageCount)));
+                 (amount + broadcastAmount * 4 - rec - messageCount)));
                 log.info(String.format("Number of ids: %d", ids.size()));
                 assert(dups.get() == 0) : "got duplicate message";
 
@@ -587,7 +585,6 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
-
     @Test
     public void exclusiveMessageStartupTests() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
@@ -612,6 +609,84 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     }
 
     @Test
+    public void exclusiveMessageDelAfterProcessingTimeOffsetTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.setSenderId("Sender");
+        // sender.start();
+        Msg m = new Msg("test", "msg", "value");
+        m.setExclusive(true);
+        m.setTimingOut(false);
+        m.setDeleteAfterProcessing(true);
+        m.setDeleteAfterProcessingTime(10);
+        sender.sendMessage(m);
+        Thread.sleep(200);
+        AtomicInteger recCount = new AtomicInteger(0);
+        Messaging receiver = new Messaging(morphium, 100, true);
+        receiver.addListenerForMessageNamed("test2",(messaging, msg)->{
+            recCount.incrementAndGet();
+            return null;
+        });
+        receiver.addListenerForMessageNamed("test",(messaging, msg)->{
+            recCount.incrementAndGet();
+            return null;
+        });
+        receiver.start();
+
+        try {
+            Thread.sleep(1000);
+            assertEquals(1, recCount.get());
+            log.info("waiting for mongo to delete...");
+            long start=System.currentTimeMillis();
+            while (true){
+                var cnt=morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll();
+                log.info("... still "+cnt);
+                if (cnt==0) break;
+                Thread.sleep(2000);
+                assertTrue(System.currentTimeMillis()-start < 90000);
+            }
+            log.info("Deleted after: "+(System.currentTimeMillis()-start));
+            assertEquals(0,morphium.createQueryFor(MsgLock.class,sender.getLockCollectionName()).countAll());;
+
+        } finally {
+            sender.terminate();
+            receiver.terminate();
+        }
+    }
+
+    @Test
+    public void exclusiveMessageCheckOnStartTest() throws Exception {
+        Messaging sender = new Messaging(morphium, 100, false);
+        sender.setSenderId("Sender");
+        // sender.start();
+        Msg m = new Msg("test", "msg", "value");
+        m.setExclusive(true);
+        m.setTimingOut(false);
+        m.setDeleteAfterProcessing(true);
+        m.setDeleteAfterProcessingTime(0);
+        sender.sendMessage(m);
+        Thread.sleep(200);
+        AtomicInteger recCount = new AtomicInteger(0);
+        Messaging receiver = new Messaging(morphium, 100, true);
+        receiver.addListenerForMessageNamed("test2",(messaging, msg)->{
+            recCount.incrementAndGet();
+            return null;
+        });
+        receiver.addListenerForMessageNamed("test",(messaging, msg)->{
+            recCount.incrementAndGet();
+            return null;
+        });
+        receiver.start();
+
+        try {
+            Thread.sleep(1000);
+            assertEquals(1, recCount.get());
+        } finally {
+            sender.terminate();
+            receiver.terminate();
+        }
+    }
+
+    @Test
     public void exclusiveTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Messaging sender;
@@ -627,7 +702,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             r.setSenderId("r" + i);
             recs.add(r);
             r.start();
-            r.addMessageListener((m, msg) -> {
+            r.addMessageListener((m, msg)->{
                 counts.incrementAndGet();
                 return null;
             });
@@ -675,7 +750,5 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             assert(!r.isRunning());
         }
     }
-
-
 
 }
