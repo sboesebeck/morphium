@@ -455,11 +455,6 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
 
-                        if (processing.contains(obj.getMsgId())) {
-                            skipped.incrementAndGet();
-                            processing.remove(obj.getMsgId());
-                            return running;
-                        }
 
                         if (obj.isExclusive()) {
                             // locking
