@@ -1,19 +1,5 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.junit.jupiter.api.Test;
-
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.DefaultReadPreference;
 import de.caluga.morphium.annotations.Entity;
@@ -22,12 +8,16 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.MessageRejectedException;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.MsgLock;
+import de.caluga.morphium.messaging.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Test;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SingleCollectionJobQueue extends MorphiumTestBase {
     @Test
@@ -476,6 +466,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                     }
 
                     log.info(String.format("Messages planned: %d - processed: %d - cronjobs: %d", amount, counts.get(), crons.get()));
+                    log.info("Lock-Count: " + morphium.createQueryFor(MsgLock.class, sender.getLockCollectionName()).countAll());
                     log.info("------------------------------");
                     // assertEquals(0, errors.get(), "Errors occured: " + errors.get());
                     start = System.currentTimeMillis();
@@ -490,10 +481,10 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                 if (scheduled > maxPlanned) {
                     maxPlanned = scheduled;
                 }
-
                 Thread.sleep(10);
             }
         } finally {
+            log.info("Test ending!");
             AtomicInteger cnt=new AtomicInteger();
             for (Messaging m : clients) {
                 cnt.incrementAndGet();
