@@ -292,7 +292,7 @@ public class PooledDriver extends DriverBase {
                 borrowed++;
             }
         }
-
+        if (connectionPool.get(h)==null) return borrowed;
         return borrowed + connectionPool.get(h).size();
     }
 
