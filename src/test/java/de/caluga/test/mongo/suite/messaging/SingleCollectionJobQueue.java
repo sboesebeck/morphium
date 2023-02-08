@@ -111,11 +111,11 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
                         processedIds.add(m.getMsgId());
                         processedIdsMetaInfo.put(m.getMsgId(), Arrays.asList(System.currentTimeMillis(), msg.getSenderId()));
                         // simulate to process message
-                        counts.incrementAndGet();
                         Thread.sleep(((int) (Math.random() * 500.0) + 1500));
                         // reset message count
                         busyClients.decrementAndGet();
 
+                        counts.incrementAndGet();
                         //simulating an error in execution:
                         if (Math.random() < 0.02) {
                             throw new RuntimeException("=====================> simulated error! <==================================");
