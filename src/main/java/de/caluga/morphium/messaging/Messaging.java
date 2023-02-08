@@ -824,7 +824,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg.isExclusive() && msg.getProcessedBy().size() > 0) {
             // exclusive message already processed!
             removeProcessingFor(msg);
-            // remove lock
             return;
         }
 
@@ -869,14 +868,6 @@ public class Messaging extends Thread implements ShutdownListener {
             removeProcessingFor(msg);
             return;
         }
-        if (msg.isExclusive()) {
-            var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).get();
-            if (x == null) {
-                throw new RuntimeException("Lock not found!");
-            } else if (!id.equals(x.getLockId())) {
-                throw new RuntimeException("Was overlocked!");
-            }
-        }
         Runnable r = () -> {
             boolean wasProcessed = false;
             boolean wasRejected = false;
@@ -911,13 +902,13 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(msg);
                     }
-                    if (msg.isExclusive()) {
-                        var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).get();
-                        if (x == null) {
-                            log.error("EXCLUSIVE MESSAGE NOT LOCKED!!!!!!!!!!");
-                            throw new RuntimeException("Error - exclusive Message not locked!");
-                        }
-                    }
+//                    if (msg.isExclusive()) {
+//                        var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).get();
+//                        if (x == null) {
+//                            log.error("EXCLUSIVE MESSAGE NOT LOCKED!!!!!!!!!!");
+//                            throw new RuntimeException("Error - exclusive Message not locked!");
+//                        }
+//                    }
                     Msg answer = l.onMessage(Messaging.this, msg);
                     wasProcessed = true;
 
