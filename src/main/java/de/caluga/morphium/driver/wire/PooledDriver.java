@@ -589,7 +589,7 @@ public class PooledDriver extends DriverBase {
 
         heartbeat = null;
 
-        for (var e : connectionPool.entrySet()) {
+        for (var e : new ArrayList<>(connectionPool.entrySet())) {
             for (var c : e.getValue()) {
                 try {
                     c.getCon().close();
