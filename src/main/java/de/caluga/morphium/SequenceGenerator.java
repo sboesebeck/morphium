@@ -75,6 +75,7 @@ public class SequenceGenerator {
                 s.setCurrentValue(startValue - inc); // making sure first value will be startValue!
                 s.setName(name);
                 morphium.ensureIndicesFor(Sequence.class);
+                morphium.ensureIndicesFor(SeqLock.class);
                 morphium.storeNoCache(s);
             }
         } catch (MorphiumDriverException e) {
