@@ -323,7 +323,8 @@ public class PooledDriver extends DriverBase {
         }
 
         while (true) {
-            if (connectionPool.get(host).size() == 0) {
+
+            if (connectionPool.get(host)==null || connectionPool.get(host).size() == 0) {
                 // if too many connections were already borrowed, wait for some to return
                 start = System.currentTimeMillis();
 
