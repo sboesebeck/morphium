@@ -1,36 +1,6 @@
 package de.caluga.morphium.messaging;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ShutdownListener;
-import de.caluga.morphium.StatisticKeys;
-import de.caluga.morphium.StatisticValue;
-import de.caluga.morphium.Utils;
-import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.*;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -39,9 +9,16 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.FindCommand;
-import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * User: Stephan Bösebeck
@@ -100,10 +77,10 @@ public class Messaging extends Thread implements ShutdownListener {
     /**
      * attaches to the default queue named "msg"
      *
-     * @param m - morphium
-     * @param pause - pause between checks
+     * @param m               - morphium
+     * @param pause           - pause between checks
      * @param processMultiple - process multiple messages at once, if false, only
-     *        ony by one
+     *                        ony by one
      */
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
@@ -144,6 +121,7 @@ public class Messaging extends Thread implements ShutdownListener {
         // noinspection unused,unused
         decouplePool.setThreadFactory(new ThreadFactory() {
             private final AtomicInteger num = new AtomicInteger(1);
+
             @Override
             public Thread newThread(Runnable r) {
                 Thread ret = new Thread(r, "decouple_thr_" + num);
@@ -237,9 +215,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+                .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+                .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -264,7 +242,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+                morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
         threadPool.setRejectedExecutionHandler((r, executor) -> {
             try {
                 /*
@@ -279,6 +257,7 @@ public class Messaging extends Thread implements ShutdownListener {
         // noinspection unused,unused
         threadPool.setThreadFactory(new ThreadFactory() {
             private final AtomicInteger num = new AtomicInteger(1);
+
             @Override
             public Thread newThread(Runnable r) {
                 Thread ret = new Thread(r, "messaging " + num);
@@ -327,7 +306,8 @@ public class Messaging extends Thread implements ShutdownListener {
             List<Map<String, Object>> pipeline = new ArrayList<>();
             Map<String, Object> match = new LinkedHashMap<>();
             Map<String, Object> in = new LinkedHashMap<>();
-            in.put("$in", Arrays.asList("insert", "update", "delete"));
+            in.put("$in", Arrays.asList("insert", "delete", "update"));
+//            in.put("$in", Arrays.asList("insert", "update"));
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
@@ -362,41 +342,46 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (obj.getSender().equals(id)) {
+                            //processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (obj.getInAnswerTo() != null) {
                             handleAnswer(obj);
+                            //processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
                             // ignoring incoming message, we do not have listener for
+                            //processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (pauseMessages.containsKey(obj.getName())) {
                             skipped.incrementAndGet();
+                            //processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (obj.getProcessedBy().contains(id)) {
                             // already processed it
+                            //processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             // ignoring my own messages
+//                            processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
-                        // log.info("incoming insert");
                         try {
                             if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
                                 // log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
@@ -409,18 +394,26 @@ public class Messaging extends Thread implements ShutdownListener {
                             log.error("Error during message processing ", e);
                         }
 
-                        // removeProcessingFor(obj);
+                        // processing.remove(obj.getMsgId());
                     } else if (evt.getOperationType().equals("delete")) {
-                        // log.debug("Incoming delete of msg - deleting lock");;
-                        var r = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(((Map) evt.getDocumentKey()).get("_id")).remove();
-                        // if (!Integer.valueOf(0).equals(r.get("n"))){
-                        // log.debug("removed lock");
-                        // }
-                        // skipped.incrementAndGet();
+                        var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(((Map) evt.getDocumentKey()).get("_id")).get();
+                        if (x != null) {
+                            morphium.delete(x, getLockCollectionName());
+                        }
+                        return running;
+//                        skipped.incrementAndGet();
                     } else if (evt.getOperationType().equals("update")) {
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
 
                         if (obj == null) {
+                            return running;
+                        }
+
+                        if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
+                            return running;
+                        }
+
+                        if (obj.getProcessedBy().contains(id)) {
                             return running;
                         }
 
@@ -429,59 +422,49 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
 
-                        if (!obj.isExclusive()) {
-                            return running;    //ignore updates on broadcast messages
-                        }
-
-                        if (!obj.getProcessedBy().isEmpty()) {
-                            return running;
-                        }
-
-                        if (!((Map) evt.getUpdateDescription().get("updatedFields")).containsKey("processed_by")) {
-                            return running;
-                        }
-
                         processing.add(obj.getMsgId());
 
                         if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             // ignoring my own messages
+//                            processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (obj.getInAnswerTo() != null) {
                             handleAnswer(obj);
+//                            processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
                             // ignoring incoming message, we do not have listener for
+//                            processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
                         if (pauseMessages.containsKey(obj.getName())) {
+//                            processing.remove(obj.getMsgId());
                             removeProcessingFor(obj);
                             return running;
                         }
 
-                        if (processing.contains(obj.getMsgId())) {
-                            skipped.incrementAndGet();
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        //
-                        // log.info("incoming update");
-                        // if (obj.isExclusive()) {
-                        // locking
-                        // log.info("Exclusive message update: " + obj.getMsgId());
-                        lockAndProcess(obj);
-                        // } else {
-                        //     processMessage(obj);
+                        // if (processing.contains(obj.getMsgId())) {
+                        //     processing.remove(obj.getMsgId());;
+                        //     return running;
                         // }
-                        // removeProcessingFor(obj);
+
+                        if (obj.isExclusive()) {
+                            // locking
+                            // log.info("Exclusive message update: " + obj.getMsgId());
+                            lockAndProcess(obj);
+                        } else {
+                            processMessage(obj);
+                        }
+
+                        // processing.remove(obj.getMsgId());
                     }
                 } catch (Exception e) {
                     log.error("Error during event processing in changestream", e);
@@ -641,10 +624,10 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         // locking messages.. and getting broadcasts
-        var preLockedIds = morphium.createQueryFor(MsgLock.class,getLockCollectionName()).idList();
+        var preLockedIds = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
         preLockedIds.addAll(new ArrayList<>(processing));
         // q1: Exclusive messages, not locked yet, not processed yet
-        var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
+        var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
         // q2: non-exclusive messages, cannot be locked, not processed by me yet
         var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
         q.or(q1, q2);
@@ -710,29 +693,13 @@ public class Messaging extends Thread implements ShutdownListener {
                             if (el.containsKey("timing_out") && el.get("timing_out").equals(Boolean.TRUE)) {
                                 var ttl = (Long) el.get("ttl");
                                 l.setDeleteAt(new Date(System.currentTimeMillis() + ttl));
-                            } else {
-                                l.setDeleteAt(new Date(System.currentTimeMillis()+30000));
                             }
-                            InsertMongoCommand insert=null;
+
                             try {
-                                insert=new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
-                                insert.setDb(morphium.getDatabase()).setColl(getLockCollectionName());
-                                insert.setDocuments(Arrays.asList(morphium.getMapper().serialize(l)));
-                                var ret=insert.execute();
-                                // morphium.insert(l, getLockCollectionName(), null);
-                                var reread = morphium.findById(MsgLock.class, l.getId(), getLockCollectionName());
-
-                                if (reread == null) {
-                                    log.error("Locking Failed!?!?!?");
-                                } else if (!reread.getLockId().equals(id)) {
-                                    log.error("FATAL - LOCKING FAILED!");
-                                }
-
+                                morphium.insert(l, getCollectionName() + "_lck", null);
                                 lockedIds.add(l.getId());
                             } catch (Exception e) {
                                 // could not lock!
-                            } finally {
-                                if (insert!=null) insert.getConnection().release();
                             }
                         }
                     }
@@ -783,11 +750,15 @@ public class Messaging extends Thread implements ShutdownListener {
         } else {
             // not locked
             skipped.incrementAndGet();
+//            processing.remove(obj.getMsgId());
             removeProcessingFor(obj);
             return;
         }
     }
 
+    public MsgLock getLock(Msg m) {
+        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName());
+    }
 
     public String getLockCollectionName() {
         if (lockCollectionName == null) {
@@ -801,12 +772,6 @@ public class Messaging extends Thread implements ShutdownListener {
         return lockMessage(m, lockId, null);
     }
 
-    public boolean releaseLock(Msg m) {
-        // var ret = morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(m.getMsgId()).delete();
-        // return (ret.containsKey("n") && ret.get("n").equals(Integer.valueOf(1)));
-        return true;
-    }
-
     public boolean lockMessage(Msg m, String lockId, Date delAt) {
         MsgLock lck = new MsgLock(m);
         lck.setLockId(lockId);
@@ -816,15 +781,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         try {
-            morphium.insert(lck, getLockCollectionName(), null);
-            var reread = morphium.findById(MsgLock.class, lck.getId(), getLockCollectionName());
-
-            if (reread == null) {
-                log.error("Locking Failed!?!?!?");
-            } else if (!reread.getLockId().equals(id)) {
-                log.error("INSERT ERROR!!!!!!!!");
-            }
-
+            morphium.insert(lck, getCollectionName() + "_lck", null);
             return true;
         } catch (Exception e) {
             return false;
@@ -839,6 +796,10 @@ public class Messaging extends Thread implements ShutdownListener {
             // if (log.isDebugEnabled()) {
             // log.debug("Message was deleted before processing could happen!");
             // }
+            //just to be sure: delete lock
+            if (ms.isExclusive()) {
+                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(ms.getMsgId()).remove();
+            }
             return;
         }
 
@@ -846,11 +807,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (msg.getSender().equals(getSenderId())) {
             log.error("This should have been filtered out before alreaday!!!");
             removeProcessingFor(msg);
-
-            if (msg.isExclusive()) {
-                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-            }
-
             return;
         }
 
@@ -861,7 +817,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // log.debug(getSenderId() + ": Found outdated message - deleting it!");
             // }
             morphium.delete(msg, getCollectionName());
-            removeProcessingFor(msg);
+            processing.remove(msg.getMsgId());
             return;
         }
 
@@ -869,21 +825,11 @@ public class Messaging extends Thread implements ShutdownListener {
             // exclusive message already processed!
             removeProcessingFor(msg);
             // remove lock
-
-            if (msg.isExclusive()) {
-                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-            }
-
             return;
         }
 
-        if (msg.getProcessedBy().contains(id)) {
+        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
             removeProcessingFor(msg);
-
-            if (msg.isExclusive()) {
-                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-            }
-
             return;
         }
 
@@ -908,11 +854,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (receiveAnswers.equals(ReceiveAnswers.NONE) || (receiveAnswers.equals(ReceiveAnswers.ONLY_MINE) && msg.getRecipients() != null && !msg.getRecipients().contains(id))) {
                 removeProcessingFor(msg);
-
-                if (msg.isExclusive()) {
-                    morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-                }
-
                 return;
             }
         }
@@ -926,14 +867,16 @@ public class Messaging extends Thread implements ShutdownListener {
 
             updateProcessedBy(msg);
             removeProcessingFor(msg);
-
-            if (msg.isExclusive()) {
-                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-            }
-
             return;
         }
-
+        if (msg.isExclusive()) {
+            var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).get();
+            if (x == null) {
+                throw new RuntimeException("Lock not found!");
+            } else if (!id.equals(x.getLockId())) {
+                throw new RuntimeException("Was overlocked!");
+            }
+        }
         Runnable r = () -> {
             boolean wasProcessed = false;
             boolean wasRejected = false;
@@ -957,31 +900,24 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (pauseMessages.containsKey(msg.getName())) {
                         // paused - do not process
                         // log.warn("Received paused message?!?!? "+msg1.getMsgId());
-                        // processing.remove(msg.getMsgId());
+                        //processing.remove(msg.getMsgId());
                         removeProcessingFor(msg);
                         wasProcessed = false;
-
-                        //remove lock
-                        if (msg.isExclusive()) {
-                            morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-                        }
-
                         skipped.incrementAndGet();
+                        unlockIfExclusive(msg);
                         break;
                     }
 
                     if (l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(msg);
                     }
-
-                    if (msg.isExclusive() && morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).countAll() == 0) {
-                        log.error(id + ": Message was not locked!!??!! " + msg.getMsgId());
-                        removeProcessingFor(msg);
-                        wasProcessed = false;
-                        skipped.incrementAndGet();
-                        break;
+                    if (msg.isExclusive()) {
+                        var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).get();
+                        if (x == null) {
+                            log.error("EXCLUSIVE MESSAGE NOT LOCKED!!!!!!!!!!");
+                            throw new RuntimeException("Error - exclusive Message not locked!");
+                        }
                     }
-
                     Msg answer = l.onMessage(Messaging.this, msg);
                     wasProcessed = true;
 
@@ -994,6 +930,19 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (answer.getRecipients() == null) {
                             log.warn("Recipient of answer is null?!?!");
+                        }
+                    }
+
+                    if (msg.isDeleteAfterProcessing()) {
+                        if (msg.getDeleteAfterProcessingTime() == 0) {
+                            morphium.delete(msg, getCollectionName());
+                        } else {
+                            msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                            morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
+
+                            if (!l.markAsProcessedBeforeExec()) {
+                                morphium.addToSet(morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName()).f("_id").eq(msg.getMsgId()), "processed_by", id);
+                            }
                         }
                     }
                 } catch (MessageRejectedException mre) {
@@ -1047,10 +996,6 @@ public class Messaging extends Thread implements ShutdownListener {
                                 cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
                                 cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$addToSet", Doc.of("processed_by", id)), null, false, false, null, null, null);
                                 cmd.execute();
-
-                                if (msg.isExclusive()) {
-                                    morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-                                }
                             } catch (MorphiumDriverException e) {
                                 log.error("Error unlocking message", e);
                             } finally {
@@ -1071,29 +1016,22 @@ public class Messaging extends Thread implements ShutdownListener {
                 updateProcessedBy(msg);
             }
 
-            if (wasProcessed && msg.isDeleteAfterProcessing()) {
-                if (msg.getDeleteAfterProcessingTime() == 0) {
-                    morphium.delete(msg, getCollectionName());
-                    // while (morphium.reread(msg,getCollectionName())!=null){
-                    //     log.info("Delete failed!!!");
-                    //     morphium.delete(msg,getCollectionName());
-                    // }
-                } else {
-                    msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                    morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
-                }
-            }
-
             removeProcessingFor(msg);
 
-
-            if (msg.isExclusive()) {
-                morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).delete();
-            }
         };
         queueOrRun(r);
     }
 
+    private void unlockIfExclusive(Msg msg) {
+        if (msg.isExclusive()) {
+            // remove _own_ lock
+            deleteLock(msg.getMsgId());
+        }
+    }
+
+    private void deleteLock(MorphiumId msgId) {
+        morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(msgId).f("lock_id").eq(id).remove();
+    }
 
     private void processMessages(List<MorphiumId> messages) {
         for (final MorphiumId mId : messages) {
@@ -1114,7 +1052,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 cmd.releaseConnection();
 
                 if (result.isEmpty()) {
-                    removeProcessingFor(mId);
+                    processing.remove(mId);
                     continue;
                 }
 
@@ -1127,26 +1065,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 processMessage(msg);
             } catch (Exception e) {
                 e.printStackTrace();
-            }
-        }
-    }
-
-    private void removeProcessingFor(MorphiumId id) {
-        Runnable rb = new RemoveProcessTask(processing, id);
-
-        while (true) {
-            try {
-                if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {
-                    decouplePool.schedule(rb, 1000, TimeUnit.MILLISECONDS); // avoid re-executing message
-                }
-
-                break;
-            } catch (RejectedExecutionException ex) {
-                try {
-                    Thread.sleep(pause);
-                } catch (InterruptedException e) {
-                    // Swallow
-                }
             }
         }
     }
@@ -1264,7 +1182,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+            HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<>());
             listenerByName = c;
         }
@@ -1283,7 +1201,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+        HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
         c.get(n).remove(l);
 
         if (c.get(n).isEmpty()) {
@@ -1417,7 +1335,7 @@ public class Messaging extends Thread implements ShutdownListener {
         // //wait for changestream to kick in ;-)
         // } catch (Exception e) {
         // log.error("error:" + e.getMessage());
-        // }
+        //
         // }
     }
 
@@ -1436,7 +1354,9 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                }
+
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
@@ -1698,11 +1618,13 @@ public class Messaging extends Thread implements ShutdownListener {
     public enum ReceiveAnswers {
         NONE, ONLY_MINE, ALL,
     }
+
     public static class MessageTimeoutException extends RuntimeException {
         public MessageTimeoutException(String msg) {
             super(msg);
         }
     }
+
     public static class SystemShutdownException extends RuntimeException {
         public SystemShutdownException(String msg) {
             super(msg);
