@@ -203,7 +203,7 @@ public class MorphiumCacheImpl implements MorphiumCache {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T getFromIDCache(Class<? extends T> type, Object id) {
-        if (idCache.get(type) != null) {
+        if (idCache.get(type) != null && id!=null) {
             return (T) idCache.get(type).get(id);
         }
 
