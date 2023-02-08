@@ -37,7 +37,7 @@ import java.util.UUID;
  * </ul>
  */
 
-@SuppressWarnings({ "UnusedDeclaration", "BusyWait" })
+@SuppressWarnings({"UnusedDeclaration", "BusyWait"})
 public class SequenceGenerator {
     private static final Logger log = LoggerFactory.getLogger(SequenceGenerator.class);
     private int inc;
@@ -63,9 +63,8 @@ public class SequenceGenerator {
         id = UUID.randomUUID().toString();
 
         try {
-            if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(),
-             morphium.getMapper().getCollectionName(Sequence.class))
-             || morphium.createQueryFor(Sequence.class).f("_id").eq(name).countAll() == 0) {
+            if (!morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(Sequence.class))
+                || morphium.createQueryFor(Sequence.class).f("_id").eq(name).countAll() == 0) {
                 // sequence does not exist yet
                 if (log.isDebugEnabled()) {
                     log.debug("Sequence does not exist yet... inserting");
@@ -74,9 +73,11 @@ public class SequenceGenerator {
                 Sequence s = new Sequence();
                 s.setCurrentValue(startValue - inc); // making sure first value will be startValue!
                 s.setName(name);
-                morphium.ensureIndicesFor(Sequence.class);
                 morphium.storeNoCache(s);
             }
+
+            morphium.ensureIndicesFor(Sequence.class);
+            morphium.ensureIndicesFor(SeqLock.class);
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -148,7 +149,6 @@ public class SequenceGenerator {
         Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
         var val = seq.get();//.getCurrentValue();
         morphium.inc(val, "current_value", inc);
-
         morphium.delete(lock);
         // log.info(String.format("inc: %s ms", System.currentTimeMillis() - st));
         return val.getCurrentValue();

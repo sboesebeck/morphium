@@ -590,7 +590,7 @@ public class PooledDriver extends DriverBase {
         heartbeat = null;
 
         for (var e : new ArrayList<>(connectionPool.entrySet())) {
-            for (var c : e.getValue()) {
+            for (var c : new ArrayList<>(e.getValue())) {
                 try {
                     c.getCon().close();
                     stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
