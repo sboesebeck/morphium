@@ -7,10 +7,13 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
+import de.caluga.morphium.annotations.SafetyLevel;
+import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.driver.MorphiumId;
 
 @Entity
 @DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@WriteSafety(waitForJournalCommit = true,level=SafetyLevel.MAJORITY)
 public class MsgLock {
     @Id
     private MorphiumId id;
