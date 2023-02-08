@@ -3006,8 +3006,8 @@ public class Morphium implements AutoCloseable {
                             wr.createIndex(type, onCollection, IndexDescription.fromMaps(m, optionsMap), callback);
                         } catch (Exception e) {
                             if (e.getMessage() != null
-                             && e.getMessage().contains("Index already exists with a different name:")) {
-                                log.debug("Index already exists");
+                             && e.getMessage().contains("already exists")) {
+                                log.warn("Index already exists: "+e.getMessage());
                             } else {
                                 throw e;
                             }
@@ -3043,7 +3043,7 @@ public class Morphium implements AutoCloseable {
                     wr.createIndex(type, onCollection, IndexDescription.fromMaps(idx, optionsMap), callback);
                 } catch (Exception e) {
                     if (e.getMessage().contains("already exists")) {
-                        log.debug("Index already exists");
+                        log.warn("Index already exists: "+e.getMessage());
                     } else {
                         throw(e);
                     }
@@ -3058,8 +3058,8 @@ public class Morphium implements AutoCloseable {
             getWriterForClass(cls).createIndex(cls, getMapper().getCollectionName(cls),
              IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3072,8 +3072,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), null);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3086,8 +3086,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), null);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3118,8 +3118,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(m, null), callback);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3139,8 +3139,8 @@ public class Morphium implements AutoCloseable {
             try {
                 getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
             } catch (Exception e) {
-                if (e.getMessage().contains("Index already exists with a different name:")) {
-                    log.debug("Index already exists");
+                if (e.getMessage().contains("already exists")) {
+                    log.warn("Index already exists: "+e.getMessage());
                 } else {
                     throw(e);
                 }
@@ -3159,8 +3159,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, options), callback);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3173,8 +3173,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(index, null), callback);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
@@ -3186,8 +3186,8 @@ public class Morphium implements AutoCloseable {
         try {
             getWriterForClass(cls).createIndex(cls, collection, index, callback);
         } catch (Exception e) {
-            if (e.getMessage().contains("Index already exists with a different name:")) {
-                log.debug("Index already exists");
+            if (e.getMessage().contains("already exists")) {
+                log.warn("Index already exists: "+e.getMessage());
             } else {
                 throw(e);
             }
