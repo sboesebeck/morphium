@@ -57,6 +57,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             cfg.setHostSeed("localhost:12312"); //does not exist, but should be easy to find
             Morphium m = new Morphium(cfg);
             log.info("No exception!");
+            assertTrue(false,"Exception not thrown!");
         } catch (Exception e) {
             log.info("Got exception!",e);
         }
