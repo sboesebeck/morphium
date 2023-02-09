@@ -7,10 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,10 +31,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.ComplexObject;
-import de.caluga.test.mongo.suite.data.EmbeddedObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 
 /**
  * @author stephan
@@ -48,20 +46,93 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testConnectionFail(Morphium morphium) {
-        if (morphium.getDriver() instanceof InMemoryDriver) return;
+        if (morphium.getDriver() instanceof InMemoryDriver) {
+            return;
+        }
 
-        try(morphium) {
+        try (morphium) {
             //trying to connect with the sepcified driver to non existent mongo
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg.setCredentialsEncrypted(false);
             cfg.setHostSeed("localhost:12312"); //does not exist, but should be easy to find
             Morphium m = new Morphium(cfg);
             log.info("No exception!");
-            assertTrue(false,"Exception not thrown!");
+            assertTrue(false, "Exception not thrown!");
         } catch (Exception e) {
-            log.info("Got exception!",e);
+            log.info("Got exception!", e);
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void idQueryTest(Morphium m) {
+        try(m){
+            createUncachedObjects(m,10);
+            var lst=m.createQueryFor(UncachedObject.class).limit(3).idList();
+
+            long cnt=m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).nin(lst).countAll();
+            assertEquals(7,cnt);
+
+
+        }
+    }
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void inTest(Morphium m) {
+        try(m){
+            createUncachedObjects(m,10);
+            long cnt=m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).in(Arrays.asList(1,5,6,102)).countAll();
+            assertEquals(3,cnt);
+            cnt=m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).nin(Arrays.asList(1,2,102)).countAll();
+            assertEquals(8,cnt);
+
+            var lst=m.createQueryFor(UncachedObject.class).limit(3).idList();
+
+            var q=m.createQueryFor(UncachedObject.class).f("_id").nin(lst);
+            var q1=q.q().f("counter").eq(2);
+            var q2=q.q().f("counter").eq(9);
+
+            q.or(q1,q2);
+            assertEquals(1,q.countAll());
+
+        }
+    }
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void existTest(Morphium m) {
+        try (m) {
+            createUncachedObjects(m, 10);
+            long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).exists().countAll();
+            assertEquals(0, cnt);
+            cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(4).countAll();
+            assertEquals(1,cnt);
+            cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).notExists().countAll();
+            assertEquals(10,cnt);
+            cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).notExists().f(UncachedObject.Fields.counter).eq(2).countAll();
+            assertEquals(1,cnt);
+
+
+            //list
+            ListContainer lc=new ListContainer();
+            lc.addString("one");
+            lc.addString("one");
+            lc.addString("one");
+            m.store(lc);
+
+            cnt=m.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).exists().countAll();
+            assertEquals(1, cnt);
+
+            cnt=m.createQueryFor(ListContainer.class).f("string_list.0").exists().countAll();
+            assertEquals(1, cnt);
+            cnt=m.createQueryFor(ListContainer.class).f("string_list.1").exists().countAll();
+            assertEquals(1, cnt);
+            cnt=m.createQueryFor(ListContainer.class).f("string_list.5").exists().countAll();
+            assertEquals(0, cnt);
+
+        }
+    }
+
+
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

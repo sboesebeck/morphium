@@ -65,8 +65,7 @@ public class QueryHelper {
             case "$and": {
                 // list of field queries
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> lst =
-                 ((List<Map<String, Object>>) query.get(keyQuery));
+                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
 
                 for (Map<String, Object> q : lst) {
                     if (!matchesQuery(q, toCheck, collation)) {
@@ -80,8 +79,7 @@ public class QueryHelper {
             case "$or": {
                 // list of or queries
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> lst =
-                 ((List<Map<String, Object>>) query.get(keyQuery));
+                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
 
                 for (Map<String, Object> q : lst) {
                     if (matchesQuery(q, toCheck, collation)) {
@@ -100,8 +98,7 @@ public class QueryHelper {
             case "$nor": {
                 // list of or queries
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> lst =
-                 ((List<Map<String, Object>>) query.get(keyQuery));
+                List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
 
                 for (Map<String, Object> q : lst) {
                     if (matchesQuery(q, toCheck, collation)) {
@@ -154,95 +151,148 @@ public class QueryHelper {
                         //   backwards: <boolean>
                     }
 
+                    Object checkValue = toCheck;
+
+                    if (keyQuery.contains(".")) {
+                        var pth = keyQuery.split("\\.");
+                        checkValue = toCheck;
+
+                        for (String p : pth) {
+                            if (checkValue == null) {
+                                break;
+                            }
+
+                            if (checkValue instanceof Map) {
+                                checkValue = ((Map) checkValue).get(p);
+                            } else if (checkValue instanceof List) {
+                                try {
+                                    int idx = Integer.valueOf(p);
+                                    checkValue = ((List) checkValue).get(Integer.valueOf(p));
+                                } catch (Exception e) {
+                                    //not an integer, probably some reference _internal_ to the list
+                                    var lst = new ArrayList<>();
+
+                                    for (var o : ((List) checkValue)) {
+                                        if (o instanceof Map) {
+                                            lst.add(((Map) o).get(p));
+                                        }
+                                    }
+
+                                    checkValue = lst;
+                                    break;             //cannot go further usually!
+                                }
+                            }
+                        }
+                    } else {
+                        checkValue = toCheck.get(keyQuery);
+                    }
+
                     switch (commandKey) {
                     case "$where":
                         return runWhere(query, toCheck);
 
                     case "$eq":
-                        if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) == null) { return true; }
-
-                        if (toCheck.get(keyQuery) != null && commandMap.get(commandKey) == null) { return false; }
-
-                        if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) != null) { return false; }
-
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.equals((String) toCheck.get(keyQuery), (String) commandMap.get(commandKey));
-                        }
-                        if (toCheck.get(keyQuery) instanceof List){
-                            return ((List)toCheck.get(keyQuery)).contains(commandMap.get(commandKey));
-                        }
-                        //noinspection unchecked
-                        return toCheck.get(keyQuery).equals(commandMap.get(commandKey));
-
-                    case "$lt":
-
-                        //noinspection unchecked
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) < 0;
+                        if (checkValue == null && commandMap.get(commandKey) == null) {
+                            return true;
                         }
 
-                        if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                            return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) < 0;
-                        }
-                        try {
-                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) < 0;
-                        } catch(Exception e){
+                        if (checkValue != null && commandMap.get(commandKey) == null) {
                             return false;
                         }
+
+                        if (checkValue == null && commandMap.get(commandKey) != null) {
+                            return false;
+                        }
+
+                        if (coll != null && (checkValue instanceof String)) {
+                            return coll.equals((String) checkValue, (String) commandMap.get(commandKey));
+                        }
+
+                        if (checkValue instanceof List) {
+                            return ((List) checkValue).contains(commandMap.get(commandKey));
+                        }
+
+                        //noinspection unchecked
+                        return checkValue.equals(commandMap.get(commandKey));
+
+
+
                     case "$lte":
-
-                        //noinspection unchecked
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) <= 0;
+                    case "$lt":
+                        List lst = null;
+                        int offset=0;
+                        if (commandKey.equals("$lt")) offset=-1;
+                        if (checkValue instanceof List) {
+                            lst = (List) checkValue;
+                        } else {
+                            lst = List.of(checkValue);
                         }
 
-                        if (toCheck.get(keyQuery) == null) { return commandMap.get(commandKey) != null; }
+                        for (var cv : lst) {
+                            //noinspection unchecked
+                            if (coll != null && (cv instanceof String)) {
+                                if (coll.compare(cv, commandMap.get(commandKey)) <= offset) return true;
+                                continue;
+                            }
 
-                        if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                            return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) <= 0;
-                        }
-                        try{
-                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) <= 0;
-                        } catch(Exception e){
-                            //type mismatch?
-                            return false;
-                        }
-                    case "$gt":
+                            if (cv == null) {
+                                return commandMap.get(commandKey) != null;
+                            }
 
-                        //noinspection unchecked
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) > 0;
-                        }
+                            if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
+                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) <= offset) return true;
+                                continue;
+                            }
 
-                        if (toCheck.get(keyQuery) == null) { return false; }
+                            try {
+                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) <= offset) return true;
+                                continue;
+                            } catch (Exception e) {
+                                //type mismatch?
+                                continue;
+                            }
+                        }
+                        return false;
 
-                        if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                            return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) > 0;
-                        }
-                        try {
-                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) > 0;
-                        } catch(Exception e){
-                            return false;
-                        }
                     case "$gte":
-
-                        //noinspection unchecked
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) >= 0;
+                    case "$gt":
+                        lst = null;
+                        offset=0;
+                        if (commandKey.equals("$gt")) offset=1;
+                        if (checkValue instanceof List) {
+                            lst = (List) checkValue;
+                        } else {
+                            lst = List.of(checkValue);
                         }
 
-                        if (toCheck.get(keyQuery) == null) { return commandMap.get(commandKey) == null; }
+                        for (var cv : lst) {
+                            //noinspection unchecked
+                            if (coll != null && (cv instanceof String)) {
+                                if (coll.compare(cv, commandMap.get(commandKey)) >= offset) return true;
+                                continue;
+                            }
 
-                        if (toCheck.get(keyQuery) instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                            return Double.valueOf(((Number)toCheck.get(keyQuery)).doubleValue()).compareTo(((Number)commandMap.get(commandKey)).doubleValue()) >= 0;
+                            if (cv == null) {
+                                return commandMap.get(commandKey) != null;
+                            }
+
+                            if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
+                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) >= offset) return true;
+                                continue;
+                            }
+
+                            try {
+                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) >= offset) return true;
+                                continue;
+                            } catch (Exception e) {
+                                //type mismatch?
+                                continue;
+                            }
                         }
-                        try {
-                            return ((Comparable) toCheck.get(keyQuery)).compareTo(commandMap.get(commandKey)) >= 0;
-                        } catch(Exception e){
-                            return false;
-                        }
+                        return false;
+
                     case "$mod":
-                        Number n = (Number) toCheck.get(keyQuery);
+                        Number n = (Number) checkValue;
                         List arr = (List) commandMap.get(commandKey);
                         int div = ((Integer) arr.get(0));
                         int rem = ((Integer) arr.get(1));
@@ -252,10 +302,9 @@ public class QueryHelper {
                         //noinspection unchecked
                         boolean contains = false;
 
-                        if (toCheck.get(keyQuery) instanceof List) {
+                        if (checkValue instanceof List) {
                             @SuppressWarnings("unchecked")
-                            List chk =
-                             Collections.synchronizedList(new CopyOnWriteArrayList((List) toCheck.get(keyQuery)));
+                            List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) checkValue));
 
                             for (Object o : chk) {
                                 if (coll != null && (o instanceof String)) {
@@ -274,26 +323,32 @@ public class QueryHelper {
                             return !contains;
                         }
 
-                        if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) != null) { return true; }
+                        if (checkValue == null && commandMap.get(commandKey) != null) {
+                            return true;
+                        }
 
-                        if (toCheck.get(keyQuery) == null && commandMap.get(commandKey) == null) { return false; }
+                        if (checkValue == null && commandMap.get(commandKey) == null) {
+                            return false;
+                        }
 
                         //noinspection unchecked
-                        if (coll != null && (toCheck.get(keyQuery) instanceof String)) {
-                            return coll.compare(toCheck.get(keyQuery), commandMap.get(commandKey)) != 0;
-                        }
-                        if (toCheck.get(keyQuery) instanceof List){
-                            return !((List)toCheck.get(keyQuery)).contains(commandMap.get(commandKey));
+                        if (coll != null && (checkValue instanceof String)) {
+                            return coll.compare(checkValue, commandMap.get(commandKey)) != 0;
                         }
 
-                        return !toCheck.get(keyQuery).equals(commandMap.get(commandKey));
+                        if (checkValue instanceof List) {
+                            return !((List) checkValue).contains(commandMap.get(commandKey));
+                        }
+
+                        return !checkValue.equals(commandMap.get(commandKey));
 
                     case "$exists":
-                        boolean exists = (toCheck.containsKey(keyQuery));
+                        boolean exists = (checkValue != null);
+                        if (exists && (checkValue instanceof List)){
+                            exists=!((List)checkValue).isEmpty();
+                        }
 
-                        if (commandMap.get(commandKey).equals(Boolean.TRUE)
-                         || commandMap.get(commandKey).equals("true")
-                         || commandMap.get(commandKey).equals(1)) {
+                        if (commandMap.get(commandKey).equals(Boolean.TRUE) || commandMap.get(commandKey).equals("true") || commandMap.get(commandKey).equals(1)) {
                             return exists;
                         } else {
                             return !exists;
@@ -307,25 +362,29 @@ public class QueryHelper {
                                 v = new ObjectId(v.toString());
                             }
 
-                            if (toCheck.get(keyQuery) == null) {
-                                if (v == null) { found = true; }
+                            if (checkValue == null) {
+                                if (v == null) {
+                                    found = true;
+                                }
                             } else {
-                                if (coll != null
-                                 && toCheck.get(keyQuery) instanceof String
-                                 && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
+                                if (coll != null && checkValue instanceof String && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
+                                    found = true;
+                                    break;
+                                }
+                                if (checkValue instanceof MorphiumId && v instanceof ObjectId){
+                                    if (checkValue.toString().equals(v.toString())) {
+                                        found=true;
+                                        break;
+                                    }
+                                }
+                                if (checkValue.equals(v)) {
                                     found = true;
                                     break;
                                 }
 
-                                if (toCheck.get(keyQuery).equals(v)) {
-                                    found = true;
-                                    break;
-                                }
-
-                                if (toCheck.get(keyQuery) instanceof List) {
-                                    for (Object v2 : (List) toCheck.get(keyQuery)) {
-                                        if (coll != null
-                                         && coll.equals((String) v2, (String) v)) {
+                                if (checkValue instanceof List) {
+                                    for (Object v2 : (List) checkValue) {
+                                        if (coll != null && coll.equals((String) v2, (String) v)) {
                                             found = true;
                                             break;
                                         }
@@ -347,23 +406,20 @@ public class QueryHelper {
                                 v = new ObjectId(v.toString());
                             }
 
-                            if (toCheck.get(keyQuery) == null && v == null) {
+                            if (checkValue == null && v == null) {
                                 return true;
                             }
 
-                            if (coll != null
-                             && toCheck.get(keyQuery) instanceof String
-                             && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
+                            if (coll != null && checkValue instanceof String && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
                                 return true;
                             }
 
-                            if (toCheck.get(keyQuery) != null && toCheck.get(keyQuery).equals(v)) {
+                            if (checkValue != null && toCheck.get(keyQuery).equals(v)) {
                                 return true;
                             }
 
-                            if (toCheck.get(keyQuery) != null
-                             && toCheck.get(keyQuery) instanceof List) {
-                                for (Object v2 : (List) toCheck.get(keyQuery)) {
+                            if (checkValue != null && toCheck.get(keyQuery) instanceof List) {
+                                for (Object v2 : (List) checkValue) {
                                     if (v2.equals(v)) {
                                         return true;
                                     }
@@ -379,10 +435,7 @@ public class QueryHelper {
                     case "$expr":
                         Expr e = (Expr) commandMap.get(commandKey);
                         Object ev = e.evaluate(toCheck);
-                        return ev != null
-                               && (ev.equals(Boolean.TRUE)
-                               || ev.equals(1)
-                               || ev.equals("true"));
+                        return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
 
                     case "$regex":
                     case "$text":
@@ -414,7 +467,7 @@ public class QueryHelper {
                                 }
                             }
                         } else {
-                            valtoCheck = toCheck.get(keyQuery);
+                            valtoCheck = checkValue;
                         }
 
                         int opts = 0;
@@ -435,14 +488,15 @@ public class QueryHelper {
                             }
 
                             if (opt.contains("x")) {
-                                log.warn("There is no proper equivalent for the 'x' option"
-                                 + " in mongodb!");
+                                log.warn("There is no proper equivalent for the 'x' option" + " in mongodb!");
                                 //
                                 // opts=opts|Pattern.COMMENTS;
                             }
                         }
 
-                        if (valtoCheck == null) { return false; }
+                        if (valtoCheck == null) {
+                            return false;
+                        }
 
                         if (commandKey.equals("$text")) {
                             String srch = commandMap.get("$text").toString().toLowerCase();
@@ -465,7 +519,9 @@ public class QueryHelper {
                             found = true;
 
                             for (String s : tokens) {
-                                if (s.isEmpty() || s.isBlank()) { continue; }
+                                if (s.isEmpty() || s.isBlank()) {
+                                    continue;
+                                }
 
                                 if (!v.contains(s)) {
                                     found = false;
@@ -493,18 +549,16 @@ public class QueryHelper {
                         } else if (commandMap.get(commandKey) instanceof String) {
                             type = MongoType.findByTxt((String) commandMap.get(commandKey));
                         } else {
-                            log.error("Type specification needs to be either int or string -"
-                             + " not "
-                             + commandMap.get(commandKey).getClass().getName());
+                            log.error("Type specification needs to be either int or string -" + " not " + commandMap.get(commandKey).getClass().getName());
                             return false;
                         }
 
                         List elements = new ArrayList();
 
-                        if (toCheck.get(keyQuery) instanceof List) {
-                            elements = (List) toCheck.get(keyQuery);
+                        if (checkValue instanceof List) {
+                            elements = (List) checkValue;
                         } else {
-                            elements.add(toCheck.get(keyQuery));
+                            elements.add(checkValue);
                         }
 
                         boolean fnd = false;
@@ -524,8 +578,7 @@ public class QueryHelper {
                                 fnd = type.equals(MongoType.DOUBLE);
                             } else if ((o instanceof Date)) {
                                 fnd = type.equals(MongoType.DATE);
-                            } else if ((o instanceof MorphiumId)
-                             || (o instanceof ObjectId)) {
+                            } else if ((o instanceof MorphiumId) || (o instanceof ObjectId)) {
                                 fnd = type.equals(MongoType.OBJECT_ID);
                             } else if ((o instanceof BigDecimal)) {
                                 fnd = type.equals(MongoType.DECIMAL);
@@ -541,7 +594,9 @@ public class QueryHelper {
                                 fnd = type.equals(MongoType.INTEGER);
                             }
 
-                            if (fnd) { break; }
+                            if (fnd) {
+                                break;
+                            }
                         }
 
                         return fnd;
@@ -552,14 +607,14 @@ public class QueryHelper {
 
                     case "$nearSphere":
                     case "$near":
-                        if (!(toCheck.get(keyQuery) instanceof List)) {
+                        if (!(checkValue instanceof List)) {
                             log.warn("No proper coordinates found");
                             return false;
                         }
 
                         if ((commandMap.get(commandKey) instanceof Map)) {
-                            Map qmap = ((Map)commandMap.get(commandKey));
-                            Map geo = (Map)qmap.get("$geometry");
+                            Map qmap = ((Map) commandMap.get(commandKey));
+                            Map geo = (Map) qmap.get("$geometry");
 
                             if (geo.containsKey("type")) {
                                 if (!geo.get("type").equals("Point")) {
@@ -574,10 +629,10 @@ public class QueryHelper {
                                     return false;
                                 }
 
-                                double lat1 = (Double)coord.get(1);
-                                double lon1 = (Double)coord.get(0);
-                                double lat2 = ((List<Double>) toCheck.get(keyQuery)).get(1);
-                                double lon2 = ((List<Double>) toCheck.get(keyQuery)).get(0);
+                                double lat1 = (Double) coord.get(1);
+                                double lon1 = (Double) coord.get(0);
+                                double lat2 = ((List<Double>) checkValue).get(1);
+                                double lon2 = ((List<Double>) checkValue).get(0);
                                 // The math module contains a function
                                 // named toRadians which converts from
                                 // degrees to radians.
@@ -588,19 +643,17 @@ public class QueryHelper {
                                 // Haversine toRadiansent,eol,start
                                 double dlon = lon2 - lon1;
                                 double dlat = lat2 - lat1;
-                                double a = Math.pow(Math.sin(dlat / 2), 2)
-                                 + Math.cos(lat1) * Math.cos(lat2)
-                                 * Math.pow(Math.sin(dlon / 2), 2);
+                                double a = Math.pow(Math.sin(dlat / 2), 2) + Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(dlon / 2), 2);
                                 double c = 2 * Math.asin(Math.sqrt(a));
                                 // Radius of earth
                                 double r = 6371;
                                 double distance = c * r;
 
-                                if (qmap.containsKey("$minDistance") && distance < (Double)qmap.get("$minDistance")) {
+                                if (qmap.containsKey("$minDistance") && distance < (Double) qmap.get("$minDistance")) {
                                     return false;
                                 }
 
-                                if (qmap.containsKey("$maxDistance") && distance > (Double)qmap.get("$maxDistance")) {
+                                if (qmap.containsKey("$maxDistance") && distance > (Double) qmap.get("$maxDistance")) {
                                     return false;
                                 }
 
@@ -619,7 +672,7 @@ public class QueryHelper {
                         }
 
                     case "$geoWithin":
-                        if (!(toCheck.get(keyQuery) instanceof List)) {
+                        if (!(checkValue instanceof List)) {
                             log.warn("No proper coordinates found");
                             return false;
                         }
@@ -630,7 +683,7 @@ public class QueryHelper {
                         }
 
                         Map<String, Object> geoQuery = (Map<String, Object>) commandMap.get(commandKey);
-                        List coordToCheckWithin = (List) toCheck.get(keyQuery);
+                        List coordToCheckWithin = (List) checkValue;
 
                         if (geoQuery.containsKey("$box")) {
                             // coordinates=list of 2 points
@@ -661,15 +714,18 @@ public class QueryHelper {
                                 lowerRightY = tmp;
                             }
 
-                            if (coordToCheckWithin.size() == 2
-                             && coordToCheckWithin.get(0) instanceof Double) {
+                            if (coordToCheckWithin.size() == 2 && coordToCheckWithin.get(0) instanceof Double) {
                                 // single coordinate
                                 var x = (Double)((List) coordToCheckWithin).get(0);
                                 var y = (Double)((List) coordToCheckWithin).get(1);
 
-                                if (x > lowerRightX || x < upperLeftX) { return false; }
+                                if (x > lowerRightX || x < upperLeftX) {
+                                    return false;
+                                }
 
-                                if (y > lowerRightY || y < upperLeftY) { return false; }
+                                if (y > lowerRightY || y < upperLeftY) {
+                                    return false;
+                                }
 
                                 return true;
                             }
@@ -679,9 +735,13 @@ public class QueryHelper {
                                     var x = coord.get(0);
                                     var y = coord.get(1);
 
-                                    if (x > lowerRightX || x < upperLeftX) { return false; }
+                                    if (x > lowerRightX || x < upperLeftX) {
+                                        return false;
+                                    }
 
-                                    if (y > lowerRightY || y < upperLeftY) { return false; }
+                                    if (y > lowerRightY || y < upperLeftY) {
+                                        return false;
+                                    }
                                 }
                             }
 
@@ -691,9 +751,11 @@ public class QueryHelper {
                         break;
 
                     case "$all":
-                        if (toCheck.get(keyQuery) == null) { return false; }
+                        if (checkValue == null) {
+                            return false;
+                        }
 
-                        if (!(toCheck.get(keyQuery) instanceof List)) {
+                        if (!(checkValue instanceof List)) {
                             log.warn("Trying $all on non-list value");
                             return false;
                         }
@@ -703,29 +765,35 @@ public class QueryHelper {
                             return false;
                         }
 
-                        List toCheckValList = (List) toCheck.get(keyQuery);
+                        List toCheckValList = (List) checkValue;
                         List queryValues = (List) commandMap.get(commandKey);
 
                         for (Object o : queryValues) {
-                            if (!toCheckValList.contains(o)) { return false; }
+                            if (!toCheckValList.contains(o)) {
+                                return false;
+                            }
                         }
 
                         return true;
 
                     case "$size":
-                        if (toCheck.get(keyQuery) == null) { return commandMap.get(commandKey).equals(0); }
+                        if (checkValue == null) {
+                            return commandMap.get(commandKey).equals(0);
+                        }
 
-                        if (!(toCheck.get(keyQuery) instanceof List)) {
+                        if (!(checkValue instanceof List)) {
                             log.warn("Trying $size on non-list value");
                             return false;
                         }
 
-                        return commandMap.get(commandKey).equals(((List) toCheck.get(keyQuery)).size());
+                        return commandMap.get(commandKey).equals(((List) checkValue).size());
 
                     case "$elemMatch":
-                        if (toCheck.get(keyQuery) == null) { return false; }
+                        if (checkValue == null) {
+                            return false;
+                        }
 
-                        if (!(toCheck.get(keyQuery) instanceof List)) {
+                        if (!(checkValue instanceof List)) {
                             log.warn("Trying $elemMatch on non-list value");
                             return false;
                         }
@@ -735,7 +803,7 @@ public class QueryHelper {
                             return false;
                         }
 
-                        List valList = (List) toCheck.get(keyQuery);
+                        List valList = (List) checkValue;
                         Map<String, Object> queryMap = (Map<String, Object>) commandMap.get(commandKey);
 
                         for (Object o : valList) {
@@ -743,10 +811,7 @@ public class QueryHelper {
                                 o = Doc.of("value", o);
                             }
 
-                            if (matchesQuery(queryMap, (Map<String, Object>) o, null)
-                             || matchesQuery(Doc.of("value", queryMap),
-                             (Map<String, Object>) o,
-                             null)) {
+                            if (matchesQuery(queryMap, (Map<String, Object>) o, null) || matchesQuery(Doc.of("value", queryMap), (Map<String, Object>) o, null)) {
                                 return true;
                             }
                         }
@@ -757,7 +822,9 @@ public class QueryHelper {
                     case "$bitsAllClear":
                     case "$bitsAllSet":
                     case "$bitsAnyClear":
-                        if (toCheck.get(keyQuery) == null) { return false; }
+                        if (checkValue == null) {
+                            return false;
+                        }
 
                         long value = 0;
 
@@ -784,12 +851,12 @@ public class QueryHelper {
 
                         long chkVal = 0;
 
-                        if (toCheck.get(keyQuery) instanceof Integer) {
-                            chkVal = ((Integer) toCheck.get(keyQuery)).longValue();
-                        } else if (toCheck.get(keyQuery) instanceof Long) {
-                            chkVal = ((Long) toCheck.get(keyQuery));
-                        } else if (toCheck.get(keyQuery) instanceof Byte) {
-                            chkVal = ((Byte) toCheck.get(keyQuery)).byteValue();
+                        if (checkValue instanceof Integer) {
+                            chkVal = ((Integer) checkValue).longValue();
+                        } else if (checkValue instanceof Long) {
+                            chkVal = ((Long) checkValue);
+                        } else if (checkValue instanceof Byte) {
+                            chkVal = ((Byte) checkValue).byteValue();
                         }
 
                         if (commandKey.equals("$bitsAnySet")) {
@@ -798,7 +865,7 @@ public class QueryHelper {
                             return (value & chkVal) == value;
                         } else if (commandKey.equals("$bitsAnyClear")) {
                             return (value & chkVal) < value;
-                        } else {                                         // if (k.equals("$bitsAllClear")
+                        } else {                                                                         // if (k.equals("$bitsAllClear")
                             return (value & chkVal) == 0;
                         }
 
@@ -812,7 +879,9 @@ public class QueryHelper {
                             return toCheck.get(commandKey).equals(commandMap.get(commandKey));
                         }
 
-                        if (keyQuery.equals("value")) { return false; }
+                        if (keyQuery.equals("value")) {
+                            return false;
+                        }
 
                         throw new RuntimeException("Unknown Operator " + commandKey);
                     }
@@ -823,52 +892,63 @@ public class QueryHelper {
                         Object current = toCheck;
                         Object value = null;
 
-                        for (int i=0;i<path.length; i++) {
+                        for (int i = 0; i < path.length; i++) {
                             var k = path[i];
-                            if (current instanceof Map && ((Map)current).get(k) == null) {
-                                if (query.get(keyQuery) == null) { return true; }
+
+                            if (current instanceof Map && ((Map) current).get(k) == null) {
+                                if (query.get(keyQuery) == null) {
+                                    return true;
+                                }
+
                                 return false;
                             }
 
-                            if (current instanceof Map && ((Map)current).get(k) instanceof List) {
-                                List cnd = (List) ((Map)current).get(k);
+                            if (current instanceof Map && ((Map) current).get(k) instanceof List) {
+                                List cnd = (List)((Map) current).get(k);
                                 Integer idx = Integer.valueOf(path[i + 1]);
 
                                 if (idx >= cnd.size()) {
                                     current = null;
-                                    if (query.get(keyQuery) == null) { return true; }
+
+                                    if (query.get(keyQuery) == null) {
+                                        return true;
+                                    }
+
                                     continue;
                                 }
 
                                 value = cnd.get(idx);
                                 current = cnd.get(idx);
                                 i++;
-                            } else if (Map.class.isAssignableFrom(((Map)current).get(k).getClass())) {
-                                current = (Map<String, Object>) ((Map)current).get(k);
+                            } else if (Map.class.isAssignableFrom(((Map) current).get(k).getClass())) {
+                                current = (Map<String, Object>)((Map) current).get(k);
                             } else {
-                                value = ((Map)current).get(k);
+                                value = ((Map) current).get(k);
                             }
                         }
 
                         return value.equals(query.get(keyQuery));
                     }
 
-                    if (toCheck.get(keyQuery) == null && query.get(keyQuery) == null) { return true; }
+                    if (toCheck.get(keyQuery) == null && query.get(keyQuery) == null) {
+                        return true;
+                    }
 
-                    if (toCheck.get(keyQuery) == null && query.get(keyQuery) != null) { return false; }
+                    if (toCheck.get(keyQuery) == null && query.get(keyQuery) != null) {
+                        return false;
+                    }
 
                     // value comparison - should only be one here
                     assert(query.size() == 1);
 
-                    if (toCheck.get(keyQuery) instanceof MorphiumId
-                     || toCheck.get(keyQuery) instanceof ObjectId) {
-                        return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
+                    if (toCheck.get(keyQuery) instanceof MorphiumId || toCheck.get(keyQuery) instanceof ObjectId) {
+                        return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString()); }
+
+                    if (toCheck.get(keyQuery) instanceof List) {
+                        return ((List) toCheck.get(keyQuery)).contains(query.get(keyQuery));
                     }
-                    if (toCheck.get(keyQuery) instanceof List){
-                        return ((List)toCheck.get(keyQuery)).contains(query.get(keyQuery));
-                    }
-                    return toCheck.get(keyQuery).equals(query.get(keyQuery));
-                }
+
+                    return toCheck.get(keyQuery).equals(query.get(keyQuery)); }
             }
         }
 
@@ -919,10 +999,8 @@ public class QueryHelper {
         if (collation.containsKey("caseFirst")) {
             if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))) {
                 try {
-                    coll =
-                     new RuleBasedCollator(
-                        ((RuleBasedCollator) coll).getRules()
-                        + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
+                    coll = new RuleBasedCollator(
+                        ((RuleBasedCollator) coll).getRules() + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
