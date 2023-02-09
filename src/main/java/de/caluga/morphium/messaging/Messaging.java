@@ -670,11 +670,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
+                    if (processing.contains(el.get("_id"))){
+                        continue;
+                    }
                     if (el.get("exclusive") == null || el.get("exclusive").equals(Boolean.FALSE)) {
                         // no lock necessary
-                        if (!processing.contains(el.get("_id"))) {
                             lockedIds.add((MorphiumId) el.get("_id"));
-                        }
                     } else {
                         if (el.get("processed_by") != null && ((List) el.get("processed_by")).size() > 0) {
                             // skipping already processed
