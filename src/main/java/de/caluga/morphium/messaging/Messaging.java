@@ -629,7 +629,7 @@ public class Messaging extends Thread implements ShutdownListener {
         // q1: Exclusive messages, not locked yet, not processed yet
         var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
         // q2: non-exclusive messages, cannot be locked, not processed by me yet
-        var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
+        var q2 = q.q().f("_id").nin(processing).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
         q.or(q1, q2);
         Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
@@ -670,11 +670,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
+                    if (processing.contains(el.get("_id"))){
+                        continue;
+                    }
                     if (el.get("exclusive") == null || el.get("exclusive").equals(Boolean.FALSE)) {
                         // no lock necessary
-                        if (!processing.contains(el.get("_id"))) {
                             lockedIds.add((MorphiumId) el.get("_id"));
-                        }
                     } else {
                         if (el.get("processed_by") != null && ((List) el.get("processed_by")).size() > 0) {
                             // skipping already processed

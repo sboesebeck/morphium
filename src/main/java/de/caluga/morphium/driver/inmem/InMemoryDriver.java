@@ -2414,9 +2414,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // $pullAll: { scores: [ 0, 5 ] }
 
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        if (obj.get(entry.getKey())==null){
-                            break;
-                        }
                         List v = new ArrayList((List) obj.get(entry.getKey()));
                         List objectsToBeDeleted = (List) entry.getValue();
 
