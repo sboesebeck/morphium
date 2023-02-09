@@ -86,14 +86,28 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
-        int connectToIdx = 0;
+        int retries = 0;
 
         for (String host : getHostSeed()) {
             for (int i = 0; i < getMinConnectionsPerHost(); i++) {
-                try {
-                    connectToHost(host);
-                } catch (MorphiumDriverException e) {
-                    log.error("Could not connect to " + host, e);
+                while (true) {
+                    try {
+                        connectToHost(host);
+                        break;
+                    } catch (MorphiumDriverException e) {
+                        retries++;
+
+                        if (retries < getRetriesOnNetworkError()) {
+                            log.error("Connection failed, retrying...");
+                            try {
+                                Thread.sleep(getSleepBetweenErrorRetries());
+                            } catch (InterruptedException e1) {
+                            }
+                        } else {
+                            log.error("Could not connect to " + host);
+                            throw(e);
+                        }
+                    }
                 }
             }
         }
@@ -142,7 +156,10 @@ public class PooledDriver extends DriverBase {
     }
 
     private String getHost(String hostPort) {
-        if (hostPort==null) return "";
+        if (hostPort == null) {
+            return "";
+        }
+
         String h[] = hostPort.split(":");
         return h[0];
     }
@@ -293,7 +310,11 @@ public class PooledDriver extends DriverBase {
                 borrowed++;
             }
         }
-        if (connectionPool.get(h)==null) return borrowed;
+
+        if (connectionPool.get(h) == null) {
+            return borrowed;
+        }
+
         return borrowed + connectionPool.get(h).size();
     }
 
@@ -324,8 +345,7 @@ public class PooledDriver extends DriverBase {
         }
 
         while (true) {
-
-            if (connectionPool.get(host)==null || connectionPool.get(host).size() == 0) {
+            if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
                 // if too many connections were already borrowed, wait for some to return
                 start = System.currentTimeMillis();
 
