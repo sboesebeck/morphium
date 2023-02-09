@@ -19,19 +19,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-
 
 /**
  * @author stephan
@@ -41,19 +42,35 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);
 
-
     public BasicFunctionalityTest() {
     }
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void testConnectionFail(Morphium morphium) {
+        if (morphium.getDriver() instanceof InMemoryDriver) return;
 
+        try(morphium) {
+            //trying to connect with the sepcified driver to non existent mongo
+            MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+            cfg.setCredentialsEncrypted(false);
+            cfg.setHostSeed("localhost:12312"); //does not exist, but should be easy to find
+            Morphium m = new Morphium(cfg);
+            log.info("No exception!");
+        } catch (Exception e) {
+            log.info("Got exception!",e);
+        }
+    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void subObjectQueryTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
             String queryString = q.toQueryObject().toString();
@@ -69,10 +86,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void subObjectQueryTestUnknownField(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData.non_existent").eq(null);
             String queryString = q.toQueryObject().toString();
@@ -80,14 +99,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void sortTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             for (int i = 1; i <= NO_OBJECTS; i++) {
                 UncachedObject o = new UncachedObject();
                 o.setCounter(i);
@@ -116,10 +136,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void arrayOfPrimitivesTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             UncachedObject o = new UncachedObject();
             int[] binaryData = new int[100];
 
@@ -181,14 +203,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void updateBinaryDataTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             UncachedObject o = new UncachedObject();
             byte[] binaryData = new byte[100];
 
@@ -220,10 +243,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void binaryDataTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             UncachedObject o = new UncachedObject();
             byte[] binaryData = new byte[100];
 
@@ -243,12 +268,13 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void queryTest(Morphium morphium) {
         try (morphium) {
-            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+            String tstName = new Object() {
+            }
+            .getClass().getEnclosingMethod().getName();
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             createUncachedObjects(morphium, 100);
             var q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(15).f(UncachedObject.Fields.strValue).eq("nothing");
@@ -256,14 +282,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void idTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             log.info("Storing Uncached objects...");
             // long start = System.currentTimeMillis();
             UncachedObject last = null;
@@ -294,10 +321,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void orTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             log.info("Storing Uncached objects...");
             // long start = System.currentTimeMillis();
 
@@ -332,14 +361,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void uncachedSingeTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             log.info("Storing Uncached objects...");
             long start = System.currentTimeMillis();
 
@@ -366,17 +396,18 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
         assert(e == null);
         Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
-        assertNotNull(em);
-        ;
+        assertNotNull(em);;
     }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void uncachedListTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             log.info("Preparing a list...");
             long start = System.currentTimeMillis();
             List<UncachedObject> lst = new ArrayList<>();
@@ -446,14 +477,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         log.info("Cache Hits Percentage: " + morphium.getStatistics().get(StatisticKeys.CHITSPERC.name()) + "%");
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void cachedWritingTest(Morphium m) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + m.getDriver().getName());
 
-        try(m) {
+        try (m) {
             log.info("Starting background writing test - single objects");
             long start = System.currentTimeMillis();
 
@@ -485,14 +517,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest()
     @MethodSource("getMorphiumInstances")
     public void checkListWriting(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             List<CachedObject> lst = new ArrayList<>();
 
             try {
@@ -511,10 +544,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void checkToStringUniqueness(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
             q = q.f("value").eq("Test").f("counter").gt(5);
             String t = q.toString();
@@ -540,10 +575,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void mixedListWritingTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             List<Object> tst = new ArrayList<>();
             int cached = 0;
             int uncached = 0;
@@ -572,7 +609,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
 
-                if (uncached == qu.countAll() && cached == q.countAll()) { break; }
+                if (uncached == qu.countAll() && cached == q.countAll()) {
+                    break;
+                }
 
                 assertThat(System.currentTimeMillis() - start > 5000);
             }
@@ -582,10 +621,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void listOfIdsTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             morphium.dropCollection(ListOfIdsContainer.class);
             TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(ListOfIdsContainer.class));
             List<MorphiumId> lst = new ArrayList<>();
@@ -596,7 +637,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
             Map<String, MorphiumId> map = new HashMap<>();
 
-            for (int i = 0; i < 10; i++) { map.put("" + i, new MorphiumId()); }
+            for (int i = 0; i < 10; i++) {
+                map.put("" + i, new MorphiumId());
+            }
 
             ListOfIdsContainer c = new ListOfIdsContainer();
             c.value = "a value";
@@ -619,10 +662,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void insertTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(UncachedObject.class));
             UncachedObject uc = new UncachedObject();
@@ -654,14 +699,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void insertListTest(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(UncachedObject.class));
             List<UncachedObject> lst = new ArrayList<>();
@@ -674,7 +720,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             morphium.insert(lst);
-            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->TestUtils.countUC(morphium)==100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->TestUtils.countUC(morphium) == 100);
             List<UncachedObject> lst2 = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
@@ -702,10 +748,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void customMapperObjectIdTest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
                 @Override
                 public Object marshall(ObjectIdTest o) {
@@ -746,10 +794,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void objectIdIdstest(Morphium morphium) {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             ObjectIdTest o = new ObjectIdTest();
             o.value = "test1";
             morphium.store(o);
@@ -764,10 +814,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testFindOneAndDelete(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             UncachedObject uc = new UncachedObject("value", 123);
             morphium.store(uc);
             UncachedObject ret = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId()).findOneAndDelete();
@@ -780,10 +832,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testFindOneAndUpdate(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
-        try(morphium) {
+        try (morphium) {
             UncachedObject uc = new UncachedObject("value", 123);
             morphium.store(uc);
             Thread.sleep(150);
@@ -795,16 +849,15 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-
-
-
     @Entity
     public static class StringIdTestEntity {
         @Id
         public String id;
         public String value;
 
-        public enum Fields {value, id}
+        public enum Fields {
+            value, id
+        }
     }
 
     @Entity
@@ -813,9 +866,10 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         public ObjectId id;
         public String value;
 
-        public enum Fields {value, id}
+        public enum Fields {
+            value, id
+        }
     }
-
 
     @Entity
     public static class ListOfIdsContainer {
@@ -826,9 +880,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         public MorphiumId simpleId;
         public String value;
 
-
-        public enum Fields {idMap, others, simpleId, value, id}
+        public enum Fields {
+            idMap, others, simpleId, value, id
+        }
     }
-
 
 }

@@ -142,6 +142,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private String getHost(String hostPort) {
+        if (hostPort==null) return "";
         String h[] = hostPort.split(":");
         return h[0];
     }
@@ -292,7 +293,7 @@ public class PooledDriver extends DriverBase {
                 borrowed++;
             }
         }
-
+        if (connectionPool.get(h)==null) return borrowed;
         return borrowed + connectionPool.get(h).size();
     }
 
@@ -323,7 +324,8 @@ public class PooledDriver extends DriverBase {
         }
 
         while (true) {
-            if (connectionPool.get(host).size() == 0) {
+
+            if (connectionPool.get(host)==null || connectionPool.get(host).size() == 0) {
                 // if too many connections were already borrowed, wait for some to return
                 start = System.currentTimeMillis();
 
