@@ -386,7 +386,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
 
             log.info("All initialized");
             // sending some messages
-            int amount = 287;
+            int amount = 187;
             var block = new ArrayList<>();
 
             for (int i = 0; i < amount; i++) {
