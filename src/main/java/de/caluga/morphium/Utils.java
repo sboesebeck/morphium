@@ -32,8 +32,14 @@ public class Utils {
         }
         return sw.toString();
     }
-    
 
+
+    public static void pause(long ms){
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+        }
+    }
     public static <T,U>  Map<T,U> getMap(T k, U v) {
         return UtilsMap.of(k,v);
     }
