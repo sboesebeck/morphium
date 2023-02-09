@@ -436,6 +436,10 @@ public class SingleMongoConnection implements MongoConnection {
             }
             //log.info("got answer for watch!");
             checkForError(reply);
+            if (reply==null){
+                log.debug("Got null as reply");
+                continue;
+            }
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
             if (cursor == null) throw new MorphiumDriverException("Could not watch - cursor is null");
             // log.debug("CursorID:" + cursor.get("id").toString());

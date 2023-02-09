@@ -232,7 +232,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 watchCommand.watch();
             } catch (Exception e) {
-                if (e.getMessage().contains("Network error error: state should be: open")) {
+                if (e.getMessage()==null){
+                    log.warn("Restarting changestream",e);
+                } else if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
                     log.debug("changestream iteration");
