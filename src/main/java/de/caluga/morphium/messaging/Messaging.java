@@ -627,7 +627,7 @@ public class Messaging extends Thread implements ShutdownListener {
         var preLockedIds = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
         preLockedIds.addAll(new ArrayList<>(processing));
         // q1: Exclusive messages, not locked yet, not processed yet
-        var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").eq(null);
+        var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
         // q2: non-exclusive messages, cannot be locked, not processed by me yet
         var q2 = q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
         q.or(q1, q2);
