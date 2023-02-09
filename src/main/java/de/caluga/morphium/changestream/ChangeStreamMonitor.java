@@ -160,7 +160,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     if (changeStreamThread.isAlive()) {
                         try {
                             changeStreamThread.stop();
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             //swallow
                             // e.printStackTrace();
                         }
