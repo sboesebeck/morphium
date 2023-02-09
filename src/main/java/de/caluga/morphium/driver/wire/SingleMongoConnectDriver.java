@@ -159,7 +159,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     public void connect(String replSet) throws MorphiumDriverException {
         //log.info("Connecting");
         int connectToIdx = 0;
-
+        int retries=0;
         while (true) {
             try {
                 incStat(DriverStatsKey.CONNECTIONS_OPENED);
@@ -239,6 +239,15 @@ public class SingleMongoConnectDriver extends DriverBase {
                 if (connectToIdx > getHostSeed().size()) {
                     connectToIdx = 0;
                 }
+                        retries++;
+                        if (retries > getRetriesOnNetworkError()){
+                            throw(new RuntimeException(e));
+                        }
+                        try {
+                            Thread.sleep(getSleepBetweenErrorRetries());
+                        } catch (InterruptedException e1) {
+                    //swallow
+                        }
             }
         }
 

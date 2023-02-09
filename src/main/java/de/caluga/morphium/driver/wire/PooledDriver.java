@@ -142,6 +142,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private String getHost(String hostPort) {
+        if (hostPort==null) return "";
         String h[] = hostPort.split(":");
         return h[0];
     }
