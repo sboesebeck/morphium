@@ -30,8 +30,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 
     @ParameterizedTest
-    // @MethodSource("getMorphiumInstancesNoSingle")
-    @MethodSource("getInMemInstanceOnly")
+    @MethodSource("getMorphiumInstancesNoSingle")
+    // @MethodSource("getInMemInstanceOnly")
     public void testExclusiveXTimes(Morphium morphium) throws Exception {
         for (int i = 0; i < 5; i++) {
             runExclusiveMessagesTest(morphium, (int)(Math.random() * 200 + 150), (int)(10 * Math.random()) + 2);
