@@ -133,26 +133,24 @@ public class MultiDriverTestBase {
     }
 
     public static Stream<Arguments> getMorphiumInstancesPooledOnly() {
-        return getMorphiumInstances(false, false, true);
+        return getMorphiumAllInstances(false,false,true);
     }
-
     public static Stream<Arguments> getMorphiumInstancesNoSingle() {
-        return getMorphiumInstances(false, true, true);
+        return getMorphiumAllInstances(false,true,true);
     }
-
     public static Stream<Arguments> getMorphiumInstancesNoInMem() {
-        return getMorphiumInstances(true, false, true);
+        return getMorphiumAllInstances(true,false,true);
     }
 
     public static Stream<Arguments> getMorphiumInstances() {
-        return getMorphiumInstances(true, true, true);
+        return getMorphiumAllInstances(true,true,true);
     }
 
     public static Stream<Arguments> getInMemInstanceOnly(){
-        return getMorphiumInstances(false,true,false);
+        return getMorphiumAllInstances(false,true,false);
     }
 
-    public static Stream<Arguments> getMorphiumInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
+    public static Stream<Arguments> getMorphiumAllInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
         init();
         List<Arguments> morphiums = new ArrayList<>();
         var enc = new AESEncryptionProvider();
