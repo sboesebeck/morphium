@@ -69,7 +69,7 @@ public class Query<T> implements Cloneable {
         setType(type);
         this.executor = executor;
 
-        if (m != null && m.getConfig().getDefaultTagSet() != null) {
+        if (m != null && m.getConfig()!=null && m.getConfig().getDefaultTagSet() != null) {
             tags = m.getConfig().getDefaultTags();
         }
     }
