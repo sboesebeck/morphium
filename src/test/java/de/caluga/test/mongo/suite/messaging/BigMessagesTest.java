@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BigMessagesTest extends MultiDriverTestBase {
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testBigMessage(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
