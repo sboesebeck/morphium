@@ -29,11 +29,10 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
-//import de.caluga.morphium.driver.inmem.InMemoryDriver;
-//import de.caluga.morphium.driver.meta.MetaDriver;
-//import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
-//import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
-
+// import de.caluga.morphium.driver.inmem.InMemoryDriver;
+// import de.caluga.morphium.driver.meta.MetaDriver;
+// import de.caluga.morphium.driver.singleconnect.SingleConnectDirectDriver;
+// import de.caluga.morphium.driver.singleconnect.SingleConnectThreaddedDriver;
 
 /**
  * User: Stpehan Bösebeck
@@ -48,14 +47,15 @@ public class MultiDriverTestBase {
     private static Properties props;
 
     public MultiDriverTestBase() {
-
     }
 
     public static synchronized Properties getProps() {
         if (props == null) {
             props = new Properties();
         }
+
         File f = getFile();
+
         if (f.exists()) {
             try {
                 props.load(new FileReader(f));
@@ -63,6 +63,7 @@ public class MultiDriverTestBase {
                 throw new RuntimeException(e);
             }
         }
+
         return props;
     }
 
@@ -81,21 +82,22 @@ public class MultiDriverTestBase {
         //        morphium.close();
     }
 
-//
-//    public static synchronized List<Morphium> getMorphiums() {
-//        if (morphiums == null) {
-//            morphiums = new ArrayList<>();
-//            morphiums.add(morphiumMongodb);
-//            morphiums.add(morphiumInMemeory);
-//            morphiums.add(morphiumSingleConnect);
-//            morphiums.add(morphiumSingleConnectThreadded);
-//            morphiums.add(morphiumMeta);
-//        }
-//        return morphiums;
-//    }
+    //
+    //    public static synchronized List<Morphium> getMorphiums() {
+    //        if (morphiums == null) {
+    //            morphiums = new ArrayList<>();
+    //            morphiums.add(morphiumMongodb);
+    //            morphiums.add(morphiumInMemeory);
+    //            morphiums.add(morphiumSingleConnect);
+    //            morphiums.add(morphiumSingleConnectThreadded);
+    //            morphiums.add(morphiumMeta);
+    //        }
+    //        return morphiums;
+    //    }
 
     private static void storeProps() {
         File f = getFile();
+
         try {
             getProps().store(new FileWriter(f), "created by morphium test");
         } catch (IOException e) {
@@ -104,23 +106,50 @@ public class MultiDriverTestBase {
     }
 
     public static boolean stringWordCompare(String m1, String m2) {
-        if (m1 == null && m2 == null) return true;
-        if (m1 == null || m2 == null) return false;
+        if (m1 == null && m2 == null) {
+            return true;
+        }
+
+        if (m1 == null || m2 == null) {
+            return false;
+        }
+
         m1 = m1.replaceAll(" ", "");
         m2 = m2.replaceAll(" ", "");
-        if (m1.length() != m2.length()) return false;
-        String[] wrd = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
-        for (String w : wrd) {
-            if (!m2.contains(w)) return false;
+
+        if (m1.length() != m2.length()) {
+            return false;
         }
+
+        String[] wrd = m1.split("[ \\{\\},\\.\\(\\)\\[\\]]");
+
+        for (String w : wrd) {
+            if (!m2.contains(w)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
+    public static Stream<Arguments> getMorphiumInstancesNoSingle() {
+        return getMorphiumInstances(false,true,true);
+    }
+    public static Stream<Arguments> getMorphiumInstancesNoInMem() {
+        return getMorphiumInstances(true,false,true);
+    }
+
     public static Stream<Arguments> getMorphiumInstances() {
+        return getMorphiumInstances(true,true,true);
+    }
+
+    public static Stream<Arguments> getInMemInstanceOnly(){
+        return getMorphiumInstances(false,true,false);
+    }
+
+    public static Stream<Arguments> getMorphiumInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
         init();
         List<Arguments> morphiums = new ArrayList<>();
-
-
         var enc = new AESEncryptionProvider();
         enc.setEncryptionKey("1234567890abcdef".getBytes());
         enc.setDecryptionKey("1234567890abcdef".getBytes());
@@ -128,77 +157,76 @@ public class MultiDriverTestBase {
         var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
 
-
         //Diferent Drivers
-        MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
-        pooled.setCredentialsEncrypted(true);
-        pooled.setCredentialsEncryptionKey("1234567890abcdef");
-        pooled.setCredentialsDecryptionKey("1234567890abcdef");
-        pooled.setMongoAuthDb(authDb);
-        pooled.setMongoPassword(password);
-        pooled.setMongoLogin(user);
-        pooled.setDriverName(PooledDriver.driverName);
-        pooled.setDatabase("morphium_test_" + number.incrementAndGet());
+        if (includePooled) {
+            MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
+            pooled.setCredentialsEncrypted(true);
+            pooled.setCredentialsEncryptionKey("1234567890abcdef");
+            pooled.setCredentialsDecryptionKey("1234567890abcdef");
+            pooled.setMongoAuthDb(authDb);
+            pooled.setMongoPassword(password);
+            pooled.setMongoLogin(user);
+            pooled.setDriverName(PooledDriver.driverName);
+            pooled.setDatabase("morphium_test_" + number.incrementAndGet());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
+            Morphium pooledMorphium = new Morphium(pooled);
+            morphiums.add(Arguments.of(pooledMorphium));
+        }
 
-        log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
+        if (includeSingle) {
+            MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
+            singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
+            singleConnection.setCredentialsEncrypted(true);
+            singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
+            singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
+            singleConnection.setMongoAuthDb(authDb);
+            singleConnection.setMongoPassword(password);
+            singleConnection.setMongoLogin(user);
+            singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
+            Morphium singleConMorphium = new Morphium(singleConnection);
+            morphiums.add(Arguments.of(singleConMorphium));
+        }
 
-        Morphium pooledMorphium = new Morphium(pooled);
-        morphiums.add(Arguments.of(pooledMorphium));
-
-        MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-        singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
-        singleConnection.setCredentialsEncrypted(true);
-        singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
-        singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
-        singleConnection.setMongoAuthDb(authDb);
-        singleConnection.setMongoPassword(password);
-        singleConnection.setMongoLogin(user);
-        singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
-        log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
-        Morphium singleConMorphium = new Morphium(singleConnection);
-        morphiums.add(Arguments.of(singleConMorphium));
-
-
-//
-//        MorphiumConfig mongoDriver = MorphiumConfig.fromProperties(getProps());
-//        mongoDriver.setDriverName(MongoDriver.driverName);
-//        mongoDriver.setDatabase("morphium_test_" + number.incrementAndGet());
-//        log.info("Running test with DB morphium_test_" + number.get() + " for " + mongoDriver.getDriverName());
-//
-//
-
-        MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
-        inMemDriver.setDriverName(InMemoryDriver.driverName);
-        inMemDriver.setReplicasetMonitoring(false);
-        inMemDriver.setMongoAuthDb(null);
-        inMemDriver.setMongoLogin(null);
-        inMemDriver.setMongoPassword(null);
-        inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
-        var inMem = new Morphium(inMemDriver);
-        ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
-        morphiums.add(Arguments.of(inMem));
-
-        log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
-
+        //
+        //        MorphiumConfig mongoDriver = MorphiumConfig.fromProperties(getProps());
+        //        mongoDriver.setDriverName(MongoDriver.driverName);
+        //        mongoDriver.setDatabase("morphium_test_" + number.incrementAndGet());
+        //        log.info("Running test with DB morphium_test_" + number.get() + " for " + mongoDriver.getDriverName());
+        //
+        //
+        if (includeInMem) {
+            MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
+            inMemDriver.setDriverName(InMemoryDriver.driverName);
+            inMemDriver.setReplicasetMonitoring(false);
+            inMemDriver.setMongoAuthDb(null);
+            inMemDriver.setMongoLogin(null);
+            inMemDriver.setMongoPassword(null);
+            inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
+            var inMem = new Morphium(inMemDriver);
+            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
+            morphiums.add(Arguments.of(inMem));
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
+        }
 
         //dropping all existing test-dbs
         if (morphiums.get(0).get()[0] instanceof InMemoryDriver) {
             log.info("Not erasing DBs - inMem");
         } else {
             Morphium m = (Morphium) morphiums.get(0).get()[0];
+
             for (String db : m.listDatabases()) {
                 if (db.startsWith("morphium")) {
                     log.info("Dropping db " + db);
+
                     try {
                         DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
                         cmd.setDb(db);
                         cmd.setComment("Delete for testing");
-
                         cmd.execute();
                         cmd.getConnection().release();
                     } catch (MorphiumDriverException e) {
                     }
-
                 }
             }
         }
@@ -208,8 +236,8 @@ public class MultiDriverTestBase {
 
     private static void init() {
         log.info("in init!");
-
         Properties p = getProps();
+
         if (p.getProperty("database") == null) {
             MorphiumConfig cfg;
             //creating default config
@@ -241,24 +269,19 @@ public class MultiDriverTestBase {
             cfg.setRetryWaitTimeWriter(1000);
             cfg.setRetryWaitTimeBufferedWriter(1000);
             cfg.setHeartbeatFrequency(500);
-
             cfg.setGlobalCacheValidTime(1000);
             cfg.setHousekeepingTimeout(500);
             cfg.setThreadPoolMessagingCoreSize(50);
             cfg.setThreadPoolMessagingMaxSize(1500);
             cfg.setThreadPoolMessagingKeepAliveTime(10000);
-//            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP);
-//            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_STARTUP);
+            //            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP);
+            //            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_STARTUP);
             cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_WRITE_NEW_COL);
             cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_WRITE_NEW_COL);
-
             cfg.setGlobalFsync(false);
             cfg.setGlobalJ(false);
             cfg.setGlobalW(1);
-
             cfg.setCheckForNew(true);
-
-
             //            cfg.setMongoAdminUser("adm");
             //            cfg.setMongoAdminPwd("adm");
             ////
@@ -266,11 +289,9 @@ public class MultiDriverTestBase {
             //            cfg.setMongoPassword("tst");
             //            cfg.setMongoLogin("morphium");
             //            cfg.setMongoPassword("tst");
-
             //necessary for Replicaset Status to work
             //            cfg.setMongoAdminUser("admin");
             //            cfg.setMongoAdminPwd("admin");
-
             cfg.setDefaultReadPreference(ReadPreference.nearest());
             p.putAll(cfg.asProperties());
             p.put("failovertest", "false");
@@ -279,44 +300,51 @@ public class MultiDriverTestBase {
             log.info("created test-settings file");
         }
     }
-//
-//    public void createUncachedObjectsInMemory(int amount) {
-//        createUncachedObjects(morphiumInMemeory, amount);
-//    }
+    //
+    //    public void createUncachedObjectsInMemory(int amount) {
+    //        createUncachedObjects(morphiumInMemeory, amount);
+    //    }
 
     @AfterEach
-    public void tearDown()  {
-
+    public void tearDown() {
     }
 
     public boolean waitForAsyncOperationsToStart(Morphium morphium, long maxWaitMs) {
         long start = System.currentTimeMillis();
+
         while (morphium.getWriteBufferCount() == 0) {
             Thread.yield();
+
             if (System.currentTimeMillis() - start > maxWaitMs) {
-                log.error("Timeout reached, "+maxWaitMs+" but buffer is still "+morphium.getWriteBufferCount());
+                log.error("Timeout reached, " + maxWaitMs + " but buffer is still " + morphium.getWriteBufferCount());
                 return false;
             }
         }
+
         return true;
     }
 
     public void createUncachedObjects(Morphium morphium, int amount) {
         List<UncachedObject> lst = new ArrayList<>();
+
         for (int i = 0; i < amount; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i + 1);
             uc.setStrValue("v");
             lst.add(uc);
+
             if (i % 1000 == 999) {
                 morphium.insert(lst);
                 lst.clear();
             }
         }
+
         morphium.storeList(lst);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
+
         while (q.countAll() < amount) {
             log.info("Waiting for data to be stored..." + q.countAll() + "/" + amount);
+
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
@@ -326,13 +354,16 @@ public class MultiDriverTestBase {
 
     public void createCachedObjects(Morphium morphium, int amount) {
         List<CachedObject> lst = new ArrayList<>();
+
         for (int i = 0; i < amount; i++) {
             CachedObject uc = new CachedObject();
             uc.setCounter(i + 1);
             uc.setValue("v");
             lst.add(uc);
         }
+
         morphium.storeList(lst);
+
         try {
             Thread.sleep(500);
         } catch (InterruptedException e) {
@@ -343,10 +374,10 @@ public class MultiDriverTestBase {
     public void logStats(Morphium m) {
         Map<String, Double> stats = m.getStatistics();
         log.info("Statistics: ");
+
         for (Map.Entry<String, Double> e : stats.entrySet()) {
             log.info(e.getKey() + " - " + e.getValue());
         }
     }
-
 
 }
