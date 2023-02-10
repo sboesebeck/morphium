@@ -47,7 +47,7 @@ public class BasicAdminTests extends MultiDriverTestBase{
         assert(ReadPreferenceLevel.NEAREST.getPref().getType().equals(ReadPreference.nearest().getType()));
     }
 
-    
+
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void getDatabaseListTest(Morphium morphium) {
@@ -162,7 +162,18 @@ public class BasicAdminTests extends MultiDriverTestBase{
             assert(o.getCounter() == 1);
         }
     }
-
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void exitsDropTest(Morphium morphium) throws Exception {
+        try (morphium){
+            morphium.store(new UncachedObject("str",123));
+            Thread.sleep(100);
+            assertTrue(morphium.exists(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class)));
+            morphium.dropCollection(UncachedObject.class);
+            Thread.sleep(100);
+            assertFalse(morphium.exists(morphium.getDatabase(),morphium.getMapper().getCollectionName(UncachedObject.class)));
+        }
+    }
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void notExistsTest(Morphium morphium) {
@@ -185,5 +196,5 @@ public class BasicAdminTests extends MultiDriverTestBase{
     }
 
 
-    
+
 }

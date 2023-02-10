@@ -443,7 +443,7 @@ public class AnsweringTests extends MultiDriverTestBase {
         m2.setSenderId("m2");
         m1.start();
         m2.start();
-        m2.addListenerForMessageNamed("q_wait_for", (msg, m) -> {
+        m2.addListenerForMessageNamed("q_wait_for", (msg, m)->{
             Msg answer = m.createAnswerMsg();
             return answer;
         });
