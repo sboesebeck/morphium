@@ -844,7 +844,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        if (msg.getProcessedBy().contains(id)) {
+        if (msg.getInAnswerTo() == null && msg.getProcessedBy().contains(id)) {
             removeProcessingFor(msg);
             // log.info("not processing");
             return;
