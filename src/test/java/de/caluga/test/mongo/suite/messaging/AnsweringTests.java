@@ -190,20 +190,20 @@ public class AnsweringTests extends MultiDriverTestBase {
                 return null;
             }));
             m2.addMessageListener(((msg, m)->{
-                log.info("Revieved by m2");
+                log.info("Recieved by m2");
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
             }));
             m3.addListenerForMessageNamed("test", ((msg, m)->{
-                log.info("Revieved 'test' by m3");
+                log.info("Recieved 'test' by m3");
 
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
                 return null;
             }));
             m3.addListenerForMessageNamed("test2", ((msg, m)->{
-                log.info("Revieved 'test2' by m3");
+                log.info("Recieved 'test2' by m3");
 
                 receivedById.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 receivedById.get(msg.getSenderId()).incrementAndGet();
@@ -238,7 +238,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             answer.setExclusive(true);
             //            answer.setTtl(100000);
             m3.sendMessage(answer);
-            Thread.sleep(500);
+            Thread.sleep(1500);
             assertEquals(1, receivedById.size(), "Receive count is " + receivedById.size());
             assertTrue((receivedById.get("m1") == null && receivedById.get("m2").get() == 1) || (receivedById.get("m2") == null && receivedById.get("m1").get() == 1));
             //
@@ -281,6 +281,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 1222400);
+            assertNotNull(answer);
             Thread.sleep(1500);
             assertEquals(1, receivedById.size());
             receivedById.clear();
@@ -429,9 +430,12 @@ public class AnsweringTests extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void waitForAnswerTest(Morphium morphium) throws Exception {
         MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
+        cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
+        cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
+        cfg.setCredentialsEncrypted(morphium.getConfig().getCredentialsEncrypted());
         Morphium mor = new Morphium(cfg);
         Messaging m1 = new Messaging(morphium, 10, false, true, 10);
         Messaging m2 = new Messaging(mor, 10, false, true, 10);
@@ -439,7 +443,7 @@ public class AnsweringTests extends MultiDriverTestBase {
         m2.setSenderId("m2");
         m1.start();
         m2.start();
-        m2.addListenerForMessageNamed("q_wait_for", (msg, m)->{
+        m2.addListenerForMessageNamed("q_wait_for", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
