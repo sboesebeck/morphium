@@ -132,15 +132,20 @@ public class MultiDriverTestBase {
         return true;
     }
 
-    public static Stream<Arguments> getMorphiumInstancesNoSingle() {
-        return getMorphiumInstances(false,true,true);
+    public static Stream<Arguments> getMorphiumInstancesPooledOnly() {
+        return getMorphiumInstances(false, false, true);
     }
+
+    public static Stream<Arguments> getMorphiumInstancesNoSingle() {
+        return getMorphiumInstances(false, true, true);
+    }
+
     public static Stream<Arguments> getMorphiumInstancesNoInMem() {
-        return getMorphiumInstances(true,false,true);
+        return getMorphiumInstances(true, false, true);
     }
 
     public static Stream<Arguments> getMorphiumInstances() {
-        return getMorphiumInstances(true,true,true);
+        return getMorphiumInstances(true, true, true);
     }
 
     public static Stream<Arguments> getInMemInstanceOnly(){
