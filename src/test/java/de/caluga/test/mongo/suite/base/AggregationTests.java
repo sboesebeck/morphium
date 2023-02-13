@@ -18,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -26,15 +27,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 public class AggregationTests extends MultiDriverTestBase {
+
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void aggregatorTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 1000);
-
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assertNotNull(a.getResultType());
-            ;
+            assertNotNull(a.getResultType());;
             //eingangsdaten reduzieren
             a = a.project("counter");
             //Filtern
@@ -54,17 +54,14 @@ public class AggregationTests extends MultiDriverTestBase {
             projection.put("last", "$letzter");
             projection.put("first", "$erster");
             a = a.project(projection);
-
             List<Aggregate> lst = a.aggregate();
-            assert (lst.size() == 1) : "Size wrong: " + lst.size();
+            assert(lst.size() == 1) : "Size wrong: " + lst.size();
             log.debug("Sum  : " + lst.get(0).getSumme());
             log.debug("Avg  : " + lst.get(0).getSchnitt());
             log.debug("Last :    " + lst.get(0).getLast());
             log.debug("First:   " + lst.get(0).getFirst());
             log.debug("count:  " + lst.get(0).getAnzahl());
-
-
-            assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
+            assert(lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
         }
     }
 
@@ -72,12 +69,10 @@ public class AggregationTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void aggregatorExprTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Running test with "+morphium.getDriver().getName());
+            log.info("Running test with " + morphium.getDriver().getName());
             createUncachedObjects(morphium, 1000);
-
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assertNotNull(a.getResultType());
-            ;
+            assertNotNull(a.getResultType());;
             //eingangsdaten reduzieren
             a = a.project(UtilsMap.of("counter", (Object) Expr.intExpr(1), "cnt2", Expr.field("counter")));
             //Filtern
@@ -87,8 +82,8 @@ public class AggregationTests extends MultiDriverTestBase {
             //limit der Daten
             a = a.limit(15);
             //group by - in dem Fall alle, könnte auch beliebig sein
-            a = a.group(Expr.nullExpr()).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter))).expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
-
+            a = a.group(Expr.nullExpr()).expr("schnitt", Expr.avg(Expr.field(UncachedObject.Fields.counter))).expr("summe", Expr.sum(Expr.field(UncachedObject.Fields.counter)))
+             .expr("anz", Expr.sum(Expr.intExpr(1))).expr("letzter", Expr.last(Expr.field("counter"))).expr("erster", Expr.first(Expr.field("counter"))).end();
             //ergebnis projezieren
             HashMap<String, Object> projection = new HashMap<>();
             projection.put("summe", 1);
@@ -97,7 +92,6 @@ public class AggregationTests extends MultiDriverTestBase {
             projection.put("last", "$letzter");
             projection.put("first", "$erster");
             a = a.project(projection);
-
             List<Aggregate> lst = a.aggregate();
             assertEquals(1, lst.size());
             log.debug("Sum  : " + lst.get(0).getSumme());
@@ -105,9 +99,7 @@ public class AggregationTests extends MultiDriverTestBase {
             log.debug("Last :    " + lst.get(0).getLast());
             log.debug("First:   " + lst.get(0).getFirst());
             log.debug("count:  " + lst.get(0).getAnzahl());
-
-
-            assert (lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
+            assert(lst.get(0).getAnzahl() == 15) : "did not find 15, instead found: " + lst.get(0).getAnzahl();
         }
     }
 
@@ -116,21 +108,22 @@ public class AggregationTests extends MultiDriverTestBase {
     public void testPush(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.clearCollection(UncachedObject.class);
+
             for (int i = 0; i < 100; i++) {
                 UncachedObject u = new UncachedObject();
                 u.setCounter(i % 3);
                 u.setStrValue("" + i % 5);
                 morphium.store(u);
             }
+
             Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
             agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").push("values", "counter", "$counter").end().sort("sum_counts");
             List<AggregatePush> lst = agr.aggregate();
-            assertNotNull(lst);
-            ;
-            assert (lst.size() == 5);
-            assert (lst.get(0).getCount() == 20);
-            assert (lst.get(0).getSumCounts() == 19);
-            assert (lst.get(0).getValues().size() == 20);
+            assertNotNull(lst);;
+            assertEquals(5,lst.size());
+            assertEquals(20,lst.get(0).getCount());
+            assertEquals(19,lst.get(0).getSumCounts());
+            assertEquals(20,lst.get(0).getValues().size() );
         }
     }
 
@@ -139,6 +132,7 @@ public class AggregationTests extends MultiDriverTestBase {
     public void testAddToSet(Morphium morphium) throws Exception {
         try (morphium) {
             morphium.clearCollection(UncachedObject.class);
+
             //noinspection Duplicates
             for (int i = 0; i < 100; i++) {
                 UncachedObject u = new UncachedObject();
@@ -146,16 +140,16 @@ public class AggregationTests extends MultiDriverTestBase {
                 u.setStrValue("" + i % 5);
                 morphium.store(u);
             }
+
             Aggregator<UncachedObject, AggregatePush> agr = morphium.createAggregator(UncachedObject.class, AggregatePush.class);
             //Ending a group is not longer necessary... but the aggregator will warn!
-            agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "$counter");
+            agr.group("$str_value").sum("count", 1).sum("sum_counts", "$counter").addToSet("values", "counter", "$counter");
             List<AggregatePush> lst = agr.aggregate();
-            assertNotNull(lst);
-            ;
-            assert (lst.size() == 5);
-            assert (lst.get(0).getValues().size() == 3);
-            assert (lst.get(0).getSumCounts() >= 19);
-            assert (lst.get(0).getCount() == 20);
+            assertNotNull(lst);;
+            assertEquals(5, lst.size());
+            assertEquals(3, lst.get(0).getValues().size());
+            assertTrue(lst.get(0).getSumCounts() >= 19);
+            assertTrue(lst.get(0).getCount() == 20);
         }
     }
 
@@ -174,29 +168,29 @@ public class AggregationTests extends MultiDriverTestBase {
 
             for (UncachedObject u : q.asList()) {
                 int v = u.getCounter() % 3;
+
                 if (sum.get(v) == null) {
                     sum.put(v, u.getCounter());
                 } else {
                     sum.put(v, sum.get(v) + v);
                 }
-                anz.merge(v, 1, (a, b) -> a + b);
 
+                anz.merge(v, 1, (a, b)->a + b);
             }
+
             for (Integer v : sum.keySet()) {
                 log.debug("ID: " + v);
                 log.debug("  anz: " + anz.get(v));
                 log.debug("  sum: " + sum.get(v));
                 log.debug("  avg: " + (sum.get(v) / anz.get(v)));
             }
+
             long dur = System.currentTimeMillis() - start;
-
             log.debug("Query took " + dur + "ms");
-
             log.debug("Starting test with Aggregation:");
             start = System.currentTimeMillis();
             Aggregator<UncachedObject, Aggregate> a = morphium.createAggregator(UncachedObject.class, Aggregate.class);
-            assertNotNull(a.getResultType());
-            ;
+            assertNotNull(a.getResultType());;
             ArrayList<Object> params = new ArrayList<>();
             params.add("$counter");
             params.add(3);
@@ -206,12 +200,14 @@ public class AggregationTests extends MultiDriverTestBase {
             a = a.group(db).sum("summe", "$counter").sum("anzahl", 1).avg("schnitt", "$counter").end();
             List<Aggregate> lst = a.aggregate();
             assertEquals(3, lst.size());
+
             for (Aggregate ag : lst) {
                 log.debug("ID: " + ag.getTheGeneratedId());
                 log.debug(" sum:" + ag.getSumme());
                 log.debug(" anz:" + ag.getAnzahl());
                 log.debug(" avg:" + ag.getSchnitt());
             }
+
             dur = System.currentTimeMillis() - start;
             log.debug("Aggregation took " + dur + "ms");
         }
@@ -297,7 +293,6 @@ public class AggregationTests extends MultiDriverTestBase {
         public long getCount() {
             return count;
         }
-
 
         public String getTheGeneratedId() {
             return theGeneratedId;

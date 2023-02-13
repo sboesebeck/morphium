@@ -1580,7 +1580,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 try {
                     unmarshalled = AnnotationAndReflectionHelper.convertType(unmarshalled, "", elementClass);
                 } catch (Exception e) {
-                    log.warn("", e);
+                    // log.warn("", e);
                 }
             }
 
