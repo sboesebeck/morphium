@@ -61,6 +61,11 @@ public class Group<T, R> {
         operators.add(o);
         return this;
     } //don't know what this actually should do???
+    public Group<T, R> addToSet(String name, String vn, String value) {
+        Map<String, Object> o = getMap(name, getMap("$addToSet", getMap(vn, value)));
+        operators.add(o);
+        return this;
+    }
 
     public Group<T, R> first(String name, Object p) {
         Map<String, Object> o = getMap(name, getMap("$first", p));

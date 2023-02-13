@@ -55,14 +55,14 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public AggregateMongoCommand getAggregateCmd() {
         return new AggregateMongoCommand(null) {
-            @Override
-            public List<Map<String, Object>> execute() throws MorphiumDriverException {
-                return aggregateMap();
-            }
-            @Override
-            public MorphiumCursor executeIterable(int batchsize) throws MorphiumDriverException {
-                return new SingleBatchCursor(aggregateMap());
-            }
+                   @Override
+                   public List<Map<String, Object>> execute() throws MorphiumDriverException {
+                       return aggregateMap();
+                   }
+                   @Override
+                   public MorphiumCursor executeIterable(int batchsize) throws MorphiumDriverException {
+                       return new SingleBatchCursor(aggregateMap());
+                   }
         };
     }
 
@@ -127,7 +127,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> project(String... m) {
+    public Aggregator<T, R> project(String ... m) {
         Map<String, Object> map = new LinkedHashMap<>();
 
         for (String sm : m) {
@@ -214,7 +214,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> sort(String... prefixed) {
+    public Aggregator<T, R> sort(String ... prefixed) {
         Map<String, Integer> m = new LinkedHashMap<>();
 
         for (String i : prefixed) {
@@ -261,7 +261,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T,R> setCollectionName(String cn) {
+    public Aggregator<T, R> setCollectionName(String cn) {
         collectionName = cn;
         return this;
     }
@@ -326,7 +326,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         if (callback == null) {
             new Thread(this::doAggregation);
         } else {
-            morphium.queueTask(() -> {
+            morphium.queueTask(()->{
                 try {
                     long start = System.currentTimeMillis();
                     List<R> result = deserializeList();
@@ -355,7 +355,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return result;
     }
 
-
     @Override
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         //TODO implement
@@ -382,20 +381,23 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return count(fld.name());
     }
 
-
     /**
-     * Categorizes incoming documents into groups, called buckets, based on a specified expression and
-     * bucket boundaries and outputs a document per each bucket. Each output document contains an _id field
-     * whose value specifies the inclusive lower bound of the bucket. The output option specifies
+     * Categorizes incoming documents into groups, called buckets, based on a
+     * specified expression and
+     * bucket boundaries and outputs a document per each bucket. Each output
+     * document contains an _id field
+     * whose value specifies the inclusive lower bound of the bucket. The output
+     * option specifies
      * the fields included in each output document.
      * <p>
-     * $bucket only produces output documents for buckets that contain at least one input document.
+     * $bucket only produces output documents for buckets that contain at least one
+     * input document.
      * wear)
      *
-     * @param groupBy:    Expression to group by, usually a field name
-     * @param boundaries: Boundaries for the  buckets
-     * @param preset:     the default, needs to be a literal
-     * @param output:     definition of output documents and accumulator
+     * @param groupBy: Expression to group by, usually a field name
+     * @param boundaries: Boundaries for the buckets
+     * @param preset: the default, needs to be a literal
+     * @param output: definition of output documents and accumulator
      * @return
      */
     @Override
@@ -407,11 +409,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         List<Object> bn = new ArrayList<>(boundaries);
-        Map<String, Object> m = UtilsMap.of("$bucket", UtilsMap.of("groupBy", (Object) groupBy,
-                    "boundaries", bn,
-                    "default", preset,
-                    "output", Utils.getQueryObjectMap(output))
-            );
+        Map<String, Object> m = UtilsMap.of("$bucket", UtilsMap.of("groupBy", (Object) groupBy, "boundaries", bn, "default", preset, "output", Utils.getQueryObjectMap(output)));
         params.add(m);
         return this;
     }
@@ -453,7 +451,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     //    }
     @Override
     public Aggregator<T, R> collStats(Boolean latencyHistograms, Double scale, boolean count, boolean queryExecStats) {
-        @SuppressWarnings("unchecked") Map<String, Object> m = new LinkedHashMap();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> m = new LinkedHashMap();
 
         if (latencyHistograms != null) {
             m.put("latencyStats", UtilsMap.of("histograms", latencyHistograms));
@@ -475,16 +474,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     //{ $currentOp: { allUsers: <boolean>, idleConnections: <boolean>, idleCursors: <boolean>, idleSessions: <boolean>, localOps: <boolean> } }
     @Override
     public Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps) {
-        params.add(UtilsMap.of("$currentOp", UtilsMap.of("allUsers", allUsers,
-                    "idleConnections", idleConnections,
-                    "idleCursors", idleCursors,
-                    "idleSessions", idleSessions,
-                    "localOps", localOps)
-            ));
+        params.add(UtilsMap.of("$currentOp", UtilsMap.of("allUsers", allUsers, "idleConnections", idleConnections, "idleCursors", idleCursors, "idleSessions", idleSessions, "localOps", localOps)));
         return this;
     }
 
@@ -521,32 +514,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type),
-                startWith,
-                connectFromField.name(),
-                connectToField.name(),
-                as,
-                maxDepth, depthField, restrictSearchWithMatch);
+        return graphLookup(morphium.getMapper().getCollectionName(type), startWith, connectFromField.name(), connectToField.name(), as, maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
-        return graphLookup(morphium.getMapper().getCollectionName(type),
-                startWith,
-                connectFromField,
-                connectToField,
-                as,
-                maxDepth, depthField, restrictSearchWithMatch);
+        return graphLookup(morphium.getMapper().getCollectionName(type), startWith, connectFromField, connectToField, as, maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
     public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField,
-        Query restrictSearchWithMatch) {
-        Map<String, Object> add = UtilsMap.of("from", (Object) fromCollection,
-                "startWith", startWith,
-                "connectFromField", connectFromField,
-                "connectToField", connectToField,
-                "as", as);
+     Query restrictSearchWithMatch) {
+        Map<String, Object> add = UtilsMap.of("from", (Object) fromCollection, "startWith", startWith, "connectFromField", connectFromField, "connectToField", connectToField, "as", as);
         params.add(UtilsMap.of("$graphLookup", add));
 
         if (maxDepth != null) {
@@ -630,7 +609,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     /**
      * $lookup:
      * {
@@ -643,11 +621,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * @return
      */
 
-
     public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
-        return lookup(getMorphium().getMapper().getCollectionName(fromType),
-                getMorphium().getARHelper().getMongoFieldName(getSearchType(), localField.name()), getMorphium().getARHelper().getMongoFieldName(fromType, foreignField.name()), outputArray, pipeline, let
-            );
+        return lookup(getMorphium().getMapper().getCollectionName(fromType), getMorphium().getARHelper().getMongoFieldName(getSearchType(), localField.name()),
+                getMorphium().getARHelper().getMongoFieldName(fromType, foreignField.name()), outputArray, pipeline, let);
     }
 
     @Override
@@ -687,18 +663,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> merge(String intoDb, String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+    public Aggregator<T, R> merge(String intoDb, String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String ... onFields) {
         return merge(intoDb, intoCollection, null, null, matchAction, notMatchedAction, onFields);
     }
 
     @Override
-    public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+    public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String ... onFields) {
         return merge(morphium.getConfig().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
     @Override
-    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction,
-        String... onFields) {
+    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction,
+     MergeActionWhenNotMatched notMatchedAction, String ... onFields) {
         return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
@@ -718,13 +694,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+    public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String ... onFields) {
         return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
     }
 
     @SuppressWarnings("ConstantConditions")
     private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction,
-        MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+     MergeActionWhenNotMatched notMatchedAction, String ... onFields) {
         Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
         List<String> flds = new ArrayList<>();
 
@@ -783,8 +759,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> out(String db, String collectionName) {
-        params.add(UtilsMap.of("$out", UtilsMap.of("coll", collectionName, "db", db)
-            ));
+        params.add(UtilsMap.of("$out", UtilsMap.of("coll", collectionName, "db", db)));
         return this;
     }
 
@@ -794,14 +769,22 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     /**
      * redact needs to resolve to $$DESCEND, $$PRUNE, or $$KEEP
      * <p>
-     * System Variable  Description
-     * $$DESCEND    $redact returns the fields at the current document level, excluding embedded documents. To include embedded documents and embedded documents within arrays, apply the $cond expression to the embedded documents to determine access for these embedded documents.
-     * $$PRUNE  $redact excludes all fields at this current document/embedded document level, without further inspection of any of the excluded fields. This applies even if the excluded field contains embedded documents that may have different access levels.
-     * $$KEEP   $redact returns or keeps all fields at this current document/embedded document level, without further inspection of the fields at this level. This applies even if the included field contains embedded documents that may have different access levels.
+     * System Variable Description
+     * $$DESCEND $redact returns the fields at the current document level, excluding
+     * embedded documents. To include embedded documents and embedded documents
+     * within arrays, apply the $cond expression to the embedded documents to
+     * determine access for these embedded documents.
+     * $$PRUNE $redact excludes all fields at this current document/embedded
+     * document level, without further inspection of any of the excluded fields.
+     * This applies even if the excluded field contains embedded documents that may
+     * have different access levels.
+     * $$KEEP $redact returns or keeps all fields at this current document/embedded
+     * document level, without further inspection of the fields at this level. This
+     * applies even if the included field contains embedded documents that may have
+     * different access levels.
      */
     @Override
     public Aggregator<T, R> redact(Expr redact) {
@@ -827,9 +810,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     /**
-     * Adds new fields to documents. $set outputs documents that contain all existing fields from the input documents and newly added fields.
+     * Adds new fields to documents. $set outputs documents that contain all
+     * existing fields from the input documents and newly added fields.
      * <p>
      * The $set stage is an alias for $addFields.
      *
@@ -844,7 +827,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     /**
-     * The $sortByCount stage is equivalent to the following $group + $sort sequence:
+     * The $sortByCount stage is equivalent to the following $group + $sort
+     * sequence:
      * <p>
      * <p>
      * { $group: { _id: <expression>, count: { $sum: 1 } } },
@@ -867,8 +851,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> unionWith(Aggregator agg) {
-        params.add(UtilsMap.of("$unionWith", UtilsMap.of("coll", (Object) collectionName, "pipeline", agg.getPipeline())
-            ));
+        params.add(UtilsMap.of("$unionWith", UtilsMap.of("coll", (Object) collectionName, "pipeline", agg.getPipeline())));
         return this;
     }
 
@@ -879,13 +862,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     @Override
-    public Aggregator<T, R> unset(String... param) {
+    public Aggregator<T, R> unset(String ... param) {
         params.add(UtilsMap.of("$unset", Arrays.asList(param)));
         return this;
     }
 
     @Override
-    public Aggregator<T, R> unset(Enum... field) {
+    public Aggregator<T, R> unset(Enum ... field) {
         List<String> lst = Arrays.stream(field).map(Enum::name).collect(Collectors.toList());
         params.add(UtilsMap.of("$unset", lst));
         return this;
@@ -911,7 +894,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         return this;
     }
 
-
     public List<Map<String, Object>> execStep(Map<String, Object> step, List<Map<String, Object>> data) {
         if (step.keySet().size() != 1) {
             throw new IllegalArgumentException("Pipeline start wrong");
@@ -921,654 +903,695 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         List<Map<String, Object>> ret = new ArrayList<>();
 
         switch (stage) {
-            case "$unset":
-                for (Map<String, Object> objm : data) {
-                    Map<String, Object> newO = new HashMap<>(objm);
+        case "$unset":
+            for (Map<String, Object> objm : data) {
+                Map<String, Object> newO = new HashMap<>(objm);
 
-                    if (step.get(stage) instanceof List) {
-                        @SuppressWarnings("unchecked") List<String> flds = (List<String>) step.get(stage);
+                if (step.get(stage) instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> flds = (List<String>) step.get(stage);
 
-                        for (String f : flds) {
-                            newO.remove(morphium.getARHelper().getMongoFieldName(type, f));
-                        }
-                    } else {
-                        newO.remove(step.get(stage));
-                    }
-
-                    ret.add(newO);
-                }
-
-                break;
-
-            case "$project":
-                for (Map<String, Object> o : data) {
-                    Map<String, Object> obj = new HashMap<>(o);
-                    ret.add(obj);
-                    @SuppressWarnings("unchecked") Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
-
-                    for (String k : op.keySet()) {
-                        Object value = op.get(k);
-
-                        if (value instanceof String && ((String) value).startsWith("$")) {
-                            obj.put(k, obj.get(((String) value).substring(1)));
-                        } else if (value instanceof Expr.ValueExpr){
-                            Object evaluate = ((Expr) value).evaluate(obj);
-                            if (Integer.valueOf(0).equals(evaluate)){
-                            obj.remove(k);
-                        }
-                        } else if (value instanceof Expr) {
-                            Object evaluate = ((Expr) value).evaluate(obj);
-
-                            obj.put(k, evaluate);
-                        } else if (value instanceof Integer) {
-                            if (((Integer) value) == 0) {
-                                obj.remove(k);
-                            }
-                        } else if (value instanceof Map) {
-                            //noinspection unchecked
-                            for (String fld : ((Map<String, Object>) value).keySet()) {
-                                if (obj.get(fld) instanceof Expr) {
-                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                } else {
-                                    log.error("InMemoryAggregation only works with Expr");
-                                }
-                            }
-                        }
-                    }
-                }
-
-                break;
-
-            case "$set":
-            case "$addFields":
-                for (Map<String, Object> o : data) {
-                    Map<String, Object> obj = new HashMap<>(o);
-                    ret.add(obj);
-                    @SuppressWarnings("unchecked") Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
-
-                    for (String k : op.keySet()) {
-                        Object value = op.get(k);
-
-                        if (value instanceof String && ((String) value).startsWith("$")) {
-                            obj.put(k, obj.get(((String) value).substring(1)));
-                        } else if (value instanceof Expr) {
-                            obj.put(k, ((Expr) value).evaluate(obj));
-                        } else if (value instanceof Map) {
-                            //noinspection unchecked
-                            for (String fld : ((Map<String, Object>) value).keySet()) {
-                                if (obj.get(fld) instanceof Expr) {
-                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                } else {
-                                    log.error("InMemoryAggregation oly works with Expr");
-                                }
-                            }
-                        }
-                    }
-                }
-
-                break;
-
-            case "$count":
-                ret.add(UtilsMap.of((String) step.get(stage), data.size()));
-                break;
-
-            case "$group":
-                @SuppressWarnings("unchecked") Map<String, Object> group = (Map<String, Object>) step.get(stage);
-                Map<Object, Map<String, Object>> res = new HashMap<>();
-
-                for (Map<String, Object> obj : data) {
-                    Map<String, Object> o = new HashMap<>(obj);
-                    Object id = group.get("_id");
-
-                    if (id instanceof Map) {
-                        //deal with combined Group IDs
-                        //and expressions in IDs
-                        if (((Map<?, ?>) id).keySet().toArray()[0].toString().startsWith("$")) {
-                            //expr?
-                            var expr = Expr.parse(id);
-                            var result = expr.evaluate(obj);
-                            res.putIfAbsent(result, new HashMap<>());
-                            res.get(result).putIfAbsent("_id", result);
-                            id = result;
-                        } else {
-                            log.info("ID is combined...");
-                            Map newIdMap = new HashMap<>();
-
-                            for (var e : ((Map<?, ?>) id).entrySet()) {
-                                var k = e.getKey();
-
-                                try {
-                                    var kEx = Expr.parse(e.getKey());
-                                    k = kEx.evaluate(o);
-                                } catch (Exception ex) {
-                                }
-
-                                var v = e.getValue();
-
-                                try {
-                                    var vEy = Expr.parse(e.getValue());
-                                    v = e.getValue();
-                                } catch (Exception ex) {
-                                }
-
-                                newIdMap.put(k, v);
-                            }
-
-                            id = newIdMap;
-                            res.putIfAbsent(id, new HashMap<>());
-                            res.get(id).putIfAbsent("_id", newIdMap);
-                        }
-                    } else {
-                        if (id != null && id.toString().startsWith("$")) {
-                            id = o.get(id.toString().substring(1));
-                        }
-
-                        res.putIfAbsent(id, new HashMap<>());
-                        res.get(id).putIfAbsent("_id", id);
-                    }
-
-                    for (String fld : group.keySet()) {
-                        if (fld.equals("_id")) { continue; }
-
-                        Object opValue = group.get(fld);
-
-                        if (opValue instanceof Map) {
-                            //expression?
-                            @SuppressWarnings("unchecked") String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
-
-                            switch (op) {
-                                case "$addToSet":
-                                case "$push":
-                                    Object setValue = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                    res.get(id).putIfAbsent(fld, new ArrayList<>());
-
-                                    if (op.equals("$push")) {
-                                        //noinspection unchecked
-                                        ((List) res.get(id).get(fld)).add(setValue);
-                                    } else {
-                                        //not using HashSet, it would break the contract
-                                        List l = ((List) res.get(id).get(fld));
-
-                                        if (!l.contains(setValue)) {
-                                            //noinspection unchecked
-                                            l.add(setValue);
-                                        }
-                                    }
-
-                                    break;
-
-                                case "$avg":
-                                    res.get(id).putIfAbsent("$_calc_" + fld, UtilsMap.of("sum", 0, "count", 0));
-
-                                    //res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
-                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                        //field reference
-                                        Number count = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("count");
-                                        count = count.intValue() + 1;
-                                        //noinspection unchecked
-                                        ((Map) res.get(id).get("$_calc_" + fld)).put("count", count);
-                                        Number current = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("sum");
-                                        Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                        Number sum = current.doubleValue() + v.doubleValue();
-                                        //noinspection unchecked
-                                        ((Map) res.get(id).get("$_calc_" + fld)).put("sum", sum);
-                                        //noinspection unchecked
-                                        res.get(id).put(fld, sum.doubleValue() / count.doubleValue());
-                                    } else {
-                                        log.error("Average with no $-reference?");
-                                    }
-
-                                    break;
-
-                                case "$first":
-                                    res.get(id).putIfAbsent(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
-                                    break;
-
-                                case "$last":
-                                    res.get(id).put(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
-                                    break;
-
-                                case "$max":
-                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                        res.get(id).putIfAbsent(fld, oVal);
-
-                                        //noinspection unchecked
-                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
-                                            res.get(id).put(fld, oVal);
-                                        }
-                                    }
-
-                                    break;
-
-                                case "$min":
-                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                        Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                        res.get(id).putIfAbsent(fld, oVal);
-
-                                        //noinspection unchecked
-                                        if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
-                                            res.get(id).put(fld, oVal);
-                                        }
-                                    }
-
-                                    break;
-
-                                case "$sum":
-                                    res.get(id).putIfAbsent(fld, 0);
-                                    Number current = (Number) res.get(id).get(fld);
-
-                                    if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
-                                        //field reference
-                                        Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (((Map<?, ?>) opValue).get(op) instanceof Number) {
-                                        Number v = (Number)((Map<?, ?>) opValue).get(op);
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                    } else if (((Map<?, ?>) opValue).get(op) instanceof Expr) {
-                                        Number v = (Number)(o.get(((Expr)((Map<?, ?>) opValue).get(op)).evaluate(o)));
-                                        res.get(id).put(fld, current.doubleValue() + v.doubleValue());
-                                    }
-
-                                    break;
-
-                                case "$accumulator":
-                                case "$mergeObjects":
-                                case "$stdDevPop":
-                                case "$stdDevSamp":
-                                    throw new RuntimeException(op + " not implemented yet,sorry");
-
-                                default:
-                                    if (opValue instanceof Map) {
-                                        Map<String, Object> opMap = (Map<String, Object>) opValue;
-
-                                        try {
-                                            Expr expr = Expr.parse(opMap);
-                                            res.get(id).put(fld, expr.evaluate(o));
-                                        } catch (Exception e) {
-                                            //swallow
-                                        }
-                                    }
-
-                                    log.error("unknown accumulator " + op);
-                                    break;
-                            }
-                        } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
-                            opValue = o.get(opValue.toString().substring(1));
-                            res.get(id).put(fld, opValue);
-                        }
-                    }
-                }
-
-                ret.addAll(res.values());
-                break;
-
-            case "$skip":
-            case "$limit":
-                Object op = step.get(stage);
-
-                if (op instanceof Expr) {
-                    op = ((Expr) op).evaluate(new HashMap<>());
-                }
-
-                int idx = ((Number) op).intValue();
-
-                if (stage.equals("$limit")) {
-                    if (idx < data.size()) {
-                        ret.addAll(data.subList(0, idx));
-                    } else {
-                        ret.addAll(data);
+                    for (String f : flds) {
+                        newO.remove(morphium.getARHelper().getMongoFieldName(type, f));
                     }
                 } else {
-                    ret.addAll(data.subList(idx, data.size() - idx));
+                    newO.remove(step.get(stage));
                 }
 
-                break;
+                ret.add(newO);
+            }
 
-            case "$match":
-                //noinspection unchecked
-                Map<String, Object> colMap = collation == null ? null : collation.toQueryObject();
-                // ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc, colMap)).collect(Collectors.toList());
+            break;
 
-                for (var doc : data) {
-                    if (QueryHelper.matchesQuery((Map<String, Object>)step.get(stage), doc, colMap)) {
-                        ret.add(doc);
-                    }
-                }
+        case "$project":
+            for (Map<String, Object> o : data) {
+                Map<String, Object> obj = new HashMap<>(o);
+                ret.add(obj);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
 
-                break;
+                for (String k : op.keySet()) {
+                    Object value = op.get(k);
 
-            case "$unwind":
-                op = step.get(stage);
+                    if (value instanceof String && ((String) value).startsWith("$")) {
+                        obj.put(k, obj.get(((String) value).substring(1)));
+                    } else if (value instanceof Expr.ValueExpr) {
+                        Object evaluate = ((Expr) value).evaluate(obj);
 
-                for (Map<String, Object> o : data) {
-                    List lst;
-                    String n;
-
-                    if (op instanceof Map) {
-                        op = ((Map) op).get("path");
-                    }
-
-                    if (op instanceof Expr) {
-                        lst = (List)((Expr) op).evaluate(o);
-                        n = ((Expr) op).toQueryObject().toString();
-                    } else if (op instanceof String) {
-                        //should be a reference
-                        if (op.toString().startsWith("$")) {
-                            op = op.toString().substring(1);
+                        if (Integer.valueOf(0).equals(evaluate)) {
+                            obj.remove(k);
                         }
+                    } else if (value instanceof Expr) {
+                        Object evaluate = ((Expr) value).evaluate(obj);
+                        obj.put(k, evaluate);
+                    } else if (value instanceof Integer) {
+                        if (((Integer) value) == 0) {
+                            obj.remove(k);
+                        }
+                    } else if (value instanceof Map) {
+                        //noinspection unchecked
+                        for (String fld : ((Map<String, Object>) value).keySet()) {
+                            if (obj.get(fld) instanceof Expr) {
+                                obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
+                            } else {
+                                log.error("InMemoryAggregation only works with Expr");
+                            }
+                        }
+                    }
+                }
+            }
 
-                        n = op.toString();
-                        lst = (List) o.get(op.toString());
+            break;
+
+        case "$set":
+        case "$addFields":
+            for (Map<String, Object> o : data) {
+                Map<String, Object> obj = new HashMap<>(o);
+                ret.add(obj);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> op = (((Map<String, Object>) step.get(stage)));
+
+                for (String k : op.keySet()) {
+                    Object value = op.get(k);
+
+                    if (value instanceof String && ((String) value).startsWith("$")) {
+                        obj.put(k, obj.get(((String) value).substring(1)));
+                    } else if (value instanceof Expr) {
+                        obj.put(k, ((Expr) value).evaluate(obj));
+                    } else if (value instanceof Map) {
+                        //noinspection unchecked
+                        for (String fld : ((Map<String, Object>) value).keySet()) {
+                            if (obj.get(fld) instanceof Expr) {
+                                obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
+                            } else {
+                                log.error("InMemoryAggregation oly works with Expr");
+                            }
+                        }
+                    }
+                }
+            }
+
+            break;
+
+        case "$count":
+            ret.add(UtilsMap.of((String) step.get(stage), data.size()));
+            break;
+
+        case "$group":
+            @SuppressWarnings("unchecked")
+            Map<String, Object> group = (Map<String, Object>) step.get(stage);
+            Map<Object, Map<String, Object>> res = new HashMap<>();
+
+            for (Map<String, Object> obj : data) {
+                Map<String, Object> o = new HashMap<>(obj);
+                Object id = group.get("_id");
+
+                if (id instanceof Map) {
+                    //deal with combined Group IDs
+                    //and expressions in IDs
+                    if (((Map<?, ?>) id).keySet().toArray()[0].toString().startsWith("$")) {
+                        //expr?
+                        var expr = Expr.parse(id);
+                        var result = expr.evaluate(obj);
+                        res.putIfAbsent(result, new HashMap<>());
+                        res.get(result).putIfAbsent("_id", result);
+                        id = result;
                     } else {
-                        log.error("Wrong reference: " + op);
-                        break;
-                    }
+                        log.info("ID is combined...");
+                        Map newIdMap = new HashMap<>();
 
-                    if (lst == null) {
-                        break;
-                    }
+                        for (var e : ((Map<?, ?>) id).entrySet()) {
+                            var k = e.getKey();
 
-                    for (Object value : lst) {
-                        Map<String, Object> result = new HashMap<>(o);
-
-                        if (n.startsWith("$")) { n = n.substring(1); }
-
-                        if (result.containsKey(n)) {
-                            result.put(n, value);
-                        } else {
-                            result.put(new AnnotationAndReflectionHelper(true).convertCamelCase(n), value);
-                        }
-
-                        ret.add(result);
-                    }
-                }
-
-                break;
-
-            case "$search":
-                log.warn("The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
-                break;
-
-            case "$sort":
-                @SuppressWarnings("unchecked") Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
-                ret = new ArrayList<>(data);
-                ret.sort((o1, o2) -> {
-                    for (String k : keysToSortBy.keySet()) {
-                        @SuppressWarnings("unchecked") int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
-
-                        if (i != 0) {
-                            if (keysToSortBy.get(k).equals(-1)) {
-                                i = -i;
+                            try {
+                                var kEx = Expr.parse(e.getKey());
+                                k = kEx.evaluate(o);
+                            } catch (Exception ex) {
                             }
 
-                            //TextIndex ignored, will be handeled like normal sort
-                            return i;
+                            var v = e.getValue();
+
+                            try {
+                                var vEy = Expr.parse(e.getValue());
+                                v = e.getValue();
+                            } catch (Exception ex) {
+                            }
+
+                            newIdMap.put(k, v);
                         }
+
+                        id = newIdMap;
+                        res.putIfAbsent(id, new HashMap<>());
+                        res.get(id).putIfAbsent("_id", newIdMap);
                     }
-                    return 0;
-                });
-                break;
+                } else {
+                    if (id != null && id.toString().startsWith("$")) {
+                        id = o.get(id.toString().substring(1));
+                    }
 
-            case "$lookup":
-                // from: <collection to join>,
-                //       localField: <field from the input documents>,
-                //       foreignField: <field from the documents of the "from" collection>,
-                //       as: <output array field>
-                ret = new ArrayList<>();
-                @SuppressWarnings("unchecked") Map<String, Object> lookup = (Map<String, Object>) step.get(stage);
-                String collection = (String) lookup.get("from");
-                String localField = (String) lookup.get("localField");
-                String foreignField = (String) lookup.get("foreignField");
-                @SuppressWarnings("unchecked") List<Map<String, Object>> pipeline = (List<Map<String, Object>>) lookup.get("pipeline");
-                @SuppressWarnings("unchecked") Map<String, Object> let = (Map<String, Object>) lookup.get("let");
-                String as = (String) lookup.get("as");
+                    res.putIfAbsent(id, new HashMap<>());
+                    res.get(id).putIfAbsent("_id", id);
+                }
 
-                if (pipeline != null || let != null) {
-                    throw new IllegalArgumentException("pipeline/let is not supported yet.");
+                for (String fld : group.keySet()) {
+                    if (fld.equals("_id")) {
+                        continue;
+                    }
+
+                    Object opValue = group.get(fld);
+
+                    if (opValue instanceof Map) {
+                        //expression?
+                        @SuppressWarnings("unchecked")
+                        String op = ((Map<String, Object>) opValue).keySet().stream().findFirst().get();
+
+                        switch (op) {
+                        case "$addToSet":
+                        case "$push":
+                            Object toPush = ((Map<?, ?>) opValue).get(op);
+                            Object setValue = null;
+
+                            if (toPush instanceof Map) {
+                                //pushing an ObjectMapperImpl
+                                setValue = new HashMap();
+
+                                for (var e : ((Map<String,Object>) toPush).entrySet()) {
+                                    if (e.getValue() instanceof Expr) {
+                                        ((Map) setValue).put(e.getKey(), ((Expr) e.getValue()).evaluate(o));
+                                    } else if (e.getValue() instanceof String){
+                                        String v=e.getValue().toString();
+                                        if (v.startsWith("$")){
+                                            setValue=o.get(v.substring(1));
+                                        } else {
+                                            setValue=v;
+                                        }
+                                    } else {
+                                        setValue=e.getValue();
+                                    }
+                                }
+                            }
+
+                            res.get(id).putIfAbsent(fld, new ArrayList<>());
+
+                            if (op.equals("$push")) {
+                                //noinspection unchecked
+                                ((List) res.get(id).get(fld)).add(setValue);
+                            } else {
+                                //not using HashSet, it would break the contract
+                                List l = ((List) res.get(id).get(fld));
+
+                                if (!l.contains(setValue)) {
+                                    //noinspection unchecked
+                                    l.add(setValue);
+                                }
+                            }
+
+                            break;
+
+                        case "$avg":
+                            res.get(id).putIfAbsent("$_calc_" + fld, UtilsMap.of("sum", 0, "count", 0));
+
+                            //res.get(id).putIfAbsent(fld, UtilsMap.of("sum", 0, "count", 0, "avg", 0));
+                            if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                //field reference
+                                Number count = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("count");
+                                count = count.intValue() + 1;
+                                //noinspection unchecked
+                                ((Map) res.get(id).get("$_calc_" + fld)).put("count", count);
+                                Number current = (Number)((Map) res.get(id).get("$_calc_" + fld)).get("sum");
+                                Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                Number sum = current.doubleValue() + v.doubleValue();
+                                //noinspection unchecked
+                                ((Map) res.get(id).get("$_calc_" + fld)).put("sum", sum);
+                                //noinspection unchecked
+                                res.get(id).put(fld, sum.doubleValue() / count.doubleValue());
+                            } else {
+                                log.error("Average with no $-reference?");
+                            }
+
+                            break;
+
+                        case "$first":
+                            res.get(id).putIfAbsent(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                            break;
+
+                        case "$last":
+                            res.get(id).put(fld, o.get(((Map<?, ?>) opValue).get(op).toString().substring(1)));
+                            break;
+
+                        case "$max":
+                            if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                res.get(id).putIfAbsent(fld, oVal);
+
+                                //noinspection unchecked
+                                if (((Comparable) res.get(id).get(fld)).compareTo(oVal) > 0) {
+                                    res.get(id).put(fld, oVal);
+                                }
+                            }
+
+                            break;
+
+                        case "$min":
+                            if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                Object oVal = o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                res.get(id).putIfAbsent(fld, oVal);
+
+                                //noinspection unchecked
+                                if (((Comparable) res.get(id).get(fld)).compareTo(oVal) < 0) {
+                                    res.get(id).put(fld, oVal);
+                                }
+                            }
+
+                            break;
+
+                        case "$sum":
+                            res.get(id).putIfAbsent(fld, 0);
+                            Number current = (Number) res.get(id).get(fld);
+
+                            if (((Map<?, ?>) opValue).get(op).toString().startsWith("$")) {
+                                //field reference
+                                Number v = (Number) o.get(((Map<?, ?>) opValue).get(op).toString().substring(1));
+                                res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                            } else if (((Map<?, ?>) opValue).get(op) instanceof Number) {
+                                Number v = (Number)((Map<?, ?>) opValue).get(op);
+                                res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                            } else if (((Map<?, ?>) opValue).get(op) instanceof Expr) {
+                                Number v = (Number)(o.get(((Expr)((Map<?, ?>) opValue).get(op)).evaluate(o)));
+                                res.get(id).put(fld, current.doubleValue() + v.doubleValue());
+                            }
+
+                            break;
+
+                        case "$accumulator":
+                        case "$mergeObjects":
+                        case "$stdDevPop":
+                        case "$stdDevSamp":
+                            throw new RuntimeException(op + " not implemented yet,sorry");
+
+                        default:
+                            if (opValue instanceof Map) {
+                                Map<String, Object> opMap = (Map<String, Object>) opValue;
+
+                                try {
+                                    Expr expr = Expr.parse(opMap);
+                                    res.get(id).put(fld, expr.evaluate(o));
+                                } catch (Exception e) {
+                                    //swallow
+                                }
+                            }
+
+                            log.error("unknown accumulator " + op);
+                            break;
+                        }
+                    } else if (opValue instanceof String && opValue.toString().startsWith("$")) {
+                        opValue = o.get(opValue.toString().substring(1));
+                        res.get(id).put(fld, opValue);
+                    }
+                }
+            }
+
+            ret.addAll(res.values());
+            break;
+
+        case "$skip":
+        case "$limit":
+            Object op = step.get(stage);
+
+            if (op instanceof Expr) {
+                op = ((Expr) op).evaluate(new HashMap<>());
+            }
+
+            int idx = ((Number) op).intValue();
+
+            if (stage.equals("$limit")) {
+                if (idx < data.size()) {
+                    ret.addAll(data.subList(0, idx));
+                } else {
+                    ret.addAll(data);
+                }
+            } else {
+                ret.addAll(data.subList(idx, data.size() - idx));
+            }
+
+            break;
+
+        case "$match":
+            //noinspection unchecked
+            Map<String, Object> colMap = collation == null ? null : collation.toQueryObject();
+
+            // ret = data.stream().filter((doc) -> QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc, colMap)).collect(Collectors.toList());
+
+            for (var doc : data) {
+                if (QueryHelper.matchesQuery((Map<String, Object>) step.get(stage), doc, colMap)) {
+                    ret.add(doc);
+                }
+            }
+
+            break;
+
+        case "$unwind":
+            op = step.get(stage);
+
+            for (Map<String, Object> o : data) {
+                List lst;
+                String n;
+
+                if (op instanceof Map) {
+                    op = ((Map) op).get("path");
+                }
+
+                if (op instanceof Expr) {
+                    lst = (List)((Expr) op).evaluate(o);
+                    n = ((Expr) op).toQueryObject().toString();
+                } else if (op instanceof String) {
+                    //should be a reference
+                    if (op.toString().startsWith("$")) {
+                        op = op.toString().substring(1);
+                    }
+
+                    n = op.toString();
+                    lst = (List) o.get(op.toString());
+                } else {
+                    log.error("Wrong reference: " + op);
+                    break;
+                }
+
+                if (lst == null) {
+                    break;
+                }
+
+                for (Object value : lst) {
+                    Map<String, Object> result = new HashMap<>(o);
+
+                    if (n.startsWith("$")) {
+                        n = n.substring(1);
+                    }
+
+                    if (result.containsKey(n)) {
+                        result.put(n, value);
+                    } else {
+                        result.put(new AnnotationAndReflectionHelper(true).convertCamelCase(n), value);
+                    }
+
+                    ret.add(result);
+                }
+            }
+
+            break;
+
+        case "$search":
+            log.warn("The $search aggregation pipeline stage is only available for collections hosted on MongoDB Atlas cluster tiers running MongoDB version 4.2 or later. To learn more, see Atlas Search.");
+            break;
+
+        case "$sort":
+            @SuppressWarnings("unchecked")
+            Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
+            ret = new ArrayList<>(data);
+            ret.sort((o1, o2)->{
+                for (String k : keysToSortBy.keySet()) {
+                    @SuppressWarnings("unchecked")
+                    int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
+
+                    if (i != 0) {
+                        if (keysToSortBy.get(k).equals(-1)) {
+                            i = -i;
+                        }
+
+                        //TextIndex ignored, will be handeled like normal sort
+                        return i;
+                    }
+                }
+                return 0;
+            });
+            break;
+
+        case "$lookup":
+            // from: <collection to join>,
+            //       localField: <field from the input documents>,
+            //       foreignField: <field from the documents of the "from" collection>,
+            //       as: <output array field>
+            ret = new ArrayList<>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> lookup = (Map<String, Object>) step.get(stage);
+            String collection = (String) lookup.get("from");
+            String localField = (String) lookup.get("localField");
+            String foreignField = (String) lookup.get("foreignField");
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> pipeline = (List<Map<String, Object>>) lookup.get("pipeline");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> let = (Map<String, Object>) lookup.get("let");
+            String as = (String) lookup.get("as");
+
+            if (pipeline != null || let != null) {
+                throw new IllegalArgumentException("pipeline/let is not supported yet.");
+            }
+
+            for (Map<String, Object> doc : data) {
+                Object localValue = doc.get(localField);
+                //                    try {
+                //                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, UtilsMap.of(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
+                //                        Map<String, Object> o = new HashMap<>(doc);
+                //                        o.put(as, other);
+                //                        ret.add(o);
+                //                    } catch (MorphiumDriverException e) {
+                //                        throw new RuntimeException(e);
+                //                    }
+            }
+
+            break;
+
+        case "$sample":
+            int size = ((Number)((Map) step.get(stage)).get("size")).intValue();
+            @SuppressWarnings("unchecked")
+            List o = new ArrayList(data);
+            Collections.shuffle(o);
+            //noinspection unchecked
+            ret = o.subList(0, size);
+            break;
+
+        case "$merge":
+            //{ $merge: {
+            //     into: <collection> -or- { db: <db>, coll: <collection> },
+            //     on: <identifier field> -or- [ <identifier field1>, ...],  // Optional
+            //     let: <variables>,                                         // Optional
+            //     whenMatched: <replace|keepExisting|merge|fail|pipeline>,  // Optional
+            //     whenNotMatched: <insert|discard|fail>                     // Optional
+            //} }
+            @SuppressWarnings("unchecked")
+            Map setting = ((Map<String, Object>) step.get(stage));
+            String db = morphium.getConfig().getDatabase();
+            String coll = "";
+
+            if (setting.get("into") instanceof Map) {
+                //noinspection unchecked
+                db = (String)((Map<String, Object>) setting.get("into")).get("db");
+                //noinspection unchecked
+                coll = (String)((Map<String, Object>) setting.get("into")).get("coll");
+            } else {
+                coll = (String)(setting.get("into"));
+            }
+
+            if (setting.containsKey("on")) {
+                //merge
+                //need to lookup each entry, match it to on field
+                @SuppressWarnings("unchecked")
+                List<String> on = (List<String>)(setting.get("on"));
+                MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
+                MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
+                List<Map<String, Object>> mergePipeline = null;
+
+                if (setting.containsKey("whenMatched")) {
+                    if (setting.get("whenMatched") instanceof Map) {
+                        //noinspection unchecked
+                        mergePipeline = (List<Map<String, Object>>) setting.get("whenMatched");
+                    } else {
+                        matched = MergeActionWhenMatched.valueOf((String) setting.get("whenMatched"));
+                    }
+                }
+
+                if (setting.containsKey("whenNotMatched")) {
+                    notMatched = MergeActionWhenNotMatched.valueOf((String) setting.get("whenNotMatched"));
                 }
 
                 for (Map<String, Object> doc : data) {
-                    Object localValue = doc.get(localField);
-                    //                    try {
-                    //                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, UtilsMap.of(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
-                    //                        Map<String, Object> o = new HashMap<>(doc);
-                    //                        o.put(as, other);
-                    //                        ret.add(o);
-                    //                    } catch (MorphiumDriverException e) {
-                    //                        throw new RuntimeException(e);
-                    //                    }
-                }
+                    try {
+                        Map<String, Object> q = new HashMap<>();
 
-                break;
+                        for (String onfld : on) {
+                            q.put(onfld, doc.get(onfld));
+                        }
 
-            case "$sample":
-                int size = ((Number)((Map) step.get(stage)).get("size")).intValue();
-                @SuppressWarnings("unchecked") List o = new ArrayList(data);
-                Collections.shuffle(o);
-                //noinspection unchecked
-                ret = o.subList(0, size);
-                break;
+                        List<Map<String, Object>> toMergeTo = null;         //morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
 
-            case "$merge":
-                //{ $merge: {
-                //     into: <collection> -or- { db: <db>, coll: <collection> },
-                //     on: <identifier field> -or- [ <identifier field1>, ...],  // Optional
-                //     let: <variables>,                                         // Optional
-                //     whenMatched: <replace|keepExisting|merge|fail|pipeline>,  // Optional
-                //     whenNotMatched: <insert|discard|fail>                     // Optional
-                //} }
-                @SuppressWarnings("unchecked") Map setting = ((Map<String, Object>) step.get(stage));
-                String db = morphium.getConfig().getDatabase();
-                String coll = "";
+                        if (toMergeTo == null || toMergeTo.size() == 0) {
+                            //not matched
+                            switch (notMatched) {
+                            case fail:
+                                throw new MorphiumDriverException("Aggregation merge step failed - no doc matched!");
 
-                if (setting.get("into") instanceof Map) {
-                    //noinspection unchecked
-                    db = (String)((Map<String, Object>) setting.get("into")).get("db");
-                    //noinspection unchecked
-                    coll = (String)((Map<String, Object>) setting.get("into")).get("coll");
-                } else {
-                    coll = (String)(setting.get("into"));
-                }
+                            case discard:
+                                continue;
 
-                if (setting.containsKey("on")) {
-                    //merge
-                    //need to lookup each entry, match it to on field
-                    @SuppressWarnings("unchecked") List<String> on = (List<String>)(setting.get("on"));
-                    MergeActionWhenNotMatched notMatched = MergeActionWhenNotMatched.insert;
-                    MergeActionWhenMatched matched = MergeActionWhenMatched.merge;
-                    List<Map<String, Object>> mergePipeline = null;
+                            case insert:
+                                //morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
+                                break;
 
-                    if (setting.containsKey("whenMatched")) {
-                        if (setting.get("whenMatched") instanceof Map) {
-                            //noinspection unchecked
-                            mergePipeline = (List<Map<String, Object>>) setting.get("whenMatched");
+                            default:
+                                throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
+                            }
+                        } else if (toMergeTo.size() > 1) {
+                            throw new MorphiumDriverException("Aggregation merge step failed - on fields query returned more than one value. On-Fields are not unique");
                         } else {
-                            matched = MergeActionWhenMatched.valueOf((String) setting.get("whenMatched"));
-                        }
-                    }
+                            Map<String, Object> mergeObject = toMergeTo.get(0);
 
-                    if (setting.containsKey("whenNotMatched")) {
-                        notMatched = MergeActionWhenNotMatched.valueOf((String) setting.get("whenNotMatched"));
-                    }
+                            switch (matched) {
+                            case merge:
+                                if (mergePipeline != null) {
+                                    //need to run through pipeline....
+                                    for (Map<String, Object> mergePipelineStep : mergePipeline) {
+                                        String s = mergePipelineStep.keySet().stream().findFirst().get();
 
-                    for (Map<String, Object> doc : data) {
-                        try {
-                            Map<String, Object> q = new HashMap<>();
+                                        switch (s) {
+                                        case "$set":
+                                        case "$addFields":
+                                            break;
 
-                            for (String onfld : on) {
-                                q.put(onfld, doc.get(onfld));
-                            }
+                                        case "$unset":
+                                            Map<String, Object> newO = new HashMap<>(doc);
 
-                            List<Map<String, Object>> toMergeTo = null; //morphium.getDriver().find(db, coll, q, null, null, 0, -1, 100, null, null, null);
+                                            if (mergePipelineStep.get(s) instanceof List) {
+                                                @SuppressWarnings("unchecked")
+                                                List<String> flds = (List<String>) mergePipelineStep.get(s);
 
-                            if (toMergeTo == null || toMergeTo.size() == 0) {
-                                //not matched
-                                switch (notMatched) {
-                                    case fail:
-                                        throw new MorphiumDriverException("Aggregation merge step failed - no doc matched!");
-
-                                    case discard:
-                                        continue;
-
-                                    case insert:
-                                        //morphium.getDriver().store(db, coll, Collections.singletonList(doc), null);
-                                        break;
-
-                                    default:
-                                        throw new IllegalArgumentException("unknown whenNotMatched action " + notMatched);
-                                }
-                            } else if (toMergeTo.size() > 1) {
-                                throw new MorphiumDriverException("Aggregation merge step failed - on fields query returned more than one value. On-Fields are not unique");
-                            } else {
-                                Map<String, Object> mergeObject = toMergeTo.get(0);
-
-                                switch (matched) {
-                                    case merge:
-                                        if (mergePipeline != null) {
-                                            //need to run through pipeline....
-                                            for (Map<String, Object> mergePipelineStep : mergePipeline) {
-                                                String s = mergePipelineStep.keySet().stream().findFirst().get();
-
-                                                switch (s) {
-                                                    case "$set":
-                                                    case "$addFields":
-                                                        break;
-
-                                                    case "$unset":
-                                                        Map<String, Object> newO = new HashMap<>(doc);
-
-                                                        if (mergePipelineStep.get(s) instanceof List) {
-                                                            @SuppressWarnings("unchecked") List<String> flds = (List<String>) mergePipelineStep.get(s);
-
-                                                            for (String f : flds) {
-                                                                newO.remove(f);
-                                                            }
-                                                        } else {
-                                                            newO.remove(mergePipelineStep.get(s));
-                                                        }
-
-                                                        ret.add(newO);
-                                                        break;
-
-                                                    case "$project":
-                                                        break;
-
-                                                    case "$replaceRoot":
-                                                    case "$replaceWith":
-                                                        Object newRoot;
-
-                                                        if (mergePipelineStep.get(s) instanceof Map) {
-                                                            newRoot = ((Map) mergePipelineStep.get(s)).get("newRoot");
-                                                        } else {
-                                                            newRoot = mergePipelineStep.get(s);
-                                                        }
-
-                                                        if (newRoot instanceof String) {
-                                                            if (newRoot.toString().startsWith("$")) {
-                                                                //fieldRef
-                                                                //noinspection unchecked
-                                                                ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
-                                                            } else {
-                                                                throw new IllegalArgumentException("cannot replace root with single value");
-                                                            }
-                                                        } else {
-                                                            //parse expr!!!!!
-                                                            Expr expr = Expr.parse(newRoot);
-                                                            //noinspection unchecked
-                                                            ret.add((Map<String, Object>) expr.evaluate(doc));
-                                                        }
-
-                                                        break;
-
-                                                    default:
-                                                        throw new MorphiumDriverException("Aggregation error: unknown aggregation step in merge pipeline " + s);
+                                                for (String f : flds) {
+                                                    newO.remove(f);
                                                 }
-                                            }
-                                        } else {
-                                            if (mergeObject.containsKey("_id")) {
-                                                throw new MorphiumDriverException("Aggregation merge failure: referenced object keeps _id!");
+                                            } else {
+                                                newO.remove(mergePipelineStep.get(s));
                                             }
 
-                                            //just merge
-                                            Map<String, Object> newDoc = new HashMap<>(doc);
-                                            newDoc.putAll(mergeObject);
-                                            //                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
+                                            ret.add(newO);
+                                            break;
+
+                                        case "$project":
+                                            break;
+
+                                        case "$replaceRoot":
+                                        case "$replaceWith":
+                                            Object newRoot;
+
+                                            if (mergePipelineStep.get(s) instanceof Map) {
+                                                newRoot = ((Map) mergePipelineStep.get(s)).get("newRoot");
+                                            } else {
+                                                newRoot = mergePipelineStep.get(s);
+                                            }
+
+                                            if (newRoot instanceof String) {
+                                                if (newRoot.toString().startsWith("$")) {
+                                                    //fieldRef
+                                                    //noinspection unchecked
+                                                    ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
+                                                } else {
+                                                    throw new IllegalArgumentException("cannot replace root with single value");
+                                                }
+                                            } else {
+                                                //parse expr!!!!!
+                                                Expr expr = Expr.parse(newRoot);
+                                                //noinspection unchecked
+                                                ret.add((Map<String, Object>) expr.evaluate(doc));
+                                            }
+
+                                            break;
+
+                                        default:
+                                            throw new MorphiumDriverException("Aggregation error: unknown aggregation step in merge pipeline " + s);
                                         }
+                                    }
+                                } else {
+                                    if (mergeObject.containsKey("_id")) {
+                                        throw new MorphiumDriverException("Aggregation merge failure: referenced object keeps _id!");
+                                    }
 
-                                        break;
-
-                                    case fail:
-                                    case replace:
-                                    case keepExisting:
-                                    default:
-                                        throw new IllegalArgumentException("unknown whenMatched action " + matched);
+                                    //just merge
+                                    Map<String, Object> newDoc = new HashMap<>(doc);
+                                    newDoc.putAll(mergeObject);
+                                    //                                            morphium.getDriver().store(db, coll, Collections.singletonList(mergeObject), null);
                                 }
+
+                                break;
+
+                            case fail:
+                            case replace:
+                            case keepExisting:
+                            default:
+                                throw new IllegalArgumentException("unknown whenMatched action " + matched);
                             }
-                        } catch (MorphiumDriverException e) {
-                            e.printStackTrace();
                         }
+                    } catch (MorphiumDriverException e) {
+                        e.printStackTrace();
                     }
-                } else {
-                    //                    try {
-                    //                        morphium.getDriver().store(db, coll, data, null);
-                    //                    } catch (MorphiumDriverException e) {
-                    //                        log.error("Something went wrong with $merge", e);
-                    //                    }
                 }
+            } else {
+                //                    try {
+                //                        morphium.getDriver().store(db, coll, data, null);
+                //                    } catch (MorphiumDriverException e) {
+                //                        log.error("Something went wrong with $merge", e);
+                //                    }
+            }
 
-                break;
+            break;
 
-            case "$replaceRoot":
-            case "$replaceWith":
-                Object newRoot;
+        case "$replaceRoot":
+        case "$replaceWith":
+            Object newRoot;
 
-                if (step.get(stage) instanceof Map) {
-                    newRoot = ((Map) step.get(stage)).get("newRoot");
-                } else {
-                    newRoot = step.get(stage);
-                }
+            if (step.get(stage) instanceof Map) {
+                newRoot = ((Map) step.get(stage)).get("newRoot");
+            } else {
+                newRoot = step.get(stage);
+            }
 
-                if (newRoot instanceof String) {
-                    if (newRoot.toString().startsWith("$")) {
-                        //fieldRef
-                        for (Map<String, Object> doc : data) {
-                            //noinspection unchecked
-                            ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
-                        }
-                    } else {
-                        throw new IllegalArgumentException("cannot replace root with single value");
-                    }
-                } else {
-                    //parse expr!!!!!
-                    Expr expr = Expr.parse(newRoot);
-
+            if (newRoot instanceof String) {
+                if (newRoot.toString().startsWith("$")) {
+                    //fieldRef
                     for (Map<String, Object> doc : data) {
                         //noinspection unchecked
-                        ret.add((Map<String, Object>) expr.evaluate(doc));
+                        ret.add((Map<String, Object>) Expr.field(newRoot.toString()).evaluate(doc));
                     }
+                } else {
+                    throw new IllegalArgumentException("cannot replace root with single value");
                 }
+            } else {
+                //parse expr!!!!!
+                Expr expr = Expr.parse(newRoot);
 
-                break;
+                for (Map<String, Object> doc : data) {
+                    //noinspection unchecked
+                    ret.add((Map<String, Object>) expr.evaluate(doc));
+                }
+            }
 
-            case "$planCacheStats":
-            case "$redact":
-            case "$sortByCount":
-            case "$unionWith":
-            case "$currentOp":
-            case "$listLocalSessions":
-            case "$findAndModyfy":
-            case "$update":
-            case "$bucket":
-            case "$bucketAuto":
-            case "$collStats":
-            case "$listSessions":
-            case "$facet":
-            case "$indexStats":
-            case "$geoNear":
-            case "$graphLookup":
-            default:
-                log.error("unhandled Aggregation stage " + stage);
+            break;
+
+        case "$planCacheStats":
+        case "$redact":
+        case "$sortByCount":
+        case "$unionWith":
+        case "$currentOp":
+        case "$listLocalSessions":
+        case "$findAndModyfy":
+        case "$update":
+        case "$bucket":
+        case "$bucketAuto":
+        case "$collStats":
+        case "$listSessions":
+        case "$facet":
+        case "$indexStats":
+        case "$geoNear":
+        case "$graphLookup":
+        default:
+            log.error("unhandled Aggregation stage " + stage);
         }
 
         return ret;
@@ -1580,10 +1603,12 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     }
 
     private List<Map<String, Object>> doAggregation() {
-        var q=getMorphium().createQueryFor(getSearchType());
-        if (getCollectionName()!=null){
+        var q = getMorphium().createQueryFor(getSearchType());
+
+        if (getCollectionName() != null) {
             q.setCollectionName(getCollectionName());
         }
+
         List<Map<String, Object>> result = q.asMapList();
 
         for (Map<String, Object> step : getPipeline()) {
@@ -1601,6 +1626,6 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
     @Override
     public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
-        return Doc.of("err","not supported with inMemDriver","ok",0.0);
+        return Doc.of("err", "not supported with inMemDriver", "ok", 0.0);
     }
 }
