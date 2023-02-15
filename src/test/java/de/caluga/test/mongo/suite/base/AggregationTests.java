@@ -6,6 +6,7 @@ import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Property;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,6 +30,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class AggregationTests extends MultiDriverTestBase {
 
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void aggregatorIdTest(Morphium morphium) throws Exception {
+        try (morphium) {
+            createUncachedObjects(morphium, 100);
+            Aggregator<UncachedObject, Map> a = morphium.createAggregator(UncachedObject.class, Map.class);
+            a.group(Doc.of("cnt","$counter","str","$str_value")).sum("sum", "$counter").end();
+            // a.group("all").sum("sum", "$counter");
+            var res=a.aggregateMap();
+            log.info("Size: "+res.size());
+            assertTrue(res.get(0).get("_id") instanceof Map);
+            assertFalse(((Map)res.get(0).get("_id")).get("cnt") instanceof String);
+
+        }
+    }
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void aggregatorTest(Morphium morphium) throws Exception {

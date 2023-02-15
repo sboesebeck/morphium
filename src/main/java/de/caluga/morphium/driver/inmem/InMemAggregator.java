@@ -1033,7 +1033,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                             try {
                                 var vEy = Expr.parse(e.getValue());
-                                v = e.getValue();
+                                v = vEy.evaluate(o);
                             } catch (Exception ex) {
                             }
 
