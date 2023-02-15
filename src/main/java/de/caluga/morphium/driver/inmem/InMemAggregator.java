@@ -1026,6 +1026,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             try {
                                 var kEx = Expr.parse(e.getKey());
                                 k = kEx.evaluate(o);
+                                while (k instanceof Expr){
+                                    k=((Expr)k).evaluate(o);
+                                }
                             } catch (Exception ex) {
                             }
 
@@ -1034,6 +1037,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             try {
                                 var vEy = Expr.parse(e.getValue());
                                 v = vEy.evaluate(o);
+                                while (v instanceof Expr){
+                                    v=((Expr)v).evaluate(o);
+                                }
                             } catch (Exception ex) {
                             }
 
