@@ -2503,7 +2503,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     var res = cmd.execute();
 
                     if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
-                        if (((String) res.get("errmsg")).contains("Index already exists with a different name")) {
+                        if (((String) res.get("errmsg")).contains("already exists")) {
                             logger.warn("could not create index - already exists");
                         } else {
                             throw new MorphiumDriverException((String) res.get("errmsg"));
