@@ -2417,7 +2417,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         List v = new ArrayList((List) obj.get(entry.getKey()));
                         List objectsToBeDeleted = (List) entry.getValue();
 
-                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> objectsToBeDeleted.contains(object));
+                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> v.contains(object));
                         if(valueIsChanged) {
                             modified.add(obj.get("_id"));
                         }

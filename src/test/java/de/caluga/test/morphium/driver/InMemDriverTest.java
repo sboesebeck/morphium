@@ -216,23 +216,33 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         String morphiumId = "12345";
-        //   db.testcoll.insertOne({_id: "12345", scores: [0,2,5,5,1,0]})
-        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0,2,5,5,1,0))));
+        //   db.testcoll.insertOne({_id: "12345", scores: [0,2,5,5,1,0], prices: [1.2, 1.4, 1.8, 2.0], empty: []})
+        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0,2,5,5,1,0), "prices", Arrays.asList(1.2,1.4,1.8,2.0),
+                "empty", Arrays.asList())));
         var insertResult = insert.execute();
 
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
-        //   db.testcoll.updateAll({_id: "12345"}, {$pullAll: {"scores": [0,5]}} )
-        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5))), null, false, false, null, null, null);
+        //   db.testcoll.updateAll({_id: "12345"}, {$pullAll: {"scores": [0,5], "prices": [1.2, 1.6, 1.7], "empty": [1, 2]}} )
+        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5),
+                "prices", Arrays.asList(1.2,1.6,1.7),
+                "empty", Arrays.asList(1, 2))), null, false, false, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
         //   db.testcoll.find({_id: "12345"})
         List<Map<String, Object>> ret = drv.find(db, coll, Doc.of("_id", morphiumId), null, null, 0, 0);
-        log.info("Got result: " + ret.size());
         List scores = (List) ret.get(0).get("scores");
         assertTrue(ret.size() == 1);
         assertTrue(scores.get(0) == Integer.valueOf(2));
         assertTrue(scores.get(1) == Integer.valueOf(1));
+
+        List prices = (List) ret.get(0).get("prices");
+        assertTrue(((Double) prices.get(0)).doubleValue() == 1.4);
+        assertTrue(((Double)prices.get(1)).doubleValue() == 1.8);
+        assertTrue(((Double)prices.get(2)) == 2.0);
+
+        List empty = (List) ret.get(0).get("empty");
+        assertTrue(empty.isEmpty());
 
         drv.close();
     }
