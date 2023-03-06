@@ -2404,9 +2404,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // $pull: { votes: { $gte: 6 } }
                     // $pull: { results: { score: 8 , item: "B" } }
                     // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        List values = new ArrayList((List) obj.get(entry.getKey()));
+                        Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
+                        List filteredValues = new ArrayList();
+                        for(Object value: values) {
+                            if (! QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
+                                filteredValues.add(value);
+                            }
+                        }
 
-                    log.error("Not implemented yet");
-                    throw new RuntimeException ("$pull need implementation");
+                        boolean valueIsChanged = ! filteredValues.containsAll(values) || ! values.containsAll(filteredValues);
+                        if(valueIsChanged) {
+                            modified.add(obj.get("_id"));
+                        }
+                        obj.put(entry.getKey(), filteredValues);
+                    }
+
+                    break;
 
                 case "$pullAll":
                     // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
