@@ -210,6 +210,65 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    public void testUpdate_pull() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        //db.stores.insertMany( [
+        //   { _id: 1,
+        //      fruits: [ "apples", "pears", "oranges", "grapes", "bananas" ],
+        //      vegetables: [ "carrots", "celery", "squash", "carrots" ]},
+        //   { _id: 2,
+        //      fruits: [ "plums", "kiwis", "oranges", "bananas", "apples" ],
+        //      vegetables: [ "broccoli", "zucchini", "carrots", "onions" ]
+        //   }] )
+        String collection = "stores";
+        var insert1 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
+        insert1.setDocuments(Arrays.asList(Doc.of("_id", "1", "fruits", Arrays.asList("apples", "pears", "oranges", "grapes", "bananas"),
+                "vegetables", Arrays.asList("carrots", "celery", "squash", "carrots"))));
+        insert1.execute();
+        var insert2 = new InsertMongoCommand(drv).setColl("stores").setDb(db);
+        insert2.setDocuments(Arrays.asList(Doc.of("_id", "2", "fruits", Arrays.asList("plums", "kiwis", "oranges", "bananas", "apples"),
+                "vegetables", Arrays.asList("broccoli", "zucchini", "carrots", "onions"))));
+        insert2.execute();
+
+        //db.stores.updateMany( { },
+        //   { $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" } })
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
+        update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("fruits", Doc.of("$in", Arrays.asList("apples", "oranges")),
+                "vegetables", "carrots")), null, false, true, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        //{ _id: 1,
+        //   fruits: [ 'pears', 'grapes', 'bananas' ],
+        //   vegetables: [ 'celery', 'squash' ]},
+        List<Map<String, Object>> ret1 = drv.find(db, collection, Doc.of("_id", "1"), null, null, 0, 0);
+        List fruits1 = (List) ret1.get(0).get("fruits");
+        List<String> expectedFruits1 = Arrays.asList("pears", "grapes", "bananas");
+        assertTrue(expectedFruits1.containsAll(fruits1));
+        assertTrue(fruits1.containsAll(expectedFruits1));
+        List vegetables1 = (List) ret1.get(0).get("vegetables");
+        List<String> expectedVegetables1 = Arrays.asList("celery", "squash");
+        assertTrue(expectedVegetables1.containsAll(vegetables1));
+        assertTrue(vegetables1.containsAll(expectedVegetables1));
+
+        // { _id: 2,
+        //   fruits: [ 'plums', 'kiwis', 'bananas' ],
+        //   vegetables: [ 'broccoli', 'zucchini', 'onions' ]}
+        List<Map<String, Object>> ret2 = drv.find(db, collection, Doc.of("_id", "2"), null, null, 0, 0);
+        List fruits2 = (List) ret2.get(0).get("fruits");
+        List<String> expectedFruits2 = Arrays.asList("plums", "kiwis", "bananas");
+        assertTrue(expectedFruits2.containsAll(fruits2));
+        assertTrue(fruits2.containsAll(expectedFruits2));
+        List vegetables2 = (List) ret2.get(0).get("vegetables");
+        List<String> expectedVegetables2 = Arrays.asList("broccoli", "zucchini", "onions");
+        assertTrue(expectedVegetables2.containsAll(vegetables2));
+        assertTrue(vegetables2.containsAll(expectedVegetables2));
+
+    }
+
+        @Test
     public void testUpdate_pullAll() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();
         drv.connect();
