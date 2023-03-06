@@ -532,7 +532,13 @@ public class QueryHelper {
 
                             return found;
                         } else {
-                            String regex = commandMap.get("$regex").toString();
+                            String regex = (String)commandMap.get("$regex");
+                            if (regex==null) {
+                                regex=(String)commandMap.get("$regularExpression");
+                            }
+                            if (regex==null){
+                                return false;
+                            }
 
                             if (!regex.startsWith("^")) {
                                 regex = ".*" + regex;
