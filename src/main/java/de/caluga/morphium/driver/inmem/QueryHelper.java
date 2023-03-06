@@ -438,6 +438,7 @@ public class QueryHelper {
                         return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
 
                     case "$regex":
+                    case "$regularExpression":
                     case "$text":
                         Object valtoCheck = null;
 
