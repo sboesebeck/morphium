@@ -605,6 +605,14 @@ public class Messaging extends Thread implements ShutdownListener {
         skipped.incrementAndGet();
         return ret;
     }
+    @Deprecated
+    public void findAndProcessPendingMessages(String name){
+        triggerCheck();
+    }
+    @Deprecated
+    public void findAndProcessPendingMessages(){
+        triggerCheck();
+    }
 
     // public void findAndProcessPendingMessages(String name) {
     // Runnable r = ()->{
