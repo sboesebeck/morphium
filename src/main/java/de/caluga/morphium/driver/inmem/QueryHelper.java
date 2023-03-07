@@ -921,7 +921,7 @@ public class QueryHelper {
                             return false;
                         }
 
-                        throw new RuntimeException("Unknown Operator " + commandKey);
+                        return commandMap.equals(toCheck);
                     }
                 } else {
                     if (keyQuery.contains(".")) {

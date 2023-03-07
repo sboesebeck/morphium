@@ -2402,7 +2402,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     // Examples:
                     // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
                     // $pull: { votes: { $gte: 6 } }
-                    // $pull: { results: { score: 8 , item: "B" } }
+                    // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
                     // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         List values = new ArrayList((List) obj.get(entry.getKey()));
