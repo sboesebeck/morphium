@@ -10,7 +10,6 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -210,7 +209,75 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void testUpdate_pull() throws Exception {
+    public void testUpdate_pull_Remove_Items_from_an_Array_of_Documents() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        // db.survey.insertMany([{ _id: 1, results: [ { item: "A", score: 5 }, { item: "B", score: 8 }]},
+        //   {_id: 2, results: [ { item: "C", score: 8 }, { item: "B", score: 4 }]}] )
+        String collection = "survey";
+        var insert1 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
+        insert1.setDocuments(Arrays.asList(Doc.of("_id", "1", "results",
+                Arrays.asList(Doc.of("item", "A", "score", 5), Doc.of("item", "B", "score", 8)))));
+        insert1.execute();
+        var insert2 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
+        insert2.setDocuments(Arrays.asList(Doc.of("_id", "2", "results",
+                Arrays.asList(Doc.of("item", "C", "score", 8), Doc.of("item", "B", "score", 4)))));
+        insert2.execute();
+
+        // db.survey.updateMany({ }, { $pull: { results: { score: 8 , item: "B" } } })
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
+        update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("results", Doc.of("score", 8, "item", "B"))),
+                null, false, true, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        // { _id: 1, results: [ { item: 'A', score: 5 } ] },
+        //   { _id: 2, results: [ { item: 'C', score: 8 }, { item: 'B', score: 4 } ]}
+        List<Map<String, Object>> ret1 = drv.find(db, collection, Doc.of("_id", "1"), null, null, 0, 0);
+        List votes1 = (List) ret1.get(0).get("results");
+        Map<String, Object> votes1Map = (Map<String, Object>) votes1.get(0);
+        assertTrue(votes1Map.get("item").equals("A"));
+        assertTrue(votes1Map.get("score").equals(5));
+
+        List<Map<String, Object>> ret2 = drv.find(db, collection, Doc.of("_id", "2"), null, null, 0, 0);
+        List votes2 = (List) ret2.get(0).get("results");
+        Map<String, Object> votes2Map1 = (Map<String, Object>) votes2.get(0);
+        assertTrue(votes2Map1.get("item").equals("C"));
+        assertTrue(votes2Map1.get("score").equals(8));
+        Map<String, Object> votes2Map2 = (Map<String, Object>) votes2.get(1);
+        assertTrue(votes2Map2.get("item").equals("B"));
+        assertTrue(votes2Map2.get("score").equals(4));
+    }
+
+    @Test
+    public void testUpdate_pull_Remove_All_Items_That_Match_a_Specified_pull_Condition() throws Exception {
+        InMemoryDriver drv = new InMemoryDriver();
+        drv.connect();
+
+        // db.profiles.insertOne( { _id: 1, votes: [ 3, 5, 6, 7, 7, 8 ] } )
+        String collection = "profiles";
+        var insert = new InsertMongoCommand(drv).setColl(collection).setDb(db);
+        insert.setDocuments(Arrays.asList(Doc.of("_id", "1", "votes", Arrays.asList(3, 5, 6, 7, 7, 8))));
+        insert.execute();
+
+        // db.profiles.updateOne( { _id: 1 }, { $pull: { votes: { $gte: 6 } } } )
+        UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
+        update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("votes", Doc.of("$gte", 6))),
+                null, false, false, null, null, null);
+        log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
+        var updateResult = update.execute();
+
+        // { _id: 1, votes: [  3,  5 ] }
+        List<Map<String, Object>> ret1 = drv.find(db, collection, Doc.of("_id", "1"), null, null, 0, 0);
+        List votes = (List) ret1.get(0).get("votes");
+        List<Integer> expectedVotes = Arrays.asList(3, 5);
+        assertTrue(expectedVotes.containsAll(votes));
+        assertTrue(votes.containsAll(expectedVotes));
+    }
+
+    @Test
+    public void testUpdate_pull_Remove_All_Items_That_Equal_a_pecified_Value() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();
         drv.connect();
 
