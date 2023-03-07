@@ -555,7 +555,7 @@ public class QueryHelper {
                                         regex = (String)((Map)r).get("pattern");
                                     }
                                 } else {
-                                    (String)commandMap.get("$regex");
+                                    regex=(String)commandMap.get("$regex");
                                 }
                             }
 
