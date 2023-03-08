@@ -449,7 +449,8 @@ public class QueryHelper {
                         Expr e = (Expr) commandMap.get(commandKey);
                         Object ev = e.evaluate(toCheck);
                         return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
-
+                    case "$not":
+                        return !(matchesQuery((Map)commandMap.get(commandKey), toCheck, collation));
                     case "$regex":
                     case "$regularExpression":
                     case "$text":
