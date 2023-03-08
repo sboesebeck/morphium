@@ -48,17 +48,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.ClassUtils;
 import org.bson.types.Binary;
 import org.bson.types.ObjectId;
-import org.json.simple.parser.ContainerFactory;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Aliases;
@@ -77,7 +73,6 @@ import de.caluga.morphium.objectmapping.AtomicLongMapper;
 import de.caluga.morphium.objectmapping.BigDecimalMapper;
 import de.caluga.morphium.objectmapping.BigIntegerTypeMapper;
 import de.caluga.morphium.objectmapping.BsonGeoMapper;
-import de.caluga.morphium.objectmapping.ByteMapper;
 import de.caluga.morphium.objectmapping.CharacterMapper;
 import de.caluga.morphium.objectmapping.InstantMapper;
 import de.caluga.morphium.objectmapping.LocalDateMapper;
@@ -85,7 +80,6 @@ import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
 import de.caluga.morphium.objectmapping.LocalTimeMapper;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
-import de.caluga.morphium.objectmapping.ShortMapper;
 import de.caluga.morphium.objectmapping.TimestampMapper;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.LineString;
@@ -111,9 +105,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
     private final Map<Class<?>, NameProvider> nameProviders;
-    private final JSONParser jsonParser = new JSONParser();
+    //private final JSONParser jsonParser = new JSONParser();
+    private final ObjectMapper jacksonOM = new ObjectMapper();
+
     private final ArrayList<Class<?>> mongoTypes;
-    private final ContainerFactory containerFactory;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
     private final Map<Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
     private final Map<String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
@@ -132,16 +127,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         mongoTypes.add(Byte.class);
         mongoTypes.add(Pattern.class);
         mongoTypes.add(UUID.class);
-        containerFactory = new ContainerFactory() {
-            @Override
-            public Map createObjectContainer() {
-                return new HashMap<>();
-            }
-            @Override
-            public List creatArrayContainer() {
-                return new ArrayList();
-            }
-        };
         customMappers.put(Character.class, new CharacterMapper());
         customMappers.put(AtomicBoolean.class, new AtomicBooleanMapper());
         customMappers.put(AtomicInteger.class, new AtomicIntegerMapper());
@@ -163,10 +148,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         //initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-         //                     .verbose()             // Enable verbose logging
-         .enableAnnotationInfo()
-         //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-         .scan()) {
+            //                     .verbose()             // Enable verbose logging
+            .enableAnnotationInfo()
+            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             log.debug("Found " + entities.size() + " entities in classpath");
@@ -522,7 +507,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             //trying to store references
                             Map<Object, Map<String, Object>> map = new HashMap<>();
                             //noinspection DuplicatedCode
-                            ((Map) value).forEach((key, rec)->{
+                            ((Map) value).forEach((key, rec) -> {
                                 Object id = annotationHelper.getId(rec);
 
                                 if (id == null) {
@@ -846,12 +831,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     @Override
-    public <T> T deserialize(Class<? extends T> cls, String jsonString) throws ParseException {
-        if (jsonString.startsWith("{")) {
-            HashMap<String, Object> obj = (HashMap<String, Object>) jsonParser.parse(jsonString, containerFactory);
-            return deserialize(cls, obj);
-        } else {
-            return (T)((HashMap<String, Object>) jsonParser.parse("{\"value\":" + jsonString + "}", containerFactory)).get("value");
+    public <T> T deserialize(Class<? extends T> cls, String jsonString) throws RuntimeException {
+        try {
+            if (jsonString.startsWith("{")) {
+                HashMap<String, Object> obj = (HashMap<String, Object>) jacksonOM.readValue(jsonString.getBytes(), Map.class); //jsonParser.parse(jsonString, containerFactory);
+                return deserialize(cls, obj);
+            } else {
+                return (T)((HashMap<String, Object>) jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Parsing failed",e);
         }
     }
 
@@ -1256,7 +1245,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             value = new MorphiumId(((ObjectId) valueFromDb).toByteArray());
                         }
                     } else if (Serializable.class.isAssignableFrom(fldType) && !mongoTypes.contains(fldType) && (valueFromDb instanceof Map)) {
-                        value=deserialize(BinarySerializedObject.class, (Map)valueFromDb);
+                        value = deserialize(BinarySerializedObject.class, (Map) valueFromDb);
                     } else {
                         value = valueFromDb;
                     }
