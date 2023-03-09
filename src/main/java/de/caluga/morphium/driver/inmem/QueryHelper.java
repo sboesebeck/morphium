@@ -131,7 +131,11 @@ public class QueryHelper {
                     // probably a query operand
                     @SuppressWarnings("unchecked")
                     Map<String, Object> commandMap = (Map<String, Object>) query.get(keyQuery);
-                    String commandKey = commandMap.keySet().iterator().next();
+                    var it=commandMap.keySet().iterator();
+                    String commandKey=it.next();
+                    while (commandKey.equals("$options") && it.hasNext()){
+                        commandKey=it.next();
+                    }
 
                     if (keyQuery.equals("$expr")) {
                         Expr e = Expr.parse(commandMap);
@@ -507,6 +511,9 @@ public class QueryHelper {
                                 //
                                 // opts=opts|Pattern.COMMENTS;
                             }
+                            //to have the same behaviour: DOTALL needs to be set anyway!
+                            opts=opts | Pattern.DOTALL;
+                            opts=opts | Pattern.MULTILINE;
                         }
 
                         if (valtoCheck == null) {
@@ -574,6 +581,9 @@ public class QueryHelper {
 
                             if (!regex.startsWith("^")) {
                                 regex = ".*" + regex;
+                            }
+                            if (!regex.contains("$")){
+                                regex = regex+".*$";
                             }
 
                             Pattern p = Pattern.compile(regex, opts);
