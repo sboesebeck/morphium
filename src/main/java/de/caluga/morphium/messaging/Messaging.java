@@ -896,7 +896,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             if (lst.isEmpty()) {
-                if (log.isDebugEnabled()) {
+                if (log.isDebugEnabled() && !msg.isAnswer()) {
                     log.debug(getSenderId() + ": Message did not have a listener registered: " + msg.getName());
                 }
                 unlockIfExclusive(msg);

@@ -341,7 +341,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (coll == null) {
             coll = morphium.getMapper().getCollectionName(type);
         }
-
+        if (morphium==null || morphium.getConfig()==null) return; //happens during shutdonw
         if (!morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL)) {
                 createCappedCollection(type, coll);
@@ -857,7 +857,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     retries++;
 
-                    if (retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                    if (morphium!=null && morphium.getConfig()!=null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
                         //log.error("Error executing... retrying");
                         Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                     } else {
