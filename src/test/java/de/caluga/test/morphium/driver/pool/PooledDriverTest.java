@@ -9,13 +9,16 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.commands.CountMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
 
@@ -40,10 +42,12 @@ public class PooledDriverTest {
         drv.connect();
         Thread.sleep(1000);
         log.info("Checking status");
+
         for (var e : drv.getNumConnectionsByHost().entrySet()) {
             log.info("Host: " + e.getKey() + " connections: " + e.getValue());
             assertTrue(e.getValue() <= 10 && e.getValue() >= 2);
         }
+
         drv.close();
     }
 
@@ -53,11 +57,11 @@ public class PooledDriverTest {
         crudTestMongoDriver();
     }
 
-
     public void testCRUDPooledDriver() throws Exception {
         ObjectMapperImpl om = new ObjectMapperImpl();
         long start = System.currentTimeMillis();
         var drv = getDriver();
+
         try (drv) {
             drv.connect();
             //dropping testdb
@@ -68,70 +72,68 @@ public class PooledDriverTest {
             con.release();
             //Write
             int amount = 1000;
+
             for (int i = 0; i < amount; i++) {
                 con = drv.getPrimaryConnection(null);
                 InsertMongoCommand insert = new InsertMongoCommand(con);
-                insert.setDocuments(Arrays.asList(
-                        om.serialize(new UncachedObject("value_" + (i + amount), i + amount)),
-                        om.serialize(new UncachedObject("value_" + i, i))
-                ));
+                insert.setDocuments(Arrays.asList(om.serialize(new UncachedObject("value_" + (i + amount), i + amount)), om.serialize(new UncachedObject("value_" + i, i))));
                 insert.setColl("uncached_object").setDb("morphium_test");
                 var m = insert.execute();
-                assertEquals( 2, m.get("n"),"should insert 2 elements");
+                assertEquals(2, m.get("n"), "should insert 2 elements");
                 //log.info(Utils.toJsonString(m));
                 con.release();
             }
+
             con.release();
             long d = System.currentTimeMillis() - start;
             log.info("Writing took: " + d);
             start = System.currentTimeMillis();
-//            log.info("Waiting for reconnects due to idle / max age connections");
-//            Thread.sleep(1000); //forcing idle reconnects
-
+            //            log.info("Waiting for reconnects due to idle / max age connections");
+            //            Thread.sleep(1000); //forcing idle reconnects
             //reading
             var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
-            for (int i = 0; i < amount; i++) {
 
+            for (int i = 0; i < amount; i++) {
                 //log.info("got connection to " + c.getConnectedTo());
-                FindCommand fnd = new FindCommand(c).setLimit(10).setColl("uncached_object").setDb("morphium_test")
-                        .setFilter(Doc.of("counter", i));
+                FindCommand fnd = new FindCommand(c).setLimit(10).setColl("uncached_object").setDb("morphium_test").setFilter(Doc.of("counter", i));
                 var ret = fnd.execute();
                 assertNotNull(ret);
-                assertEquals( ret.size(), 1,"Should find exactly one element");
-
+                assertEquals(ret.size(), 1, "Should find exactly one element");
             }
+
             c.release();
         }
+
         long dur = System.currentTimeMillis() - start;
         log.info("PooledDriver took " + dur + "ms");
         drv.close();
     }
-    private com.mongodb.WriteConcern toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern w){
-         com.mongodb.WriteConcern wc = w.getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
-         if (w.getW() > 0) {
+
+    private com.mongodb.WriteConcern toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern w) {
+        com.mongodb.WriteConcern wc = w.getW() > 0 ? com.mongodb.WriteConcern.ACKNOWLEDGED : com.mongodb.WriteConcern.UNACKNOWLEDGED;
+
+        if (w.getW() > 0) {
             if (w.getWtimeout() > 0) {
                 wc.withWTimeout(w.getWtimeout(), TimeUnit.MILLISECONDS);
             }
         }
-        return wc;
 
+        return wc;
     }
 
     public void crudTestMongoDriver() {
         long start = System.currentTimeMillis();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
-
         o.writeConcern(toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000)));
         //read preference check
         o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
         o.retryWrites(true);
-        o.applyToSocketSettings(socketSettings -> {
+        o.applyToSocketSettings(socketSettings->{
             socketSettings.connectTimeout(1000, TimeUnit.MILLISECONDS);
             socketSettings.readTimeout(10000, TimeUnit.MILLISECONDS);
         });
-
-        o.applyToConnectionPoolSettings(connectionPoolSettings -> {
+        o.applyToConnectionPoolSettings(connectionPoolSettings->{
             connectionPoolSettings.maxConnectionIdleTime(500, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maxConnectionLifeTime(1000, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maintenanceFrequency(2000, TimeUnit.MILLISECONDS);
@@ -139,7 +141,7 @@ public class PooledDriverTest {
             connectionPoolSettings.minSize(2);
             connectionPoolSettings.maxWaitTime(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToClusterSettings(clusterSettings -> {
+        o.applyToClusterSettings(clusterSettings->{
             clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
             clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
             List<ServerAddress> hosts = new ArrayList<>();
@@ -152,36 +154,38 @@ public class PooledDriverTest {
             clusterSettings.localThreshold(100, TimeUnit.MILLISECONDS);
         });
         var mongo = MongoClients.create(o.build());
-
         var col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
         col.drop();
         ObjectMapperImpl om = new ObjectMapperImpl();
         //Write
         int amount = 1000;
+
         for (int i = 0; i < amount; i++) {
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
-            var ret = col.insertMany(Arrays.asList(
-                    new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))),
-                    new Document(om.serialize(new UncachedObject("value_" + i, i)))));
-
-            assertEquals(2, ret.getInsertedIds().size(),"should insert 2 elements");
+            var ret =
+             col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+            assertEquals(2, ret.getInsertedIds().size(), "should insert 2 elements");
         }
+
         long d = System.currentTimeMillis() - start;
         log.info("Writing took " + d);
         start = System.currentTimeMillis();
+
         //reading
         for (int i = 0; i < amount; i++) {
             var it = mongo.getDatabase("morphium_test").getCollection("uncached_object").find(new Document(Doc.of("counter", i)));
             int cnt = 0;
+
             for (var m : it) {
                 cnt++;
             }
+
             assertEquals(1, cnt);
         }
+
         long dur = System.currentTimeMillis() - start;
         log.info("MongoClient took " + dur + "ms");
     }
-
 
     private PooledDriver getDriver() throws MorphiumDriverException {
         var drv = new PooledDriver();
@@ -196,37 +200,36 @@ public class PooledDriverTest {
         return drv;
     }
 
-
     @Test
     public void testMultithreaddedConnectionPool() throws Exception {
         var drv = getDriver();
         drv.connect();
+
         while (!drv.isConnected()) {
             Thread.sleep(500);
         }
+
         log.info("Connected...");
         int loops = 15;
         int readThreads = 15;
         int primaryThreads = 10;
         var error = new AtomicInteger(0);
-
         List<Thread> threads = new ArrayList<>();
         var primaryRun = new Runnable() {
             public void run() {
-
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getPrimaryConnection(null);
-                        Thread.sleep((long) (1000 * Math.random()));
+                        Thread.sleep((long)(1000 * Math.random()));
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
                         error.incrementAndGet();
                     }
                 }
-
             }
         };
+
         for (int i = 0; i < primaryThreads; i++) {
             Thread thr = new Thread(primaryRun);
             threads.add(thr);
@@ -238,7 +241,7 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getReadConnection(null);
-                        Thread.sleep((long) (1000 * Math.random()));
+                        Thread.sleep((long)(1000 * Math.random()));
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
@@ -247,29 +250,205 @@ public class PooledDriverTest {
                 }
             }
         };
+
         for (int i = 0; i < readThreads; i++) {
             Thread thr = new Thread(runnable);
             threads.add(thr);
         }
+
         for (Thread t : threads) {
             t.start();
         }
 
         log.info("All threads started...");
+
         for (var t : threads) {
             t.join();
             log.info("Thread finished...");
         }
+
         log.info("All threads finished!");
-        assertEquals(0, error.get(),"Too man errors");
+        assertEquals(0, error.get(), "Too man errors");
         Map<MorphiumDriver.DriverStatsKey, Double> driverStats = drv.getDriverStats();
+
         for (var e : driverStats.entrySet()) {
             log.info(e.getKey() + "  =  " + e.getValue());
         }
+
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED), "Release vs. borrow do not match up!");
-        assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
+        assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
+         driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
     }
 
+    @Test
+    public void testPrimaryFailover() throws Exception {
+        var drv = getDriver();
+        drv.setHeartbeatFrequency(500);
+        drv.connect();
+
+        while (!drv.isConnected()) {
+            Thread.sleep(500);
+        }
+
+        DropDatabaseMongoCommand drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
+        drop.setDb("test");
+        drop.setComment("Killing it");
+        drop.execute();
+        drop.releaseConnection();
+        Thread.sleep(1000);
+        //generating some Testdata
+
+        for (int i = 0; i < 100; i++) {
+            InsertMongoCommand insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+            insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+            insert.setDb("test");
+            insert.setColl("tst_data");
+            log.info("Writing to: " + insert.getConnection().getConnectedTo());
+            insert.execute();
+            insert.releaseConnection();
+        }
+
+        log.info("Testdata created!");
+        CountMongoCommand count = new CountMongoCommand(drv.getPrimaryConnection(null));
+        var cnt = count.setDb("test").setColl("tst_data").setQuery(Map.of()).getCount();
+        assertEquals(200, cnt);
+        count.releaseConnection();
+        //recovering on primary fail...
+        ShutdownCommand shutdown = new ShutdownCommand(drv.getPrimaryConnection(null));
+        log.info("Shutting down: " + shutdown.getConnection().getConnectedTo());
+        shutdown.setDb("admin");
+        shutdown.executeAsync(); //needs to be async, as command never returns
+        shutdown.releaseConnection();
+        //one secondary down
+        Thread.sleep(1000);
+        var errors = 0;
+
+
+        for (int i = 1000; i < 1100; i++) {
+            InsertMongoCommand insert = null;
+
+            try {
+                insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+                insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+                insert.setDb("test");
+                insert.setColl("tst_data");
+                log.info("Writing to: " + insert.getConnection().getConnectedTo());
+                insert.execute();
+                insert.releaseConnection();
+            } catch (Exception e) {
+                log.error("find failed " + e.getMessage());
+                e.printStackTrace();
+                errors++;
+            }
+
+            if (insert != null) {
+                insert.releaseConnection();
+            }
+        }
+
+        log.info(String.format("Number of errors during write: %s", errors));
+
+        for (String h : drv.getHostSeed()) {
+            log.info("Host: " + h);
+        }
+
+        log.info("Waiting for you to restart node...");
+
+        Thread.sleep(5000);
+
+        drv.close();
+    }
+
+    // @Test
+    // public void testSecondaryFailover() throws Exception {
+    //     var drv = getDriver();
+    //     drv.setHeartbeatFrequency(500);
+    //     drv.connect();
+    //
+    //     while (!drv.isConnected()) {
+    //         Thread.sleep(500);
+    //     }
+    //
+    //     DropDatabaseMongoCommand drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
+    //     drop.setDb("test");
+    //     drop.setComment("Killing it");
+    //     drop.execute();
+    //     drop.releaseConnection();
+    //     Thread.sleep(1000);
+    //     //generating some Testdata
+    //
+    //     for (int i = 0; i < 100; i++) {
+    //         InsertMongoCommand insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+    //         insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+    //         insert.setDb("test");
+    //         insert.setColl("tst_data");
+    //         insert.execute();
+    //         insert.releaseConnection();
+    //     }
+    //
+    //     log.info("Testdata created!");
+    //     CountMongoCommand count = new CountMongoCommand(drv.getPrimaryConnection(null));
+    //     var cnt = count.setDb("test").setColl("tst_data").setQuery(Map.of()).getCount();
+    //     assertEquals(200, cnt);
+    //     count.releaseConnection();
+    //     //recovering on secondary fail...
+    //     ShutdownCommand shutdown = new ShutdownCommand(drv.getReadConnection(ReadPreference.secondary()));
+    //     log.info("Shutting down: " + shutdown.getConnection().getConnectedTo());
+    //     shutdown.setDb("admin");
+    //     shutdown.executeAsync(); //needs to be async, as command never returns
+    //     shutdown.releaseConnection();
+    //     //one secondary down
+    //     Thread.sleep(1000);
+    //     var errors = 0;
+    //
+    //     for (int i = 0; i < 100; i++) {
+    //         FindCommand fnd = null;
+    //
+    //         try {
+    //             log.info("finding...");
+    //             fnd = new FindCommand(drv.getReadConnection(ReadPreference.secondary()));
+    //             log.info("Reading from "+fnd.getConnection().getConnectedTo());;
+    //             fnd.setFilter(Doc.of("str", "Str" + i));
+    //             fnd.setColl("tst_data").setDb("test");
+    //             var res = fnd.execute();
+    //
+    //             if (res == null || res.size() == 0) {
+    //                 errors++;
+    //             }
+    //             log.info("Got results:"+res.size());
+    //         } catch (Exception e) {
+    //             log.error("find failed "+e.getMessage());
+    //             e.printStackTrace();
+    //             errors++;
+    //         }
+    //
+    //         if (fnd != null) {
+    //             fnd.releaseConnection();
+    //         }
+    //     }
+    //     log.info(String.format("Number of errors during read: %s", errors));
+    //
+    //     for (String h:drv.getHostSeed()){
+    //         log.info("Host: "+h);
+    //     }
+    //     assertEquals(2,drv.getHostSeed().size());
+    //
+    //     log.info("Waiting for you to restart node...");
+    //     var start=System.currentTimeMillis();
+    //     while (true){
+    //         if(drv.getHostSeed().size()==3){
+    //             break;
+    //         }
+    //         assertTrue(System.currentTimeMillis()-start < 60000);
+    //
+    //     }
+    //     for (String h:drv.getHostSeed()){
+    //         log.info("Host: "+h);
+    //     }
+    //
+    //
+    //     drv.close();
+    // }
 
 }
