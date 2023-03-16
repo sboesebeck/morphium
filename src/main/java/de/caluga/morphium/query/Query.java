@@ -804,7 +804,7 @@ public class Query<T> implements Cloneable {
                     clz = field.getType();
 
                     if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz) || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz)
-                        || Map.class.isAssignableFrom(clz)) {
+                            || Map.class.isAssignableFrom(clz)) {
                         if (log.isDebugEnabled()) {
                             log.debug("Cannot check fields in generic lists or maps");
                         }
@@ -836,7 +836,7 @@ public class Query<T> implements Cloneable {
 
     @SafeVarargs
 
-    public final Query<T> or (Query<T>... qs) {
+    public final Query<T> or(Query<T>... qs) {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add or queries when raw query is defined!");
         }
@@ -845,7 +845,7 @@ public class Query<T> implements Cloneable {
         return this;
     }
 
-    public Query<T> or (List<Query<T>> qs) {
+    public Query<T> or(List<Query<T>> qs) {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add or queries when raw query is defined!");
         }
@@ -1433,7 +1433,7 @@ public class Query<T> implements Cloneable {
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
                         UpdateMongoCommand settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
-                                    Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                                Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -1548,9 +1548,8 @@ public class Query<T> implements Cloneable {
             // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            if (settings != null) {
+            if (settings != null)
                 settings.getConnection().release();
-            }
         }
 
         limit(lim);
@@ -1714,7 +1713,7 @@ public class Query<T> implements Cloneable {
         return morphium.remove(this);
     }
 
-    public Map<String, Object> delete () {
+    public Map<String, Object> delete() {
         return morphium.delete(this);
     }
 
@@ -2306,7 +2305,7 @@ public class Query<T> implements Cloneable {
 
         try {
             FindCommand cmd = new FindCommand(con).setTailable(true).setFilter(toQueryObject()).setSort(getSort()).setHint(hint).setLimit(getLimit()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
-            .setDb(morphium.getDatabase()).setColl(getCollectionName());
+                    .setDb(morphium.getDatabase()).setColl(getCollectionName());
 
             if (collation != null) {
                 cmd.setCollation(collation.toQueryObject());
@@ -2413,7 +2412,7 @@ public class Query<T> implements Cloneable {
         }
 
         String ret = "Query{ " + "collectionName='" + collectionName + '\'' + ", type=" + type.getName() + ", skip=" + skip + ", limit=" + limit + ", andExpr=" + and + ", orQueries=" + ors
-            + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
+                + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
 
         if (fieldList != null) {
             ret += " Fields " + fieldList;
@@ -2425,7 +2424,7 @@ public class Query<T> implements Cloneable {
     public FindCommand getFindCmd() {
         MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
         FindCommand settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
-        .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
+                .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
         settings.setBatchSize(getBatchSize());
         return settings;
     }
