@@ -290,7 +290,7 @@ public class PooledDriver extends DriverBase {
                                 if (hello != null && hello.getWritablePrimary()) {
                                     handleHello(hello);
                                 } else {
-                                    log.info("Hello from secondary");
+                                    // log.info("Hello from secondary");
                                 }
                             } catch (MorphiumDriverException ex) {
                                 if (!ex.getMessage().contains("closed")) {
