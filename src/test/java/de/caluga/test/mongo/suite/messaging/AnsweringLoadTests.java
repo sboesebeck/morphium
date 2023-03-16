@@ -34,9 +34,9 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     Msg answer = msg.createAnswerMsg();
                     answer.setMapValue(Doc.of("answer", System.currentTimeMillis()));
                     answer.setPriority(msg.getPriority() - 10);
-                    answer.setTimingOut(false);
-                    answer.setDeleteAfterProcessing(true);
-                    answer.setDeleteAfterProcessingTime(0);
+                    // answer.setTimingOut(false);
+                    // answer.setDeleteAfterProcessing(true);
+                    // answer.setDeleteAfterProcessingTime(0);
                     return answer;
                 }
             };
@@ -78,9 +78,9 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
 
                     for (int i = 0; i < amount; i++) {
                         Msg m = new Msg("test", "msg", "value", 40000, true);
-                        m.setTimingOut(false);
-                        m.setDeleteAfterProcessing(true);
-                        m.setDeleteAfterProcessingTime(0);
+                        // m.setTimingOut(false);
+                        // m.setDeleteAfterProcessing(true);
+                        // m.setDeleteAfterProcessingTime(0);
                         long start = System.currentTimeMillis();
                         var a = sender.sendAndAwaitFirstAnswer(m, 20000, false);
                         long dur = System.currentTimeMillis() - start;
