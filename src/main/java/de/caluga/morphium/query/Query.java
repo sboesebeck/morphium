@@ -1548,7 +1548,9 @@ public class Query<T> implements Cloneable {
             // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            settings.getConnection().release();
+            if (settings != null) {
+                settings.getConnection().release();
+            }
         }
 
         limit(lim);
