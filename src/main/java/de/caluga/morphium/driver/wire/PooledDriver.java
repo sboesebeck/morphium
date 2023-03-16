@@ -246,7 +246,7 @@ public class PooledDriver extends DriverBase {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
                 try {
-                    log.debug("heartbeat running");
+                    // log.debug("heartbeat running");
                     var copy = new HashMap<>(connectionPool); // avoid concurrent modification exception
 
                     for (var e : copy.entrySet()) {
@@ -290,7 +290,7 @@ public class PooledDriver extends DriverBase {
                                 if (hello != null && hello.getWritablePrimary()) {
                                     handleHello(hello);
                                 } else {
-                                    log.info("Hello from secondary");
+                                    // log.info("Hello from secondary");
                                 }
                             } catch (MorphiumDriverException ex) {
                                 if (!ex.getMessage().contains("closed")) {
