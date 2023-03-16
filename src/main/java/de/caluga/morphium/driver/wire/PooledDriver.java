@@ -246,7 +246,7 @@ public class PooledDriver extends DriverBase {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
                 try {
-                    log.debug("heartbeat running");
+                    // log.debug("heartbeat running");
                     var copy = new HashMap<>(connectionPool); // avoid concurrent modification exception
 
                     for (var e : copy.entrySet()) {

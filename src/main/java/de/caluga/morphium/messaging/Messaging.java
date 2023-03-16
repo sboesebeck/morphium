@@ -370,8 +370,8 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (pauseMessages.containsKey(obj.getName())) {
                             skipped.incrementAndGet();
-                            //processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
+                            processing.remove(obj.getMsgId());
+                            //removeProcessingFor(obj);
                             return running;
                         }
 
@@ -462,8 +462,8 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (pauseMessages.containsKey(obj.getName())) {
-                            //                            processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
+                                                        processing.remove(obj.getMsgId());
+                            //removeProcessingFor(obj);
                             return running;
                         }
 
@@ -535,40 +535,41 @@ public class Messaging extends Thread implements ShutdownListener {
     private synchronized void handleAnswer(Msg obj) {
         // Thread thr = new Thread() {
         //     public void run() {
-                // if (id.equals("m2")){
-                //     log.info("M2!");
-                // }
-                if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
-                    // we're expecting this message!
-                    updateProcessedBy(obj);
+        // if (id.equals("m2")){
+        //     log.info("M2!");
+        // }
+        if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+            // we're expecting this message!
+            updateProcessedBy(obj);
 
-                    if (waitingForAnswers.containsKey(obj.getInAnswerTo()) && !waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
-                        waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
+            if (waitingForAnswers.containsKey(obj.getInAnswerTo()) && !waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
+                waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
+            }
+        }
+
+        if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
+            if (receiveAnswers.equals(ReceiveAnswers.ALL) || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
+                try {
+                    if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
+                        // exclusive message already processed
+                        return;
                     }
-                }
 
-                if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
-                    if (receiveAnswers.equals(ReceiveAnswers.ALL) || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
-                        try {
-                            if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
-                                // exclusive message already processed
-                                return;
-                            }
-
-                            /* if (obj.isExclusive()) {
-                                 lockAndProcess(obj);
-                             } else {*/
-                            // if (obj.getName().equals(statusInfoListenerName)) {
-                            // log.info(id + ":: processing answer from statusInfoListener");
-                            // }
-                            processMessage(obj);
-                            //                    }
-                        } catch (Exception e) {
-                            log.error("Error during message processing ", e);
-                        }
-                    }
+                    /* if (obj.isExclusive()) {
+                         lockAndProcess(obj);
+                     } else {*/
+                    // if (obj.getName().equals(statusInfoListenerName)) {
+                    // log.info(id + ":: processing answer from statusInfoListener");
+                    // }
+                    processMessage(obj);
+                    //                    }
+                } catch (Exception e) {
+                    log.error("Error during message processing ", e);
                 }
-            // }
+            }
+        }
+
+        // }
         // };
         //
         // if (isMultithreadded()) {
@@ -929,8 +930,8 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (pauseMessages.containsKey(msg.getName())) {
                         // paused - do not process
                         // log.warn("Received paused message?!?!? "+msg1.getMsgId());
-                        //processing.remove(msg.getMsgId());
-                        removeProcessingFor(msg);
+                        processing.remove(msg.getMsgId());
+                        // removeProcessingFor(msg);
                         wasProcessed = false;
                         skipped.incrementAndGet();
                         unlockIfExclusive(msg);
@@ -960,19 +961,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         if (answer.getRecipients() == null) {
                             log.warn("Recipient of answer is null?!?!");
-                        }
-                    }
-
-                    if (msg.isDeleteAfterProcessing()) {
-                        if (msg.getDeleteAfterProcessingTime() == 0) {
-                            morphium.delete(msg, getCollectionName());
-                        } else {
-                            msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                            morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
-
-                            if (!l.markAsProcessedBeforeExec()) {
-                                morphium.addToSet(morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName()).f("_id").eq(msg.getMsgId()), "processed_by", id);
-                            }
                         }
                     }
                 } catch (MessageRejectedException mre) {
@@ -1042,21 +1030,25 @@ public class Messaging extends Thread implements ShutdownListener {
                 //                if (!pauseMessages.containsKey(msg.getName())) {
                 //                    log.error("message was not processed - an error occured");
                 //                }
-            } else if (wasProcessed && !msg.getProcessedBy().contains(id)) {
+            }
+
+            if (wasProcessed && !msg.getProcessedBy().contains(id)) {
                 updateProcessedBy(msg);
             }
 
             removeProcessingFor(msg);
 
-            if (msg.isDeleteAfterProcessing()) {
-                if (msg.getDeleteAfterProcessingTime() == 0) {
-                    morphium.delete(msg, getCollectionName());
-                } else {
-                    msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
-                    morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
+            if (!wasRejected && wasProcessed) {
+                if (msg.isDeleteAfterProcessing()) {
+                    if (msg.getDeleteAfterProcessingTime() == 0) {
+                        morphium.delete(msg, getCollectionName());
+                    } else {
+                        msg.setDeleteAt(new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                        morphium.set(msg, getCollectionName(), Msg.Fields.deleteAt, msg.getDeleteAt());
 
-                    if (msg.isExclusive()) {
-                        morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).set(MsgLock.Fields.deleteAt, msg.getDeleteAt());
+                        if (msg.isExclusive()) {
+                            morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(msg.getMsgId()).set(MsgLock.Fields.deleteAt, msg.getDeleteAt());
+                        }
                     }
                 }
             }

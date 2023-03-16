@@ -982,6 +982,7 @@ public class MessagingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void priorityTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("Running with "+morphium.getDriver().getName());
             Messaging sender = new Messaging(morphium, 100, false);
             sender.setSenderId("sender");
             sender.start();
@@ -1026,6 +1027,8 @@ public class MessagingTest extends MultiDriverTestBase {
                 for (int i = 0; i < 10; i++) {
                     Msg m = new Msg("test", "test", "test");
                     m.setPriority((int)(10000.0 * Math.random()));
+                    m.setTimingOut(true);
+                    m.setTtl(122121212);
                     log.info("Stored prio: " + m.getPriority());
                     sender.sendMessage(m);
                 }
@@ -1034,6 +1037,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 receiver.unpauseProcessingOfMessagesNamed("test");
 
                 while (list.size() < 10) {
+                    receiver.triggerCheck();
                     Thread.yield();
                 }
 
