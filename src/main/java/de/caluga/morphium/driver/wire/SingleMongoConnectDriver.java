@@ -58,7 +58,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
     private SingleMongoConnection connection;
     private ConnectionType connectionType = ConnectionType.PRIMARY;
-    private int idleSleepTime=20;
+    private int idleSleepTime = 20;
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
@@ -159,10 +159,21 @@ public class SingleMongoConnectDriver extends DriverBase {
     public void connect(String replSet) throws MorphiumDriverException {
         //log.info("Connecting");
         int connectToIdx = 0;
-        int retries=0;
+        int retries = 0;
+
         while (true) {
             try {
                 incStat(DriverStatsKey.CONNECTIONS_OPENED);
+
+                if (connectToIdx >= getHostSeed().size()) {
+                    connectToIdx = 0;
+                }
+
+                if (getHostSeed().size() == 0) {
+                    log.error("All hosts unavailable...");
+                    throw new MorphiumDriverException("Could not connect!");
+                }
+
                 String host = getHostSeed().get(connectToIdx);
                 String h[] = host.split(":");
                 int port = 27017;
@@ -182,7 +193,16 @@ public class SingleMongoConnectDriver extends DriverBase {
                 //checking hosts
                 if (hello.getHosts() != null) {
                     for (String s : hello.getHosts()) {
-                        if (!getHostSeed().contains(s)) { getHostSeed().add(s); }
+                        if (!getHostSeed().contains(s)) {
+                            getHostSeed().add(s);
+                        }
+                    }
+                }
+
+                for (String hst : new ArrayList<String>(getHostSeed())) {
+                    if (!hst.equals(hello.getPrimary()) && !hello.getHosts().contains(hst)) {
+                        log.debug(String.format("Host %s from hostseed is not part of replicaset anymore", hst));
+                        getHostSeed().remove(hst);
                     }
                 }
 
@@ -239,15 +259,18 @@ public class SingleMongoConnectDriver extends DriverBase {
                 if (connectToIdx > getHostSeed().size()) {
                     connectToIdx = 0;
                 }
-                        retries++;
-                        if (retries > getRetriesOnNetworkError()){
-                            throw(new RuntimeException(e));
-                        }
-                        try {
-                            Thread.sleep(getSleepBetweenErrorRetries());
-                        } catch (InterruptedException e1) {
+
+                retries++;
+
+                if (retries > getRetriesOnNetworkError()) {
+                    throw(new RuntimeException(e));
+                }
+
+                try {
+                    Thread.sleep(getSleepBetweenErrorRetries());
+                } catch (InterruptedException e1) {
                     //swallow
-                        }
+                }
             }
         }
 
@@ -262,11 +285,10 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                 //log.info("checking connection");
                 try {
-                    HelloCommand cmd = new HelloCommand(connection)
-                    .setHelloOk(true)
-                    .setIncludeClient(false);
+                    HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
                     var hello = cmd.execute();
-                    if (hello==null){
+
+                    if (hello == null) {
                         log.warn("Could not run heartbeat!");
                         return;
                     }
@@ -359,11 +381,9 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
     }
 
-
     @Override
     public void closeConnection(MongoConnection con) {
         releaseConnection(con);
-
     }
 
     @Override
@@ -415,8 +435,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         MorphiumTransactionContext ctx = getTransactionContext();
-        var cmd = new CommitTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
-         .setLsid(ctx.getLsid());
+        var cmd = new CommitTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false).setLsid(ctx.getLsid());
         cmd.execute();
         clearTransactionContext();
     }
@@ -428,8 +447,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         MorphiumTransactionContext ctx = getTransactionContext();
-        var cmd = new AbortTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false)
-         .setLsid(ctx.getLsid());
+        var cmd = new AbortTransactionCommand(connection).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false).setLsid(ctx.getLsid());
         cmd.execute();
         clearTransactionContext();
     }
@@ -483,7 +501,8 @@ public class SingleMongoConnectDriver extends DriverBase {
         try {
             cmd = new ReplicastStatusCommand(getPrimaryConnection(null));
             var result = cmd.execute();
-            @SuppressWarnings("unchecked") List<Doc> mem = (List) result.get("members");
+            @SuppressWarnings("unchecked")
+            List<Doc> mem = (List) result.get("members");
 
             if (mem == null) {
                 return null;
@@ -531,21 +550,17 @@ public class SingleMongoConnectDriver extends DriverBase {
                            for (BulkRequest r : requests) {
                                if (r instanceof InsertBulkRequest) {
                                    InsertMongoCommand settings = new InsertMongoCommand(connection);
-                                   settings.setDb(db).setColl(collection)
-                                   .setComment("Bulk insert")
-                                   .setDocuments(((InsertBulkRequest) r).getToInsert());
+                                   settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
                                    settings.execute();
                                } else if (r instanceof UpdateBulkRequest) {
                                    UpdateBulkRequest up = (UpdateBulkRequest) r;
                                    UpdateMongoCommand upCmd = new UpdateMongoCommand(connection);
-                                   upCmd.setColl(collection).setDb(db)
-                                   .setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
+                                   upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
                                    upCmd.execute();
                                } else if (r instanceof DeleteBulkRequest) {
                                    DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
                                    DeleteMongoCommand del = new DeleteMongoCommand(connection);
-                                   del.setColl(collection).setDb(db)
-                                   .setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
+                                   del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
                                    del.execute();
                                } else {
                                    throw new RuntimeException("Unknown operation " + r.getClass().getName());
@@ -596,10 +611,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             return;
         }
 
-        KillCursorsCommand k = new KillCursorsCommand(connection)
-         .setCursors(cursorIds)
-         .setDb(db)
-         .setColl(coll);
+        KillCursorsCommand k = new KillCursorsCommand(connection).setCursors(cursorIds).setDb(db).setColl(coll);
         var ret = k.execute();
         log.debug("killed cursor");
     }
@@ -649,7 +661,8 @@ public class SingleMongoConnectDriver extends DriverBase {
             }
 
             //                    replies.remove(i);
-            @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
 
             if (cursor == null) {
                 //trying result
@@ -688,12 +701,11 @@ public class SingleMongoConnectDriver extends DriverBase {
                 //there is more! Sending getMore!
                 //there is more! Sending getMore!
                 OpMsg q = new OpMsg();
-                q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id"))
-                 .add("$db", db)
-                 .add("batchSize", batchSize)
-                 );
+                q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id")).add("$db", db).add("batchSize", batchSize));
 
-                if (coll != null) { q.getFirstDoc().put("collection", coll); }
+                if (coll != null) {
+                    q.getFirstDoc().put("collection", coll);
+                }
 
                 q.setMessageId(getNextId());
                 waitingfor = q.getMessageId();
@@ -786,7 +798,9 @@ public class SingleMongoConnectDriver extends DriverBase {
         private MongoConnection delegate;
 
         public MongoConnection getDelegate() {
-            if (delegate == null) { throw new RuntimeException("Connection released!"); }
+            if (delegate == null) {
+                throw new RuntimeException("Connection released!");
+            }
 
             return delegate;
         }
@@ -908,7 +922,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public void setIdleSleepTime(int sl) {
-       idleSleepTime=sl;
+        idleSleepTime = sl;
     }
 
 }

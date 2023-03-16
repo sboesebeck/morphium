@@ -305,7 +305,7 @@ public class SingleMongoConnection implements MongoConnection {
             }
             if (!running) return null;
             if (System.currentTimeMillis() - start > 2 * timeout) {
-
+                close();
                 throw new MorphiumDriverException("server did not answer in time: " + timeout + "ms");
             }
         }
