@@ -120,20 +120,20 @@ public abstract class Expr {
             }
 
             return new ValueExpr() {
-                       @Override
-                       public Object toQueryObject() {
-                           return ret;
-                       }
+                @Override
+                public Object toQueryObject() {
+                    return ret;
+                }
             };
         } else if (o instanceof String && ((String) o).startsWith("$")) {
             //field Ref
             return field(((String) o));
         } else {
             return new ValueExpr() {
-                       @Override
-                       public Object toQueryObject() {
-                           return o;
-                       }
+                @Override
+                public Object toQueryObject() {
+                    return o;
+                }
             };
         }
 
@@ -142,28 +142,28 @@ public abstract class Expr {
 
     public static Expr abs(Expr e) {
         return new OpExprNoList("abs", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.abs(((Number) e.evaluate(context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.abs(((Number) e.evaluate(context)).doubleValue());
+            }
         };
     }
 
     public static Expr date(Date d) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return d;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return d;
+            }
         };
     }
 
     public static Expr now() {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return new Date();
-                   }
+            @Override
+            public Object toQueryObject() {
+                return new Date();
+            }
         };
     }
 
@@ -202,64 +202,64 @@ public abstract class Expr {
 
     public static Expr mapExpr(Map<String, Expr> map) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       Map<String, Object> ret = new LinkedHashMap<>();
+            @Override
+            public Object toQueryObject() {
+                Map<String, Object> ret = new LinkedHashMap<>();
 
-                       for (Map.Entry<String, Expr> e : map.entrySet()) {
-                           ret.put(e.getKey(), e.getValue().toQueryObject());
-                       }
+                for (Map.Entry<String, Expr> e : map.entrySet()) {
+                    ret.put(e.getKey(), e.getValue().toQueryObject());
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     public static Expr add(Expr... expr) {
         return new OpExpr("add", Arrays.asList(expr)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Number sum = 0;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Number sum = 0;
 
-                       for (Expr f : expr) {
-                           Object v = eval(f, context);
+                for (Expr f : expr) {
+                    Object v = eval(f, context);
 
-                           if (v instanceof Number) {
-                               sum = sum.doubleValue() + ((Number) v).doubleValue();
-                           } else {
-                               System.out.println("Cannot evaluate");
-                           }
-                       }
+                    if (v instanceof Number) {
+                        sum = sum.doubleValue() + ((Number) v).doubleValue();
+                    } else {
+                        System.out.println("Cannot evaluate");
+                    }
+                }
 
-                       return sum;
-                   }
+                return sum;
+            }
         };
     }
 
     public static Expr doubleExpr(double d) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return d;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return d;
+            }
         };
     }
 
     public static Expr intExpr(int i) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return i;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return i;
+            }
         };
     }
 
     public static Expr bool(boolean v) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return v;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return v;
+            }
         };
     }
 
@@ -269,84 +269,84 @@ public abstract class Expr {
 
     public static Expr string(String str) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return str;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return str;
+            }
         };
     }
 
     public static Expr ceil(Expr e) {
         return new OpExprNoList("ceil", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.ceil(((Number) e.evaluate(context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.ceil(((Number) e.evaluate(context)).doubleValue());
+            }
         };
     }
 
     public static Expr divide(Expr divident, Expr divisor) {
         return new OpExpr("divide", Arrays.asList(divident, divisor)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((Number) eval(divident, context)).doubleValue() / ((Number) eval(divisor, context)).doubleValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((Number) eval(divident, context)).doubleValue() / ((Number) eval(divisor, context)).doubleValue();
+            }
         };
     }
 
     public static Expr exp(Expr e) {
         return new OpExprNoList("exp", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.exp(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.exp(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr floor(Expr e) {
         return new OpExprNoList("floor", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.floor(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.floor(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr ln(Expr e) {
         return new OpExprNoList("ln", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.log1p(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.log1p(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr log(Expr num, Expr base) {
         return new OpExpr("log", Arrays.asList(num, base)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.log(((Number) eval(num, context)).doubleValue()) / Math.log(((Number) eval(base, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.log(((Number) eval(num, context)).doubleValue()) / Math.log(((Number) eval(base, context)).doubleValue());
+            }
         };
     }
 
     public static Expr log10(Expr e) {
         return new OpExprNoList("log10", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.log10(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.log10(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr mod(Expr divident, Expr divisor) {
         return new OpExpr("mod", Arrays.asList(divident, divisor)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object div = eval(divident, context);
-                       Object dis = eval(divisor, context);
-                       return ((Number) div).doubleValue() % ((Number) dis).doubleValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object div = eval(divident, context);
+                Object dis = eval(divisor, context);
+                return ((Number) div).doubleValue() % ((Number) dis).doubleValue();
+            }
         };
     }
 
@@ -362,109 +362,109 @@ public abstract class Expr {
 
     public static Expr multiply(Expr e1, Expr e2) {
         return new OpExpr("multiply", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((Number) eval(e1, context)).doubleValue() * ((Number) eval(e2, context)).doubleValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((Number) eval(e1, context)).doubleValue() * ((Number) eval(e2, context)).doubleValue();
+            }
         };
     }
 
     public static Expr pow(Expr num, Expr exponent) {
         return new OpExpr("pow", Arrays.asList(num, exponent)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.pow(((Number) eval(num, context)).doubleValue(), ((Number) eval(exponent, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.pow(((Number) eval(num, context)).doubleValue(), ((Number) eval(exponent, context)).doubleValue());
+            }
         };
     }
 
     public static Expr round(Expr e) {
         return new OpExprNoList("round", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.round(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.round(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr sqrt(Expr e) {
         return new OpExprNoList("sqrt", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.sqrt(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.sqrt(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr subtract(Expr e1, Expr e2) {
         return new OpExpr("substract", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((Number) eval(e1, context)).doubleValue() - ((Number) eval(e2, context)).doubleValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((Number) eval(e1, context)).doubleValue() - ((Number) eval(e2, context)).doubleValue();
+            }
         };
     }
 
     public static Expr trunc(Expr num, Expr place) {
         return new OpExpr("trunc", Arrays.asList(num, place)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       double n = ((Number) eval(num, context)).doubleValue();
-                       double m = 1;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                double n = ((Number) eval(num, context)).doubleValue();
+                double m = 1;
 
-                       if (eval(place, context) != null || !eval(place, context).equals(0)) {
-                           m = Math.pow(10, ((Number) eval(place, context)).intValue());
-                       }
+                if (eval(place, context) != null || !eval(place, context).equals(0)) {
+                    m = Math.pow(10, ((Number) eval(place, context)).intValue());
+                }
 
-                       n = (int)(n * m);
-                       n = n / m;
-                       return n;
-                   }
+                n = (int)(n * m);
+                n = n / m;
+                return n;
+            }
         };
     }
 
     //Array Expression Operators
     public static Expr arrayElemAt(Expr array, Expr index) {
         return new OpExpr("arrayElemAt", Arrays.asList(array, index)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((List) eval(array, context)).get(((Number) eval(index, context)).intValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((List) eval(array, context)).get(((Number) eval(index, context)).intValue());
+            }
         };
     }
 
     private static Expr arrayElemAt(List lst) {
         //noinspection unchecked
         return new OpExpr("arrayElemAt", lst) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((List)(eval((Expr) lst.get(0), context))).get(((Number)(eval((Expr) lst.get(1), context))).intValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((List)(eval((Expr) lst.get(0), context))).get(((Number)(eval((Expr) lst.get(1), context))).intValue());
+            }
         };
     }
 
     public static Expr arrayToObject(Expr array) {
         return new OpExpr("arrayToObject", Collections.singletonList(array)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr concatArrays(Expr... arrays) {
         return new OpExpr("concatArrays", Arrays.asList(arrays)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List<?> ret = new ArrayList<>();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List<?> ret = new ArrayList<>();
 
-                       for (Expr e : arrays) {
-                           //noinspection unchecked
-                           ret.addAll(((List) eval(e, context)));
-                       }
+                for (Expr e : arrays) {
+                    //noinspection unchecked
+                    ret.addAll(((List) eval(e, context)));
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
@@ -473,172 +473,172 @@ public abstract class Expr {
         input.put("as", string(as));
         input.put("cond", cond);
         return new MapOpExpr("filter", input) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List<Object> ret = new ArrayList<>();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List<Object> ret = new ArrayList<>();
 
-                       for (Object el : (List) eval(inputArray, context)) {
-                           if (el instanceof Expr) {
-                               el = eval(((Expr) el), context);
-                           }
+                for (Object el : (List) eval(inputArray, context)) {
+                    if (el instanceof Expr) {
+                        el = eval(((Expr) el), context);
+                    }
 
-                           Map<String, Object> ctx = new ObjectMapperImpl().serialize(el);
-                           String fld = as;
+                    Map<String, Object> ctx = new ObjectMapperImpl().serialize(el);
+                    String fld = as;
 
-                           if (fld == null) {
-                               fld = "this";
-                           }
+                    if (fld == null) {
+                        fld = "this";
+                    }
 
-                           context.put(fld, el);
+                    context.put(fld, el);
 
-                           if (eval(cond, context).equals(Boolean.TRUE)) {
-                               ret.add(el);
-                           }
-                       }
+                    if (eval(cond, context).equals(Boolean.TRUE)) {
+                        ret.add(el);
+                    }
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     public static Expr first(Expr e) {
         return new OpExprNoList("first", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null; //does it make sense in this context?
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null; //does it make sense in this context?
+            }
         };
     }
 
     public static Expr in(Expr elem, Expr array) {
         return new OpExpr("in", Arrays.asList(elem, array)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object v = eval(elem, context);
-                       boolean found = false;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object v = eval(elem, context);
+                boolean found = false;
 
-                       //noinspection unchecked
-                       for (Object o : (List<Object>)eval(array, context)) {
-                           if (o instanceof Expr) {
-                               o = eval(((Expr) o), context);
-                           }
+                //noinspection unchecked
+                for (Object o : (List<Object>) eval(array, context)) {
+                    if (o instanceof Expr) {
+                        o = eval(((Expr) o), context);
+                    }
 
-                           if (o.equals(v)) {
-                               found = true;
-                               break;
-                           }
-                       }
+                    if (o.equals(v)) {
+                        found = true;
+                        break;
+                    }
+                }
 
-                       return found;
-                   }
+                return found;
+            }
         };
     }
 
     public static Expr indexOfArray(Expr array, Expr search, Expr start, Expr end) {
         return new OpExpr("indexOfArray", Arrays.asList(array, search, start, end)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       int startNum = ((Number) eval(start, context)).intValue();
-                       int endNum = ((Number) eval(end, context)).intValue();
-                       List lst = (List) eval(array, context);
-                       Object o = eval(search, context);
-                       return lst.indexOf(o);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                int startNum = ((Number) eval(start, context)).intValue();
+                int endNum = ((Number) eval(end, context)).intValue();
+                List lst = (List) eval(array, context);
+                Object o = eval(search, context);
+                return lst.indexOf(o);
+            }
         };
     }
 
     public static Expr isArray(Expr array) {
         return new OpExpr("isArray", Collections.singletonList(array)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(array, context) instanceof List;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(array, context) instanceof List;
+            }
         };
     }
 
     public static Expr last(Expr e) {
         return new OpExprNoList("last", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr map(Expr inputArray, Expr as, Expr in) {
         return new OpExpr("map", Arrays.asList(inputArray, as, in)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("map not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("map not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr objectToArray(Expr obj) {
         return new OpExprNoList("objectToArray", obj) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List ret = new ArrayList();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List ret = new ArrayList();
 
-                       //noinspection unchecked
-                       for (Map.Entry e : ((Map<String, Object>)eval(obj, context)).entrySet()) {
-                           //noinspection unchecked
-                           ret.add(e.getKey());
-                           //noinspection unchecked
-                           ret.add(e.getValue());
-                       }
+                //noinspection unchecked
+                for (Map.Entry e : ((Map<String, Object>) eval(obj, context)).entrySet()) {
+                    //noinspection unchecked
+                    ret.add(e.getKey());
+                    //noinspection unchecked
+                    ret.add(e.getValue());
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     public static Expr range(Expr start, Expr end, Expr step) {
         return new OpExpr("range", Arrays.asList(start, end, step)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       int startNum = ((Number) eval(start, context)).intValue();
-                       int endNum = ((Number) eval(end, context)).intValue();
-                       int stepNum = ((Number) eval(step, context)).intValue();
-                       List<Number> lst = new ArrayList<>();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                int startNum = ((Number) eval(start, context)).intValue();
+                int endNum = ((Number) eval(end, context)).intValue();
+                int stepNum = ((Number) eval(step, context)).intValue();
+                List<Number> lst = new ArrayList<>();
 
-                       if (endNum < startNum) {
-                           if (stepNum > 0) {
-                               stepNum = -stepNum;
-                           }
-                       } else if (endNum > startNum) {
-                           if (stepNum < 0) {
-                               stepNum = -stepNum;
-                           }
-                       }
+                if (endNum < startNum) {
+                    if (stepNum > 0) {
+                        stepNum = -stepNum;
+                    }
+                } else if (endNum > startNum) {
+                    if (stepNum < 0) {
+                        stepNum = -stepNum;
+                    }
+                }
 
-                       for (int i = startNum; i < endNum; i = i + stepNum) {
-                           lst.add(i);
-                       }
+                for (int i = startNum; i < endNum; i = i + stepNum) {
+                    lst.add(i);
+                }
 
-                       return lst;
-                   }
+                return lst;
+            }
         };
     }
 
     public static Expr reverseArray(Expr array) {
         return new OpExprNoList("reverseArray", array) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List lst = (List) eval(array, context);
-                       Collections.reverse(lst);
-                       return lst;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List lst = (List) eval(array, context);
+                Collections.reverse(lst);
+                return lst;
+            }
         };
     }
 
     public static Expr size(Expr array) {
         return new OpExprNoList("size", array) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((List) eval(array, context)).size();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return ((List) eval(array, context)).size();
+            }
         };
     }
 
@@ -648,61 +648,61 @@ public abstract class Expr {
 
     public static Expr slice(Expr array, Expr pos, Expr n) {
         return new OpExpr("slice", Arrays.asList(array, pos, n)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List lst = (List) eval(array, context);
-                       int posN = ((Number) eval(pos, context)).intValue();
-                       int len = ((Number) eval(n, context)).intValue();
-                       return lst.subList(posN, posN + len);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List lst = (List) eval(array, context);
+                int posN = ((Number) eval(pos, context)).intValue();
+                int len = ((Number) eval(n, context)).intValue();
+                return lst.subList(posN, posN + len);
+            }
         };
     }
 
     public static Expr slice(Expr array, Expr n) {
         return new OpExpr("slice", Arrays.asList(array, n)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       List lst = (List) eval(array, context);
-                       int len = ((Number) eval(n, context)).intValue();
-                       return lst.subList(0, len);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                List lst = (List) eval(array, context);
+                int len = ((Number) eval(n, context)).intValue();
+                return lst.subList(0, len);
+            }
         };
     }
 
     //Boolean Expression Operators
     public static Expr and (Expr... expressions) {
         return new OpExpr("and", Arrays.asList(expressions)) {
-                   @SuppressWarnings("ConstantConditions")
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       boolean result = true;
-                       int idx = 0;
+            @SuppressWarnings("ConstantConditions")
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean result = true;
+                int idx = 0;
 
-                       while (result && idx < expressions.length) {
-                           result = result && ((Boolean) eval(expressions[idx], context));
-                           idx++;
-                       }
+                while (result && idx < expressions.length) {
+                    result = result && ((Boolean) eval(expressions[idx], context));
+                    idx++;
+                }
 
-                       return result;
-                   }
+                return result;
+            }
         };
     }
 
     public static Expr or (Expr... expressions) {
         return new OpExpr("or", Arrays.asList(expressions)) {
-                   @SuppressWarnings("ConstantConditions")
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       boolean result = false;
-                       int idx = 0;
+            @SuppressWarnings("ConstantConditions")
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean result = false;
+                int idx = 0;
 
-                       while (!result && idx < expressions.length) {
-                           result = result || ((Boolean) eval(expressions[idx], context));
-                           idx++;
-                       }
+                while (!result && idx < expressions.length) {
+                    result = result || ((Boolean) eval(expressions[idx], context));
+                    idx++;
+                }
 
-                       return result;
-                   }
+                return result;
+            }
         };
     }
 
@@ -712,118 +712,118 @@ public abstract class Expr {
 
     public static Expr not(Expr expression) {
         return new OpExprNoList("not", expression) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object evaluate = eval(expression, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object evaluate = eval(expression, context);
 
-                       if (evaluate instanceof Boolean) {
-                           return !((Boolean) evaluate);
-                       } else if (evaluate instanceof Number) {
-                           return ((Number) evaluate).intValue() != 0;
-                       } else if (evaluate instanceof String) {
-                           return "true".equalsIgnoreCase((String) evaluate);
-                       } else {
-                           throw new IllegalArgumentException("Wrong type for not: expr is " + evaluate);
-                       }
-                   }
+                if (evaluate instanceof Boolean) {
+                    return !((Boolean) evaluate);
+                } else if (evaluate instanceof Number) {
+                    return ((Number) evaluate).intValue() != 0;
+                } else if (evaluate instanceof String) {
+                    return "true".equalsIgnoreCase((String) evaluate);
+                } else {
+                    throw new IllegalArgumentException("Wrong type for not: expr is " + evaluate);
+                }
+            }
         };
     }
 
     //Comparison Expression Operators
     public static Expr cmp(Expr e1, Expr e2) {
         return new OpExpr("cmp", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //noinspection unchecked
-                       return ((Comparable) eval(e1, context)).compareTo(eval(e2, context));
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
+                return ((Comparable) eval(e1, context)).compareTo(eval(e2, context));
+            }
         };
     }
 
     public static Expr eq(Expr e1) {
         return new OpExprNoList("eq", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr eq(Expr e1, Expr e2) {
         return new OpExpr("eq", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       var v1 = eval(e1, context);
-                       var v2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                var v1 = eval(e1, context);
+                var v2 = eval(e2, context);
 
-                       if (v1 == null) {
-                           return v2 == null;
-                       }
+                if (v1 == null) {
+                    return v2 == null;
+                }
 
-                       if (v2 == null) {
-                           return v1 == null;
-                       }
+                if (v2 == null) {
+                    return v1 == null;
+                }
 
-                       return v1.equals(v2);
-                       // return eval(e1, context).equals(eval(e2, context));
-                   }
+                return v1.equals(v2);
+                // return eval(e1, context).equals(eval(e2, context));
+            }
         };
     }
 
     public static Expr ne(Expr e1) {
         return new OpExprNoList("ne", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr ne(Expr e1, Expr e2) {
         return new OpExpr("ne", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       var v1 = eval(e1, context);
-                       var v2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                var v1 = eval(e1, context);
+                var v2 = eval(e2, context);
 
-                       if (v1 == null) {
-                           return v2 != null;
-                       }
+                if (v1 == null) {
+                    return v2 != null;
+                }
 
-                       if (v2 == null) {
-                           return v1 != null;
-                       }
+                if (v2 == null) {
+                    return v1 != null;
+                }
 
-                       return !v1.equals(v2);
-                   }
+                return !v1.equals(v2);
+            }
         };
     }
 
     public static Expr gt(Expr e1) {
         return new OpExprNoList("gt", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr gt(Expr e1, Expr e2) {
         return new OpExpr("gt", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //noinspection unchecked
-                       Object eval1 = eval(e1, context);
-                       Object eval2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
+                Object eval1 = eval(e1, context);
+                Object eval2 = eval(e2, context);
 
-                       if (eval1.getClass().equals(eval2.getClass())) {
-                           return ((Comparable) eval1).compareTo(eval2) > 0;
-                       }
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) > 0;
+                }
 
-                       var dv1 = Expr.getDoubleValue(eval1);
-                       var dv2 = Expr.getDoubleValue(eval2);
-                       return (dv1 > dv2);
-                   }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 > dv2);
+            }
         };
     }
 
@@ -853,111 +853,111 @@ public abstract class Expr {
 
     public static Expr lt(Expr e1) {
         return new OpExprNoList("lt", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr lt(Expr e1, Expr e2) {
         return new OpExpr("lt", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //noinspection unchecked
-                       Object eval1 = eval(e1, context);
-                       Object eval2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
+                Object eval1 = eval(e1, context);
+                Object eval2 = eval(e2, context);
 
-                       if (eval1.getClass().equals(eval2.getClass())) {
-                           return ((Comparable) eval1).compareTo(eval2) < 0;
-                       }
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) < 0;
+                }
 
-                       var dv1 = Expr.getDoubleValue(eval1);
-                       var dv2 = Expr.getDoubleValue(eval2);
-                       return (dv1 < dv2);
-                   }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 < dv2);
+            }
         };
     }
 
     public static Expr gte(Expr e1) {
         return new OpExprNoList("gte", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr gte(Expr e1, Expr e2) {
         return new OpExpr("gte", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //noinspection unchecked
-                       Object eval1 = eval(e1, context);
-                       Object eval2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
+                Object eval1 = eval(e1, context);
+                Object eval2 = eval(e2, context);
 
-                       if (eval1.getClass().equals(eval2.getClass())) {
-                           return ((Comparable) eval1).compareTo(eval2) >= 0;
-                       }
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) >= 0;
+                }
 
-                       var dv1 = Expr.getDoubleValue(eval1);
-                       var dv2 = Expr.getDoubleValue(eval2);
-                       return (dv1 >= dv2);
-                   }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 >= dv2);
+            }
         };
     }
 
     public static Expr lte(Expr e1) {
         return new OpExprNoList("lte", e1) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return true;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return true;
+            }
         };
     }
 
     public static Expr lte(Expr e1, Expr e2) {
         return new OpExpr("lte", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //noinspection unchecked
-                       Object eval1 = eval(e1, context);
-                       Object eval2 = eval(e2, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //noinspection unchecked
+                Object eval1 = eval(e1, context);
+                Object eval2 = eval(e2, context);
 
-                       if (eval1.getClass().equals(eval2.getClass())) {
-                           return ((Comparable) eval1).compareTo(eval2) <= 0;
-                       }
+                if (eval1.getClass().equals(eval2.getClass())) {
+                    return ((Comparable) eval1).compareTo(eval2) <= 0;
+                }
 
-                       var dv1 = Expr.getDoubleValue(eval1);
-                       var dv2 = Expr.getDoubleValue(eval2);
-                       return (dv1 <= dv2);
-                   }
+                var dv1 = Expr.getDoubleValue(eval1);
+                var dv2 = Expr.getDoubleValue(eval2);
+                return (dv1 <= dv2);
+            }
         };
     }
 
     //Conditional Expression Operators
     public static Expr cond(Expr condition, Expr caseTrue, Expr caseFalse) {
         return new OpExpr("cond", Arrays.asList(condition, caseTrue, caseFalse)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("cond not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("cond not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr ifNull(Expr toCheck, Expr resultIfNull) {
         return new OpExpr("ifNull", Arrays.asList(toCheck, resultIfNull)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object result = eval(toCheck, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object result = eval(toCheck, context);
 
-                       if (result == null) {
-                           return eval(resultIfNull, context);
-                       }
+                if (result == null) {
+                    return eval(resultIfNull, context);
+                }
 
-                       return result;
-                   }
+                return result;
+            }
         };
     }
 
@@ -985,21 +985,21 @@ public abstract class Expr {
     //Data Size Operators
     public static Expr binarySize(Expr e) {
         return new OpExprNoList("binarySize", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("binarySize not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("binarySize not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr bsonSize(Expr e) {
         return new OpExprNoList("bsonSize", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("bsonSize not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("bsonSize not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
@@ -1043,47 +1043,47 @@ public abstract class Expr {
         }
 
         Map<String, Expr> map = UtilsMap.of("init", string(initCode), "initArgs", initArgs, "accumulate", string(accumulateCode), "accumulateArgs", accArgs, "merge", string(mergeCode), "finalize",
-          string(finalizeCode), "lang", string(lang));
+                string(finalizeCode), "lang", string(lang));
         return new MapOpExpr("accumulator", map);
     }
 
     public static Expr dayOfMonth(Expr date) {
         return new OpExprNoList("dayOfMonth", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.DAY_OF_MONTH);
-                   }
+                return cal.get(Calendar.DAY_OF_MONTH);
+            }
         };
     }
 
     public static Expr dayOfWeek(Expr date) {
         return new OpExprNoList("dayOfWeek", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.DAY_OF_WEEK);
-                   }
+                return cal.get(Calendar.DAY_OF_WEEK);
+            }
         };
     }
 
@@ -1165,337 +1165,337 @@ public abstract class Expr {
 
     public static Expr dayOfYear(Expr date) {
         return new OpExprNoList("dayOfYear", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.DAY_OF_YEAR);
-                   }
+                return cal.get(Calendar.DAY_OF_YEAR);
+            }
         };
     }
 
     public static Expr hour(Expr date) {
         return new OpExprNoList("hour", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.HOUR_OF_DAY);
-                   }
+                return cal.get(Calendar.HOUR_OF_DAY);
+            }
         };
     }
 
     public static Expr isoDayOfWeek(Expr date) {
         return new OpExprNoList("isoDayOfWeek", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.DAY_OF_WEEK);
-                   }
+                return cal.get(Calendar.DAY_OF_WEEK);
+            }
         };
     }
 
     public static Expr isoWeek(Expr date) {
         return new OpExprNoList("isoWeek", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.WEEK_OF_MONTH);
-                   }
+                return cal.get(Calendar.WEEK_OF_MONTH);
+            }
         };
     }
 
     public static Expr isoWeekYear(Expr date) {
         return new OpExprNoList("isoWeekYear", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.WEEK_OF_YEAR);
-                   }
+                return cal.get(Calendar.WEEK_OF_YEAR);
+            }
         };
     }
 
     public static Expr millisecond(Expr date) {
         return new OpExprNoList("millisecond", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.MILLISECOND);
-                   }
+                return cal.get(Calendar.MILLISECOND);
+            }
         };
     }
 
     public static Expr minute(Expr date) {
         return new OpExprNoList("minute", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.MINUTE);
-                   }
+                return cal.get(Calendar.MINUTE);
+            }
         };
     }
 
     public static Expr month(Expr date) {
         return new OpExprNoList("month", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.MONTH);
-                   }
+                return cal.get(Calendar.MONTH);
+            }
         };
     }
 
     public static Expr second(Expr date) {
         return new OpExprNoList("second", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.SECOND);
-                   }
+                return cal.get(Calendar.SECOND);
+            }
         };
     }
 
     public static Expr toDate(Expr e) {
         return new OpExprNoList("toDate", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("toDate not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("toDate not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr week(Expr date) {
         return new OpExprNoList("week", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.WEEK_OF_YEAR);
-                   }
+                return cal.get(Calendar.WEEK_OF_YEAR);
+            }
         };
     }
 
     public static Expr year(Expr date) {
         return new OpExprNoList("year", date) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       GregorianCalendar cal = new GregorianCalendar();
-                       Object val = eval(date, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                GregorianCalendar cal = new GregorianCalendar();
+                Object val = eval(date, context);
 
-                       if (val instanceof Date) {
-                           cal.setTime((Date) val);
-                       } else if (val instanceof Number) {
-                           cal.setTimeInMillis(((Number) val).longValue());
-                       } else {
-                           throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
-                       }
+                if (val instanceof Date) {
+                    cal.setTime((Date) val);
+                } else if (val instanceof Number) {
+                    cal.setTimeInMillis(((Number) val).longValue());
+                } else {
+                    throw new IllegalArgumentException("second expr got wrong type: " + val.getClass());
+                }
 
-                       return cal.get(Calendar.YEAR);
-                   }
+                return cal.get(Calendar.YEAR);
+            }
         };
     }
 
     public static Expr literal(Expr e) {
         return new OpExprNoList("literal", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(e, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(e, context);
+            }
         };
     }
 
     public static Expr mergeObjects(Expr doc) {
         return new OpExprNoList("mergeObjects", doc) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(doc, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(doc, context);
+            }
         };
     }
 
     public static Expr mergeObjects(Expr... docs) {
         return new OpExpr("mergeObjects", Arrays.asList(docs)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Map<String, Object> res = new HashMap<>();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> res = new HashMap<>();
 
-                       for (Expr e : docs) {
-                           Object val = eval(e, context);
+                for (Expr e : docs) {
+                    Object val = eval(e, context);
 
-                           if (!(val instanceof Map)) {
-                               throw new IllegalArgumentException("cannot merge non documents!");
-                           }
+                    if (!(val instanceof Map)) {
+                        throw new IllegalArgumentException("cannot merge non documents!");
+                    }
 
-                           //noinspection unchecked
-                           res.putAll((Map<? extends String, ?>) val);
-                       }
+                    //noinspection unchecked
+                    res.putAll((Map<? extends String, ?>) val);
+                }
 
-                       return res;
-                   }
+                return res;
+            }
         };
     }
 
     public static Expr allElementsTrue(Expr... e) {
         return new OpExpr("allElementsTrue", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       boolean ret = true;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean ret = true;
 
-                       for (Expr el : e) {
-                           if (!Boolean.TRUE.equals(eval(el, context))) {
-                               ret = false;
-                               break;
-                           }
-                       }
+                for (Expr el : e) {
+                    if (!Boolean.TRUE.equals(eval(el, context))) {
+                        ret = false;
+                        break;
+                    }
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     private static Expr allElementsTrue(List lst) {
         //noinspection unchecked
         return new OpExpr("alleElementsTrue", lst) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       boolean ret = true;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean ret = true;
 
-                       //noinspection unchecked
-                       for (Expr el : (List<Expr>) lst) {
-                           if (!Boolean.TRUE.equals(eval(el, context))) {
-                               ret = false;
-                               break;
-                           }
-                       }
+                //noinspection unchecked
+                for (Expr el : (List<Expr>) lst) {
+                    if (!Boolean.TRUE.equals(eval(el, context))) {
+                        ret = false;
+                        break;
+                    }
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     public static Expr anyElementTrue(Expr... e) {
         return new OpExpr("anyElementsTrue", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       boolean ret = false;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                boolean ret = false;
 
-                       for (Expr el : e) {
-                           if (Boolean.TRUE.equals(eval(el, context))) {
-                               ret = true;
-                               break;
-                           }
-                       }
+                for (Expr el : e) {
+                    if (Boolean.TRUE.equals(eval(el, context))) {
+                        ret = true;
+                        break;
+                    }
+                }
 
-                       return ret;
-                   }
+                return ret;
+            }
         };
     }
 
     public static Expr setDifference(Expr e1, Expr e2) {
         return new OpExpr("setDifference", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
@@ -1503,86 +1503,86 @@ public abstract class Expr {
 
     public static Expr setEquals(Expr... e) {
         return new OpExpr("setEquals", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr setIntersection(Expr... e) {
         return new OpExpr("setIntersection", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr setIsSubset(Expr e1, Expr e2) {
         return new OpExpr("setIsSubset", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr setUnion(Expr... e) {
         return new OpExpr("setUnion", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Set set = new HashSet();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Set set = new HashSet();
 
-                       for (Expr el : e) {
-                           //noinspection unchecked
-                           set.add(eval(el, context));
-                       }
+                for (Expr el : e) {
+                    //noinspection unchecked
+                    set.add(eval(el, context));
+                }
 
-                       return set;
-                   }
+                return set;
+            }
         };
     }
 
     public static Expr concat(Expr... e) {
         return new OpExpr("concat", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       StringBuilder b = new StringBuilder();
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                StringBuilder b = new StringBuilder();
 
-                       for (Expr ex : e) {
-                           Object evaluate = eval(ex, context);
+                for (Expr ex : e) {
+                    Object evaluate = eval(ex, context);
 
-                           if (evaluate != null) {
-                               b.append(evaluate);
-                           }
-                       }
+                    if (evaluate != null) {
+                        b.append(evaluate);
+                    }
+                }
 
-                       return b.toString();
-                   }
+                return b.toString();
+            }
         };
     }
 
     public static Expr indexOfBytes(Expr str, Expr substr, Expr start, Expr end) {
         return new OpExpr("indexOfBytes", Arrays.asList(str, substr, start, end)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr indexOfCP(Expr str, Expr substr, Expr start, Expr end) {
         return new OpExpr("indexOfCP", Arrays.asList(str, substr, start, end)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
@@ -1590,20 +1590,20 @@ public abstract class Expr {
 
     public static Expr match(Expr expr) {
         return new OpExprNoList("$match", expr) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(expr, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(expr, context);
+            }
         };
     }
 
     public static Expr expr(Expr expr) {
         return new OpExprNoList("expr", expr) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return eval(expr, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return eval(expr, context);
+            }
         };
     }
 
@@ -1613,14 +1613,14 @@ public abstract class Expr {
 
     public static Expr regex(Expr field, Expr regex, Expr options) {
         return new Expr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return UtilsMap.of(field.toQueryObject().toString().substring(1), UtilsMap.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
-                   }
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return UtilsMap.of(field.toQueryObject().toString().substring(1), UtilsMap.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
+            }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
@@ -1638,21 +1638,21 @@ public abstract class Expr {
 
     public static Expr split(Expr str, Expr delimiter) {
         return new OpExpr("split", Arrays.asList(str, delimiter)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       String s = eval(str, context).toString();
-                       return Arrays.asList(s.split(eval(delimiter, context).toString()));
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                String s = eval(str, context).toString();
+                return Arrays.asList(s.split(eval(delimiter, context).toString()));
+            }
         };
     }
 
     public static Expr strLenBytes(Expr str) {
         return new OpExpr("strLenBytes", Collections.singletonList(str)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
@@ -1674,97 +1674,97 @@ public abstract class Expr {
 
     public static Expr strLenCP(Expr str) {
         return new OpExpr("strLenCP", Collections.singletonList(str)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr strcasecmp(Expr e1, Expr e2) {
         return new OpExpr("strcasecmp", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr substr(Expr str, Expr start, Expr len) {
         return new OpExpr("substr", Arrays.asList(str, start, len)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       String s = (String) eval(str, context);
-                       int st = ((Number) eval(start, context)).intValue();
-                       int l = ((Number) eval(len, context)).intValue();
-                       return s.substring(st, st + l);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                String s = (String) eval(str, context);
+                int st = ((Number) eval(start, context)).intValue();
+                int l = ((Number) eval(len, context)).intValue();
+                return s.substring(st, st + l);
+            }
         };
     }
 
     public static Expr substrBytes(Expr str, Expr index, Expr count) {
         return new OpExpr("substrBytes", Arrays.asList(str, index, count)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr substrCP(Expr str, Expr cpIdx, Expr cpCount) {
         return new OpExpr("substrCP", Arrays.asList(str, cpIdx, cpCount)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr toLower(Expr e) {
         return new OpExprNoList("toLower", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       if (eval(e, context) == null) {
-                           return null;
-                       }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                if (eval(e, context) == null) {
+                    return null;
+                }
 
-                       return ((String) eval(e, context)).toLowerCase(Locale.ROOT);
-                   }
+                return ((String) eval(e, context)).toLowerCase(Locale.ROOT);
+            }
         };
     }
 
     public static Expr toStr(Expr e) {
         return new OpExprNoList("toString", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return (eval(e, context) != null) ? eval(e, context).toString() : null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return (eval(e, context) != null) ? eval(e, context).toString() : null;
+            }
         };
     }
 
     public static Expr toUpper(Expr e) {
         return new OpExprNoList("toUpper", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       if (eval(e, context) == null) {
-                           return null;
-                       }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                if (eval(e, context) == null) {
+                    return null;
+                }
 
-                       return eval(e, context).toString().toUpperCase();
-                   }
+                return eval(e, context).toString().toUpperCase();
+            }
         };
     }
 
     public static Expr meta(String metaDataKeyword) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return UtilsMap.of("$meta", metaDataKeyword);
-                   }
+            @Override
+            public Object toQueryObject() {
+                return UtilsMap.of("$meta", metaDataKeyword);
+            }
         };
     }
 
@@ -1774,28 +1774,28 @@ public abstract class Expr {
 
     public static Expr sin(Expr e) {
         return new OpExprNoList("sin", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.sin(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.sin(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr cos(Expr e) {
         return new OpExprNoList("cos", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.cos(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.cos(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr tan(Expr e) {
         return new OpExprNoList("tan", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.tan(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.tan(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
@@ -1803,146 +1803,146 @@ public abstract class Expr {
 
     public static Expr asin(Expr e) {
         return new OpExprNoList("asin", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.asin(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.asin(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr acos(Expr e) {
         return new OpExprNoList("acos", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.acos(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.acos(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr atan(Expr e) {
         return new OpExprNoList("atan", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.atan(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.atan(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr atan2(Expr e, Expr e2) {
         return new OpExpr("atan2", Arrays.asList(e, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.atan2(((Number) eval(e, context)).doubleValue(), ((Number) eval(e2, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.atan2(((Number) eval(e, context)).doubleValue(), ((Number) eval(e2, context)).doubleValue());
+            }
         };
     }
 
     private static Expr atan2(List lst) {
         //noinspection unchecked
         return new OpExpr("atan2", lst) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.atan2(((Number)(eval((Expr) lst.get(0), context))).doubleValue(), ((Number)(eval((Expr) lst.get(1), context))).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.atan2(((Number)(eval((Expr) lst.get(0), context))).doubleValue(), ((Number)(eval((Expr) lst.get(1), context))).doubleValue());
+            }
         };
     }
 
     public static Expr asinh(Expr e) {
         return new OpExprNoList("asinh", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.sinh(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.sinh(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr acosh(Expr e) {
         return new OpExprNoList("acosh", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr atanh(Expr e1, Expr e2) {
         return new OpExpr("atanh", Arrays.asList(e1, e2)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
-                       return 0;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
+                return 0;
+            }
         };
     }
 
     private static Expr atanh(List lst) {
         //noinspection unchecked
         return new OpExpr("atanh", lst) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
-                       return 0;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("ATANH not implemented, sorry!");
+                return 0;
+            }
         };
     }
 
     public static Expr degreesToRadian(Expr e) {
         return new OpExprNoList("degreesToRadian", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.toRadians(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.toRadians(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr radiansToDegrees(Expr e) {
         return new OpExprNoList("radiansToDegrees", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Math.toDegrees(((Number) eval(e, context)).doubleValue());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Math.toDegrees(((Number) eval(e, context)).doubleValue());
+            }
         };
     }
 
     public static Expr convert(Expr input, Expr to, Expr onError, Expr onNull) {
         return new MapOpExpr("convert", UtilsMap.of("input", input, "to", to, "onError", onError, "onNull", onNull)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object in = eval(input, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object in = eval(input, context);
 
-                       if (in == null) {
-                           return eval(onNull, context);
-                       }
+                if (in == null) {
+                    return eval(onNull, context);
+                }
 
-                       //type check???
-                       return in; //TODO: migrate data?
-                   }
+                //type check???
+                return in; //TODO: migrate data?
+            }
         };
     }
 
     private static Expr convert(Map map) {
         //noinspection unchecked
         return new MapOpExpr("convert", map) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object in = eval((Expr) map.get("input"), context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object in = eval((Expr) map.get("input"), context);
 
-                       if (in == null) {
-                           return eval((Expr) map.get("onNull"), context);
-                       }
+                if (in == null) {
+                    return eval((Expr) map.get("onNull"), context);
+                }
 
-                       //type check???
-                       return in; //TODO: migrate data?
-                   }
+                //type check???
+                return in; //TODO: migrate data?
+            }
         };
     }
 
     public static Expr isNumber(Expr e) {
         return new OpExprNoList("isNumber", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(e, context) instanceof Number;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(e, context) instanceof Number;
+            }
         };
     }
 
@@ -1958,118 +1958,144 @@ public abstract class Expr {
 
     public static Expr toBool(Expr e) {
         return new OpExprNoList("toBool", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return Boolean.valueOf(eval(e, context).toString());
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return Boolean.valueOf(eval(e, context).toString());
+            }
         };
     }
 
     public static Expr toDecimal(Expr e) {
         return new OpExprNoList("toDecimal", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return (Double.valueOf(eval(e, context).toString()));
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return (Double.valueOf(eval(e, context).toString()));
+            }
         };
     }
 
     public static Expr toDouble(Expr e) {
         return new OpExprNoList("toDouble", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       Number n = (Number) eval(e, context);
-                       return n.doubleValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                var res = eval(e, context);
+
+                if (res instanceof Number) {
+                    return ((Number) res).doubleValue();
+                }
+
+                if (res instanceof String) {
+                    return Integer.valueOf((String) res).doubleValue();
+                }
+                return 0;
+            }
         };
     }
 
     public static Expr toInt(Expr e) {
         return new OpExprNoList("toInt", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((Number) eval(e, context)).intValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                var res = eval(e, context);
+
+                if (res instanceof Number) {
+                    return ((Number) res).intValue();
+                }
+
+                if (res instanceof String) {
+                    return Integer.valueOf((String) res).intValue();
+                }
+                return 0;
+            }
         };
     }
 
     public static Expr toLong(Expr e) {
         return new OpExprNoList("toLong", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return ((Number) eval(e, context)).longValue();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                var res = eval(e, context);
+
+                if (res instanceof Number) {
+                    return ((Number) res).longValue();
+                }
+
+                if (res instanceof String) {
+                    return Integer.valueOf((String) res).longValue();
+                }
+                return 0;
+            }
         };
     }
 
     public static Expr toObjectId(Expr e) {
         return new OpExprNoList("toObjectId", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       Object o = eval(e, context);
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                //LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                Object o = eval(e, context);
 
-                       if (o instanceof String) {
-                           o = new MorphiumId((String) o);
-                       } else if (o instanceof ObjectId) {
-                           o = new MorphiumId(((ObjectId) o).toHexString());
-                       }
+                if (o instanceof String) {
+                    o = new MorphiumId((String) o);
+                } else if (o instanceof ObjectId) {
+                    o = new MorphiumId(((ObjectId) o).toHexString());
+                }
 
-                       return o;
-                   }
+                return o;
+            }
         };
     }
 
     public static Expr type(Expr e) {
         return new OpExprNoList("type", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return Expr.nullExpr();
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return Expr.nullExpr();
+            }
         };
     }
 
     public static Expr nullExpr() {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return null;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return null;
+            }
         };
     }
 
     public static Expr addToSet(Expr e) {
         return new OpExprNoList("addToSet", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr avg(Expr... e) {
         return new OpExpr("avg", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       double sum = 0;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                double sum = 0;
 
-                       for (Expr expr : e) {
-                           sum += ((Number) eval(expr, context)).doubleValue();
-                       }
+                for (Expr expr : e) {
+                    sum += ((Number) eval(expr, context)).doubleValue();
+                }
 
-                       return sum / e.length;
-                   }
+                return sum / e.length;
+            }
         };
     }
 
     public static Expr avg(Expr e) {
         return new OpExprNoList("avg", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(e, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(e, context);
+            }
         };
     }
 
@@ -2077,182 +2103,182 @@ public abstract class Expr {
 
     public static Expr max(Expr... e) {
         return new OpExpr("max", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object max = null;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object max = null;
 
-                       for (Expr expr : e) {
-                           Object v = eval(expr, context);
+                for (Expr expr : e) {
+                    Object v = eval(expr, context);
 
-                           if (max == null) {
-                               max = v;
-                           } else //noinspection unchecked
-                           if (((Comparable) max).compareTo(v) < 0) {
-                               max = v;
-                           }
-                       }
+                    if (max == null) {
+                        max = v;
+                    } else //noinspection unchecked
+                        if (((Comparable) max).compareTo(v) < 0) {
+                            max = v;
+                        }
+                }
 
-                       return max;
-                   }
+                return max;
+            }
         };
     }
 
     public static Expr max(Expr e) {
         return new OpExprNoList("max", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(e, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(e, context);
+            }
         };
     }
 
     public static Expr min(Expr... e) {
         return new OpExpr("min", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Object min = null;
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Object min = null;
 
-                       for (Expr expr : e) {
-                           Object v = eval(expr, context);
+                for (Expr expr : e) {
+                    Object v = eval(expr, context);
 
-                           if (min == null) {
-                               min = v;
-                           } else //noinspection unchecked
-                           if (((Comparable) min).compareTo(v) > 0) {
-                               min = v;
-                           }
-                       }
+                    if (min == null) {
+                        min = v;
+                    } else //noinspection unchecked
+                        if (((Comparable) min).compareTo(v) > 0) {
+                            min = v;
+                        }
+                }
 
-                       return min;
-                   }
+                return min;
+            }
         };
     }
 
     public static Expr min(Expr e) {
         return new OpExprNoList("min", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return eval(e, context);
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return eval(e, context);
+            }
         };
     }
 
     public static Expr push(Expr e) {
         return new OpExprNoList("push", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr stdDevPop(Expr e) {
         return new OpExprNoList("stdDevPop", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr stdDevPop(Expr... e) {
         return new OpExpr("stdDevPop", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr stdDevSamp(Expr e) {
         return new OpExprNoList("stdDevSamp", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr stdDevSamp(Expr... e) {
         return new OpExpr("stdDevSamp", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr sum(Expr e) {
         return new OpExprNoList("sum", e) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                return null;
+            }
         };
     }
 
     public static Expr sum(Expr... e) {
         return new OpExpr("sum", Arrays.asList(e)) {
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                       return null;
-                   }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
+                return null;
+            }
         };
     }
 
     public static Expr let(Map<String, Expr> vars, Expr in) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       Map<String, Object> map = new HashMap<>();
+            @Override
+            public Object toQueryObject() {
+                Map<String, Object> map = new HashMap<>();
 
-                       for (Map.Entry<String, Expr> e : vars.entrySet()) {
-                           map.put(e.getKey(), e.getValue().toQueryObject());
-                       }
+                for (Map.Entry<String, Expr> e : vars.entrySet()) {
+                    map.put(e.getKey(), e.getValue().toQueryObject());
+                }
 
-                       return UtilsMap.of("$let", UtilsMap.of("vars", (Object) map, "in", in.toQueryObject()));
-                   }
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Map<String, Object> effectiveContext = new HashMap<>(context);
+                return UtilsMap.of("$let", UtilsMap.of("vars", (Object) map, "in", in.toQueryObject()));
+            }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> effectiveContext = new HashMap<>(context);
 
-                       for (String k : vars.keySet()) {
-                           effectiveContext.put(k, eval(vars.get(k), context));
-                       }
+                for (String k : vars.keySet()) {
+                    effectiveContext.put(k, eval(vars.get(k), context));
+                }
 
-                       return eval(in, effectiveContext);
-                   }
+                return eval(in, effectiveContext);
+            }
         };
     }
 
     private static Expr let(Map m) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return m;
-                   }
-                   @Override
-                   public Object evaluate(Map<String, Object> context) {
-                       Map<String, Object> effectiveContext = new HashMap<>(context);
+            @Override
+            public Object toQueryObject() {
+                return m;
+            }
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> effectiveContext = new HashMap<>(context);
 
-                       //noinspection unchecked
-                       for (String k : ((Map<String, Expr>) m.get("vars")).keySet()) {
-                           //noinspection unchecked
-                           effectiveContext.put(k, eval(((Map<String, Expr>) m.get("vars")).get(k), context));
-                       }
+                //noinspection unchecked
+                for (String k : ((Map<String, Expr>) m.get("vars")).keySet()) {
+                    //noinspection unchecked
+                    effectiveContext.put(k, eval(((Map<String, Expr>) m.get("vars")).get(k), context));
+                }
 
-                       return eval(((Expr) m.get("in")), effectiveContext);
-                   }
+                return eval(((Expr) m.get("in")), effectiveContext);
+            }
         };
     }
 
     public static Expr doc(Map<String, Object> document) {
         return new ValueExpr() {
-                   @Override
-                   public Object toQueryObject() {
-                       return document;
-                   }
+            @Override
+            public Object toQueryObject() {
+                return document;
+            }
         };
     }
 
@@ -2394,7 +2420,7 @@ public abstract class Expr {
 
         private final List<Expr> arr;
 
-        public ArrayExpr(Expr ... vals) {
+        public ArrayExpr(Expr... vals) {
             this.arr = Arrays.asList(vals);
         }
 

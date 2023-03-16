@@ -87,29 +87,38 @@ public class PooledDriver extends DriverBase {
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
         int retries = 0;
+        boolean connected = false;
 
-        for (String host : getHostSeed()) {
+        for (String host : new ArrayList<String>(getHostSeed())) {
             for (int i = 0; i < getMinConnectionsPerHost(); i++) {
                 while (true) {
                     try {
                         connectToHost(host);
+                        connected = true;
                         break;
                     } catch (MorphiumDriverException e) {
                         retries++;
 
                         if (retries < getRetriesOnNetworkError()) {
                             log.error("Connection failed, retrying...");
+
                             try {
                                 Thread.sleep(getSleepBetweenErrorRetries());
                             } catch (InterruptedException e1) {
                             }
                         } else {
                             log.error("Could not connect to " + host);
-                            throw(e);
+                            getHostSeed().remove(host);
+                            //throw(e);
+                            break;
                         }
                     }
                 }
             }
+        }
+
+        if (!connected) {
+            throw new MorphiumDriverException("Connection failed");
         }
 
         setReplicaSet(getHostSeed().size() > 1);
@@ -144,6 +153,7 @@ public class PooledDriver extends DriverBase {
             primaryNode = host;
         }
 
+        handleHello(hello);
         setMaxBsonObjectSize(hello.getMaxBsonObjectSize());
         setMaxMessageSize(hello.getMaxMessageSizeBytes());
         setMaxWriteBatchSize(hello.getMaxWriteBatchSize());
@@ -183,104 +193,139 @@ public class PooledDriver extends DriverBase {
         connect(null);
     }
 
+    private void handleHello(HelloResult hello) {
+        if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
+            if (log.isDebugEnabled()) {
+                log.debug(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
+            }
+
+            primaryNode = hello.getMe();
+        }
+
+        for (String hst : hello.getHosts()) {
+            if (!connectionPool.containsKey(hst)) {
+                log.debug("new host needs to be added: " + hst);
+                connectionPool.put(hst, new ArrayList<>());
+            }
+
+            if (!getHostSeed().contains(hst)) {
+                getHostSeed().add(hst);
+            }
+        }
+
+        for (String hst : new ArrayList<String>(getHostSeed())) {
+            if (!hello.getHosts().contains(hst)) {
+                getHostSeed().remove(hst);
+            }
+        }
+
+        for (String k : connectionPool.keySet()) {
+            if (!hello.getHosts().contains(k)) {
+                log.warn("Host " + k + " is not part of the replicaset anymore!");
+                getHostSeed().remove(k);
+                List<Connection> lst = connectionPool.remove(k);
+
+                if (fastestHost.equals(k)) {
+                    fastestHost = null;
+                    fastestTime = 10000;
+                }
+
+                for (Connection con : lst) {
+                    try {
+                        con.getCon().close();
+                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                    } catch (Exception ex) {
+                    }
+                }
+            }
+        }
+    }
+
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
-                var copy = new HashMap<>(connectionPool); // avoid concurrent modification exception
+                try {
+                    log.debug("heartbeat running");
+                    var copy = new HashMap<>(connectionPool); // avoid concurrent modification exception
 
-                for (var e : copy.entrySet()) {
-                    // checking max lifetime
-                    List<Connection> connections = new ArrayList<>(e.getValue());
+                    for (var e : copy.entrySet()) {
+                        // checking max lifetime
+                        List<Connection> connections = new ArrayList<>(e.getValue());
 
-                    for (var c : connections) {
-                        if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
-                            try {
-                                // max lifetime exceeded
-                                // log.info("Lifetime exceeded...");
-                                if (copy.get(e.getKey()).remove(c)) {
-                                    c.getCon().close();
-                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                }
-                            } catch (Exception ex) {
-                            }
-                        } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
-                            try {
-                                // log.debug("Unused connection closed");
-                                if (copy.get(e.getKey()).remove(c)) {
-                                    c.getCon().close();
-                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                }
-                            } catch (Exception ex) {
-                            }
-                        }
-
-                        HelloCommand h = new HelloCommand(c.getCon()).setHelloOk(true).setIncludeClient(false);
-
-                        try {
-                            long start = System.currentTimeMillis();
-                            var hello = h.execute();
-                            long dur = System.currentTimeMillis() - start;
-
-                            if (dur < fastestTime) {
-                                fastestTime = dur;
-                                fastestHost = e.getKey();
-                            }
-
-                            if (hello != null && hello.getWritablePrimary()) {
-                                for (String hst : hello.getHosts()) {
-                                    if (!connectionPool.containsKey(hst)) {
-                                        log.debug("new host needs to be added: " + hst);
-                                        connectionPool.put(hst, new ArrayList<>());
-                                    }
-                                }
-
-                                for (String k : connectionPool.keySet()) {
-                                    if (!hello.getHosts().contains(k)) {
-                                        log.warn("Host " + k + " is not part of the replicaset anymore!");
-                                        List<Connection> lst = connectionPool.remove(k);
-
-                                        if (fastestHost.equals(k)) {
-                                            fastestHost = null;
-                                            fastestTime = 10000;
-                                        }
-
-                                        for (Connection con : lst) {
-                                            try {
-                                                con.getCon().close();
-                                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                            } catch (Exception ex) {
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (MorphiumDriverException ex) {
-                            if (!ex.getMessage().contains("closed")) {
-                                log.error("Error talking to " + e.getKey(), ex);
-                                copy.get(e.getKey()).remove(c); // Works because the copy has a reference to the list!!!
-
+                        for (var c : connections) {
+                            if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
                                 try {
-                                    c.getCon().close();
-                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                } catch (Exception exc) {
-                                    // swallow - something was broken before already!
+                                    // max lifetime exceeded
+                                    // log.info("Lifetime exceeded...");
+                                    if (copy.get(e.getKey()).remove(c)) {
+                                        c.getCon().close();
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    }
+                                } catch (Exception ex) {
+                                }
+                            } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
+                                try {
+                                    // log.debug("Unused connection closed");
+                                    if (copy.get(e.getKey()).remove(c)) {
+                                        c.getCon().close();
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    }
+                                } catch (Exception ex) {
+                                }
+                            }
+
+                            HelloCommand h = new HelloCommand(c.getCon()).setHelloOk(true).setIncludeClient(false);
+
+                            try {
+                                long start = System.currentTimeMillis();
+                                var hello = h.execute();
+                                long dur = System.currentTimeMillis() - start;
+
+                                if (dur < fastestTime) {
+                                    fastestTime = dur;
+                                    fastestHost = e.getKey();
+                                }
+
+                                if (hello != null && hello.getWritablePrimary()) {
+                                    handleHello(hello);
+                                } else {
+                                    log.info("Hello from secondary");
+                                }
+                            } catch (MorphiumDriverException ex) {
+                                if (!ex.getMessage().contains("closed")) {
+                                    log.error("Error talking to " + e.getKey(), ex);
+                                    copy.get(e.getKey()).remove(c); // Works because the copy has a reference to the list!!!
+
+                                    try {
+                                        c.getCon().close();
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    } catch (Exception exc) {
+                                        // swallow - something was broken before already!
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    while (e.getValue().size() < getMinConnectionsPerHost()) {
-                        // need to add connections!
-                        try {
-                            connectToHost(e.getKey());
-                        } catch (MorphiumDriverException ex) {
-                            log.error("Could not fill connection pool for " + e.getKey(), ex);
-                            break;
+                        while (e.getValue().size() < getMinConnectionsPerHost()) {
+                            // need to add connections!
+                            try {
+                                connectToHost(e.getKey());
+                            } catch (MorphiumDriverException ex) {
+                                log.error("Could not fill connection pool for " + e.getKey(), ex);
+                                getHostSeed().remove(e.getKey()); //removing from hostSeeed
+
+                                if (e.getValue().size() == 0) {
+                                    connectionPool.remove(e.getKey());
+                                }
+
+                                break;
+                            }
                         }
                     }
+                } catch (Exception e) {
+                    log.error("Error during heartbeat", e);
                 }
-
             }, getHeartbeatFrequency(), getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
             log.debug("Heartbeat already scheduled...");
@@ -377,22 +422,18 @@ public class PooledDriver extends DriverBase {
                     }
                 }
 
-                try {
-                    String h = getHost(host);
-                    int port = getPortFromHost(host);
-                    var con = new SingleMongoConnection();
+                String h = getHost(host);
+                int port = getPortFromHost(host);
+                var con = new SingleMongoConnection();
 
-                    if (getAuthDb() != null) {
-                        con.setCredentials(getAuthDb(), getUser(), getPassword());
-                    }
-
-                    var hello = con.connect(this, h, port);
-                    c = new Connection(con);
-                    stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
-                    break;
-                } catch (MorphiumDriverException e) {
-                    throw new RuntimeException(e);
+                if (getAuthDb() != null) {
+                    con.setCredentials(getAuthDb(), getUser(), getPassword());
                 }
+
+                var hello = con.connect(this, h, port);
+                c = new Connection(con);
+                stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
+                break;
             } else {
                 synchronized (connectionPool) {
                     if (connectionPool.get(host).size() != 0) {
@@ -458,6 +499,7 @@ public class PooledDriver extends DriverBase {
                     // round-robin
                     if (lastSecondaryNode >= getHostSeed().size()) {
                         lastSecondaryNode = 0;
+                        retry++;
                     }
 
                     if (getHostSeed().get(lastSecondaryNode).equals(primaryNode)) {
@@ -465,22 +507,25 @@ public class PooledDriver extends DriverBase {
 
                         if (lastSecondaryNode > getHostSeed().size()) {
                             lastSecondaryNode = 0;
+                            retry++;
                         }
                     }
 
+                    String host = getHostSeed().get(lastSecondaryNode++);
+
                     try {
-                        return borrowConnection(getHostSeed().get(lastSecondaryNode++));
+                        return borrowConnection(host);
                     } catch (MorphiumDriverException e) {
-                        if (retry > 1) {
+                        if (retry > getRetriesOnNetworkError()) {
                             log.error("Could not get Connection - abort");
                             throw(e);
                         }
 
-                        log.warn("could not get connection to secondary node - retrying");
-                        retry++;
+                        log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
+                        getHostSeed().remove(lastSecondaryNode - 1);                 //removing node - heartbeat should add it again...
 
                         try {
-                            Thread.sleep(100);
+                            Thread.sleep(getSleepBetweenErrorRetries());
                         } catch (InterruptedException e1) {
                             // Swallow
                         }

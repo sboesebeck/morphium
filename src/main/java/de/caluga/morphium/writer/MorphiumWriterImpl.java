@@ -24,7 +24,7 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
@@ -341,7 +341,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (coll == null) {
             coll = morphium.getMapper().getCollectionName(type);
         }
-
+        if (morphium==null || morphium.getConfig()==null) return; //happens during shutdonw
         if (!morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL)) {
                 createCappedCollection(type, coll);
@@ -673,24 +673,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             // (morphium.getARHelper().getIdField(c).getType().equals(MorphiumId.class)));
 
             if (!e.schemaDef().equals("")) {
-                JSONParser jsonParser = new JSONParser();
-
+                //JSONParser jsonParser = new JSONParser();
+                var jacksonOM=new ObjectMapper();
                 try {
-                    Map<String, Object> def = (Map<String, Object>) jsonParser.parse(e.schemaDef(), new ContainerFactory() {
-                        @Override
-                        public Map createObjectContainer() {
-                            return new HashMap<>();
-                        }
-                        @Override
-                        public List creatArrayContainer() {
-                            return new ArrayList();
-                        }
-                    });
+                    Map<String, Object> def = (Map<String, Object>) jacksonOM.readValue(e.schemaDef().getBytes(),Map.class);
                     cmd.setValidator(def);
                     cmd.setValidationLevel(e.validationLevel().name());
                     cmd.setValidationAction(e.validationAction().name());
-                } catch (ParseException parseException) {
+                } catch (Exception parseException) {
                     parseException.printStackTrace();
+                    throw new RuntimeException("Error parsing",parseException);
                 }
             }
 
@@ -865,7 +857,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     retries++;
 
-                    if (retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                    if (morphium!=null && morphium.getConfig()!=null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
                         //log.error("Error executing... retrying");
                         Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                     } else {

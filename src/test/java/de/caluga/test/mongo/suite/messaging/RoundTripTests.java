@@ -24,7 +24,6 @@ public class RoundTripTests extends MorphiumTestBase {
         runTest(true, false, true, false, 100, 50);
     }
 
-
     @Test
     public void runSameMorphiumExclusive() throws Exception {
         runTest(true, true, true, false, 100, 50);
@@ -40,47 +39,41 @@ public class RoundTripTests extends MorphiumTestBase {
         runTest(false, false, true, false, 100, 50);
     }
 
-
     public void runTest(boolean sameMorphium, boolean exclusive, boolean multithreadded, boolean processMultiple, int warmUp, int amount) throws Exception {
-        log.info("===========> Running test: "
-                + (sameMorphium ? "on same Morphium Instance" : "separate Morphium Instances")
-                + " "
-                + (exclusive ? "exclusive messages" : "not exclusive messages")
-                + " "
-                + (processMultiple ? "processing multiple" : "single message processing")
-                + " "
-                + (multithreadded ? "multithreadded" : "single thread")
-        );
-//        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
-//        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
+        log.info("===========> Running test: " + (sameMorphium ? "on same Morphium Instance" : "separate Morphium Instances") + " " + (exclusive ? "exclusive messages" : "not exclusive messages")
+         + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
+        //        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
+        //        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
         Messaging m1 = new Messaging(morphium, 1000, processMultiple, multithreadded, 10);
         m1.setSenderId("m1");
         Messaging m2;
         Morphium morphium2 = null;
+
         if (sameMorphium) {
             m2 = new Messaging(morphium, 1000, processMultiple, multithreadded, 10);
         } else {
             morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             m2 = new Messaging(morphium2, 1000, processMultiple, multithreadded, 10);
         }
+
         m2.setSenderId("m2");
+
         try {
             m1.start();
             m2.start();
             Thread.sleep(1000);
             m2.addListenerForMessageNamed("ping", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m)  {
+                public Msg onMessage(Messaging msg, Msg m) {
                     pingReceived.add(System.currentTimeMillis());
                     msg.sendMessage(new Msg("pong", "msg", "v", 30000, exclusive));
                     pongSent.add(System.currentTimeMillis());
                     return null;
                 }
             });
-
             m1.addListenerForMessageNamed("pong", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m)  {
+                public Msg onMessage(Messaging msg, Msg m) {
                     pongReceived.add(System.currentTimeMillis());
                     //log.info("got pong back...");
                     return null;
@@ -101,8 +94,6 @@ public class RoundTripTests extends MorphiumTestBase {
             //     log.info("Waiting for pongs... got: " + pongReceived.size() + "/" + warmUp);
             //     Thread.sleep(500);
             // }
-
-
             log.info("Starting...");
             pingSent.clear();
             pingReceived.clear();
@@ -112,21 +103,22 @@ public class RoundTripTests extends MorphiumTestBase {
 
             for (int i = 0; i < amount; i++) {
                 m1.sendMessage(new Msg("ping", "msg", "v", 30000, false));
+                pingSent.add(System.currentTimeMillis());
                 Thread.sleep(50);
             }
+
             while (pongReceived.size() < amount) {
                 log.info("Waiting for answers...got: " + pongReceived.size() + "/" + amount);
                 Thread.sleep(500);
             }
+
             Collections.sort(pingSent);
             Collections.sort(pingReceived);
             Collections.sort(pongSent);
             Collections.sort(pongReceived);
-
             log.info("ping sent      : " + timesListString(start, pingSent));
             log.info("ping received  : " + timesListString(start, pingReceived));
             log.info("ping duration  : " + timesListString(pingReceived, pingSent));
-
             log.info("pong sent      : " + timesListString(start, pongSent));
             log.info("pong received  : " + timesListString(start, pongReceived));
             log.info("pong duration  : " + timesListString(pongReceived, pongSent));
@@ -135,21 +127,30 @@ public class RoundTripTests extends MorphiumTestBase {
             long sum = 0;
             long min = 99999999999L;
             long max = 0;
-            for (Long t : pingSent) {
 
+            for (Long t : pingSent) {
                 long dur = pongReceived.get(idx) - t;
                 sum = sum + dur;
-                if (dur > max) max = dur;
-                if (dur < min) min = dur;
+
+                if (dur > max) {
+                    max = dur;
+                }
+
+                if (dur < min) {
+                    min = dur;
+                }
+
                 if (dur < 100) {
                     b.append("  ");
                 } else if (dur < 1000) {
                     b.append(" ");
                 }
+
                 b.append(dur);
                 b.append(", ");
                 idx++;
             }
+
             b.setLength(b.length() - 2);
             log.info("total roundtrip: " + b.toString());
             log.info("avg. roundtrip : " + (sum / pingSent.size()));
@@ -158,6 +159,7 @@ public class RoundTripTests extends MorphiumTestBase {
         } finally {
             m1.terminate();
             m2.terminate();
+
             if (morphium2 != null) {
                 morphium2.close();
             }
@@ -166,8 +168,10 @@ public class RoundTripTests extends MorphiumTestBase {
 
     private String timesListString(long startTimestamp, List<Long> times) {
         StringBuilder b = new StringBuilder();
+
         for (Long sent : times) {
             long t = sent - startTimestamp;
+
             if (t < 10) {
                 b.append("   ");
             } else if (t < 100) {
@@ -175,18 +179,26 @@ public class RoundTripTests extends MorphiumTestBase {
             } else if (t < 1000) {
                 b.append(" ");
             }
+
             b.append(t);
             b.append(", ");
         }
-        b.setLength(b.length() - 2);
+
+        if (b.length() > 2) {
+            b.setLength(b.length() - 2);
+        }
+
         return b.toString();
     }
 
     private String timesListString(List<Long> times, List<Long> substract) {
         StringBuilder b = new StringBuilder();
         int idx = 0;
+
         for (Long sent : times) {
+            if (substract.size()<idx) break;
             long t = sent - substract.get(idx);
+
             if (t < 10) {
                 b.append("   ");
             } else if (t < 100) {
@@ -194,10 +206,12 @@ public class RoundTripTests extends MorphiumTestBase {
             } else if (t < 1000) {
                 b.append(" ");
             }
+
             b.append(t);
             b.append(", ");
             idx++;
         }
+
         b.setLength(b.length() - 2);
         return b.toString();
     }

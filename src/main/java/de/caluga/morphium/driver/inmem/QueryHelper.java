@@ -131,7 +131,11 @@ public class QueryHelper {
                     // probably a query operand
                     @SuppressWarnings("unchecked")
                     Map<String, Object> commandMap = (Map<String, Object>) query.get(keyQuery);
-                    String commandKey = commandMap.keySet().iterator().next();
+                    var it=commandMap.keySet().iterator();
+                    String commandKey=it.next();
+                    while (commandKey.equals("$options") && it.hasNext()){
+                        commandKey=it.next();
+                    }
 
                     if (keyQuery.equals("$expr")) {
                         Expr e = Expr.parse(commandMap);
@@ -179,7 +183,7 @@ public class QueryHelper {
                                     }
 
                                     checkValue = lst;
-                                    break;             //cannot go further usually!
+                                    break;                     //cannot go further usually!
                                 }
                             }
                         }
@@ -215,13 +219,13 @@ public class QueryHelper {
                         //noinspection unchecked
                         return checkValue.equals(commandMap.get(commandKey));
 
-
-
                     case "$lte":
                     case "$lt":
                         List lst = null;
-                        int offset=0;
-                        if (commandKey.equals("$lt")) offset=-1;
+                        int offset = 0;
+
+                        if (commandKey.equals("$lt")) { offset = -1; }
+
                         if (checkValue instanceof List) {
                             lst = (List) checkValue;
                         } else {
@@ -231,7 +235,8 @@ public class QueryHelper {
                         for (var cv : lst) {
                             //noinspection unchecked
                             if (coll != null && (cv instanceof String)) {
-                                if (coll.compare(cv, commandMap.get(commandKey)) <= offset) return true;
+                                if (coll.compare(cv, commandMap.get(commandKey)) <= offset) { return true; }
+
                                 continue;
                             }
 
@@ -240,25 +245,30 @@ public class QueryHelper {
                             }
 
                             if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) <= offset) return true;
+                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) <= offset) { return true; }
+
                                 continue;
                             }
 
                             try {
-                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) <= offset) return true;
+                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) <= offset) { return true; }
+
                                 continue;
                             } catch (Exception e) {
                                 //type mismatch?
                                 continue;
                             }
                         }
+
                         return false;
 
                     case "$gte":
                     case "$gt":
                         lst = null;
-                        offset=0;
-                        if (commandKey.equals("$gt")) offset=1;
+                        offset = 0;
+
+                        if (commandKey.equals("$gt")) { offset = 1; }
+
                         if (checkValue instanceof List) {
                             lst = (List) checkValue;
                         } else {
@@ -268,7 +278,8 @@ public class QueryHelper {
                         for (var cv : lst) {
                             //noinspection unchecked
                             if (coll != null && (cv instanceof String)) {
-                                if (coll.compare(cv, commandMap.get(commandKey)) >= offset) return true;
+                                if (coll.compare(cv, commandMap.get(commandKey)) >= offset) { return true; }
+
                                 continue;
                             }
 
@@ -277,18 +288,21 @@ public class QueryHelper {
                             }
 
                             if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) >= offset) return true;
+                                if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) >= offset) { return true; }
+
                                 continue;
                             }
 
                             try {
-                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) >= offset) return true;
+                                if (((Comparable) cv).compareTo(commandMap.get(commandKey)) >= offset) { return true; }
+
                                 continue;
                             } catch (Exception e) {
                                 //type mismatch?
                                 continue;
                             }
                         }
+
                         return false;
 
                     case "$mod":
@@ -344,8 +358,9 @@ public class QueryHelper {
 
                     case "$exists":
                         boolean exists = (checkValue != null);
-                        if (exists && (checkValue instanceof List)){
-                            exists=!((List)checkValue).isEmpty();
+
+                        if (exists && (checkValue instanceof List)) {
+                            exists = !((List)checkValue).isEmpty();
                         }
 
                         if (commandMap.get(commandKey).equals(Boolean.TRUE) || commandMap.get(commandKey).equals("true") || commandMap.get(commandKey).equals(1)) {
@@ -371,12 +386,14 @@ public class QueryHelper {
                                     found = true;
                                     break;
                                 }
-                                if (checkValue instanceof MorphiumId && v instanceof ObjectId){
+
+                                if (checkValue instanceof MorphiumId && v instanceof ObjectId) {
                                     if (checkValue.toString().equals(v.toString())) {
-                                        found=true;
+                                        found = true;
                                         break;
                                     }
                                 }
+
                                 if (checkValue.equals(v)) {
                                     found = true;
                                     break;
@@ -436,7 +453,8 @@ public class QueryHelper {
                         Expr e = (Expr) commandMap.get(commandKey);
                         Object ev = e.evaluate(toCheck);
                         return ev != null && (ev.equals(Boolean.TRUE) || ev.equals(1) || ev.equals("true"));
-
+                    case "$not":
+                        return !(matchesQuery((Map)commandMap.get(commandKey), toCheck, collation));
                     case "$regex":
                     case "$regularExpression":
                     case "$text":
@@ -493,6 +511,9 @@ public class QueryHelper {
                                 //
                                 // opts=opts|Pattern.COMMENTS;
                             }
+                            //to have the same behaviour: DOTALL needs to be set anyway!
+                            opts=opts | Pattern.DOTALL;
+                            opts=opts | Pattern.MULTILINE;
                         }
 
                         if (valtoCheck == null) {
@@ -532,10 +553,37 @@ public class QueryHelper {
 
                             return found;
                         } else {
-                            String regex = commandMap.get("$regex").toString();
+                            String regex = null;
+
+                            if (commandMap.get("$regex") != null) {
+                                if (commandMap.get("$regex") instanceof Map) {
+                                    var r = commandMap.get("$regex");
+
+                                    if (r instanceof Map) {
+                                        regex = (String)((Map)r).get("pattern");
+                                    }
+                                } else {
+                                    regex=(String)commandMap.get("$regex");
+                                }
+                            }
+
+                            if (regex == null) {
+                                var r = commandMap.get("$regularExpression");
+
+                                if (r instanceof Map) {
+                                    regex = (String)((Map)r).get("pattern");
+                                }
+                            }
+
+                            if (regex == null) {
+                                return false;
+                            }
 
                             if (!regex.startsWith("^")) {
                                 regex = ".*" + regex;
+                            }
+                            if (!regex.contains("$")){
+                                regex = regex+".*$";
                             }
 
                             Pattern p = Pattern.compile(regex, opts);
@@ -866,7 +914,7 @@ public class QueryHelper {
                             return (value & chkVal) == value;
                         } else if (commandKey.equals("$bitsAnyClear")) {
                             return (value & chkVal) < value;
-                        } else {                                                                         // if (k.equals("$bitsAllClear")
+                        } else {                                                                                         // if (k.equals("$bitsAllClear")
                             return (value & chkVal) == 0;
                         }
 
@@ -884,7 +932,7 @@ public class QueryHelper {
                             return false;
                         }
 
-                        throw new RuntimeException("Unknown Operator " + commandKey);
+                        return commandMap.equals(toCheck);
                     }
                 } else {
                     if (keyQuery.contains(".")) {
@@ -943,13 +991,15 @@ public class QueryHelper {
                     assert(query.size() == 1);
 
                     if (toCheck.get(keyQuery) instanceof MorphiumId || toCheck.get(keyQuery) instanceof ObjectId) {
-                        return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString()); }
+                        return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
+                    }
 
                     if (toCheck.get(keyQuery) instanceof List) {
                         return ((List) toCheck.get(keyQuery)).contains(query.get(keyQuery));
                     }
 
-                    return toCheck.get(keyQuery).equals(query.get(keyQuery)); }
+                    return toCheck.get(keyQuery).equals(query.get(keyQuery));
+                }
             }
         }
 
