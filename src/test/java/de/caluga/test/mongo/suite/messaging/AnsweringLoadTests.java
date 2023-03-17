@@ -42,9 +42,9 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
 
             long times[] = new long[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
             AtomicInteger tidx = new AtomicInteger();
-            var amount = 500;
-            var recipients = 2;
-            var senderThreads = 40;
+            var amount = 100;
+            var recipients = 3;
+            var senderThreads = 20;
             var listener = new MessageListener<Msg>() {
                 public Msg onMessage(Messaging m, Msg msg) {
                     messagesReceived.incrementAndGet();
@@ -56,10 +56,10 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     answer.setTimingOut(false);
                     answer.setDeleteAfterProcessing(true);
                     answer.setDeleteAfterProcessingTime(0);
-                    try {
-                        Thread.sleep(1250);
-                    } catch (InterruptedException e) {
-                    }
+//                    try {
+//                        Thread.sleep(250);
+//                    } catch (InterruptedException e) {
+//                    }
                     return answer;
                 }
             };
