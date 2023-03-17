@@ -17,6 +17,7 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
@@ -495,7 +496,7 @@ public class Query<T> implements Cloneable {
      *
      * @param query - query to be sent
      * @param sort
-     * @param skip - amount to skip
+     * @param skip  - amount to skip
      * @param limit - maximium number of results
      * @return
      */
@@ -978,7 +979,8 @@ public class Query<T> implements Cloneable {
     public long countAll() {
         morphium.inc(StatisticKeys.READS);
         long start = System.currentTimeMillis();
-        long ret = 0;;
+        long ret = 0;
+        ;
 
         if (where != null) {
             log.warn("efficient counting with $where is not possible... need to iterate!");
@@ -1009,7 +1011,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             log.error("Error counting", e);
         } finally {
-            con.release();
+            if (con != null)
+                con.release();
         }
 
         // morphium.fireProfilingReadEvent(Query.this, System.currentTimeMillis() -
@@ -1020,8 +1023,8 @@ public class Query<T> implements Cloneable {
     private CountMongoCommand getCountCommand(MongoConnection con) {
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB()).setColl(getCollectionName())
-            // .setQuery(Doc.of(this.toQueryObject()))
-            ;
+                    // .setQuery(Doc.of(this.toQueryObject()))
+                    ;
 
             if (getCollation() != null) {
                 settings.setCollation(getCollation().toQueryObject());

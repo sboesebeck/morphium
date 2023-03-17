@@ -1,32 +1,6 @@
 package de.caluga.morphium.driver.wire;
 
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.MSG_SENT;
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_IN_MEM;
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_PROCESSED;
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.REPLY_RECEIVED;
-import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.THREADS_CREATED;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.Socket;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.SingleBatchCursor;
-import de.caluga.morphium.driver.SingleElementCursor;
+import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
@@ -34,6 +8,18 @@ import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
 
 public class SingleMongoConnection implements MongoConnection {
 
@@ -87,7 +73,7 @@ public class SingleMongoConnection implements MongoConnection {
             out = s.getOutputStream();
             in = s.getInputStream();
         } catch (IOException e) {
-            throw new MorphiumDriverException("Connection failed: "+host+":"+port, e);
+            throw new MorphiumDriverException("Connection failed: " + host + ":" + port, e);
         }
         startReaderThread();
         HelloCommand cmd = new HelloCommand(null);
@@ -204,43 +190,27 @@ public class SingleMongoConnection implements MongoConnection {
         readerThread = new Thread(() -> {
             while (running) {
                 try {
-                    if (!s.isConnected() || s.isClosed()){
+                    if (!s.isConnected() || s.isClosed()) {
                         log.error("Connection died!");
                         close();
                         return;
                     }
                     //reading in data
-                    if (in.available() > 0) {
-                        OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
-                        stats.get(REPLY_RECEIVED).incrementAndGet();
-                        incoming.put(msg.getResponseTo(), msg);
-                        synchronized (incomingTimes) {
-                            incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
-                        }
-                        synchronized (incoming) {
-                            incoming.notifyAll();
-                        }
+                    OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
+                    if (msg == null) continue;
+                    stats.get(REPLY_RECEIVED).incrementAndGet();
+                    incoming.put(msg.getResponseTo(), msg);
+                    synchronized (incomingTimes) {
+                        incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
+                    }
+                    synchronized (incoming) {
+                        incoming.notifyAll();
+                    }
 
-                    }
-                    var s = new HashSet(incomingTimes.keySet());
-                    for (var k : s) {
-                        synchronized (incomingTimes) {
-                            if (incomingTimes.get(k) == null) continue;
-                            if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
-                                // log.warn("Discarding unused answer " + k);
-                                incoming.remove(k);
-                                incomingTimes.remove(k);
-                            }
-                        }
-                    }
                 } catch (Exception e) {
                     log.error("Reader-Thread error", e);
                 }
 
-                try {
-                    Thread.sleep(2);
-                } catch (InterruptedException e) {
-                }
             }
 //                log.info("Reader Thread terminated");
             synchronized (incoming) {
@@ -248,6 +218,27 @@ public class SingleMongoConnection implements MongoConnection {
             }
         });
         readerThread.start();
+        new Thread(() -> {
+            while (running) {
+                var s = new HashSet(incomingTimes.keySet());
+                for (var k : s) {
+                    synchronized (incomingTimes) {
+                        if (incomingTimes.get(k) == null) continue;
+                        if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
+                            // log.warn("Discarding unused answer " + k);
+                            incoming.remove(k);
+                            incomingTimes.remove(k);
+                        }
+                    }
+                }
+                try {
+                    Thread.sleep(getDriver().getMaxWaitTime() / 2);
+                } catch (InterruptedException e) {
+                    //swallow
+                }
+            }
+
+        }).start();
     }
 
 
@@ -262,12 +253,18 @@ public class SingleMongoConnection implements MongoConnection {
                 Thread.sleep(20);
             } catch (InterruptedException e) {
             }
+            try {
+                in.close();
+                readerThread.interrupt();
+            } catch (IOException e) {
+
+            }
         }
         connected = false;
         try {
-            if (in!=null)
+            if (in != null)
                 in.close();
-            if (out!=null)
+            if (out != null)
                 out.close();
             if (s != null)
                 s.close();
@@ -370,7 +367,7 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(id, driver.getMaxWaitTime());
-        if (reply==null){
+        if (reply == null) {
             return null;
         }
         if (reply.hasCursor()) {
@@ -436,7 +433,7 @@ public class SingleMongoConnection implements MongoConnection {
             }
             //log.info("got answer for watch!");
             checkForError(reply);
-            if (reply==null){
+            if (reply == null) {
                 log.debug("Got null as reply");
                 continue;
             }
@@ -455,7 +452,7 @@ public class SingleMongoConnection implements MongoConnection {
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
-            // } else {
+                // } else {
                 // log.info("No/empty result");
             }
             if (!command.getCb().isContinued()) {
@@ -509,7 +506,7 @@ public class SingleMongoConnection implements MongoConnection {
     public MorphiumCursor getAnswerFor(int queryId, int batchSize) throws MorphiumDriverException {
         OpMsg reply = getReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
-        if (reply==null) {
+        if (reply == null) {
             return new SingleBatchCursor(List.of());
         }
         if (reply.hasCursor()) {
@@ -521,7 +518,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     private void checkForError(OpMsg msg) throws MorphiumDriverException {
-        if (msg==null || msg.getFirstDoc()==null) return;
+        if (msg == null || msg.getFirstDoc() == null) return;
         if (msg.getFirstDoc().containsKey("ok") && !msg.getFirstDoc().get("ok").equals(1.0)) {
             throw new MorphiumDriverException("Error: " + msg.getFirstDoc().get("code") + " - " + msg.getFirstDoc().get("errmsg"));
         }

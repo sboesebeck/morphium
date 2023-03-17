@@ -1,60 +1,25 @@
 package de.caluga.morphium.driver.wire;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.MorphiumTransactionContext;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.ReadPreferenceType;
-import de.caluga.morphium.driver.WriteConcern;
-import de.caluga.morphium.driver.bulk.BulkRequest;
-import de.caluga.morphium.driver.bulk.BulkRequestContext;
-import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
-import de.caluga.morphium.driver.bulk.InsertBulkRequest;
-import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
-import de.caluga.morphium.driver.commands.AbortTransactionCommand;
-import de.caluga.morphium.driver.commands.CollStatsCommand;
-import de.caluga.morphium.driver.commands.CommitTransactionCommand;
-import de.caluga.morphium.driver.commands.CurrentOpCommand;
-import de.caluga.morphium.driver.commands.DbStatsCommand;
-import de.caluga.morphium.driver.commands.DeleteMongoCommand;
-import de.caluga.morphium.driver.commands.HelloCommand;
-import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import de.caluga.morphium.driver.commands.KillCursorsCommand;
-import de.caluga.morphium.driver.commands.ListCollectionsCommand;
-import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
-import de.caluga.morphium.driver.commands.UpdateMongoCommand;
-import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.*;
+import de.caluga.morphium.driver.bulk.*;
+import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class PooledDriver extends DriverBase {
     public final static String driverName = "PooledDriver";
     private Map<String, List<Connection>> connectionPool;
     private Map<Integer, Connection> borrowedConnections;
-    private Map<String, AtomicInteger> borrowedConnectionsByCaller = new ConcurrentHashMap<>();
+    //    private Map<String, AtomicInteger> borrowedConnectionsByCaller = new ConcurrentHashMap<>();
     private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
     private int idleSleepTime = 5;
@@ -63,6 +28,7 @@ public class PooledDriver extends DriverBase {
     private String primaryNode;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
         private AtomicLong l = new AtomicLong(0);
+
         @Override
         public Thread newThread(Runnable r) {
             Thread ret = new Thread(r);
@@ -90,10 +56,12 @@ public class PooledDriver extends DriverBase {
         boolean connected = false;
 
         for (String host : new ArrayList<String>(getHostSeed())) {
-            for (int i = 0; i < getMinConnectionsPerHost(); i++) {
+            for (int i = 0; i < getMaxConnectionsPerHost(); i++) {
                 while (true) {
                     try {
+                        long start = System.currentTimeMillis();
                         connectToHost(host);
+//                        log.info("host: "+host+" "+i+"/"+getMaxConnectionsPerHost()+" Connecting took "+(System.currentTimeMillis()-start));
                         connected = true;
                         break;
                     } catch (MorphiumDriverException e) {
@@ -219,7 +187,7 @@ public class PooledDriver extends DriverBase {
             }
         }
 
-        for (String k : connectionPool.keySet()) {
+        for (String k : new ArrayList<>(connectionPool.keySet())) {
             if (!hello.getHosts().contains(k)) {
                 log.warn("Host " + k + " is not part of the replicaset anymore!");
                 getHostSeed().remove(k);
@@ -244,7 +212,7 @@ public class PooledDriver extends DriverBase {
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
             // log.debug("Starting heartbeat ");
-            heartbeat = executor.scheduleWithFixedDelay(()->{
+            heartbeat = executor.scheduleWithFixedDelay(() -> {
                 try {
                     // log.debug("heartbeat running");
                     var copy = new HashMap<>(connectionPool); // avoid concurrent modification exception
@@ -254,6 +222,7 @@ public class PooledDriver extends DriverBase {
                         List<Connection> connections = new ArrayList<>(e.getValue());
 
                         for (var c : connections) {
+                            if (c == null) continue;
                             if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
                                 try {
                                     // max lifetime exceeded
@@ -307,8 +276,9 @@ public class PooledDriver extends DriverBase {
                             }
                         }
 
-                        while (e.getValue().size() < getMinConnectionsPerHost()) {
+                        while (getTotalConnectionsToHost(e.getKey()) < getMinConnectionsPerHost()) {
                             // need to add connections!
+//                            log.info("need to add connections: "+getTotalConnectionsToHost(e.getKey())+"<"+getMinConnections()+"/"+getMinConnectionsPerHost());
                             try {
                                 connectToHost(e.getKey());
                             } catch (MorphiumDriverException ex) {
@@ -371,28 +341,28 @@ public class PooledDriver extends DriverBase {
         // this.borrowedConnectionsByCaller.putIfAbsent(s,new AtomicInteger(0));
         // this.borrowedConnectionsByCaller.get(s).incrementAndGet();
         Connection c = null;
-        long start = System.currentTimeMillis();
+//        long start = System.currentTimeMillis();
 
-        while (getTotalConnectionsToHost(host) >= getMaxConnectionsPerHost()) {
-            if ((System.currentTimeMillis() - start) % 1000 == 0) {
-                log.warn(String.format("Connection pool exceeded for host %s (in use: %d, max: %d)- need to wait", host, getTotalConnectionsToHost(host), getMaxConnectionsPerHost()));
-            }
-
-            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-                log.error(String.format("Could not get connection from pool to %s - timeout %d", host, getMaxWaitTime()));
-                throw new MorphiumDriverException("Could not get connection from pool in time - max connections per host exceeded");
-            }
-
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-            }
-        }
+//        while (connectionPool.get(host).size()==0 && getTotalConnectionsToHost(host) >= getMaxConnectionsPerHost()) {
+//            if ((System.currentTimeMillis() - start) % 1000 == 0) {
+//                log.warn(String.format("Connection pool exceeded for host %s (in use: %d, max: %d)- need to wait", host, getTotalConnectionsToHost(host), getMaxConnectionsPerHost()));
+//            }
+//
+//            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
+//                log.error(String.format("Could not get connection from pool to %s - timeout %d", host, getMaxWaitTime()));
+//                throw new MorphiumDriverException("Could not get connection from pool in time - max connections per host exceeded");
+//            }
+//
+//            try {
+//                Thread.sleep(100);
+//            } catch (InterruptedException e) {
+//            }
+//        }
 
         while (true) {
             if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
                 // if too many connections were already borrowed, wait for some to return
-                start = System.currentTimeMillis();
+                long start = System.currentTimeMillis();
 
                 while (getTotalConnectionsToHost(host) > getMaxConnectionsPerHost()) {
                     if (System.currentTimeMillis() - start > getMaxWaitTime()) {
@@ -400,17 +370,15 @@ public class PooledDriver extends DriverBase {
                         throw new MorphiumDriverException("Could not get connection in time: " + getMaxWaitTime() + "ms");
                     }
 
-                    if (connectionPool.size() != 0) {
-                        synchronized (connectionPool) {
-                            if (connectionPool.get(host).size() != 0) {
-                                log.debug("finally got connection...");
-                                c = connectionPool.get(host).remove(0);
+                    synchronized (connectionPool) {
+                        if (connectionPool.get(host).size() != 0) {
+//                            log.debug("finally got connection..." + getTotalConnectionsToHost(host));
+                            c = connectionPool.get(host).remove(0);
 
-                                if (c != null) {
-                                    borrowedConnections.put(c.getCon().getSourcePort(), c);
-                                    stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-                                    return c.getCon();
-                                }
+                            if (c != null) {
+                                borrowedConnections.put(c.getCon().getSourcePort(), c);
+                                stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
+                                return c.getCon();
                             }
                         }
                     }
@@ -421,7 +389,6 @@ public class PooledDriver extends DriverBase {
                         // ignore
                     }
                 }
-
                 String h = getHost(host);
                 int port = getPortFromHost(host);
                 var con = new SingleMongoConnection();
@@ -438,13 +405,24 @@ public class PooledDriver extends DriverBase {
                 synchronized (connectionPool) {
                     if (connectionPool.get(host).size() != 0) {
                         c = connectionPool.get(host).remove(0);
+                        while (c == null) {
+//                            log.error("Got null from pool?!?!?");
+                            if (connectionPool.get(host).size() == 0) break;
+                            c = connectionPool.get(host).remove(0);
+                        }
                         break;
                     }
                 }
             }
         }
 
-        borrowedConnections.put(c.getCon().getSourcePort(), c);
+        if (c == null) {
+            log.error("Could not get connection!?!?");
+            return null;
+        }
+        synchronized (connectionPool) {
+            borrowedConnections.put(c.getCon().getSourcePort(), c);
+        }
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
         return c.getCon();
     }
@@ -468,72 +446,72 @@ public class PooledDriver extends DriverBase {
             }
 
             switch (type) {
-            case PRIMARY:
-                return borrowConnection(primaryNode);
+                case PRIMARY:
+                    return borrowConnection(primaryNode);
 
-            case NEAREST:
+                case NEAREST:
 
-                // check fastest answer time
-                if (fastestHost != null) {
-                    try {
-                        return borrowConnection(fastestHost);
-                    } catch (MorphiumDriverException e) {
-                        log.warn("Could not get connection to fastest host, trying primary");
-                    }
-                }
-
-            case PRIMARY_PREFERRED:
-                if (connectionPool.get(primaryNode).size() != 0) {
-                    try {
-                        return borrowConnection(primaryNode);
-                    } catch (MorphiumDriverException e) {
-                        log.warn("Could not get connection to " + primaryNode + " trying secondary");
-                    }
-                }
-
-            case SECONDARY_PREFERRED:
-            case SECONDARY:
-                int retry = 0;
-
-                while (true) {
-                    // round-robin
-                    if (lastSecondaryNode >= getHostSeed().size()) {
-                        lastSecondaryNode = 0;
-                        retry++;
+                    // check fastest answer time
+                    if (fastestHost != null) {
+                        try {
+                            return borrowConnection(fastestHost);
+                        } catch (MorphiumDriverException e) {
+                            log.warn("Could not get connection to fastest host, trying primary");
+                        }
                     }
 
-                    if (getHostSeed().get(lastSecondaryNode).equals(primaryNode)) {
-                        lastSecondaryNode++;
+                case PRIMARY_PREFERRED:
+                    if (connectionPool.get(primaryNode).size() != 0) {
+                        try {
+                            return borrowConnection(primaryNode);
+                        } catch (MorphiumDriverException e) {
+                            log.warn("Could not get connection to " + primaryNode + " trying secondary");
+                        }
+                    }
 
-                        if (lastSecondaryNode > getHostSeed().size()) {
+                case SECONDARY_PREFERRED:
+                case SECONDARY:
+                    int retry = 0;
+
+                    while (true) {
+                        // round-robin
+                        if (lastSecondaryNode >= getHostSeed().size()) {
                             lastSecondaryNode = 0;
                             retry++;
                         }
-                    }
 
-                    String host = getHostSeed().get(lastSecondaryNode++);
+                        if (getHostSeed().get(lastSecondaryNode).equals(primaryNode)) {
+                            lastSecondaryNode++;
 
-                    try {
-                        return borrowConnection(host);
-                    } catch (MorphiumDriverException e) {
-                        if (retry > getRetriesOnNetworkError()) {
-                            log.error("Could not get Connection - abort");
-                            throw(e);
+                            if (lastSecondaryNode > getHostSeed().size()) {
+                                lastSecondaryNode = 0;
+                                retry++;
+                            }
                         }
 
-                        log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
-                        getHostSeed().remove(lastSecondaryNode - 1);                 //removing node - heartbeat should add it again...
+                        String host = getHostSeed().get(lastSecondaryNode++);
 
                         try {
-                            Thread.sleep(getSleepBetweenErrorRetries());
-                        } catch (InterruptedException e1) {
-                            // Swallow
+                            return borrowConnection(host);
+                        } catch (MorphiumDriverException e) {
+                            if (retry > getRetriesOnNetworkError()) {
+                                log.error("Could not get Connection - abort");
+                                throw (e);
+                            }
+
+                            log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
+                            getHostSeed().remove(lastSecondaryNode - 1);                 //removing node - heartbeat should add it again...
+
+                            try {
+                                Thread.sleep(getSleepBetweenErrorRetries());
+                            } catch (InterruptedException e1) {
+                                // Swallow
+                            }
                         }
                     }
-                }
 
-            default:
-                throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
+                default:
+                    throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
             }
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
@@ -567,16 +545,17 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void releaseConnection(MongoConnection con) {
-        var st = Thread.currentThread().getStackTrace();
-        int n = 3;
-        String s = st[n].getClassName() + "." + st[n].getMethodName();
-
+//        var st = Thread.currentThread().getStackTrace();
+//        int n = 3;
+//        String s = st[n].getClassName() + "." + st[n].getMethodName();
+//
         // log.info("releasing connection from: " + s + ":" + st[n].getLineNumber());
-        if (borrowedConnectionsByCaller.containsKey(s)) {
-            borrowedConnectionsByCaller.get(s).decrementAndGet();
-        }
+//        if (borrowedConnectionsByCaller.containsKey(s)) {
+//            borrowedConnectionsByCaller.get(s).decrementAndGet();
+//        }
 
         if (con == null) {
+            log.error("Returning null connection????");
             return;
         }
 
@@ -784,7 +763,7 @@ public class PooledDriver extends DriverBase {
             }
 
             // noinspection unchecked
-            mem.stream().filter(d->d.get("optime") instanceof Map).forEach(d->d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
             return result;
         } finally {
             if (con != null) {
@@ -906,7 +885,7 @@ public class PooledDriver extends DriverBase {
     }
 
     public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
-        return new NetworkCallHelper<Map<String, Object>>().doCall(()->{
+        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
             OpMsg msg = new OpMsg();
             msg.setMessageId(getNextId());
             Map<String, Object> v = Doc.of("dbStats", 1, "scale", 1024);
@@ -971,7 +950,7 @@ public class PooledDriver extends DriverBase {
 
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked
-        return new NetworkCallHelper<List<Map<String, Object>>>().doCall(()->{
+        return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
             var con = getPrimaryConnection(null);
             ListCollectionsCommand cmd = new ListCollectionsCommand(con);
             cmd.setDb(db);
@@ -1059,61 +1038,65 @@ public class PooledDriver extends DriverBase {
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-                   private final List<BulkRequest> requests = new ArrayList<>();
-                   public Doc execute() {
-                       try {
-                           for (BulkRequest r : requests) {
-                               if (r instanceof InsertBulkRequest) {
-                                   InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
-                                   settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
-                                   settings.execute();
-                                   settings.getConnection().release();
-                               } else if (r instanceof UpdateBulkRequest) {
-                                   UpdateBulkRequest up = (UpdateBulkRequest) r;
-                                   UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
-                                   upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
-                                   upCmd.execute();
-                                   upCmd.getConnection().release();
-                               } else if (r instanceof DeleteBulkRequest) {
-                                   DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                                   DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
-                                   del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
-                                   del.execute();
-                                   del.getConnection().release();
-                               } else {
-                                   throw new RuntimeException("Unknown operation " + r.getClass().getName());
-                               }
-                           }
-                       } catch (MorphiumDriverException e) {
-                           log.error("Got exception: ", e);
-                       }
+            private final List<BulkRequest> requests = new ArrayList<>();
 
-                       return new Doc();
-                   }
-                   public UpdateBulkRequest addUpdateBulkRequest() {
-                       UpdateBulkRequest up = new UpdateBulkRequest();
-                       requests.add(up);
-                       return up;
-                   }
-                   public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
-                       InsertBulkRequest in = new InsertBulkRequest(toInsert);
-                       requests.add(in);
-                       return in;
-                   }
-                   public DeleteBulkRequest addDeleteBulkRequest() {
-                       DeleteBulkRequest del = new DeleteBulkRequest();
-                       requests.add(del);
-                       return del;
-                   }
+            public Doc execute() {
+                try {
+                    for (BulkRequest r : requests) {
+                        if (r instanceof InsertBulkRequest) {
+                            InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
+                            settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
+                            settings.execute();
+                            settings.getConnection().release();
+                        } else if (r instanceof UpdateBulkRequest) {
+                            UpdateBulkRequest up = (UpdateBulkRequest) r;
+                            UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
+                            upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
+                            upCmd.execute();
+                            upCmd.getConnection().release();
+                        } else if (r instanceof DeleteBulkRequest) {
+                            DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
+                            DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
+                            del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
+                            del.execute();
+                            del.getConnection().release();
+                        } else {
+                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                    }
+                } catch (MorphiumDriverException e) {
+                    log.error("Got exception: ", e);
+                }
+
+                return new Doc();
+            }
+
+            public UpdateBulkRequest addUpdateBulkRequest() {
+                UpdateBulkRequest up = new UpdateBulkRequest();
+                requests.add(up);
+                return up;
+            }
+
+            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+                InsertBulkRequest in = new InsertBulkRequest(toInsert);
+                requests.add(in);
+                return in;
+            }
+
+            public DeleteBulkRequest addDeleteBulkRequest() {
+                DeleteBulkRequest del = new DeleteBulkRequest();
+                requests.add(del);
+                return del;
+            }
         };
     }
 
     @Override
     public Map<DriverStatsKey, Double> getDriverStats() {
-        for (var e : borrowedConnectionsByCaller.entrySet()) {
-            log.debug("Caller: " + e.getKey() + " -> " + e.getValue());
-        }
-
+//        for (var e : borrowedConnectionsByCaller.entrySet()) {
+//            log.debug("Caller: " + e.getKey() + " -> " + e.getValue());
+//        }
+//
         Map<DriverStatsKey, Double> m = new HashMap<>();
 
         for (var e : stats.entrySet()) {
