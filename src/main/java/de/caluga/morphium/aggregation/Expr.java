@@ -416,7 +416,7 @@ public abstract class Expr {
                     m = Math.pow(10, ((Number) eval(place, context)).intValue());
                 }
 
-                n = (int)(n * m);
+                n = (int) (n * m);
                 n = n / m;
                 return n;
             }
@@ -438,7 +438,7 @@ public abstract class Expr {
         return new OpExpr("arrayElemAt", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return ((List)(eval((Expr) lst.get(0), context))).get(((Number)(eval((Expr) lst.get(1), context))).intValue());
+                return ((List) (eval((Expr) lst.get(0), context))).get(((Number) (eval((Expr) lst.get(1), context))).intValue());
             }
         };
     }
@@ -1617,6 +1617,7 @@ public abstract class Expr {
             public Object toQueryObject() {
                 return UtilsMap.of(field.toQueryObject().toString().substring(1), UtilsMap.of("$regex", regex.toQueryObject(), "$options", options.toQueryObject()));
             }
+
             @Override
             public Object evaluate(Map<String, Object> context) {
                 return null;
@@ -1842,7 +1843,7 @@ public abstract class Expr {
         return new OpExpr("atan2", lst) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return Math.atan2(((Number)(eval((Expr) lst.get(0), context))).doubleValue(), ((Number)(eval((Expr) lst.get(1), context))).doubleValue());
+                return Math.atan2(((Number) (eval((Expr) lst.get(0), context))).doubleValue(), ((Number) (eval((Expr) lst.get(1), context))).doubleValue());
             }
         };
     }
@@ -2239,6 +2240,7 @@ public abstract class Expr {
 
                 return UtilsMap.of("$let", UtilsMap.of("vars", (Object) map, "in", in.toQueryObject()));
             }
+
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Map<String, Object> effectiveContext = new HashMap<>(context);
@@ -2258,6 +2260,7 @@ public abstract class Expr {
             public Object toQueryObject() {
                 return m;
             }
+
             @Override
             public Object evaluate(Map<String, Object> context) {
                 Map<String, Object> effectiveContext = new HashMap<>(context);

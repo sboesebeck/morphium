@@ -263,7 +263,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 retries++;
 
                 if (retries > getRetriesOnNetworkError()) {
-                    throw(new RuntimeException(e));
+                    throw (new RuntimeException(e));
                 }
 
                 try {
@@ -509,7 +509,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             }
 
             //noinspection unchecked
-            mem.stream().filter(d->d.get("optime") instanceof Map).forEach(d->d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
+            mem.stream().filter(d -> d.get("optime") instanceof Map).forEach(d -> d.put("optime", ((Map<String, Doc>) d.get("optime")).get("ts")));
             return result;
         } finally {
             if (cmd != null && cmd.getConnection() != null) {
@@ -794,6 +794,16 @@ public class SingleMongoConnectDriver extends DriverBase {
         return UtilsMap.of(connection.getConnectedTo(), 1);
     }
 
+    @Override
+    public void setIdleSleepTime(int sl) {
+        idleSleepTime = sl;
+    }
+
+    @Override
+    public int getIdleSleepTime() {
+        return idleSleepTime;
+    }
+
     private class ConnectionWrapper implements MongoConnection {
         private MongoConnection delegate;
 
@@ -913,16 +923,6 @@ public class SingleMongoConnectDriver extends DriverBase {
         public void release() {
             getDriver().releaseConnection(this);
         }
-    }
-
-    @Override
-    public int getIdleSleepTime() {
-        return idleSleepTime;
-    }
-
-    @Override
-    public void setIdleSleepTime(int sl) {
-        idleSleepTime = sl;
     }
 
 }

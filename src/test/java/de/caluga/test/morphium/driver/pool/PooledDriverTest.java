@@ -129,11 +129,11 @@ public class PooledDriverTest {
         o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
         o.retryWrites(true);
-        o.applyToSocketSettings(socketSettings->{
+        o.applyToSocketSettings(socketSettings -> {
             socketSettings.connectTimeout(1000, TimeUnit.MILLISECONDS);
             socketSettings.readTimeout(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToConnectionPoolSettings(connectionPoolSettings->{
+        o.applyToConnectionPoolSettings(connectionPoolSettings -> {
             connectionPoolSettings.maxConnectionIdleTime(500, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maxConnectionLifeTime(1000, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maintenanceFrequency(2000, TimeUnit.MILLISECONDS);
@@ -141,7 +141,7 @@ public class PooledDriverTest {
             connectionPoolSettings.minSize(2);
             connectionPoolSettings.maxWaitTime(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToClusterSettings(clusterSettings->{
+        o.applyToClusterSettings(clusterSettings -> {
             clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
             clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
             List<ServerAddress> hosts = new ArrayList<>();
@@ -163,7 +163,7 @@ public class PooledDriverTest {
         for (int i = 0; i < amount; i++) {
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret =
-             col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+                    col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
             assertEquals(2, ret.getInsertedIds().size(), "should insert 2 elements");
         }
 
@@ -220,7 +220,7 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getPrimaryConnection(null);
-                        Thread.sleep((long)(1000 * Math.random()));
+                        Thread.sleep((long) (1000 * Math.random()));
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
@@ -241,7 +241,7 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getReadConnection(null);
-                        Thread.sleep((long)(1000 * Math.random()));
+                        Thread.sleep((long) (1000 * Math.random()));
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
@@ -277,7 +277,7 @@ public class PooledDriverTest {
 
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED), "Release vs. borrow do not match up!");
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
-         driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
+                driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
     }
 

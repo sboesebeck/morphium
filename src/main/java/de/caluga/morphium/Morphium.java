@@ -3386,7 +3386,7 @@ public class Morphium implements AutoCloseable {
     }
 
     public String getDatabase() {
-        if (getConfig()==null) return null;
+        if (getConfig() == null) return null;
         return getConfig().getDatabase();
     }
 

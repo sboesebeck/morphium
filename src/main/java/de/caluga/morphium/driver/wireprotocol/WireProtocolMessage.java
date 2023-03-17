@@ -62,6 +62,9 @@ public abstract class WireProtocolMessage {
                 //log.error("Could not read");
                 throw new MorphiumDriverNetworkException("could not read from socket", e);
             }
+        } catch (java.net.SocketException se) {
+            //probably closed - ignore
+            return null;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
