@@ -45,7 +45,7 @@ public class MorphiumConfig {
     @AdditionalData(readOnly = false)
     private Map<String, Object> restoreData;
     // private MongoDbMode mode;
-    private int maxConnections = 10, housekeepingTimeout = 5000;
+    private int maxConnections = 250, housekeepingTimeout = 5000;
     private int minConnections = 1;
     private int idleSleepTime = 20;
 
