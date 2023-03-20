@@ -783,7 +783,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
 
-            if (q.countAll() > lockedIds.size()) {
+            if (q.countAll() != lockedIds.size()) {
                 skipped.incrementAndGet();
             }
 
