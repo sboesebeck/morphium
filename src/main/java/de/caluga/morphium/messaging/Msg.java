@@ -426,7 +426,7 @@ public class Msg {
         Msg ret = new Msg(name, msg, value, ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
-        ret.setPriority(priority);
+        ret.setPriority(priority-10);
         ret.setTimingOut(isTimingOut());
         ret.setDeleteAfterProcessingTime(deleteAfterProcessingTime);
         ret.setDeleteAfterProcessing(deleteAfterProcessing);
