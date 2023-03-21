@@ -362,6 +362,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         processing.add(obj.getMsgId());
+                        // log.info("Got Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
 
                         if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
                             removeProcessingFor(obj);
@@ -460,6 +461,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         processing.add(obj.getMsgId());
 
+                        // log.info("Got update Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
                         if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             // ignoring my own messages
                             //                            processing.remove(obj.getMsgId());
