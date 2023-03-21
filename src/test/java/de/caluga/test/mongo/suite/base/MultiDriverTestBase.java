@@ -68,7 +68,11 @@ public class MultiDriverTestBase {
     }
 
     private static File getFile() {
-        return new File(System.getProperty("user.home") + "/.morphiumtest.cfg");
+        var configDir = new File(System.getProperty("user.home") + "/.config/");
+        if (!configDir.exists()) {
+            configDir.mkdirs();
+        }
+        return new File(System.getProperty("user.home") + "/.config/morphiumtest.cfg");
     }
 
     @BeforeAll
