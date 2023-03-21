@@ -237,9 +237,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -264,8 +264,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-          morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor)->{
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        threadPool.setRejectedExecutionHandler((r, executor) -> {
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -332,13 +332,13 @@ public class Messaging extends Thread implements ShutdownListener {
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), true, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
-            lockMonitor.addListener(evt->{
+            lockMonitor.addListener(evt -> {
                 //some lock removed
                 skipped.incrementAndGet();
                 return running;
             });
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
-            changeStreamMonitor.addListener(evt->{
+            changeStreamMonitor.addListener(evt -> {
                 if (!running)
                     return false;
                 try {
@@ -357,12 +357,10 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (processing.contains(obj.getMsgId())) {
-                            skipped.incrementAndGet();
                             return running;
                         }
 
                         processing.add(obj.getMsgId());
-                        // log.info("Got Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
 
                         if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
                             removeProcessingFor(obj);
@@ -397,7 +395,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (pauseMessages.containsKey(obj.getName())) {
-                            skipped.incrementAndGet();
                             processing.remove(obj.getMsgId());
                             //removeProcessingFor(obj);
                             return running;
@@ -416,6 +413,8 @@ public class Messaging extends Thread implements ShutdownListener {
                             removeProcessingFor(obj);
                             return running;
                         }
+
+                        // log.info("Got Message inserted " + (System.currentTimeMillis() - obj.getTimestamp()) + "ms ago - " + obj.getMsgId());
 
                         try {
                             if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
@@ -514,7 +513,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 } catch (Exception e) {
                     log.error("Error during event processing in changestream", e);
                 } finally {
-                    decouplePool.schedule(()->{
+                    decouplePool.schedule(() -> {
                         triggerCheck();
                     }, 5000, TimeUnit.MILLISECONDS);
                 }
@@ -827,10 +826,11 @@ public class Messaging extends Thread implements ShutdownListener {
         if (lockMessage(obj, id)) {
             processMessage(obj);
         } else {
+            // log.info("Locking of message failed: " + obj.getMsgId());
             // not locked
+            processing.remove(obj.getMsgId());
             skipped.incrementAndGet();
-            //            processing.remove(obj.getMsgId());
-            removeProcessingFor(obj);
+            // removeProcessingFor(obj);
             return;
         }
     }
@@ -870,6 +870,12 @@ public class Messaging extends Thread implements ShutdownListener {
             //morphium.insert(lck, getCollectionName() + "_lck", null);
             return true;
         } catch (Exception e) {
+            // log.info("Locking failed: " + e.getMessage());
+
+            // if (e.getCause() != null) {
+            //     log.info("...cause: " + e.getCause().getMessage());
+            // }
+
             return false;
         } finally {
             long dur = System.currentTimeMillis() - start;
@@ -956,7 +962,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        Runnable r = ()->{
+        Runnable r = () -> {
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -999,6 +1005,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                            throw new RuntimeException("Error - exclusive Message not locked!");
                     //                        }
                     //                    }
+                    // log.info("Calling onMessage...MessageAge: " + (System.currentTimeMillis() - msg.getTimestamp()) + " - " + msg.getMsgId());
                     Msg answer = l.onMessage(Messaging.this, msg);
                     wasProcessed = true;
 
@@ -1443,8 +1450,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-                }
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
