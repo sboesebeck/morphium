@@ -56,7 +56,7 @@ public class PooledDriver extends DriverBase {
         boolean connected = false;
 
         for (String host : new ArrayList<String>(getHostSeed())) {
-            for (int i = 0; i < getMaxConnectionsPerHost(); i++) {
+            for (int i = 0; i < getMinConnectionsPerHost(); i++) {
                 while (true) {
                     try {
                         long start = System.currentTimeMillis();
