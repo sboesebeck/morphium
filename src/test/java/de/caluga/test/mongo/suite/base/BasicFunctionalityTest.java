@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -63,6 +64,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertNotNull(ae.getAdditionals());
             assertNotNull(ae.getAdditionals().get("additional"));
             assertEquals("was set",((Map)ae.getAdditionals().get("additional")).get("value"));
+
+            morphium.set(ae,"str_value",(Object)null,false,null);
+            assertNull(ae.getStrValue());
+            morphium.set(ae,"add.value","the value");
+            assertNotNull(ae.getAdditionals().get("add"));
             log.info("finish");
 
         }
