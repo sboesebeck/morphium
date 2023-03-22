@@ -1338,6 +1338,7 @@ public class Morphium implements AutoCloseable {
         }
 
         annotationHelper.callLifecycleMethod(PreUpdate.class, toSet);
+
         getWriterForClass(toSet.getClass()).set(toSet, collection, values, upserts, callback);
         annotationHelper.callLifecycleMethod(PostUpdate.class, toSet);
     }
