@@ -61,7 +61,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private final StatusInfoListener statusInfoListener;
     private String statusInfoListenerName = "morphium.status_info";
     private boolean statusInfoListenerEnabled = true;
-
     private final Morphium morphium;
     private boolean running;
     private int pause;
@@ -100,10 +99,10 @@ public class Messaging extends Thread implements ShutdownListener {
     /**
      * attaches to the default queue named "msg"
      *
-     * @param m               - morphium
-     * @param pause           - pause between checks
+     * @param m - morphium
+     * @param pause - pause between checks
      * @param processMultiple - process multiple messages at once, if false, only
-     *                        ony by one
+     *        ony by one
      */
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
@@ -172,6 +171,7 @@ public class Messaging extends Thread implements ShutdownListener {
         m.ensureIndicesFor(MsgLock.class, getLockCollectionName());
         listeners = new CopyOnWriteArrayList<>();
         listenerByName = new HashMap<>();
+        skipped.set(1);
     }
 
     public void enableStatusInfoListener() {
@@ -237,9 +237,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-                .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-                .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -264,7 +264,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-                morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
         threadPool.setRejectedExecutionHandler((r, executor) -> {
             try {
                 /*
@@ -349,14 +349,14 @@ public class Messaging extends Thread implements ShutdownListener {
                     if (evt.getOperationType().equals("insert")) {
                         // insert => new Message
                         Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-//                        log.info(id+" - incoming: "+obj.getMsgId());
+
+                        //                        log.info(id+" - incoming: "+obj.getMsgId());
                         if (obj.isExclusive() && obj.getProcessedBy().size() != 0) {
                             // inserted already processed message?!?!?
                             return running;
                         }
 
                         if (processing.contains(obj.getMsgId())) {
-                            skipped.incrementAndGet();
                             return running;
                         }
 
@@ -395,7 +395,6 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
 
                         if (pauseMessages.containsKey(obj.getName())) {
-                            skipped.incrementAndGet();
                             processing.remove(obj.getMsgId());
                             //removeProcessingFor(obj);
                             return running;
@@ -415,9 +414,11 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
 
+                        // log.info("Got Message inserted " + (System.currentTimeMillis() - obj.getTimestamp()) + "ms ago - " + obj.getMsgId());
+
                         try {
                             if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
-//                                log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
+                                //                                log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
                                 lockAndProcess(obj);
                             } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
                                 // I need process this new message... it is either for all or for me directly
@@ -459,6 +460,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
                         processing.add(obj.getMsgId());
 
+                        // log.info("Got update Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
                         if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
                             // ignoring my own messages
                             //                            processing.remove(obj.getMsgId());
@@ -510,6 +512,10 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                 } catch (Exception e) {
                     log.error("Error during event processing in changestream", e);
+                } finally {
+                    decouplePool.schedule(() -> {
+                        triggerCheck();
+                    }, 5000, TimeUnit.MILLISECONDS);
                 }
                 return running;
             });
@@ -541,7 +547,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             } finally {
                 try {
-                    sleep(pause);
+                    //reduce concurrency
+                    Thread.sleep((long)(((double) pause / 2.0 ) * Math.random() + pause * 0.75));
+                    // sleep(pause);
                 } catch (InterruptedException ignored) {
                 }
             }
@@ -593,8 +601,8 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
 
                     /* if (obj.isExclusive()) {
-                         lockAndProcess(obj);
-                     } else {*/
+                     *   lockAndProcess(obj);
+                     * } else {*/
                     // if (obj.getName().equals(statusInfoListenerName)) {
                     // log.info(id + ":: processing answer from statusInfoListener");
                     // }
@@ -605,7 +613,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         }
-
 
         // }
         // };
@@ -779,7 +786,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
 
-            if (q.countAll() > lockedIds.size()) {
+            if (q.countAll() != lockedIds.size()) {
                 skipped.incrementAndGet();
             }
 
@@ -821,10 +828,11 @@ public class Messaging extends Thread implements ShutdownListener {
         if (lockMessage(obj, id)) {
             processMessage(obj);
         } else {
+            // log.info("Locking of message failed: " + obj.getMsgId());
             // not locked
+            processing.remove(obj.getMsgId());
             skipped.incrementAndGet();
-            //            processing.remove(obj.getMsgId());
-            removeProcessingFor(obj);
+            // removeProcessingFor(obj);
             return;
         }
     }
@@ -853,20 +861,29 @@ public class Messaging extends Thread implements ShutdownListener {
         if (delAt != null) {
             lck.setDeleteAt(delAt);
         }
+
         InsertMongoCommand cmd = null;
+
         try {
             cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
             cmd.setColl(getLockCollectionName()).setDb(morphium.getDatabase()).setDocuments(List.of(morphium.getMapper().serialize(lck)));
-//            log.info(id+": insCmd "+(System.currentTimeMillis()-start));
+            //            log.info(id+": insCmd "+(System.currentTimeMillis()-start));
             cmd.execute();
             //morphium.insert(lck, getCollectionName() + "_lck", null);
             return true;
         } catch (Exception e) {
+            // log.info("Locking failed: " + e.getMessage());
+            // if (e.getCause() != null) {
+            //     log.info("...cause: " + e.getCause().getMessage());
+            // }
             return false;
         } finally {
             long dur = System.currentTimeMillis() - start;
-//            log.info(id+": Locking took "+dur);
-            if (cmd != null) cmd.releaseConnection();
+
+            //            log.info(id+": Locking took "+dur);
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
@@ -988,6 +1005,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                            throw new RuntimeException("Error - exclusive Message not locked!");
                     //                        }
                     //                    }
+                    // log.info("Calling onMessage...MessageAge: " + (System.currentTimeMillis() - msg.getTimestamp()) + " - " + msg.getMsgId());
                     Msg answer = l.onMessage(Messaging.this, msg);
                     wasProcessed = true;
 
@@ -1234,7 +1252,8 @@ public class Messaging extends Thread implements ShutdownListener {
                         log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
                         Thread.sleep(morphium.getConfig().getIdleSleepTime());
                     }
-//                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
+
+                    //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
                     threadPool.execute(r);
                     queued = true;
                 } catch (Throwable ignored) {
@@ -1431,9 +1450,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-                }
-
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
@@ -1523,6 +1540,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.error("Did not receive answer " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
                 waitingForMessages.remove(theMessage.getMsgId());
                 waitingForAnswers.remove(theMessage.getMsgId());
+
                 if (throwExceptionOnTimeout) {
                     throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
                 }
@@ -1539,7 +1557,6 @@ public class Messaging extends Thread implements ShutdownListener {
         // if (log.isDebugEnabled()) {
         //     log.debug("got message after: " + (System.currentTimeMillis() - start) + "ms");
         // }
-
         waitingForMessages.remove(theMessage.getMsgId());
         return (T) waitingForAnswers.remove(theMessage.getMsgId()).get(0);
     }
