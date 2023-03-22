@@ -2226,6 +2226,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 switch (operand) {
                 case "$set":
+
                     // $set:{"field":"value", "other_field": 123}
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         if (entry.getValue() != null) {
@@ -2239,15 +2240,58 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 }
                             }
 
-                            obj.put(entry.getKey(), v);
+                            if (entry.getKey().contains(".")) {
+                                String[] path = entry.getKey().split("\\.");
+                                var current = obj;
+                                Map lastEl = null;
+
+                                for (String p : path) {
+                                    if (current.get(p) != null) {
+                                        if (current.get(p) instanceof Map) {
+                                            ((Map) current.get(p)).put(p, Doc.of());
+                                        } else {
+                                            log.error("could not set value! " + p);
+                                            break;
+                                        }
+                                    } else {
+                                        current.put(p, Doc.of());
+                                    }
+
+                                    lastEl = current;
+                                    current = (Map) current.get(p);
+                                }
+
+                                lastEl.put(path[path.length - 1], v);
+                            } else {
+                                obj.put(entry.getKey(), v);
+                            }
                         } else {
-                            obj.remove(entry.getKey());
+                            if (entry.getKey().contains(".")) {
+                                String[] path = entry.getKey().split("\\.");
+                                var current = obj;
+                                Map lastEl=null;
+                                for (String p:path){
+                                    lastEl=current;
+                                    if (current.get(p)!=null){
+                                        current=(Map)current.get(p);
+                                    } else {
+                                        break;
+                                    }
+
+                                }
+                                if (lastEl!=null){
+                                    lastEl.remove(path[path.length-1]);
+                                }
+                            } else {
+                                obj.remove(entry.getKey());
+                            }
                         }
                     }
 
                     break;
 
                 case "$unset":
+
                     // $unset: { <field1>: "", ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         obj.remove(entry.getKey());
@@ -2256,6 +2300,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$inc":
+
                     // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
@@ -2327,6 +2372,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$mul":
+
                     // $mul: { <field1>: <number1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
@@ -2355,6 +2401,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$rename":
+
                     // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         if (obj.get(entry.getKey()) != null) {
@@ -2370,6 +2417,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$min":
+
                     // $min: { <field1>: <value1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Comparable value = (Comparable) obj.get(entry.getKey());
@@ -2384,6 +2432,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     break;
 
                 case "$max":
+
                     // $max: { <field1>: <value1>, ... }
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Comparable value = (Comparable) obj.get(entry.getKey());
@@ -2397,45 +2446,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                     break;
 
-                    case "$pull":
-                        // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
-                        // Examples:
-                        // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
-                        // $pull: { votes: { $gte: 6 } }
-                        // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
-                        // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            List values = new ArrayList((List) obj.get(entry.getKey()));
-                            Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
-                            List filteredValues = new ArrayList();
-                            for (Object value : values) {
-                                if (!QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
-                                    filteredValues.add(value);
-                                }
-                            }
+                case "$pull":
 
-                            boolean valueIsChanged = !filteredValues.containsAll(values) || !values.containsAll(filteredValues);
-                            if (valueIsChanged) {
-                                modified.add(obj.get("_id"));
+                    // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
+                    // Examples:
+                    // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
+                    // $pull: { votes: { $gte: 6 } }
+                    // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
+                    // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        List values = new ArrayList((List) obj.get(entry.getKey()));
+                        Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
+                        List filteredValues = new ArrayList();
+
+                        for (Object value : values) {
+                            if (!QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
+                                filteredValues.add(value);
                             }
-                            obj.put(entry.getKey(), filteredValues);
                         }
 
-                        break;
+                        boolean valueIsChanged = !filteredValues.containsAll(values) || !values.containsAll(filteredValues);
 
-                    case "$pullAll":
-                        // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
-                        // Examples:
-                        // $pullAll: { scores: [ 0, 5 ] }
-
-                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            List v = new ArrayList((List) obj.get(entry.getKey()));
-                            List objectsToBeDeleted = (List) entry.getValue();
-
-                            boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object -> v.contains(object));
-                        if(valueIsChanged) {
+                        if (valueIsChanged) {
                             modified.add(obj.get("_id"));
                         }
+
+                        obj.put(entry.getKey(), filteredValues);
+                    }
+
+                    break;
+
+                case "$pullAll":
+
+                    // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
+                    // Examples:
+                    // $pullAll: { scores: [ 0, 5 ] }
+                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                        List v = new ArrayList((List) obj.get(entry.getKey()));
+                        List objectsToBeDeleted = (List) entry.getValue();
+                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object->v.contains(object));
+
+                        if (valueIsChanged) {
+                            modified.add(obj.get("_id"));
+                        }
+
                         v.removeAll(objectsToBeDeleted);
                         obj.put(entry.getKey(), v);
                     }
@@ -2445,6 +2499,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 case "$addToSet":
                 case "$push":
                 case "$pushAll":
+
                     // $addToSet: { <field1>: <value1>, ... }
                     //$push:{"field":"value"}
                     //$pushAll:{"field":["value","value",...]}
