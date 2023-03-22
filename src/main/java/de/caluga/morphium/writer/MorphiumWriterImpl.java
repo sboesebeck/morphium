@@ -843,6 +843,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             if (entry.getKey().contains(".")) {
                 //it's a path
                 //read from mongo
+
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                } //wait to be sure
                 morphium.reread(toSet);
             } else {
                 Field fld = morphium.getARHelper().getField(toSet.getClass(), entry.getKey());
