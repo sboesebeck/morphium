@@ -829,6 +829,11 @@ public class Messaging extends Thread implements ShutdownListener {
             // log.info("Locking of message failed: " + obj.getMsgId());
             // not locked
             processing.remove(obj.getMsgId());
+            try {
+                //reduce concurrency
+                Thread.sleep((long) (((double)pause/2)*Math.random()+pause/2));
+            } catch (InterruptedException e) {
+            }
             skipped.incrementAndGet();
             // removeProcessingFor(obj);
             return;
