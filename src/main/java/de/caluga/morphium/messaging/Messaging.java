@@ -547,7 +547,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             } finally {
                 try {
-                    sleep(pause);
+                    //reduce concurrency
+                    Thread.sleep((long)(((double) pause / 2.0 ) * Math.random() + pause * 0.75));
+                    // sleep(pause);
                 } catch (InterruptedException ignored) {
                 }
             }
@@ -829,11 +831,6 @@ public class Messaging extends Thread implements ShutdownListener {
             // log.info("Locking of message failed: " + obj.getMsgId());
             // not locked
             processing.remove(obj.getMsgId());
-            try {
-                //reduce concurrency
-                Thread.sleep((long) (((double)pause/2)*Math.random()+pause/2));
-            } catch (InterruptedException e) {
-            }
             skipped.incrementAndGet();
             // removeProcessingFor(obj);
             return;
@@ -876,11 +873,9 @@ public class Messaging extends Thread implements ShutdownListener {
             return true;
         } catch (Exception e) {
             // log.info("Locking failed: " + e.getMessage());
-
             // if (e.getCause() != null) {
             //     log.info("...cause: " + e.getCause().getMessage());
             // }
-
             return false;
         } finally {
             long dur = System.currentTimeMillis() - start;
