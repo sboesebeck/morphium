@@ -341,7 +341,8 @@ public class Morphium implements AutoCloseable {
                     .setDecryptionKey(getEncryptionKeyProvider().getDecryptionKey(CREDENTIAL_ENCRYPT_KEY_NAME));
 
                     if (key == null) {
-                        log.error("Cannot decrypt - no key for mongodb_crendentials set!");
+                        throw new RuntimeException(("Cannot decrypt - no key for mongodb_crendentials set!"));
+
                     }
 
                     try {

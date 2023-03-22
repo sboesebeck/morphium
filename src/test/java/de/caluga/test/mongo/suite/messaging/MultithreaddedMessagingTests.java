@@ -13,10 +13,44 @@ import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+
+
 public class MultithreaddedMessagingTests extends MorphiumTestBase {
+
+    @Test
+    public void messagingMultithreaddedWriteTest() throws Exception {
+        final Messaging sender = new Messaging(morphium);
+        final int numThreads = 30;
+        final List<Thread> threads = new ArrayList<>();
+        final AtomicInteger count=new AtomicInteger();
+        for (int t = 0; t < numThreads; t++) {
+            String id = "thr" + t;
+            var thr = new Thread() {
+                public void run() {
+                    for (int i = 0; i < 40000; i++) {
+                        UncachedObject uc = new UncachedObject();
+                        uc.setCounter(i);
+                        uc.setStrValue("{ name: " + id+ ", counter:" + i + "}");
+                        morphium.store(uc);
+                        count.incrementAndGet();
+                    }
+                    threads.remove(this);
+                }
+            };
+            threads.add(thr);
+            thr.start();
+        }
+        log.info("Waiting for writers....");
+        while (threads.size()!=0) {
+           log.info("Threads active: "+threads.size()+" Messages: "+count.get());
+            Thread.sleep(500);
+        }
+        log.info("done");
+    }
 
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
@@ -31,7 +65,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         try {
             Vector<String> processedIds = new Vector<>();
             procCounter.set(0);
-            consumer.addMessageListener((msg, m)->{
+            consumer.addMessageListener((msg, m) -> {
                 procCounter.incrementAndGet();
 
                 if (processedIds.contains(m.getMsgId().toString())) {
@@ -78,7 +112,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         try {
             final AtomicInteger processed = new AtomicInteger();
             final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
-            consumer.addMessageListener((msg, m)->{
+            consumer.addMessageListener((msg, m) -> {
                 processed.incrementAndGet();
 
                 if (processed.get() % 1000 == 0) {
@@ -129,6 +163,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             consumer.terminate();
         }
     }
+
     @Test
     public void waitingForMessagesIfNonMultithreadded() throws Exception {
         final List<Msg> list = new ArrayList<>();
@@ -138,7 +173,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         Messaging receiver = new Messaging(morphium, 100, false, false, 10);
-        receiver.addMessageListener((msg, m)->{
+        receiver.addMessageListener((msg, m) -> {
             list.add(m);
 
             try {
@@ -179,7 +214,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         Messaging receiver = new Messaging(morphium, 100, false, true, 10);
-        receiver.addMessageListener((msg, m)->{
+        receiver.addMessageListener((msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
 
@@ -226,7 +261,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
         final AtomicInteger count = new AtomicInteger();
         Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
-        consumer.addMessageListener((msg, m)->{
+        consumer.addMessageListener((msg, m) -> {
             //            log.info("Got message!");
             count.incrementAndGet();
             return null;
@@ -238,7 +273,9 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             log.info("Messages processed: " + count.get());
             Thread.sleep(1000);
 
-            if (System.currentTimeMillis() - start > 20000) { throw new RuntimeException("Timeout"); }
+            if (System.currentTimeMillis() - start > 20000) {
+                throw new RuntimeException("Timeout");
+            }
         }
 
         long dur = System.currentTimeMillis() - start;
@@ -266,7 +303,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
         Messaging consumer = new Messaging(morphium, 100, true, true, 121);
-        consumer.addMessageListener((msg, m)->{
+        consumer.addMessageListener((msg, m) -> {
             //log.info("Got message!");
             count.incrementAndGet();
             return null;
@@ -278,7 +315,9 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             log.info("Messages processed: " + count.get() + "/" + amount);
             Thread.sleep(1000);
 
-            if (System.currentTimeMillis() - start > 20000) { throw new RuntimeException("Timeout!"); }
+            if (System.currentTimeMillis() - start > 20000) {
+                throw new RuntimeException("Timeout!");
+            }
 
             //            for (var e:morphium.getDriver().getDriverStats().entrySet()){
             //                log.info("Stats: "+e.getKey()+" - " + e.getValue());
