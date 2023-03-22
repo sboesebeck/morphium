@@ -75,7 +75,16 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
         MongoConnection primaryConnection = getPrimaryConnection(null);
-
+        if (primaryConnection==null){
+            log.info("waiting");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                // TODO Auto-generated catch block
+            }
+            primaryConnection=getPrimaryConnection(null);
+            if (primaryConnection==null) throw new IllegalArgumentException("could not get connection");
+        }
         try {
             ListCollectionsCommand cmd = new ListCollectionsCommand(primaryConnection);
             cmd.setDb(db).setNameOnly(true);
@@ -94,7 +103,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
             return colNames;
         } finally {
-            primaryConnection.release();
+            if (primaryConnection != null) {
+                primaryConnection.release();
+            }
         }
     }
 
@@ -211,8 +222,7 @@ public abstract class DriverBase implements MorphiumDriver {
         return BsonEncoder.UUIDRepresentation.STANDARD.name();
     }
 
-    public void setUuidRepresentation(String uuidRepresentation) {
-    }
+    public void setUuidRepresentation(String uuidRepresentation) {}
 
     @Override
     public int getReadTimeout() {
@@ -264,7 +274,8 @@ public abstract class DriverBase implements MorphiumDriver {
             List<String> ret = new ArrayList<>();
 
             if (res.get("databases") != null) {
-                @SuppressWarnings("unchecked") List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
 
                 for (Map<String, Object> db : lst) {
                     if (db.get("name") != null) {
@@ -524,7 +535,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public MorphiumTransactionContext startTransaction(boolean autoCommit) {
-        if (this.transactionContext.get() != null) { throw new IllegalArgumentException("Transaction in progress"); }
+        if (this.transactionContext.get() != null) {
+            throw new IllegalArgumentException("Transaction in progress");
+        }
 
         MorphiumTransactionContextImpl ctx = new MorphiumTransactionContextImpl();
         ctx.setLsid(UUID.randomUUID());
@@ -540,7 +553,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setTransactionContext(MorphiumTransactionContext ctx) {
-        if (transactionContext.get() != null) { throw new IllegalArgumentException("Transaction already in progress!"); }
+        if (transactionContext.get() != null) {
+            throw new IllegalArgumentException("Transaction already in progress!");
+        }
 
         if (ctx instanceof MorphiumTransactionContextImpl) {
             transactionContext.set((MorphiumTransactionContextImpl) ctx);
