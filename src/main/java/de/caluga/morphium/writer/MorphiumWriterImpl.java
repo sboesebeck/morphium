@@ -282,7 +282,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 if (writeResult.containsKey("writeErrors")) {
                                     int failedWrites = ((List) writeResult.get("writeErrors")).size();
                                     int success = (int) writeResult.get("n");
-//                                    con.release();
+                                    //                                    con.release();
                                     throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
                                 }
                             }
@@ -341,7 +341,11 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         if (coll == null) {
             coll = morphium.getMapper().getCollectionName(type);
         }
-        if (morphium == null || morphium.getConfig() == null) return; //happens during shutdonw
+
+        if (morphium == null || morphium.getConfig() == null) {
+            return;    //happens during shutdonw
+        }
+
         if (!morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL)) {
                 createCappedCollection(type, coll);
@@ -527,7 +531,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 // true,
                                 // WriteAccessType.BULK_INSERT);
                                 // null because key changed => mongo _id
-                                es.getValue().forEach(record->{       // null because key changed => mongo _id
+                                es.getValue().forEach(record->{         // null because key changed => mongo _id
                                     morphium.firePostStore(record, true);
                                 });
                             } finally {
@@ -591,7 +595,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                         }
 
-                        lst.forEach(record->{       // null because key changed => mongo
+                        lst.forEach(record->{         // null because key changed => mongo
                             // _id
                             morphium.firePostStore(record, true);
                         });
@@ -675,6 +679,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             if (!e.schemaDef().equals("")) {
                 //JSONParser jsonParser = new JSONParser();
                 var jacksonOM = new ObjectMapper();
+
                 try {
                     Map<String, Object> def = (Map<String, Object>) jacksonOM.readValue(e.schemaDef().getBytes(), Map.class);
                     cmd.setValidator(def);
@@ -835,12 +840,18 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         set(q, values, upsert, false, callback);
 
         for (Map.Entry<String, Object> entry : values.entrySet()) {
-            Field fld = morphium.getARHelper().getField(toSet.getClass(), entry.getKey());
+            if (entry.getKey().contains(".")) {
+                //it's a path
+                //read from mongo
+                morphium.reread(toSet);
+            } else {
+                Field fld = morphium.getARHelper().getField(toSet.getClass(), entry.getKey());
 
-            try {
-                fld.set(toSet, entry.getValue());
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException("could not set value to field: " + entry.getKey());
+                try {
+                    fld.set(toSet, entry.getValue());
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException("could not set value to field: " + entry.getKey());
+                }
             }
         }
     }
