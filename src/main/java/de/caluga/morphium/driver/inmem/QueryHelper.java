@@ -238,7 +238,9 @@ public class QueryHelper {
                                         lst = null;
                                     }
                                 }
-
+                                if (lst==null || checkValue==null){
+                                    return true;
+                                }
                                 for (var cv : lst) {
                                     //noinspection unchecked
                                     if (coll != null && (cv instanceof String)) {
