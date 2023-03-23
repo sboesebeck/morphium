@@ -3,8 +3,10 @@ package de.caluga.morphium.changestream;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.ConnectionType;
@@ -12,6 +14,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.ObjectMapperImpl;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -196,6 +199,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                         data.remove("fullDocument");
+                        if (data.get("documentKey") instanceof MorphiumId || data.get("documentKey") instanceof ObjectId){
+                            data.put("documentKey",Doc.of("_id",data.get("documentKey")));
+                        }
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
