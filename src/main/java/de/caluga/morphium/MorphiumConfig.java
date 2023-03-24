@@ -39,7 +39,7 @@ import de.caluga.morphium.writer.MorphiumWriterImpl;
  *
  * @author stephan
  */
-@SuppressWarnings({ "UnusedDeclaration", "UnusedReturnValue" })
+@SuppressWarnings({"UnusedDeclaration", "UnusedReturnValue"})
 @Embedded
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
@@ -143,6 +143,17 @@ public class MorphiumConfig {
     private IndexCheck indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
     private CappedCheck cappedCheck = CappedCheck.CREATE_ON_WRITE_NEW_COL;
 
+    private String messagingStatusInfoListenerName = null;
+    private boolean messagingStatusInfoListenerEnabled = true;
+
+    public boolean isMessagingStatusInfoListenerEnabled() {
+        return messagingStatusInfoListenerEnabled;
+    }
+
+    public void setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
+        this.messagingStatusInfoListenerEnabled = messagingStatusInfoListenerEnabled;
+    }
+
     public MorphiumConfig(final Properties prop) {
         this(null, prop);
     }
@@ -203,15 +214,17 @@ public class MorphiumConfig {
             }
         }
 
-        if (resolver.resolveSetting(prefix + "driver_class") != null || resolver.resolveSetting(prefix+"driverClass")!=null) {
+        if (resolver.resolveSetting(prefix + "driver_class") != null || resolver.resolveSetting(prefix + "driverClass") != null) {
             var s = resolver.resolveSetting(prefix + "driver_class");
-            if (s==null) s=resolver.resolveSetting(prefix+"driverClass");
+
+            if (s == null) {
+                s = resolver.resolveSetting(prefix + "driverClass");
+            }
 
             if (s.equals(InMemoryDriver.class.getName())) {
                 setDriverName(InMemoryDriver.driverName);
             } else {
-                LoggerFactory.getLogger(MorphiumConfig.class)
-                .error("Cannot set driver class - using default driver instead!");
+                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
             }
         }
 
@@ -252,9 +265,8 @@ public class MorphiumConfig {
     }
 
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
-    public static MorphiumConfig createFromJson(String json) throws NoSuchFieldException, ClassNotFoundException,
-               IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException,
-        InvocationTargetException {
+    public static MorphiumConfig createFromJson(String json)
+    throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
         MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
 
         for (Object ko : cfg.restoreData.keySet()) {
@@ -316,8 +328,7 @@ public class MorphiumConfig {
         return valueEncryptionProviderClass;
     }
 
-    public MorphiumConfig setValueEncryptionProviderClass(
-        Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+    public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
         this.valueEncryptionProviderClass = valueEncryptionProviderClass;
         return this;
     }
@@ -364,8 +375,7 @@ public class MorphiumConfig {
         if (cls.equals(InMemoryDriver.class.getName())) {
             driverName = InMemoryDriver.driverName;
         } else {
-            throw new IllegalArgumentException(
-                "Cannot set driver class " + cls + " - please use setDriverName with the proper name.");
+            throw new IllegalArgumentException("Cannot set driver class " + cls + " - please use setDriverName with the proper name.");
         }
 
         return this;
@@ -417,8 +427,7 @@ public class MorphiumConfig {
 
     public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
         if (retriesOnNetworkError == 0) {
-            LoggerFactory.getLogger(MorphiumConfig.class)
-            .warn("Cannot set retries on network error to 0 - minimum is 1");
+            LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
             retriesOnNetworkError = 1;
         }
 
@@ -947,9 +956,9 @@ public class MorphiumConfig {
     }
 
     /**
-     * @param prefix          prefix to use in property keys
+     * @param prefix prefix to use in property keys
      * @param effectiveConfig when true, use the current effective config, including
-     *                        overrides from Environment
+     *        overrides from Environment
      * @return the properties
      */
     public Properties asProperties(String prefix, boolean effectiveConfig) {
@@ -1358,18 +1367,11 @@ public class MorphiumConfig {
     }
 
     public enum IndexCheck {
-        NO_CHECK,
-        WARN_ON_STARTUP,
-        CREATE_ON_WRITE_NEW_COL,
-        CREATE_ON_STARTUP,
+        NO_CHECK, WARN_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CREATE_ON_STARTUP,
     }
 
     public enum CappedCheck {
-        NO_CHECK,
-        WARN_ON_STARTUP,
-        CREATE_ON_STARTUP,
-        CREATE_ON_WRITE_NEW_COL,
-        CONVERT_EXISTING_ON_STARTUP,
+        NO_CHECK, WARN_ON_STARTUP, CREATE_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CONVERT_EXISTING_ON_STARTUP,
     }
 
     public int getIdleSleepTime() {
@@ -1378,6 +1380,42 @@ public class MorphiumConfig {
 
     public void setIdleSleepTime(int idleSleepTime) {
         this.idleSleepTime = idleSleepTime;
+    }
+
+    public Map<String, Object> getRestoreData() {
+        return restoreData;
+    }
+
+    public void setRestoreData(Map<String, Object> restoreData) {
+        this.restoreData = restoreData;
+    }
+
+    public int getMinConnections() {
+        return minConnections;
+    }
+
+    public void setReplicaset(boolean replicaset) {
+        this.replicaset = replicaset;
+    }
+
+    public boolean isAutoValues() {
+        return autoValues;
+    }
+
+    public void setAutoValues(boolean autoValues) {
+        this.autoValues = autoValues;
+    }
+
+    public void setDefaultTags(String defaultTags) {
+        this.defaultTags = defaultTags;
+    }
+
+    public String getMessagingStatusInfoListenerName() {
+        return messagingStatusInfoListenerName;
+    }
+
+    public void setMessagingStatusInfoListenerName(String messagingStatusInfoListenerName) {
+        this.messagingStatusInfoListenerName = messagingStatusInfoListenerName;
     }
 
 }
