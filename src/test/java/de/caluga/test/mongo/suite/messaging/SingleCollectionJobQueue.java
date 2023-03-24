@@ -436,7 +436,7 @@ public class SingleCollectionJobQueue extends MorphiumTestBase {
 
             while (!(counts.get() >= (amount + crons.get()))) {
                 if (System.currentTimeMillis() - start > 1000) {
-                    Msg m = new Msg("morphium.status_info", "status", "value", 4000);
+                    Msg m = new Msg(sender.getStatusInfoListenerName(), "status", "value", 4000);
                     m.setPriority(10);
                     m.setTimingOut(false);
                     m.setDeleteAfterProcessing(true);

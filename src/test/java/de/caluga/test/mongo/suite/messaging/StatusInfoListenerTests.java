@@ -186,7 +186,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         morphium.storeList(lst);
         for (int i = 0; i < 10; i++) {
             Thread.sleep(100);
-            var msg = new Msg("morphium.status_info", "", "");
+            var msg = new Msg(sender.getStatusInfoListenerName(), "", "");
             msg.setPriority(10);
             var answer = sender.sendAndAwaitFirstAnswer(msg, 5000, false);
             assertNotNull(answer);
