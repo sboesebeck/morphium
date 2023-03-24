@@ -1,6 +1,9 @@
 package de.caluga.morphium.messaging;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class StatusInfoListener implements MessageListener<Msg> {
 
@@ -10,12 +13,71 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String morphiumCachestatsKey = "morphium.cachestats";
     public final static String morphiumConfigKey = "morphium.config";
 
+    private Map<String, InternalCommand> commands = new HashMap<>();
+
+    public StatusInfoListener() {
+        commands.put("unpause", new InternalCommand("pause") {
+            public void exec(Messaging msg, Msg answer, Object params) {
+                if (params != null) {
+                    if (params instanceof List) {
+                        var lst = (List<String>)params;
+
+                        for (String n : lst) {
+                            msg.unpauseProcessingOfMessagesNamed(n);
+                        }
+                    } else {
+                        var n=params.toString();
+                        msg.unpauseProcessingOfMessagesNamed(n);
+
+                    }
+                } else {
+                    //pause ALL
+                    var lst=msg.getPausedMessageNames();
+                    for (String n:lst){
+                        msg.unpauseProcessingOfMessagesNamed(n);
+                    }
+                }
+            }
+        });
+        commands.put("pause", new InternalCommand("pause") {
+            public void exec(Messaging msg, Msg answer, Object params) {
+                if (params != null) {
+                    if (params instanceof List) {
+                        var lst = (List<String>)params;
+
+                        for (String n : lst) {
+                            msg.pauseProcessingOfMessagesNamed(n);
+                        }
+                    } else {
+                        var n=params.toString();
+                        msg.pauseProcessingOfMessagesNamed(n);
+
+                    }
+                } else {
+                    //pause ALL
+                    var lst=new ArrayList<String>(msg.getListenerNames().keySet());
+                    lst.addAll(msg.getGlobalListeners());
+                    for (String n:lst){
+                        msg.pauseProcessingOfMessagesNamed(n);
+                    }
+                }
+            }
+        });
+    }
+
     @Override
     public Msg onMessage(Messaging msg, Msg m) {
-        if (m.isAnswer()) return null;
+        if (m.isAnswer()) {
+            return null;
+        }
+
+        long tripDur = System.currentTimeMillis() - m.getTimestamp();
         Msg answer = m.createAnswerMsg();
         answer.setMapValue(new HashMap<>());
         StatusInfoLevel level = StatusInfoLevel.MESSAGING_ONLY;
+
+        if (m.getMapValue() != null) {
+        }
 
         if (m.getValue() != null) {
             for (StatusInfoLevel l : StatusInfoLevel.values()) {
@@ -25,23 +87,26 @@ public class StatusInfoListener implements MessageListener<Msg> {
                 }
             }
         }
+
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
             if (msg.isMultithreadded()) {
                 answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
             }
+
             answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
             answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
             answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
             answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
             answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
             answer.getMapValue().put("messaging.pause", msg.getPause());
-
+            answer.getMapValue().put("messaging.time_till_recieved", tripDur);
         }
 
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
             answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
             answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
         }
+
         return answer;
     }
 
@@ -50,8 +115,26 @@ public class StatusInfoListener implements MessageListener<Msg> {
         return true;
     }
 
-
     public enum StatusInfoLevel {
         ALL, MESSAGING_ONLY, MORPHIUM_ONLY, PING,
+    }
+
+    public static abstract class InternalCommand {
+        private String name;
+
+        public InternalCommand(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+
+        public abstract void exec(Messaging msg, Msg answer, Object params);
     }
 }
