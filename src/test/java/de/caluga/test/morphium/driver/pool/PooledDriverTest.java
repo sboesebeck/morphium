@@ -64,6 +64,8 @@ public class PooledDriverTest {
 
         try (drv) {
             drv.connect();
+            drv.setMaxWaitTime(50000000);
+            Thread.sleep(1000);
             //dropping testdb
             var con = drv.getPrimaryConnection(null);
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
@@ -74,6 +76,7 @@ public class PooledDriverTest {
             int amount = 1000;
 
             for (int i = 0; i < amount; i++) {
+                if (i%100==0) log.info(String.format("Stored %s/%s",i,amount));
                 con = drv.getPrimaryConnection(null);
                 InsertMongoCommand insert = new InsertMongoCommand(con);
                 insert.setDocuments(Arrays.asList(om.serialize(new UncachedObject("value_" + (i + amount), i + amount)), om.serialize(new UncachedObject("value_" + i, i))));
