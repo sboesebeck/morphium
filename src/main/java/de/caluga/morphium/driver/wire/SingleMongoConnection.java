@@ -194,9 +194,13 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public boolean isDataAvailable() {
+        if (in == null) {
+            return false;
+        }
+
         try {
             return in.available() != 0;
-        } catch (IOException e) {
+        } catch (Exception e) {
             //error?  close connection
             close();
         }
@@ -227,53 +231,52 @@ public class SingleMongoConnection implements MongoConnection {
 
     private void startReaderThread() {
         running = true;
-        readerThread = new Thread(()->{
-            while (running) {
-                try {
-                    if (!s.isConnected() || s.isClosed()) {
-                        log.error("Connection died!");
-                        close();
-                        return;
-                    }
-
-                    //reading in data
-                    readNextMsg();
-                } catch (Exception e) {
-                    log.error("Reader-Thread error", e);
-                }
-            }
-            //                log.info("Reader Thread terminated");
-            synchronized (incoming) {
-                incoming.notifyAll();
-            }
-        });
-        readerThread.start();
-        new Thread(()->{
-            doHouseKeeping();
-
-            try {
-                Thread.sleep(getDriver().getMaxWaitTime() / 2);
-            } catch (InterruptedException e) {
-                //swallow
-            }
-        }).start();
+        // readerThread = new Thread(()->{
+        //     while (running) {
+        //         try {
+        //             if (!s.isConnected() || s.isClosed()) {
+        //                 log.error("Connection died!");
+        //                 close();
+        //                 return;
+        //             }
+        //
+        //             //reading in data
+        //             readNextMsg();
+        //         } catch (Exception e) {
+        //             log.error("Reader-Thread error", e);
+        //         }
+        //     }
+        //     //                log.info("Reader Thread terminated");
+        //     synchronized (incoming) {
+        //         incoming.notifyAll();
+        //     }
+        // });
+        // readerThread.start();
+        // new Thread(()->{
+        //     while (running){
+        //          doHouseKeeping();
+        //     }
+        //     try {
+        //         Thread.sleep(getDriver().getMaxWaitTime() / 2);
+        //     } catch (InterruptedException e) {
+        //         //swallow
+        //     }
+        // }).start();
     }
 
     public void doHouseKeeping() {
-        while (running) {
-            var s = new HashSet(incomingTimes.keySet());
+        var s = new HashSet(incomingTimes.keySet());
 
-            for (var k : s) {
-                synchronized (incomingTimes) {
-                    if (incomingTimes.get(k) == null) {
-                        continue;
-                    }
+        for (var k : s) {
+            synchronized (incomingTimes) {
+                if (incomingTimes.get(k) == null) {
+                    continue;
+                }
 
-                    if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
-                        // log.warn("Discarding unused answer " + k);
-                        incoming.remove(k);
-                        incomingTimes.remove(k);
-                    }
+                if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
+                    // log.warn("Discarding unused answer " + k);
+                    incoming.remove(k);
+                    incomingTimes.remove(k);
                 }
             }
         }
@@ -282,28 +285,27 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public void close() {
         running = false;
-        try {
-            readerThread.join(getDriver().getMaxWaitTime());
-        } catch (InterruptedException e) {
-        }
+        // try {
+        //     readerThread.join(getDriver().getMaxWaitTime());
+        // } catch (InterruptedException e) {
+        // }
 
         synchronized (incoming) {
             incoming.notifyAll();
         }
 
-        while (readerThread.isAlive()) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException e) {
-            }
-
-            try {
-                in.close();
-                readerThread.interrupt();
-            } catch (IOException e) {
-            }
-        }
-
+        // while (readerThread.isAlive()) {
+        //     try {
+        //         Thread.sleep(20);
+        //     } catch (InterruptedException e) {
+        //     }
+        //
+        //     try {
+        //         in.close();
+        //         readerThread.interrupt();
+        //     } catch (IOException e) {
+        //     }
+        // }
         connected = false;
 
         try {
