@@ -248,7 +248,15 @@ public class SingleMongoConnection implements MongoConnection {
             }
         });
         readerThread.start();
-        new Thread(()->doHouseKeeping()).start();
+        new Thread(()->{
+            doHouseKeeping();
+
+            try {
+                Thread.sleep(getDriver().getMaxWaitTime() / 2);
+            } catch (InterruptedException e) {
+                //swallow
+            }
+        }).start();
     }
 
     public void doHouseKeeping() {
@@ -268,18 +276,16 @@ public class SingleMongoConnection implements MongoConnection {
                     }
                 }
             }
-
-            try {
-                Thread.sleep(getDriver().getMaxWaitTime() / 2);
-            } catch (InterruptedException e) {
-                //swallow
-            }
         }
     }
 
     @Override
     public void close() {
         running = false;
+        try {
+            readerThread.join(getMaxWaitTime());
+        } catch (InterruptedException e) {
+        }
 
         synchronized (incoming) {
             incoming.notifyAll();
