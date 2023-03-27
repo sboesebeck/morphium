@@ -283,7 +283,7 @@ public class SingleMongoConnection implements MongoConnection {
     public void close() {
         running = false;
         try {
-            readerThread.join(getMaxWaitTime());
+            readerThread.join(getDriver().getMaxWaitTime());
         } catch (InterruptedException e) {
         }
 
