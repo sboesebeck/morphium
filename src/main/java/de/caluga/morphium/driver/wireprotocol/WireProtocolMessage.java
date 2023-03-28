@@ -22,7 +22,9 @@ public abstract class WireProtocolMessage {
         byte[] inBuffer = new byte[16];
         int numRead;
         try {
-
+            if (in==null){
+                return null;
+            }
             numRead = in.read(inBuffer, 0, 16);
             while (numRead < 16) {
                 numRead += in.read(inBuffer, numRead, 16 - numRead);

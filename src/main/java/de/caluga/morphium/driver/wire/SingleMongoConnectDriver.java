@@ -60,6 +60,9 @@ public class SingleMongoConnectDriver extends DriverBase {
     private ConnectionType connectionType = ConnectionType.PRIMARY;
     private int idleSleepTime = 20;
 
+    private Thread readerThread;
+    private boolean readerThreadRunning=true;
+
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
         @Override
@@ -75,6 +78,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         for (var e : DriverStatsKey.values()) {
             stats.put(e, new AtomicDecimal(0));
         }
+
     }
 
     @Override
@@ -157,6 +161,21 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
+        readerThread=new Thread(()->{
+            while (readerThreadRunning) {
+                try {
+                    if (connection != null && connection.isDataAvailable()) {
+                        connection.readNextMsg();
+                    }
+                } catch(Exception e){
+                }
+                Thread.yield();
+            }
+            log.warn("ReaderThread for "+this+" endet!");
+        });
+        readerThread.setName("ReaderThread");
+        readerThread.setDaemon(true);
+        readerThread.start();
         //log.info("Connecting");
         int connectToIdx = 0;
         int retries = 0;
@@ -276,13 +295,20 @@ public class SingleMongoConnectDriver extends DriverBase {
 
         incStat(DriverStatsKey.CONNECTIONS_IN_POOL);
         // log.info("Connected! "+connection.getConnectedTo()+" / "+getHostSeed().get(connectToIdx));
+
+        try {
+            Thread.sleep(250);
+        } catch (InterruptedException e) {
+        }
     }
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
-
+                if (connection!=null){
+                    connection.doHouseKeeping();
+                }
                 //log.info("checking connection");
                 try {
                     HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
@@ -314,25 +340,29 @@ public class SingleMongoConnectDriver extends DriverBase {
                     }
                 } catch (MorphiumDriverException e) {
                     incStat(DriverStatsKey.ERRORS);
-                    log.error("Connection error", e);
-                    log.warn("Trying reconnect");
+                    if (!connection.isConnected()){
+                        //closing in progress?
+                    } else {
+                        log.error("Connection error", e);
+                        log.warn("Trying reconnect");
 
-                    try {
-                        close();
-                    } catch (Exception ex) {
-                        //swallow - maybe error because connection died
-                    }
+                        try {
+                            close();
+                        } catch (Exception ex) {
+                            //swallow - maybe error because connection died
+                        }
 
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ex) {
-                        //really?
-                    }
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {
+                            //really?
+                        }
 
-                    try {
-                        connect();
-                    } catch (MorphiumDriverException ex) {
-                        log.error("Could not reconnect", ex);
+                        try {
+                            connect();
+                        } catch (MorphiumDriverException ex) {
+                            log.error("Could not reconnect", ex);
+                        }
                     }
                 } catch (InterruptedException e) {
                     //e.printStackTrace();
@@ -341,7 +371,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     e.printStackTrace();
                 }
 
-            }, getHeartbeatFrequency(), getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+            }, 10, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
             log.debug("Heartbeat already scheduled...");
         }
@@ -400,11 +430,14 @@ public class SingleMongoConnectDriver extends DriverBase {
     public void close() {
         incStat(DriverStatsKey.CONNECTIONS_CLOSED);
         decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
+        readerThreadRunning=false;
 
         try {
             if (connection != null) {
                 connection.close();
             }
+        } catch(Exception e){
+            log.warn("Problem when closing connection",e);
         } finally {
         }
 
@@ -413,6 +446,11 @@ public class SingleMongoConnectDriver extends DriverBase {
         }
 
         heartbeat = null;
+        try {
+            readerThread.join();
+        } catch (InterruptedException e) {
+
+        }
     }
 
     @Override

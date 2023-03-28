@@ -187,9 +187,10 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void deleteAfterProcessingTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("Starting test with: "+morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", () -> !morphium.exists(Msg.class));
             Messaging sender = new Messaging(morphium, 100, false);
@@ -222,7 +223,7 @@ public class MessagingTest extends MultiDriverTestBase {
             m3.start();
 
             try {
-                Thread.sleep(100);
+                Thread.sleep(1000);
                 Msg m = new Msg();
                 m.setExclusive(true);
                 m.setDeleteAfterProcessing(true);

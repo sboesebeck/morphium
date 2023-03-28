@@ -8,19 +8,14 @@ import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import de.caluga.morphium.driver.commands.*;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.commands.ClearCollectionCommand;
-import de.caluga.morphium.driver.commands.FindCommand;
-import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
-import de.caluga.morphium.driver.commands.ShutdownCommand;
-import de.caluga.morphium.driver.commands.StepDownCommand;
-import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -102,7 +97,6 @@ public class SingleConnectDriverTests extends DriverTestBase {
         String hst = con.getConnectedTo();
         log.info("back connected to " + con.getConnectedTo());
         con.release();
-
 
     }
 
@@ -202,41 +196,71 @@ public class SingleConnectDriverTests extends DriverTestBase {
 
 
     @Test
-    public void crudTest() throws Exception {
-        SingleMongoConnectDriver drv = getDriver();
-        MongoConnection con = drv.getConnection();
-        ClearCollectionCommand cmd = new ClearCollectionCommand(con).setColl("tests").setDb("morphium_test");
-        cmd.execute();
-        InsertMongoCommand insert = new InsertMongoCommand(con).setDocuments(Arrays.asList(Doc.of("_id", "123123", "value", "thing")))
+    public void simpleCommandTest() throws Exception {
+        SingleMongoConnectDriver drv=getDriver();
+        HelloCommand cmd=new HelloCommand(drv.getConnection());
+        cmd.setIncludeClient(false);
+        var result=cmd.execute();
+        cmd.releaseConnection();
+
+        cmd=new HelloCommand(drv.getConnection());
+        cmd.setIncludeClient(false);
+        result=cmd.execute();
+        cmd.releaseConnection();
+        ClearCollectionCommand clearCmd= new ClearCollectionCommand(drv.getConnection()).setColl("tests").setDb("morphium_test");
+        var cmdResult=clearCmd.execute();
+        clearCmd.releaseConnection();
+        log.info("Got result...");
+
+        InsertMongoCommand insert = new InsertMongoCommand(drv.getConnection()).setDocuments(Arrays.asList(Doc.of("_id", "123123", "value", "thing")))
                 .setColl("tests")
                 .setDb("morphium_test");
         //inserted
-        insert.execute();
+        var insResult=insert.execute();
+        insert.releaseConnection();
 
-        var find = new FindCommand(con).setDb("morphium_test").setColl("tests")
+    }
+
+    @Test
+    public void crudTest() throws Exception {
+        SingleMongoConnectDriver drv = getDriver();
+        ClearCollectionCommand cmd = new ClearCollectionCommand(drv.getConnection()).setColl("tests").setDb("morphium_test");
+        var cmdResult=cmd.execute();
+        cmd.releaseConnection();
+        log.info("Got result...");
+        Thread.sleep(5000);
+        InsertMongoCommand insert = new InsertMongoCommand(drv.getConnection()).setDocuments(Arrays.asList(Doc.of("_id", "123123", "value", "thing")))
+                .setColl("tests")
+                .setDb("morphium_test");
+        //inserted
+        var insResult=insert.execute();
+        insert.releaseConnection();
+        var find = new FindCommand(drv.getConnection()).setDb("morphium_test").setColl("tests")
                 .setBatchSize(1)
                 .setLimit(1)
                 .setFilter(Doc.of("_id", "123123"));
         var result = find.execute();
+        find.releaseConnection();
         assertNotNull(result);
         assertTrue(result.size() > 0,"did not find");
 
-        var update = new UpdateMongoCommand(con).setDb("morphium_test").setColl("tests")
+        var update = new UpdateMongoCommand(drv.getConnection()).setDb("morphium_test").setColl("tests")
                 .addUpdate(Doc.of("_id", "123123"), Doc.of("value", "the value"), null, false, false, null, null, null);
         var stats = update.execute();
+        update.releaseConnection();
         assertNotNull(stats);
         for (var e : stats.entrySet()) {
             log.info("Stat: " + e.getKey() + " --> " + e.getValue());
         }
-        find = new FindCommand(con).setDb("morphium_test").setColl("tests")
+        find = new FindCommand(drv.getConnection()).setDb("morphium_test").setColl("tests")
                 .setBatchSize(1)
                 .setLimit(1)
                 .setFilter(Doc.of("_id", "123123"));
         result = find.execute();
+        find.releaseConnection();
         assertNotNull(result);
         assertTrue(result.size() == 1);
         assertTrue( result.get(0).get("value").equals("the value"),"update failed");
-        drv.releaseConnection(con);
     }
 
 
