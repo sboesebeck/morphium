@@ -64,8 +64,6 @@ public class PooledDriverTest {
 
         try (drv) {
             drv.connect();
-            drv.setMaxWaitTime(50000000);
-            Thread.sleep(1000);
             //dropping testdb
             var con = drv.getPrimaryConnection(null);
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
@@ -164,6 +162,7 @@ public class PooledDriverTest {
         int amount = 1000;
 
         for (int i = 0; i < amount; i++) {
+            if (i%100==0) log.info(String.format("Stored %s/%s",i,amount));
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret =
                 col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
@@ -473,7 +472,7 @@ public class PooledDriverTest {
             assertNotNull(drv.getNumConnectionsByHost());
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
 
-            Thread.sleep(5100);
+            Thread.sleep(8100);
 
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
             var c1=drv.getPrimaryConnection(null);

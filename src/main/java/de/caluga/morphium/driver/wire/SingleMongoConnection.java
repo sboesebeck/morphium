@@ -45,6 +45,7 @@ public class SingleMongoConnection implements MongoConnection {
     private String authDb = null;
     private String user = null;
     private String password = null;
+    private long lastRead;
 
     public SingleMongoConnection() {
         stats = new HashMap<>();
@@ -194,6 +195,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public boolean isDataAvailable() {
+        lastRead = System.currentTimeMillis();
         if (in == null) {
             return false;
         }
@@ -209,6 +211,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public OpMsg readNextMsg() {
+        lastRead = System.currentTimeMillis();
         OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
 
         if (msg == null) {
@@ -343,8 +346,12 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
         long start = System.currentTimeMillis();
-
         while (!incoming.containsKey(msgid)) {
+            if (lastRead == 0) {
+                log.error(this+": never read?");
+            } else if (System.currentTimeMillis() - lastRead > 1000) {
+                log.error(this+": No reader thread?");
+            }
             try {
                 synchronized (incoming) {
                     incoming.wait(timeout);
@@ -402,7 +409,7 @@ public class SingleMongoConnection implements MongoConnection {
             out.flush();
         } catch (MorphiumDriverException e) {
             close();
-            throw(e);
+            throw (e);
         } catch (Exception e) {
             //                log.error("Error sending request", e);
             close();
@@ -412,7 +419,7 @@ public class SingleMongoConnection implements MongoConnection {
             //                    //swallow
             //                }
             //                connect(driver, connectedTo, connectedToPort);
-            throw(new MorphiumDriverException("Error sending Request: ", e));
+            throw (new MorphiumDriverException("Error sending Request: ", e));
         }
     }
 
@@ -500,7 +507,7 @@ public class SingleMongoConnection implements MongoConnection {
                     continue;
                 }
 
-                throw(e);
+                throw (e);
             }
 
             //log.info("got answer for watch!");
