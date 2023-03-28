@@ -225,6 +225,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
     public void crudTest() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         ClearCollectionCommand cmd = new ClearCollectionCommand(drv.getConnection()).setColl("tests").setDb("morphium_test");
+
         var cmdResult=cmd.execute();
         cmd.releaseConnection();
         log.info("Got result...");
