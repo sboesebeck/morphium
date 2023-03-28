@@ -39,6 +39,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -121,7 +122,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
-        this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet());
+        this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet()||m.getDriver().getName().equals(InMemoryDriver.driverName));
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
@@ -138,8 +139,8 @@ public class Messaging extends Thread implements ShutdownListener {
         setProcessMultiple(processMultiple);
         morphium = m;
         statusInfoListener = new StatusInfoListener();
-        statusInfoListenerEnabled=m.getConfig().isMessagingStatusInfoListenerEnabled();
-        statusInfoListenerName=m.getConfig().getMessagingStatusInfoListenerName();
+        statusInfoListenerEnabled = m.getConfig().isMessagingStatusInfoListenerEnabled();
+        statusInfoListenerName = m.getConfig().getMessagingStatusInfoListenerName();
         setMultithreadded(multithreadded);
         decouplePool = new ScheduledThreadPoolExecutor(1);
         // noinspection unused,unused
@@ -239,9 +240,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -266,8 +267,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor) -> {
+          morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        threadPool.setRejectedExecutionHandler((r, executor)->{
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -334,13 +335,13 @@ public class Messaging extends Thread implements ShutdownListener {
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), true, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
-            lockMonitor.addListener(evt -> {
+            lockMonitor.addListener(evt->{
                 //some lock removed
                 skipped.incrementAndGet();
                 return running;
             });
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
-            changeStreamMonitor.addListener(evt -> {
+            changeStreamMonitor.addListener(evt->{
                 if (!running)
                     return false;
                 try {
@@ -515,9 +516,19 @@ public class Messaging extends Thread implements ShutdownListener {
                 } catch (Exception e) {
                     log.error("Error during event processing in changestream", e);
                 } finally {
-                    decouplePool.schedule(() -> {
-                        triggerCheck();
-                    }, 5000, TimeUnit.MILLISECONDS);
+                    while (true) {
+                        try {
+                            decouplePool.schedule(()->{
+                                triggerCheck();
+                            }, 5000, TimeUnit.MILLISECONDS);
+                            break;
+                        } catch (Exception e) {
+                        }
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                        }
+                    }
                 }
                 return running;
             });
@@ -550,7 +561,7 @@ public class Messaging extends Thread implements ShutdownListener {
             } finally {
                 try {
                     //reduce concurrency
-                    Thread.sleep((long)(((double) pause / 2.0 ) * Math.random() + pause * 0.75));
+                    Thread.sleep((long)(((double) pause / 2.0) * Math.random() + pause * 0.75));
                     // sleep(pause);
                 } catch (InterruptedException ignored) {
                 }
@@ -964,7 +975,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        Runnable r = () -> {
+        Runnable r = ()->{
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -1452,7 +1463,8 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                }
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
