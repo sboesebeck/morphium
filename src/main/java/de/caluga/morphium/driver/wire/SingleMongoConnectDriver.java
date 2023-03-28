@@ -296,10 +296,6 @@ public class SingleMongoConnectDriver extends DriverBase {
         incStat(DriverStatsKey.CONNECTIONS_IN_POOL);
         // log.info("Connected! "+connection.getConnectedTo()+" / "+getHostSeed().get(connectToIdx));
 
-        try {
-            Thread.sleep(250);
-        } catch (InterruptedException e) {
-        }
     }
 
     protected synchronized void startHeartbeat() {

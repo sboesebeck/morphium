@@ -12,6 +12,7 @@ import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.CountMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
@@ -74,7 +75,10 @@ public class PooledDriverTest {
             int amount = 1000;
 
             for (int i = 0; i < amount; i++) {
-                if (i%100==0) log.info(String.format("Stored %s/%s",i,amount));
+                if (i % 100 == 0) {
+                    log.info(String.format("Stored %s/%s", i, amount));
+                }
+
                 con = drv.getPrimaryConnection(null);
                 InsertMongoCommand insert = new InsertMongoCommand(con);
                 insert.setDocuments(Arrays.asList(om.serialize(new UncachedObject("value_" + (i + amount), i + amount)), om.serialize(new UncachedObject("value_" + i, i))));
@@ -130,11 +134,11 @@ public class PooledDriverTest {
         o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
         o.retryWrites(true);
-        o.applyToSocketSettings(socketSettings -> {
+        o.applyToSocketSettings(socketSettings->{
             socketSettings.connectTimeout(1000, TimeUnit.MILLISECONDS);
             socketSettings.readTimeout(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToConnectionPoolSettings(connectionPoolSettings -> {
+        o.applyToConnectionPoolSettings(connectionPoolSettings->{
             connectionPoolSettings.maxConnectionIdleTime(500, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maxConnectionLifeTime(1000, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maintenanceFrequency(2000, TimeUnit.MILLISECONDS);
@@ -142,7 +146,7 @@ public class PooledDriverTest {
             connectionPoolSettings.minSize(2);
             connectionPoolSettings.maxWaitTime(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToClusterSettings(clusterSettings -> {
+        o.applyToClusterSettings(clusterSettings->{
             clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
             clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
             List<ServerAddress> hosts = new ArrayList<>();
@@ -162,10 +166,13 @@ public class PooledDriverTest {
         int amount = 1000;
 
         for (int i = 0; i < amount; i++) {
-            if (i%100==0) log.info(String.format("Stored %s/%s",i,amount));
+            if (i % 100 == 0) {
+                log.info(String.format("Stored %s/%s", i, amount));
+            }
+
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret =
-                col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+             col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
             assertEquals(2, ret.getInsertedIds().size(), "should insert 2 elements");
         }
 
@@ -222,7 +229,14 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getPrimaryConnection(null);
+                        if (!drv.getBorrowedConnections().containsKey(con.getSourcePort())){
+                            log.error("Key not found - not borrowed? "+drv.getBorrowedConnections().size());
+                        }
+
                         Thread.sleep((long)(1000 * Math.random()));
+                        var res=new HelloCommand(con);
+                        res.setIncludeClient(false);
+                        var r=res.execute();
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
@@ -276,10 +290,8 @@ public class PooledDriverTest {
         for (var e : driverStats.entrySet()) {
             log.info(e.getKey() + "  =  " + e.getValue());
         }
-
-        assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_BORROWED)+driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED), driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_RELEASED), "Release vs. borrow do not match up!");
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
-            driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
+         driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
     }
 
@@ -453,7 +465,6 @@ public class PooledDriverTest {
     //     drv.close();
     // }
 
-
     @Test
     public void idleTimeoutTest() throws Exception {
         var drv = getDriver();
@@ -471,29 +482,22 @@ public class PooledDriverTest {
             log.info("Connected...");
             assertNotNull(drv.getNumConnectionsByHost());
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
-
             Thread.sleep(8100);
-
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
-            var c1=drv.getPrimaryConnection(null);
-            var c2=drv.getPrimaryConnection(null);
-            var c3=drv.getPrimaryConnection(null);
-            var c4=drv.getPrimaryConnection(null);
-
-            assertEquals(4,drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
+            var c1 = drv.getPrimaryConnection(null);
+            var c2 = drv.getPrimaryConnection(null);
+            var c3 = drv.getPrimaryConnection(null);
+            var c4 = drv.getPrimaryConnection(null);
+            assertEquals(4, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
             c1.release();
             c2.release();
             c3.release();
             c4.release();
-            assertTrue(drv.getNumConnectionsByHost().get("127.0.0.1:27017")>2);
+            assertTrue(drv.getNumConnectionsByHost().get("127.0.0.1:27017") > 2);
             Thread.sleep(6100);
-
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
-
-
-        } finally{
+        } finally {
             drv.close();
-
         }
     }
 }
