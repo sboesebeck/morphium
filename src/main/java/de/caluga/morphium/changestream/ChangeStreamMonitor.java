@@ -86,6 +86,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 dedicatedConnection.setMaxConnections(3);
                 dedicatedConnection.setCredentials(morphium.getConfig().decryptAuthDb(), morphium.getConfig().decryptMongoLogin(), morphium.getConfig().decryptMongoPassword());
                 dedicatedConnection.connect();
+                Thread.sleep(1000);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
