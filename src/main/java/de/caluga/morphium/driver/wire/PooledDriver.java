@@ -241,7 +241,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private void handleHello(HelloResult hello) {
-        if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
+        if (hello.getWritablePrimary() && hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
             if (log.isDebugEnabled()) {
                 log.debug(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
             }
@@ -249,42 +249,44 @@ public class PooledDriver extends DriverBase {
             primaryNode = hello.getMe();
         }
 
-        for (String hst : hello.getHosts()) {
-            synchronized (connectionPool) {
-                if (!connectionPool.containsKey(hst)) {
-                    log.debug("new host needs to be added: " + hst);
-                    connectionPool.put(hst, new ArrayList<>());
+        if (hello.getHosts() != null) {
+            for (String hst : hello.getHosts()) {
+                synchronized (connectionPool) {
+                    if (!connectionPool.containsKey(hst)) {
+                        log.debug("new host needs to be added: " + hst);
+                        connectionPool.put(hst, new ArrayList<>());
+                    }
+                }
+
+                if (!getHostSeed().contains(hst)) {
+                    getHostSeed().add(hst);
                 }
             }
 
-            if (!getHostSeed().contains(hst)) {
-                getHostSeed().add(hst);
+            for (String hst : new ArrayList<String>(getHostSeed())) {
+                if (!hello.getHosts().contains(hst)) {
+                    getHostSeed().remove(hst);
+                }
             }
-        }
 
-        for (String hst : new ArrayList<String>(getHostSeed())) {
-            if (!hello.getHosts().contains(hst)) {
-                getHostSeed().remove(hst);
-            }
-        }
+            synchronized (connectionPool) {
+                for (String k : new ArrayList<>(connectionPool.keySet())) {
+                    if (!hello.getHosts().contains(k)) {
+                        log.warn("Host " + k + " is not part of the replicaset anymore!");
+                        getHostSeed().remove(k);
+                        List<Connection> lst = connectionPool.remove(k);
 
-        synchronized (connectionPool) {
-            for (String k : new ArrayList<>(connectionPool.keySet())) {
-                if (!hello.getHosts().contains(k)) {
-                    log.warn("Host " + k + " is not part of the replicaset anymore!");
-                    getHostSeed().remove(k);
-                    List<Connection> lst = connectionPool.remove(k);
+                        if (fastestHost.equals(k)) {
+                            fastestHost = null;
+                            fastestTime = 10000;
+                        }
 
-                    if (fastestHost.equals(k)) {
-                        fastestHost = null;
-                        fastestTime = 10000;
-                    }
-
-                    for (Connection con : lst) {
-                        try {
-                            con.getCon().close();
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                        } catch (Exception ex) {
+                        for (Connection con : lst) {
+                            try {
+                                con.getCon().close();
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                            } catch (Exception ex) {
+                            }
                         }
                     }
                 }
@@ -522,9 +524,10 @@ public class PooledDriver extends DriverBase {
                 if (hello == null) {
                     throw new MorphiumDriverException("Could not create connection");
                 }
-                synchronized(connectionPool){
+
+                synchronized (connectionPool) {
                     borrowedConnections.remove(fakePort);
-                    borrowedConnections.put(con.getSourcePort(),c);
+                    borrowedConnections.put(con.getSourcePort(), c);
                 }
 
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
@@ -640,7 +643,7 @@ public class PooledDriver extends DriverBase {
                         }
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
-                        getHostSeed().remove(lastSecondaryNode - 1);                                                                     //removing node - heartbeat should add it again...
+                        getHostSeed().remove(lastSecondaryNode - 1);                                                                             //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
