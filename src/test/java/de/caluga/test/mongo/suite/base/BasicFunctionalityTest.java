@@ -45,6 +45,16 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public BasicFunctionalityTest() {
     }
 
+    // @Test
+    // public void shardTest() throws Exception {
+    //     MorphiumConfig cfg=new MorphiumConfig();
+    //     cfg.setHostSeed("hercules1.dev.genios.de:27017");
+    //     cfg.setDatabase("hercules");
+    //     Morphium m=new Morphium(cfg);
+    //
+    //     log.info("connected");
+    // }
+    //
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void testAdditionalData(Morphium morphium) throws Exception {
