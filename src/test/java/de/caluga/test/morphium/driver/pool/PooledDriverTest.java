@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
+    private int amount = 1000;
 
     @Test
     public void testPooledConnections() throws Exception {
@@ -62,6 +63,8 @@ public class PooledDriverTest {
         ObjectMapperImpl om = new ObjectMapperImpl();
         long start = System.currentTimeMillis();
         var drv = getDriver();
+        drv.setMaxConnectionLifetime(45000);
+        drv.setMaxConnectionIdleTime(44000);
 
         try (drv) {
             drv.connect();
@@ -71,8 +74,6 @@ public class PooledDriverTest {
             cmd.setDb("morphium_test");
             cmd.execute();
             con.release();
-            //Write
-            int amount = 1000;
 
             for (int i = 0; i < amount; i++) {
                 if (i % 100 == 0) {
@@ -163,7 +164,6 @@ public class PooledDriverTest {
         col.drop();
         ObjectMapperImpl om = new ObjectMapperImpl();
         //Write
-        int amount = 1000;
 
         for (int i = 0; i < amount; i++) {
             if (i % 100 == 0) {
