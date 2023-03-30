@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +24,12 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.commands.CountMongoCommand;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
@@ -292,84 +295,84 @@ public class PooledDriverTest {
         drv.close();
     }
 
-    // @Test
-    // public void testPrimaryFailover() throws Exception {
-    //     var drv = getDriver();
-    //     drv.setHeartbeatFrequency(500);
-    //     drv.connect();
-    //
-    //     while (!drv.isConnected()) {
-    //         Thread.sleep(500);
-    //     }
-    //
-    //     DropDatabaseMongoCommand drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
-    //     drop.setDb("test");
-    //     drop.setComment("Killing it");
-    //     drop.execute();
-    //     drop.releaseConnection();
-    //     Thread.sleep(1000);
-    //     //generating some Testdata
-    //
-    //     for (int i = 0; i < 100; i++) {
-    //         InsertMongoCommand insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
-    //         insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
-    //         insert.setDb("test");
-    //         insert.setColl("tst_data");
-    //         log.info("Writing to: " + insert.getConnection().getConnectedTo());
-    //         insert.execute();
-    //         insert.releaseConnection();
-    //     }
-    //
-    //     log.info("Testdata created!");
-    //     CountMongoCommand count = new CountMongoCommand(drv.getPrimaryConnection(null));
-    //     var cnt = count.setDb("test").setColl("tst_data").setQuery(Map.of()).getCount();
-    //     assertEquals(200, cnt);
-    //     count.releaseConnection();
-    //     //recovering on primary fail...
-    //     ShutdownCommand shutdown = new ShutdownCommand(drv.getPrimaryConnection(null));
-    //     log.info("Shutting down: " + shutdown.getConnection().getConnectedTo());
-    //     shutdown.setDb("admin");
-    //     shutdown.executeAsync(); //needs to be async, as command never returns
-    //     shutdown.releaseConnection();
-    //     //one secondary down
-    //     Thread.sleep(1000);
-    //     var errors = 0;
-    //
-    //
-    //     for (int i = 1000; i < 1100; i++) {
-    //         InsertMongoCommand insert = null;
-    //
-    //         try {
-    //             insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
-    //             insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
-    //             insert.setDb("test");
-    //             insert.setColl("tst_data");
-    //             log.info("Writing to: " + insert.getConnection().getConnectedTo());
-    //             insert.execute();
-    //             insert.releaseConnection();
-    //         } catch (Exception e) {
-    //             log.error("find failed " + e.getMessage());
-    //             e.printStackTrace();
-    //             errors++;
-    //         }
-    //
-    //         if (insert != null) {
-    //             insert.releaseConnection();
-    //         }
-    //     }
-    //
-    //     log.info(String.format("Number of errors during write: %s", errors));
-    //
-    //     for (String h : drv.getHostSeed()) {
-    //         log.info("Host: " + h);
-    //     }
-    //
-    //     log.info("Waiting for you to restart node...");
-    //
-    //     Thread.sleep(5000);
-    //
-    //     drv.close();
-    // }
+    @Test
+    public void testPrimaryFailover() throws Exception {
+        var drv = getDriver();
+        drv.setHeartbeatFrequency(500);
+        drv.connect();
+
+        while (!drv.isConnected()) {
+            Thread.sleep(500);
+        }
+
+        DropDatabaseMongoCommand drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
+        drop.setDb("test");
+        drop.setComment("Killing it");
+        drop.execute();
+        drop.releaseConnection();
+        Thread.sleep(1000);
+        //generating some Testdata
+
+        for (int i = 0; i < 100; i++) {
+            InsertMongoCommand insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+            insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+            insert.setDb("test");
+            insert.setColl("tst_data");
+            log.info("Writing to: " + insert.getConnection().getConnectedTo());
+            insert.execute();
+            insert.releaseConnection();
+        }
+
+        log.info("Testdata created!");
+        CountMongoCommand count = new CountMongoCommand(drv.getPrimaryConnection(null));
+        var cnt = count.setDb("test").setColl("tst_data").setQuery(Map.of()).getCount();
+        assertEquals(200, cnt);
+        count.releaseConnection();
+        //recovering on primary fail...
+        ShutdownCommand shutdown = new ShutdownCommand(drv.getPrimaryConnection(null));
+        log.info("Shutting down: " + shutdown.getConnection().getConnectedTo());
+        shutdown.setDb("admin");
+        shutdown.executeAsync(); //needs to be async, as command never returns
+        shutdown.releaseConnection();
+        //one secondary down
+        Thread.sleep(1000);
+        var errors = 0;
+
+
+        for (int i = 1000; i < 1100; i++) {
+            InsertMongoCommand insert = null;
+
+            try {
+                insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+                insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+                insert.setDb("test");
+                insert.setColl("tst_data");
+                log.info("Writing to: " + insert.getConnection().getConnectedTo());
+                insert.execute();
+                insert.releaseConnection();
+            } catch (Exception e) {
+                log.error("find failed " + e.getMessage());
+                e.printStackTrace();
+                errors++;
+            }
+
+            if (insert != null) {
+                insert.releaseConnection();
+            }
+        }
+
+        log.info(String.format("Number of errors during write: %s", errors));
+
+        for (String h : drv.getHostSeed()) {
+            log.info("Host: " + h);
+        }
+
+        log.info("Waiting for you to restart node...");
+
+        Thread.sleep(5000);
+
+        drv.close();
+    }
 
     // @Test
     // public void testSecondaryFailover() throws Exception {
