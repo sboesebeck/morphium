@@ -758,6 +758,9 @@ public class Messaging extends Thread implements ShutdownListener {
             fnd.setSkip(q.getSkip());
             fnd.setColl(getCollectionName());
             var result = fnd.execute();
+            //to make it work with SingleMongoConnection!
+            fnd.releaseConnection();
+            fnd=null;
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
@@ -798,7 +801,6 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                 }
             }
-
             if (q.countAll() != lockedIds.size()) {
                 skipped.incrementAndGet();
             }
@@ -1231,7 +1233,8 @@ public class Messaging extends Thread implements ShutdownListener {
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();
-
+            cmd.releaseConnection();
+            cmd=null;
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
             if (ret.get("nModified") == null && ret.get("modified") == null || Integer.valueOf(0).equals(ret.get("nModified"))) {
                 if (morphium.reread(msg, getCollectionName()) != null) {
