@@ -245,7 +245,7 @@ public class MorphiumServer {
                     default:
                         try {
                             int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
-                            var crs = drv.getAnswer(msgid);
+                            var crs = drv.readSingleAnswer(msgid);
                             answer = Doc.of("ok", 1.0);
                             answer.putAll(crs);
                         } catch (Exception e) {

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -31,9 +32,9 @@ public class SingleMongoConnection implements MongoConnection {
     private AtomicInteger msgId = new AtomicInteger(1000);
 
     //    private List<OpMsg> replies = Collections.synchronizedList(new ArrayList<>());
-    private Thread readerThread = null;
-    private Map<Integer, OpMsg> incoming = new HashMap<>();
-    private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
+    // private Thread readerThread = null;
+    // private Map<Integer, OpMsg> incoming = new HashMap<>();
+    // private Map<Integer, Long> incomingTimes = new ConcurrentHashMap<>();
     private boolean running = true;
 
     private Map<MorphiumDriver.DriverStatsKey, AtomicDecimal> stats;
@@ -75,7 +76,7 @@ public class SingleMongoConnection implements MongoConnection {
             throw new MorphiumDriverException("Connection failed: " + host + ":" + port, e);
         }
 
-        startReaderThread();
+        // startReaderThread();
         HelloCommand cmd = new HelloCommand(null);
 
         if (authDb != null) {
@@ -142,7 +143,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         ret.put(THREADS_CREATED, 1.0);
-        ret.put(REPLY_IN_MEM, (double) incoming.size());
+        // ret.put(REPLY_IN_MEM, (double) incoming.size());
         return ret;
     }
 
@@ -196,6 +197,7 @@ public class SingleMongoConnection implements MongoConnection {
 
     public boolean isDataAvailable() {
         lastRead = System.currentTimeMillis();
+
         if (in == null) {
             return false;
         }
@@ -210,81 +212,94 @@ public class SingleMongoConnection implements MongoConnection {
         return false;
     }
 
-    public OpMsg readNextMsg() {
-        lastRead = System.currentTimeMillis();
-        OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
-
-        if (msg == null) {
-            return null;
+    public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {
+        try {
+            s.setSoTimeout(timeout);
+        } catch (SocketException e) {
+            // TODO Auto-generated catch block
+            // e.printStackTrace();
+            close();
+            throw new MorphiumDriverException("socket error", e);
         }
 
-        stats.get(REPLY_RECEIVED).incrementAndGet();
-        incoming.put(msg.getResponseTo(), msg);
+        try {
+            OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
 
-        synchronized (incomingTimes) {
-            incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
-        }
-
-        synchronized (incoming) {
-            incoming.notifyAll();
-        }
-
-        return msg;
-    }
-
-    private void startReaderThread() {
-        running = true;
-        // readerThread = new Thread(()->{
-        //     while (running) {
-        //         try {
-        //             if (!s.isConnected() || s.isClosed()) {
-        //                 log.error("Connection died!");
-        //                 close();
-        //                 return;
-        //             }
-        //
-        //             //reading in data
-        //             readNextMsg();
-        //         } catch (Exception e) {
-        //             log.error("Reader-Thread error", e);
-        //         }
-        //     }
-        //     //                log.info("Reader Thread terminated");
-        //     synchronized (incoming) {
-        //         incoming.notifyAll();
-        //     }
-        // });
-        // readerThread.start();
-        // new Thread(()->{
-        //     while (running){
-        //          doHouseKeeping();
-        //     }
-        //     try {
-        //         Thread.sleep(getDriver().getMaxWaitTime() / 2);
-        //     } catch (InterruptedException e) {
-        //         //swallow
-        //     }
-        // }).start();
-    }
-
-    public void doHouseKeeping() {
-        var s = new HashSet(incomingTimes.keySet());
-
-        for (var k : s) {
-            synchronized (incomingTimes) {
-                if (incomingTimes.get(k) == null) {
-                    continue;
-                }
-
-                if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
-                    // log.warn("Discarding unused answer " + k);
-                    incoming.remove(k);
-                    incomingTimes.remove(k);
-                }
+            if (msg == null) {
+                return null;
             }
+
+            stats.get(REPLY_RECEIVED).incrementAndGet();
+            // incoming.put(msg.getResponseTo(), msg);
+            //
+            // synchronized (incomingTimes) {
+            //     incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
+            // }
+            //
+            // synchronized (incoming) {
+            //     incoming.notifyAll();
+            // }
+            //
+            return msg;
+        } catch (Exception e) {
+            close();
+            throw new MorphiumDriverException("error", e);
         }
     }
 
+    // private void startReaderThread() {
+    //     running = true;
+    // readerThread = new Thread(()->{
+    //     while (running) {
+    //         try {
+    //             if (!s.isConnected() || s.isClosed()) {
+    //                 log.error("Connection died!");
+    //                 close();
+    //                 return;
+    //             }
+    //
+    //             //reading in data
+    //             readNextMsg();
+    //         } catch (Exception e) {
+    //             log.error("Reader-Thread error", e);
+    //         }
+    //     }
+    //     //                log.info("Reader Thread terminated");
+    //     synchronized (incoming) {
+    //         incoming.notifyAll();
+    //     }
+    // });
+    // readerThread.start();
+    // new Thread(()->{
+    //     while (running){
+    //          doHouseKeeping();
+    //     }
+    //     try {
+    //         Thread.sleep(getDriver().getMaxWaitTime() / 2);
+    //     } catch (InterruptedException e) {
+    //         //swallow
+    //     }
+    // }).start();
+    // }
+    //
+    // public void doHouseKeeping() {
+    //     var s = new HashSet(incomingTimes.keySet());
+    //
+    //     for (var k : s) {
+    //         synchronized (incomingTimes) {
+    //             if (incomingTimes.get(k) == null) {
+    //                 continue;
+    //             }
+    //
+    //             if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
+    //                 // log.warn("Discarding unused answer " + k);
+    //                 incoming.remove(k);
+    //                 incomingTimes.remove(k);
+    //             }
+    //         }
+    //     }
+    // }
+    //
     @Override
     public void close() {
         running = false;
@@ -292,11 +307,9 @@ public class SingleMongoConnection implements MongoConnection {
         //     readerThread.join(getDriver().getMaxWaitTime());
         // } catch (InterruptedException e) {
         // }
-
-        synchronized (incoming) {
-            incoming.notifyAll();
-        }
-
+        // synchronized (incoming) {
+        //     incoming.notifyAll();
+        // }
         // while (readerThread.isAlive()) {
         //     try {
         //         Thread.sleep(20);
@@ -338,51 +351,47 @@ public class SingleMongoConnection implements MongoConnection {
         driver.releaseConnection(this);
     }
 
-    @Override
-    public boolean replyAvailableFor(int msgId) {
-        return incoming.containsKey(msgId);
-    }
 
-    @Override
-    public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
-        long start = System.currentTimeMillis();
-        while (!incoming.containsKey(msgid)) {
-            if (lastRead == 0) {
-                log.error(this+": never read?");
-            } else if (System.currentTimeMillis() - lastRead > 1000) {
-                log.error(this+": No reader thread?");
-            }
-            try {
-                synchronized (incoming) {
-                    incoming.wait(timeout);
-                }
-            } catch (InterruptedException e) {
-                //throw new RuntimeException("Interrupted", e);
-                //swallow
-            }
-
-            if (!running) {
-                return null;
-            }
-
-            if (System.currentTimeMillis() - start > 2 * timeout) {
-                close();
-                throw new MorphiumDriverException("server did not answer in time: " + timeout + "ms");
-            }
-        }
-
-        synchronized (incomingTimes) {
-            incomingTimes.remove(msgid);
-        }
-
-        if (!incoming.containsKey(msgid)) {
-            log.warn("Did not get reply within " + timeout + "ms");
-        }
-
-        stats.get(REPLY_PROCESSED).incrementAndGet();
-        return incoming.remove(msgid);
-    }
-
+    // @Override
+    // public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
+    //     long start = System.currentTimeMillis();
+    //     while (!incoming.containsKey(msgid)) {
+    //         if (lastRead == 0) {
+    //             log.error(this+": never read?");
+    //         } else if (System.currentTimeMillis() - lastRead > 1000) {
+    //             log.error(this+": No reader thread?");
+    //         }
+    //         try {
+    //             synchronized (incoming) {
+    //                 incoming.wait(timeout);
+    //             }
+    //         } catch (InterruptedException e) {
+    //             //throw new RuntimeException("Interrupted", e);
+    //             //swallow
+    //         }
+    //
+    //         if (!running) {
+    //             return null;
+    //         }
+    //
+    //         if (System.currentTimeMillis() - start > 2 * timeout) {
+    //             close();
+    //             throw new MorphiumDriverException("server did not answer in time: " + timeout + "ms");
+    //         }
+    //     }
+    //
+    //     synchronized (incomingTimes) {
+    //         incomingTimes.remove(msgid);
+    //     }
+    //
+    //     if (!incoming.containsKey(msgid)) {
+    //         log.warn("Did not get reply within " + timeout + "ms");
+    //     }
+    //
+    //     stats.get(REPLY_PROCESSED).incrementAndGet();
+    //     return incoming.remove(msgid);
+    // }
+    //
     public void sendQuery(OpMsg q) throws MorphiumDriverException {
         if (driver.getTransactionContext() != null) {
             q.getFirstDoc().put("lsid", Doc.of("id", driver.getTransactionContext().getLsid()));
@@ -409,7 +418,7 @@ public class SingleMongoConnection implements MongoConnection {
             out.flush();
         } catch (MorphiumDriverException e) {
             close();
-            throw (e);
+            throw(e);
         } catch (Exception e) {
             //                log.error("Error sending request", e);
             close();
@@ -419,18 +428,18 @@ public class SingleMongoConnection implements MongoConnection {
             //                    //swallow
             //                }
             //                connect(driver, connectedTo, connectedToPort);
-            throw (new MorphiumDriverException("Error sending Request: ", e));
+            throw(new MorphiumDriverException("Error sending Request: ", e));
         }
     }
 
     public OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException {
         sendQuery(q);
-        return getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
+        return readNextMessage(driver.getMaxWaitTime());//getReplyFor(q.getMessageId(), driver.getMaxWaitTime());
     }
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
-        OpMsg reply = getReplyFor(id, driver.getMaxWaitTime());
+        OpMsg reply = readNextMessage(driver.getMaxWaitTime());//getReplyFor(id, driver.getMaxWaitTime());
 
         if (reply == null) {
             return null;
@@ -498,7 +507,7 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg reply = null;
 
             try {
-                reply = getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+                reply = readNextMessage(command.getMaxTimeMS());//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("server did not answer in time: ")) {
                     log.debug("timeout in watch - restarting");
@@ -507,7 +516,7 @@ public class SingleMongoConnection implements MongoConnection {
                     continue;
                 }
 
-                throw (e);
+                throw(e);
             }
 
             //log.info("got answer for watch!");
@@ -594,7 +603,7 @@ public class SingleMongoConnection implements MongoConnection {
 
     @Override
     public MorphiumCursor getAnswerFor(int queryId, int batchSize) throws MorphiumDriverException {
-        OpMsg reply = getReplyFor(queryId, driver.getMaxWaitTime());
+        OpMsg reply = readNextMessage(driver.getMaxWaitTime());//getReplyFor(queryId, driver.getMaxWaitTime());
         checkForError(reply);
 
         if (reply == null) {

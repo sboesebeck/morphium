@@ -3465,22 +3465,23 @@ public class Morphium implements AutoCloseable {
         insertList(arrayList, null, null);
     }
 
-    public <T> void insertAsync(T o, String collection){
-        MongoConnection con = null;
-        try {
-            con = getDriver().getPrimaryConnection(getWriteConcernForClass(o.getClass()));
-            InsertMongoCommand insert = new InsertMongoCommand(con);
-            insert.setDb(getDatabase()).setColl(getMapper().getCollectionName(o.getClass()));
-            insert.setDocuments(Arrays.asList(getMapper().serialize(o)));
-            insert.executeAsync();
-        } catch (Exception e) {
-        } finally {
-            if (con != null) {
-                con.release();
-            }
-        }
-    }
-
+    // public <T> void insertAsync(T o, String collection){
+    //     MongoConnection con = null;
+    //     try {
+    //         con = getDriver().getPrimaryConnection(getWriteConcernForClass(o.getClass()));
+    //         InsertMongoCommand insert = new InsertMongoCommand(con);
+    //         insert.setDb(getDatabase()).setColl(getMapper().getCollectionName(o.getClass()));
+    //         insert.setDocuments(Arrays.asList(getMapper().serialize(o)));
+    //         insert.executeAsync();
+    //
+    //     } catch (Exception e) {
+    //     } finally {
+    //         if (con != null) {
+    //             con.release();
+    //         }
+    //     }
+    // }
+    //
     /**
      * directly writes data to Mongo, no Mapper used use with caution, as caches are
      * not updated

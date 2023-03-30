@@ -16,15 +16,21 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 public class ConnectionMock implements MongoConnection{
 
     @Override
+    public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
     public void close() {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
@@ -63,11 +69,6 @@ public class ConnectionMock implements MongoConnection{
         return new DriverMock();
     }
 
-    @Override
-    public OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException {
-        // TODO Auto-generated method stub
-        return null;
-    }
 
     @Override
     public int getSourcePort() {
@@ -108,14 +109,9 @@ public class ConnectionMock implements MongoConnection{
     @Override
     public void release() {
         // TODO Auto-generated method stub
-        
+
     }
 
-    @Override
-    public boolean replyAvailableFor(int msgId) {
-        // TODO Auto-generated method stub
-        return false;
-    }
 
     @Override
     public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
@@ -126,12 +122,12 @@ public class ConnectionMock implements MongoConnection{
     @Override
     public void setCredentials(String authDb, String userName, String password) {
         // TODO Auto-generated method stub
-        
+
     }
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
         // TODO Auto-generated method stub
-        
+
     }
 }
