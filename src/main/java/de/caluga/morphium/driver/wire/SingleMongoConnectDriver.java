@@ -103,7 +103,17 @@ public class SingleMongoConnectDriver extends DriverBase {
         return ret;
     }
 
-    public MongoConnection getConnection() {
+    public MongoConnection getConnection() throws MorphiumDriverException {
+        long waitUntil=System.currentTimeMillis()+getMaxWaitTime();
+        while (connectionInUse){
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+            }
+            if (System.currentTimeMillis()>waitUntil){
+                throw new MorphiumDriverException("could not get connection - still in use!");
+            }
+        }
         incStat(DriverStatsKey.CONNECTIONS_BORROWED);
         connectionInUse = true;
         return new ConnectionWrapper(connection);
@@ -400,12 +410,20 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
-        return getConnection();
+        try {
+            return getConnection();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
-        return getConnection();
+        try {
+            return getConnection();
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
