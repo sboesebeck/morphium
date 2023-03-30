@@ -106,8 +106,8 @@ public class BulkInsertTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    // @MethodSource("getMorphiumInstances")
-    @MethodSource("getInMemInstanceOnly")
+    @MethodSource("getMorphiumInstances")
+    // @MethodSource("getInMemInstanceOnly")
     public void bulkInsertAsync(Morphium morphium) throws Exception {
         try (morphium) {
             //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
