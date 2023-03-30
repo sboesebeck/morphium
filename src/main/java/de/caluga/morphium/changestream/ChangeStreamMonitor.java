@@ -6,6 +6,7 @@ import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriver;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -229,7 +230,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     .setCb(callback)
                     .setDb(morphium.getDatabase())
                     .setBatchSize(1)
-                    .setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
+                    .setMaxTimeMS(0)
                     .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
                     .setPipeline(pipeline);
 
@@ -246,6 +247,18 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
                     log.debug("changestream iteration");
+                // } else if (e.getMessage().equals("error")){
+                //     //probably timeout
+                //     try {
+                //         dedicatedConnection.connect();
+                //     } catch (MorphiumDriverException e1) {
+                //         // TODO Auto-generated catch block
+                //         e1.printStackTrace();
+                //     }
+                //
+                } else if (e.getMessage().contains("closed")){
+                    log.error("connection closed!");
+                    break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
                 }
