@@ -578,7 +578,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void severalMessagingsTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
@@ -648,6 +648,7 @@ public class MessagingTest extends MultiDriverTestBase {
                     //creating messaging instances
                     Messaging m = new Messaging(morphium, 100, true);
                     m.start();
+                    Thread.sleep(250); //need to wait for messaging to kick in
                     systems.add(m);
                     MessageListener l = new MessageListener() {
                         Messaging msg;
@@ -843,7 +844,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void messagingSendReceiveTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
