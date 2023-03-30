@@ -96,6 +96,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
 
         try (morphium) {
+            log.info("----> Running with: "+morphium.getDriver().getName());
             //trying to connect with the sepcified driver to non existent mongo
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg.setCredentialsEncrypted(false);
@@ -112,6 +113,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void idQueryTest(Morphium m) {
         try (m) {
+            log.info("----> Running with: "+m.getDriver().getName());
             createUncachedObjects(m, 10);
             var lst = m.createQueryFor(UncachedObject.class).limit(3).idList();
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).nin(lst).countAll();
@@ -123,6 +125,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void inTest(Morphium m) {
         try (m) {
+            log.info("----> Running with: "+m.getDriver().getName());
             createUncachedObjects(m, 10);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).in(Arrays.asList(1, 5, 6, 102)).countAll();
             assertEquals(3, cnt);
@@ -141,6 +144,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void existTest(Morphium m) {
         try (m) {
+            log.info("----> Running with: "+m.getDriver().getName());
             createUncachedObjects(m, 10);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).exists().countAll();
             assertEquals(0, cnt);
@@ -326,7 +330,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
             o.setBinaryData(binaryData);
             morphium.store(o);
-            waitForAsyncOperationsToStart(morphium, 3000);
+            // waitForAsyncOperationsToStart(morphium, 3000);
             TestUtils.waitForWrites(morphium, log);
             morphium.reread(o);
 
@@ -336,7 +340,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
             o.setBinaryData(binaryData);
             morphium.store(o);
-            waitForAsyncOperationsToStart(morphium, 3000);
+            // waitForAsyncOperationsToStart(morphium, 3000);
             TestUtils.waitForWrites(morphium, log);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {

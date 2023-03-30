@@ -18,7 +18,7 @@ public abstract class WireProtocolMessage {
     private int responseTo;
     private Logger log = LoggerFactory.getLogger(WireProtocolMessage.class);
 
-    public static WireProtocolMessage parseFromStream(InputStream in) {
+    public static WireProtocolMessage parseFromStream(InputStream in) throws java.net.SocketException {
         byte[] inBuffer = new byte[16];
         int numRead;
         try {
@@ -64,9 +64,9 @@ public abstract class WireProtocolMessage {
                 //log.error("Could not read");
                 throw new MorphiumDriverNetworkException("could not read from socket", e);
             }
-        } catch (java.net.SocketException se) {
-            //probably closed - ignore
-            return null;
+        // } catch (java.net.SocketException se) {
+        //     //probably closed - ignore
+        //     return null;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

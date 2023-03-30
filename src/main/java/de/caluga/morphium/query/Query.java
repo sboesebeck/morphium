@@ -2319,7 +2319,7 @@ public class Query<T> implements Cloneable {
             long cursorId = 0;
 
             while (running) {
-                var answer = con.getReplyFor(msgId, maxWait);
+                var answer = con.readNextMessage(maxWait); //con.getReplyFor(msgId, maxWait);
                 List<Map<String, Object>> batch = null;
                 Map<String, Object> cursor = (Map<String, Object>) answer.getFirstDoc().get("cursor");
 

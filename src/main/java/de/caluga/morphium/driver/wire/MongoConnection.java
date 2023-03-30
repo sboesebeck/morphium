@@ -39,9 +39,10 @@ public interface MongoConnection extends Closeable {
     Map<String, Object> killCursors(String db, String coll, long... ids) throws MorphiumDriverException;
 
     //Command handling
-    boolean replyAvailableFor(int msgId);
+    // boolean replyAvailableFor(int msgId);
 
-    OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException;
+    // OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException;
+    OpMsg readNextMessage(int timeout) throws MorphiumDriverException;
 
 //    void sendQuery(OpMsg q) throws MorphiumDriverException;
 
