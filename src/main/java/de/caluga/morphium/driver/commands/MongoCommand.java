@@ -15,6 +15,7 @@ import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.LoggerFactory;
 
 public abstract class MongoCommand<T extends MongoCommand> {
     @Transient
@@ -35,7 +36,10 @@ public abstract class MongoCommand<T extends MongoCommand> {
     }
 
     public void releaseConnection() {
+        RuntimeException ex=new RuntimeException();
+        LoggerFactory.getLogger(MongoCommand.class).info("Release from: "+ex.getStackTrace()[1]);
         getConnection().release();
+        connection=null;
     }
 
 
@@ -127,7 +131,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 }
                 if (v != null) {
                     if (f.getType().equals(UUID.class)) {
-                        f.set(this,((Map)v).get("id")); 
+                        f.set(this,((Map)v).get("id"));
                     } else {
                         f.set(this,v);
                     }
@@ -185,7 +189,7 @@ public abstract class MongoCommand<T extends MongoCommand> {
                 continue;
             }
             f.setAccessible(true);
-            try {   
+            try {
                 if (f.getType().isPrimitive()){
                    if (f.getType().equals(boolean.class)){
                         f.set(this,false);

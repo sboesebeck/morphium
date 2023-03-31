@@ -45,7 +45,7 @@ public class FieldListTest extends MorphiumTestBase {
         morphium.store(ro);
         Thread.sleep(250);
         ro=morphium.reread(ro);
- 
+
         assertNull(ro.readOnlyValue, "Value wrong: "+ro.readOnlyValue);
 
         ro.setStrValue("OtherValue");

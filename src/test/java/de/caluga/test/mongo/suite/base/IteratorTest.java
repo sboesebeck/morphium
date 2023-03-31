@@ -102,8 +102,9 @@ public class IteratorTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void concurrentAccessTest(Morphium morphium) throws Exception {
-        
+
         try (morphium) {
+            log.info("--------> Running test with driver: "+morphium.getDriver().getName());
             createTestUc(morphium);
             Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
             qu.setCollectionName("test_uc");
@@ -130,7 +131,7 @@ public class IteratorTest extends MultiDriverTestBase {
 
                                     if (uc == null) {
                                         log.info("reached end concurrently - some other thread won!");
-                            
+
                                     } else {
                                         if (ids.contains(uc.getMorphiumId().toString())){
                                             log.error("Duplicate entry!!!!");
@@ -146,6 +147,8 @@ public class IteratorTest extends MultiDriverTestBase {
                                         }
                                     }
                                 }
+                            } catch(Exception e){
+                                log.warn("Error: "+e.getMessage(),e);
                             } finally {
                                 log.info("Thread finished");
                                 threads.remove(this);

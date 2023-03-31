@@ -20,7 +20,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
  * <p>
  * iterating over huge collections using the mongodb internal cursor
  */
-public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Iterable<T> {
+public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
 
     private final Logger log = LoggerFactory.getLogger(QueryIterator.class);
     private Query<T> query;
@@ -130,7 +130,7 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T>, Itera
                 }
 
                 cursor = cmd.executeIterable(windowSize);
-                cmd.getConnection().release();
+                //cmd.getConnection().release();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             }
