@@ -92,7 +92,6 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
                 connection.release();
                 connection = null;
             }
-
             return false;
         }
 

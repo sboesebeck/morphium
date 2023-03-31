@@ -36,8 +36,6 @@ public abstract class MongoCommand<T extends MongoCommand> {
     }
 
     public void releaseConnection() {
-        RuntimeException ex=new RuntimeException();
-        LoggerFactory.getLogger(MongoCommand.class).info("Release from: "+ex.getStackTrace()[1]);
         getConnection().release();
         connection=null;
     }
