@@ -70,6 +70,7 @@ public class ComplexTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void testAccessTimestamps(Morphium morphium) {
         try (morphium) {
+            log.info("-------> running test with: "+morphium.getDriver().getName());
             ComplexObject o = new ComplexObject();
             o.setEinText("A test");
             o.setTrans("Tansient");

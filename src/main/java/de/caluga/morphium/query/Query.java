@@ -1328,6 +1328,8 @@ public class Query<T> implements Cloneable {
 
             var query = cmd.execute();
             srv = (String) cmd.getMetaData().get("server");
+            cmd.releaseConnection();
+            cmd=null;
 
             for (Map<String, Object> o : query) {
                 T unmarshall = morphium.getMapper().deserialize(type, o);
