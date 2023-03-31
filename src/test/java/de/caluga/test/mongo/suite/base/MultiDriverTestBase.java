@@ -224,15 +224,16 @@ public class MultiDriverTestBase {
 
             for (String db : m.listDatabases()) {
                 if (db.startsWith("morphium")) {
-                    log.info("Dropping db " + db);
+                    log.info(m.getDriver().getName()+": Dropping db " + db);
 
                     try {
                         DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
                         cmd.setDb(db);
                         cmd.setComment("Delete for testing");
                         cmd.execute();
-                        cmd.getConnection().release();
+                        cmd.releaseConnection();
                     } catch (MorphiumDriverException e) {
+                        log.error(m.getDriver().getName()+" Dropping failed",e);
                     }
                 }
             }

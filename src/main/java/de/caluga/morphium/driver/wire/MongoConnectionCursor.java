@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.GetMoreMongoCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -18,15 +19,15 @@ import java.util.*;
  * Cursor implementation for the singleconnect drivers
  */
 
-public class SingleMongoConnectionCursor extends MorphiumCursor {
+public class MongoConnectionCursor extends MorphiumCursor {
 
     private final boolean multithreaddedAccess;
     private MongoConnection connection;
-    private Logger log = LoggerFactory.getLogger(SingleMongoConnectionCursor.class);
+    private Logger log = LoggerFactory.getLogger(MongoConnectionCursor.class);
     private int internalIndex = 0;
     private int index = 0;
 
-    public SingleMongoConnectionCursor(MongoConnection drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
+    public MongoConnectionCursor(MongoConnection drv, int batchSize, boolean multithreaddedAccess, OpMsg reply) throws MorphiumDriverException {
         this.connection = drv;
         this.multithreaddedAccess = multithreaddedAccess;
         Long cursorId = null;
@@ -88,11 +89,6 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     public synchronized boolean hasNext() {
         //end of stream
         if (getBatch() == null || getBatch().isEmpty()) {
-            if (connection != null) {
-                connection.release();
-                connection = null;
-            }
-
             return false;
         }
 
@@ -110,20 +106,10 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
             }
 
             if (getBatch() == null || getBatch().isEmpty()) {
-                if (connection != null) {
-                    connection.release();
-                    connection = null;
-                }
-
                 return false;
             }
 
             return true;
-        }
-
-        if (connection != null) {
-            connection.release();
-            connection = null;
         }
 
         return false;
@@ -164,20 +150,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
     @Override
     public synchronized void close() {
-        if (getConnection() == null) {
-            return;
-        }
-
-        try {
-            getConnection().closeIteration(this);
-
-            if (connection != null) {
-                connection.release();
-                connection = null;
-            }
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
-        }
+        //killCursor?
     }
 
     @Override
@@ -200,14 +173,10 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         // try {
         reply = more.execute();
         setCursorId(reply.getCursorId()); //setting 0 if end of iteration
-
-        if (getCursorId() == 0L) {
-            if (connection != null) {
-                connection.release();
-                connection = null;
-            }
+        if (getCursorId()==0L){
+            connection.release();
+            connection=null;
         }
-
         return reply.getBatch();
         // } catch (MorphiumDriverException e) {
         //     log.error("Error ", e);

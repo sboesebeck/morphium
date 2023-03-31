@@ -2,6 +2,7 @@ package de.caluga.test.morphium.driver.pool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +37,8 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
     private int amount = 1000;
+
+    private Object sync = new Object();
 
     @Test
     public void testPooledConnections() throws Exception {
@@ -229,14 +232,15 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getPrimaryConnection(null);
-                        if (!drv.getBorrowedConnections().containsKey(con.getSourcePort())){
-                            log.error("Key not found - not borrowed? "+drv.getBorrowedConnections().size());
+
+                        if (!drv.getBorrowedConnections().containsKey(con.getSourcePort())) {
+                            log.error("Key not found - not borrowed? " + drv.getBorrowedConnections().size());
                         }
 
                         Thread.sleep((long)(1000 * Math.random()));
-                        var res=new HelloCommand(con);
+                        var res = new HelloCommand(con);
                         res.setIncludeClient(false);
-                        var r=res.execute();
+                        var r = res.execute();
                         con.release();
                     } catch (Exception e) {
                         log.error("error", e);
@@ -290,6 +294,7 @@ public class PooledDriverTest {
         for (var e : driverStats.entrySet()) {
             log.info(e.getKey() + "  =  " + e.getValue());
         }
+
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
          driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
@@ -338,7 +343,6 @@ public class PooledDriverTest {
         Thread.sleep(1000);
         var errors = 0;
 
-
         for (int i = 1000; i < 1100; i++) {
             InsertMongoCommand insert = null;
 
@@ -368,9 +372,7 @@ public class PooledDriverTest {
         }
 
         log.info("Waiting for you to restart node...");
-
         Thread.sleep(5000);
-
         drv.close();
     }
 
@@ -499,5 +501,78 @@ public class PooledDriverTest {
         } finally {
             drv.close();
         }
+    }
+
+    @Test
+    public void dropCmdTest() throws Exception {
+        var drv = getDriver();
+        drv.connect();
+        new Thread(()->{
+            try {
+                synchronized (sync) {
+                    sync.wait();
+                }
+
+                DropDatabaseMongoCommand drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
+                drop.setDb("test");
+                drop.execute();
+                drop.releaseConnection();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+        new Thread(()->{
+            try {
+                synchronized (sync) {
+                    sync.wait();
+                }
+
+                InsertMongoCommand insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+                int i = 10;
+                var om = new ObjectMapperImpl();
+                insert.setDocuments(Arrays.asList(om.serialize(new UncachedObject("value_" + (i + amount), i + amount)), om.serialize(new UncachedObject("value_" + i, i))));
+                insert.setColl("uncached_object").setDb("morphium_test");
+
+                try {
+                    var m = insert.execute();
+                } catch (MorphiumDriverException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+                insert.releaseConnection();
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }).start();
+        new Thread(()->{
+            try {
+                synchronized (sync) {
+                    sync.wait();
+                }
+
+                var drop = new DropDatabaseMongoCommand(drv.getPrimaryConnection(null));
+                drop.setDb("morphium_test");
+
+                try {
+                    drop.execute();
+                } catch (MorphiumDriverException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+
+                drop.releaseConnection();
+                assertNull(drop.getConnection());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        synchronized (sync) {
+            sync.notifyAll();
+        }
+
+        Thread.sleep(1000);
     }
 }

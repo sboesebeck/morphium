@@ -228,7 +228,6 @@ public class PooledDriver extends DriverBase {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()->{
                 try {
-
                     // log.debug("heartbeat running");
                     for (var hst : new ArrayList<String>(getHostSeed())) {
                         Connection c = null;
@@ -366,6 +365,8 @@ public class PooledDriver extends DriverBase {
         //// log.info("Borrowing connection to: " + s+ ":" + st[n].getLineNumber());
         // this.borrowedConnectionsByCaller.putIfAbsent(s,new AtomicInteger(0));
         // this.borrowedConnectionsByCaller.get(s).incrementAndGet();
+            RuntimeException ex = new RuntimeException();
+            LoggerFactory.getLogger(MongoCommand.class).info("Borrow from: " + ex.getStackTrace()[2].getFileName()+"/"+ex.getStackTrace()[2].getMethodName()+":"+ex.getStackTrace()[2].getLineNumber());
         Connection c = null;
         //        long start = System.currentTimeMillis();
 
@@ -405,6 +406,7 @@ public class PooledDriver extends DriverBase {
                         }
 
                         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
+                        log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
                         return c.getCon();
                     }
 
@@ -443,6 +445,7 @@ public class PooledDriver extends DriverBase {
                 synchronized (connectionPool) {
                     borrowedConnections.remove(fakePort);
                     borrowedConnections.put(con.getSourcePort(), c);
+                    log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
                 }
 
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
@@ -477,6 +480,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             borrowedConnections.put(c.getCon().getSourcePort(), c);
+            log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
         }
 
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
@@ -558,7 +562,7 @@ public class PooledDriver extends DriverBase {
                         }
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
-                        getHostSeed().remove(lastSecondaryNode - 1);                                                                             //removing node - heartbeat should add it again...
+                        getHostSeed().remove(lastSecondaryNode - 1);                                                                                     //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
@@ -607,14 +611,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void releaseConnection(MongoConnection con) {
-        //        var st = Thread.currentThread().getStackTrace();
-        //        int n = 3;
-        //        String s = st[n].getClassName() + "." + st[n].getMethodName();
-        //
-        // log.info("releasing connection from: " + s + ":" + st[n].getLineNumber());
-        //        if (borrowedConnectionsByCaller.containsKey(s)) {
-        //            borrowedConnectionsByCaller.get(s).decrementAndGet();
-        //        }
         if (con == null) {
             log.error("Returning null connection????");
             return;
@@ -629,6 +625,9 @@ public class PooledDriver extends DriverBase {
         }
 
         if (con.getSourcePort() != 0) { //sourceport== 0 probably closed or broken
+            log.info("Releasing connectino sourceport: " + con.getSourcePort());
+            RuntimeException ex = new RuntimeException();
+            LoggerFactory.getLogger(MongoCommand.class).info("Release from: " + ex.getStackTrace()[2].getFileName()+"/"+ex.getStackTrace()[2].getMethodName()+":"+ex.getStackTrace()[2].getLineNumber());
             var c = borrowedConnections.remove(con.getSourcePort());
 
             if (c == null) {
@@ -692,13 +691,11 @@ public class PooledDriver extends DriverBase {
         // if (connection != null)
         // connection.close();
         // readerRunning = false;
-
         if (heartbeat != null) {
             heartbeat.cancel(true);
         }
 
         heartbeat = null;
-
 
         synchronized (connectionPool) {
             for (var e : new ArrayList<>(connectionPool.entrySet())) {
@@ -1018,12 +1015,12 @@ public class PooledDriver extends DriverBase {
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(()->{
-            var con = getPrimaryConnection(null);
+            var con = getReadConnection(null);
             ListCollectionsCommand cmd = new ListCollectionsCommand(con);
             cmd.setDb(db);
             cmd.setFilter(Doc.of("name", collection));
             var ret = cmd.execute();
-            con.release();
+            // cmd.releaseConnection();
             return ret;
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
