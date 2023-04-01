@@ -45,6 +45,8 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void asyncStoreTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("=======> Running with "+morphium.getDriver().getName());
+
             asyncCall = false;
             super.createCachedObjects(morphium, 1000);
             TestUtils.waitForWrites(morphium,log);

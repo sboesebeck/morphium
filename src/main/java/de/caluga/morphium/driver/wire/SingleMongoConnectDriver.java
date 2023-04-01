@@ -582,19 +582,25 @@ public class SingleMongoConnectDriver extends DriverBase {
                 try {
                     for (BulkRequest r : requests) {
                         if (r instanceof InsertBulkRequest) {
-                            InsertMongoCommand settings = new InsertMongoCommand(connection);
+                            var c=getPrimaryConnection(wc);
+                            InsertMongoCommand settings = new InsertMongoCommand(c);
                             settings.setDb(db).setColl(collection).setComment("Bulk insert").setDocuments(((InsertBulkRequest) r).getToInsert());
                             settings.execute();
+                            settings.releaseConnection();
                         } else if (r instanceof UpdateBulkRequest) {
                             UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            UpdateMongoCommand upCmd = new UpdateMongoCommand(connection);
+                            var c=getPrimaryConnection(wc);
+                            UpdateMongoCommand upCmd = new UpdateMongoCommand(c);
                             upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u", up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
                             upCmd.execute();
+                            upCmd.releaseConnection();
                         } else if (r instanceof DeleteBulkRequest) {
                             DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                            DeleteMongoCommand del = new DeleteMongoCommand(connection);
+                            var c=getPrimaryConnection(wc);
+                            DeleteMongoCommand del = new DeleteMongoCommand(c);
                             del.setColl(collection).setDb(db).setDeletes(Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
                             del.execute();
+                            del.releaseConnection();
                         } else {
                             throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
