@@ -1,14 +1,10 @@
 package de.caluga.morphium.driver.commands;
 
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.MorphiumCursor;
-import de.caluga.morphium.driver.MorphiumDriver;
+import java.util.Map;
+import org.slf4j.LoggerFactory;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
-import org.slf4j.LoggerFactory;
-
-import java.util.Map;
 
 public class DropDatabaseMongoCommand extends MongoCommand<DropDatabaseMongoCommand> implements SingleResultCommand {
     private Map<String, Object> writeConcern;

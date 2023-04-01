@@ -546,7 +546,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             return result;
         } finally {
             if (cmd != null && cmd.getConnection() != null) {
-                cmd.getConnection().release();
+                cmd.releaseConnection();
             }
         }
     }
@@ -884,7 +884,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
         @Override
         public void close() {
-            release();
+            releaseConnection(getDelegate());
             getDelegate().close();
         }
 
@@ -1004,10 +1004,6 @@ public class SingleMongoConnectDriver extends DriverBase {
             });
         }
 
-        @Override
-        public void release() {
-            getDriver().releaseConnection(this);
-        }
     }
 
 }

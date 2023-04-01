@@ -174,7 +174,7 @@ public class MongoConnectionCursor extends MorphiumCursor {
         reply = more.execute();
         setCursorId(reply.getCursorId()); //setting 0 if end of iteration
         if (getCursorId()==0L){
-            connection.release();
+            connection.getDriver().releaseConnection(connection);
             connection=null;
         }
         return reply.getBatch();

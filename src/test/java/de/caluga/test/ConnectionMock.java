@@ -106,11 +106,6 @@ public class ConnectionMock implements MongoConnection{
         return null;
     }
 
-    @Override
-    public void release() {
-        // TODO Auto-generated method stub
-
-    }
 
 
     @Override

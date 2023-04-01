@@ -275,13 +275,13 @@ public class MorphiumTestBase {
         }
 
         MongoConnection con = null;
-
+        ListCollectionsCommand cmd=null;
         try {
             boolean retry = true;
 
             while (retry) {
                 con = morphium.getDriver().getPrimaryConnection(null);
-                ListCollectionsCommand cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                 cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
 
                 for (var collMap : cmd.execute()) {
                     String coll = (String) collMap.get("name");
@@ -315,9 +315,8 @@ public class MorphiumTestBase {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            if (con != null) {
-                con.release();
-            }
+           if (cmd!=null) cmd.releaseConnection();
+
         }
 
         Thread.sleep(150);

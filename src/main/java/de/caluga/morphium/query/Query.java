@@ -266,7 +266,7 @@ public class Query<T> implements Cloneable {
             return cmd.explain(verbosity);
         } finally {
             if (cmd != null) {
-                cmd.getConnection().release();
+                cmd.releaseConnection();
             }
         }
     }
@@ -300,10 +300,11 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
         Map<String, Object> ret = null;
         MongoConnection con = null;
+        FindAndModifyMongoCommand settings = null;
 
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con).setQuery(toQueryObject()).setRemove(true).setSort(new Doc(getSort())).setColl(getCollectionName()).setDb(getDB());
+            settings = new FindAndModifyMongoCommand(con).setQuery(toQueryObject()).setRemove(true).setSort(new Doc(getSort())).setColl(getCollectionName()).setDb(getDB());
 
             if (collation != null) {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -313,7 +314,9 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         } finally {
-            con.release();
+            if (settings != null) {
+                settings.releaseConnection();
+            }
         }
 
         if (ret == null) {
@@ -382,10 +385,11 @@ public class Query<T> implements Cloneable {
         long start = System.currentTimeMillis();
         Map<String, Object> ret = null;
         MongoConnection con = null;
+        FindAndModifyMongoCommand settings = null;
 
         try {
             con = morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(getType()));
-            FindAndModifyMongoCommand settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).setUpdate(Doc.of(update));
+            settings = new FindAndModifyMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setQuery(Doc.of(toQueryObject())).setUpdate(Doc.of(update));
 
             if (collation != null) {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -395,8 +399,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             e.printStackTrace();
         } finally {
-            if (con != null) {
-                con.release();
+            if (settings != null) {
+                settings.releaseConnection();
             }
         }
 
@@ -476,7 +480,7 @@ public class Query<T> implements Cloneable {
             // TODO: Implement Handling
             throw new RuntimeException(e);
         } finally {
-            con.release();
+            cmd.releaseConnection();
         }
 
         return ret;
@@ -633,10 +637,11 @@ public class Query<T> implements Cloneable {
 
     public Map<String, Object> explainDistinct(String field, ExplainVerbosity verbosity) {
         MongoConnection con = null;
+        DistinctMongoCommand cmd = null;
 
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
-            var cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
+            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
 
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
@@ -646,18 +651,19 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            if (con != null) {
-                con.release();
+            if (cmd != null) {
+                cmd.releaseConnection();
             }
         }
     }
 
     public List<?> distinct(String field) {
         MongoConnection con = null;
+        DistinctMongoCommand cmd = null;
 
         try {
             con = morphium.getDriver().getPrimaryConnection(null);
-            var cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
+            cmd = new DistinctMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setKey(field).setQuery(Doc.of(toQueryObject()));
 
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
@@ -667,8 +673,8 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            if (con != null) {
-                con.release();
+            if (cmd != null) {
+                cmd.releaseConnection();
             }
         }
     }
@@ -970,7 +976,7 @@ public class Query<T> implements Cloneable {
             return cmd.explain(verbosity);
         } finally {
             if (cmd != null && cmd.getConnection() != null) {
-                cmd.getConnection().release();
+                cmd.releaseConnection();
             }
         }
     }
@@ -1002,15 +1008,16 @@ public class Query<T> implements Cloneable {
         }
 
         MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
+        CountMongoCommand cmd = null;
 
         try {
-            CountMongoCommand cmd = getCountCommand(con);
+            cmd = getCountCommand(con);
             ret = cmd.getCount();
         } catch (MorphiumDriverException e) {
             log.error("Error counting", e);
         } finally {
-            if (con != null) {
-                con.release();
+            if (cmd != null) {
+                cmd.releaseConnection();
             }
         }
 
@@ -1343,7 +1350,7 @@ public class Query<T> implements Cloneable {
             throw new RuntimeException(e);
         } finally {
             if (cmd != null && cmd.getConnection() != null) {
-                cmd.getConnection().release();
+                cmd.releaseConnection();
             }
         }
 
@@ -1414,6 +1421,7 @@ public class Query<T> implements Cloneable {
 
                 if (f != null) {
                     MongoConnection con = null;
+                    UpdateMongoCommand settings = null;
 
                     try {
                         con = getMorphium().getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(getType()));
@@ -1431,16 +1439,14 @@ public class Query<T> implements Cloneable {
 
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
-                        UpdateMongoCommand settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
+                        settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
                           Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
                     } finally {
-                        if (con != null) {
-                            con.release();
-                        }
+                        if (settings!=null) settings.releaseConnection();
                     }
                 }
             }
@@ -1548,7 +1554,7 @@ public class Query<T> implements Cloneable {
             throw new RuntimeException(e);
         } finally {
             if (settings != null) {
-                settings.getConnection().release();
+                settings.releaseConnection();
             }
         }
 
@@ -1653,7 +1659,7 @@ public class Query<T> implements Cloneable {
             throw new RuntimeException(e);
         } finally {
             if (settings != null) {
-                settings.getConnection().release();
+                settings.releaseConnection();
             }
         }
 
@@ -2196,7 +2202,7 @@ public class Query<T> implements Cloneable {
             cmd.setDb(getDB());
             cmd.setCmdData(Doc.of(txt));
             result = cmd.getConnection().readSingleAnswer(cmd.executeAsync());
-            cmd.getConnection().release();
+            cmd.releaseConnection();
         } catch (MorphiumDriverException e) {
             // TODO: Implement Handling
             throw new RuntimeException(e);
@@ -2357,7 +2363,7 @@ public class Query<T> implements Cloneable {
         } catch (Exception e) {
             throw new RuntimeException("Error running command", e);
         } finally {
-            con.release();
+            con.getDriver().releaseConnection(con);
         }
     }
 

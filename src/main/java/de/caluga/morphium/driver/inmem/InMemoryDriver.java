@@ -1433,10 +1433,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         database.clear();
     }
 
-    @Override
-    public void release() {
-        stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
-    }
 
     @Override
     public boolean isReplicaset() {

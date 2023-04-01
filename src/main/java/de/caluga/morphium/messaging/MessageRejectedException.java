@@ -52,7 +52,7 @@ public class MessageRejectedException extends RuntimeException {
                 } catch (MorphiumDriverException e) {
                     LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
                 } finally {
-                    if (cmd != null) { cmd.getConnection().release(); }
+                    if (cmd != null) { cmd.releaseConnection(); }
                 }
 
                 LoggerFactory.getLogger(msg.getClass()).debug(msg.getSenderId()+ ": Message will be re-processed by others");

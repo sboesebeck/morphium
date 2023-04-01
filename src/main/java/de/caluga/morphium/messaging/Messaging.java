@@ -122,7 +122,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
-        this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet()||m.getDriver().getName().equals(InMemoryDriver.driverName));
+        this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
@@ -524,6 +524,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             break;
                         } catch (Exception e) {
                         }
+
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
@@ -760,7 +761,7 @@ public class Messaging extends Thread implements ShutdownListener {
             var result = fnd.execute();
             //to make it work with SingleMongoConnection!
             fnd.releaseConnection();
-            fnd=null;
+            fnd = null;
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
@@ -801,6 +802,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                 }
             }
+
             if (q.countAll() != lockedIds.size()) {
                 skipped.incrementAndGet();
             }
@@ -1089,9 +1091,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             } catch (MorphiumDriverException e) {
                                 log.error("Error unlocking message", e);
                             } finally {
-                                if (cmd != null) {
-                                    cmd.getConnection().release();
-                                }
+                                cmd.releaseConnection();
                             }
 
                             log.debug(id + ": Message will be re-processed by others");
@@ -1234,7 +1234,8 @@ public class Messaging extends Thread implements ShutdownListener {
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
-            cmd=null;
+            cmd = null;
+
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
             if (ret.get("nModified") == null && ret.get("modified") == null || Integer.valueOf(0).equals(ret.get("nModified"))) {
                 if (morphium.reread(msg, getCollectionName()) != null) {
@@ -1251,9 +1252,7 @@ public class Messaging extends Thread implements ShutdownListener {
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
         } finally {
-            if (cmd != null) {
-                cmd.getConnection().release();
-            }
+            cmd.releaseConnection();
         }
     }
 
