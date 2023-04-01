@@ -52,6 +52,7 @@ public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoComm
                 ret.addAll(batch);
                 crs.ahead(batch.size());
             }
+            setConnection(null); //was released!
             long dur = System.currentTimeMillis() - start;
             setMetaData("duration", dur);
             return ret;

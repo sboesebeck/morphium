@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.base;
 
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,35 +40,48 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
-public class ShardingTests extends MorphiumTestBase{
+public class ShardingTests extends MorphiumTestBase {
 
     @Test
     public void shardingReplacementTest() throws Exception {
-        MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+        GenericCommand cmd = null;
 
         try {
-            var cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
+            MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+            cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
             int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
-            log.info("Sharding state: "+Utils.toJsonString(state));
+            log.info("Sharding state: " + Utils.toJsonString(state));
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
-            con.release();
             return;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
 
         try {
-            GenericCommand cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class))
-            .addKey("key", Doc.of("_id", "hashed")).setDb("admin");
+            MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+            cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)).addKey("key", Doc.of("_id", "hashed"))
+             .setDb("admin");
             int msgid = con.sendCommand(cmd);
             // con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
             //                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
             Map<String, Object> state = con.readSingleAnswer(msgid);
-            log.info("Sharding state: "+Utils.toJsonString(state));
+            log.info("Sharding state: " + Utils.toJsonString(state));
         } catch (MorphiumDriverException e) {
             log.error("Sharding is enabled, but morphium_test sharding is not it seems");
-            con.release();
+
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+
             return;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
 
         createUncachedObjects(morphium, 10000);
@@ -87,31 +99,42 @@ public class ShardingTests extends MorphiumTestBase{
         morphium.reread(uc, morphium.getMapper().getCollectionName(UncachedObject.class));
         assert(uc.getStrValue().equals("another value"));
     }
+
     @Test
     public void shardingStringIdReplacementTest() throws Exception {
-        MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+        GenericCommand cmd = null;
 
         try {
-            var cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
+            MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+            cmd = new GenericCommand(con).addKey("listShards", 1).setDb("morphium_test").setColl("admin");
             int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
-            log.info("Sharding state: "+Utils.toJsonString(state));
+            log.info("Sharding state: " + Utils.toJsonString(state));
         } catch (MorphiumDriverException e) {
             log.info("Not sharded, it seems");
-            con.release();
             return;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
 
+        cmd = null;
+
         try {
-            GenericCommand cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class))
-            .addKey("key", Doc.of("_id", "hashed")).setDb("admin");
+            MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
+            cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)).addKey("key", Doc.of("_id", "hashed"))
+             .setDb("admin");
             int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
-            log.info("Sharding state: "+Utils.toJsonString(state));
+            log.info("Sharding state: " + Utils.toJsonString(state));
         } catch (MorphiumDriverException e) {
             log.error("Sharding is enabled, but morphium_test sharding is not it seems");
-            con.release();
             return;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
 
         StringIdTestEntity uc = new StringIdTestEntity();
@@ -139,10 +162,9 @@ public class ShardingTests extends MorphiumTestBase{
         public String id;
         public String value;
 
-        public enum Fields {value, id}
+        public enum Fields {
+            value, id
+        }
     }
 
-
-
-    
 }

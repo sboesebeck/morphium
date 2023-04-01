@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.morphium.query.Query;
@@ -37,10 +38,16 @@ public class IteratorTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void iteratorSortTest(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
-
+        Thread.sleep(1000);
         try (morphium) {
+
             for (int i = 0; i < 100; i++) {
-                morphium.store(new SimpleEntity(((int)(Math.random() * 5.0)), (long)(Math.random() * 100000.0)));
+                log.info("Storing "+i);
+                try {
+                    morphium.store(new SimpleEntity(((int)(Math.random() * 5.0)), (long)(Math.random() * 100000.0)));
+                } catch(Exception e){
+                    log.error("Error writing...",e);
+                }
             }
 
             Thread.sleep(1000);

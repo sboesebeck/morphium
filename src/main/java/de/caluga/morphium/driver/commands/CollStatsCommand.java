@@ -16,26 +16,16 @@ public class CollStatsCommand extends MongoCommand<CollStatsCommand> {
         super(d);
     }
 
-    public CollStatsCommand(MorphiumDriver drv) {
-        super(null);
-        this.drv = drv;
-    }
-
     @Override
     public int executeAsync() throws MorphiumDriverException {
         if (getConnection() != null) {
             return super.executeAsync();
         }
-        MongoConnection con = null;
+
         try {
-            con = drv.getPrimaryConnection(null);
-            setConnection(con);
             var ret = super.executeAsync();
-            setConnection(null);
             return ret;
         } finally {
-            if (con != null)
-                con.release();
         }
     }
 
@@ -54,19 +44,12 @@ public class CollStatsCommand extends MongoCommand<CollStatsCommand> {
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {
-        if (getConnection() != null) {
-            var msgid = getConnection().sendCommand(this);
-            return getConnection().readSingleAnswer(msgid);
-        }
-        MongoConnection con = null;
         try {
-            con = drv.getPrimaryConnection(null);
-
-            var msgid = con.sendCommand(this);
-            var ret = con.readSingleAnswer(msgid);
+            var msgid = getConnection().sendCommand(this);
+            var ret = getConnection().readSingleAnswer(msgid);
             return ret;
         } finally {
-            if (con != null) con.release();
+            releaseConnection();
         }
     }
 }

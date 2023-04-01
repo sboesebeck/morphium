@@ -85,8 +85,9 @@ public abstract class DriverBase implements MorphiumDriver {
             primaryConnection=getPrimaryConnection(null);
             if (primaryConnection==null) throw new IllegalArgumentException("could not get connection");
         }
+        ListCollectionsCommand cmd=null;
         try {
-            ListCollectionsCommand cmd = new ListCollectionsCommand(primaryConnection);
+             cmd = new ListCollectionsCommand(primaryConnection);
             cmd.setDb(db).setNameOnly(true);
 
             if (regex != null) {
@@ -103,9 +104,8 @@ public abstract class DriverBase implements MorphiumDriver {
 
             return colNames;
         } finally {
-            if (primaryConnection != null) {
-                primaryConnection.release();
-            }
+            // if (cmd!=null) cmd.releaseConnection();
+            //DO NOT RELEASE - Internally using cursor, you might release it twice!!
         }
     }
 
@@ -266,9 +266,9 @@ public abstract class DriverBase implements MorphiumDriver {
         }
 
         MongoConnection primaryConnection = getPrimaryConnection(null);
-
+ListDatabasesCommand cmd=null;
         try {
-            ListDatabasesCommand cmd = new ListDatabasesCommand(primaryConnection);
+             cmd = new ListDatabasesCommand(primaryConnection);
             var msg = primaryConnection.sendCommand(cmd);
             Map<String, Object> res = primaryConnection.readSingleAnswer(msg);
             List<String> ret = new ArrayList<>();
@@ -288,7 +288,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
             return ret;
         } finally {
-            primaryConnection.release();
+            if (cmd!=null) cmd.releaseConnection();
         }
     }
 

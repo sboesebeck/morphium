@@ -32,6 +32,7 @@ import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
+import de.caluga.morphium.writer.MorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 public class PooledDriverTest {
@@ -76,7 +77,7 @@ public class PooledDriverTest {
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
             cmd.setDb("morphium_test");
             cmd.execute();
-            con.release();
+            drv.releaseConnection(con);
 
             for (int i = 0; i < amount; i++) {
                 if (i % 100 == 0) {
@@ -90,10 +91,10 @@ public class PooledDriverTest {
                 var m = insert.execute();
                 assertEquals(2, m.get("n"), "should insert 2 elements");
                 //log.info(Utils.toJsonString(m));
-                con.release();
+                drv.releaseConnection(con);
             }
 
-            con.release();
+            drv.releaseConnection(con);
             long d = System.currentTimeMillis() - start;
             log.info("Writing took: " + d);
             start = System.currentTimeMillis();
@@ -110,7 +111,7 @@ public class PooledDriverTest {
                 assertEquals(ret.size(), 1, "Should find exactly one element");
             }
 
-            c.release();
+            drv.releaseConnection(con);
         }
 
         long dur = System.currentTimeMillis() - start;
@@ -209,6 +210,7 @@ public class PooledDriverTest {
         drv.setMaxConnectionLifetime(1000);
         drv.setMaxConnectionIdleTime(500);
         drv.setDefaultReadPreference(ReadPreference.nearest());
+        drv.setHeartbeatFrequency(1000);
         return drv;
     }
 
@@ -222,9 +224,9 @@ public class PooledDriverTest {
         }
 
         log.info("Connected...");
-        int loops = 15;
-        int readThreads = 15;
-        int primaryThreads = 10;
+        int loops = 25;
+        int readThreads = 25;
+        int primaryThreads = 20;
         var error = new AtomicInteger(0);
         List<Thread> threads = new ArrayList<>();
         var primaryRun = new Runnable() {
@@ -232,16 +234,18 @@ public class PooledDriverTest {
                 for (int i = 0; i < loops; i++) {
                     try {
                         var con = drv.getPrimaryConnection(null);
-
-                        if (!drv.getBorrowedConnections().containsKey(con.getSourcePort())) {
-                            log.error("Key not found - not borrowed? " + drv.getBorrowedConnections().size());
-                        }
-
                         Thread.sleep((long)(1000 * Math.random()));
                         var res = new HelloCommand(con);
                         res.setIncludeClient(false);
                         var r = res.execute();
-                        con.release();
+                        res.releaseConnection();
+
+                        con=drv.getPrimaryConnection(null);
+                        InsertMongoCommand cmd=new InsertMongoCommand(con);
+                        cmd.setDb("testdb").setColl("testcoll").setDocuments(List.of(Doc.of("value","Hello world")));
+                        cmd.execute();
+                        cmd.releaseConnection();
+
                     } catch (Exception e) {
                         log.error("error", e);
                         error.incrementAndGet();
@@ -262,7 +266,10 @@ public class PooledDriverTest {
                     try {
                         var con = drv.getReadConnection(null);
                         Thread.sleep((long)(1000 * Math.random()));
-                        con.release();
+                        var res = new HelloCommand(con);
+                        res.setIncludeClient(false);
+                        var r = res.execute();
+                        res.releaseConnection();
                     } catch (Exception e) {
                         log.error("error", e);
                         error.incrementAndGet();
@@ -491,10 +498,10 @@ public class PooledDriverTest {
             var c3 = drv.getPrimaryConnection(null);
             var c4 = drv.getPrimaryConnection(null);
             assertEquals(4, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
-            c1.release();
-            c2.release();
-            c3.release();
-            c4.release();
+            drv.releaseConnection(c1);
+            drv.releaseConnection(c2);
+            drv.releaseConnection(c3);
+            drv.releaseConnection(c4);
             assertTrue(drv.getNumConnectionsByHost().get("127.0.0.1:27017") > 2);
             Thread.sleep(6100);
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
@@ -564,6 +571,7 @@ public class PooledDriverTest {
 
                 drop.releaseConnection();
                 assertNull(drop.getConnection());
+                assertTrue(((PooledDriver) drv).getBorrowedConnections().size() <= 1);
             } catch (Exception e) {
                 e.printStackTrace();
             }

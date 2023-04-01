@@ -24,7 +24,7 @@ public interface MongoConnection extends Closeable {
 
     void close();
 
-    void release();
+    // void release();
 
     boolean isConnected();
 

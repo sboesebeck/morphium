@@ -89,7 +89,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         //end of stream
         if (getBatch() == null || getBatch().isEmpty()) {
             if (connection != null) {
-                connection.release();
+                connection.getDriver().releaseConnection(connection);
                 connection = null;
             }
             return false;
@@ -110,7 +110,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
             if (getBatch() == null || getBatch().isEmpty()) {
                 if (connection != null) {
-                    connection.release();
+                    connection.getDriver().releaseConnection(connection);
                     connection = null;
                 }
 
@@ -121,7 +121,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         }
 
         if (connection != null) {
-            connection.release();
+            connection.getDriver().releaseConnection(connection);
             connection = null;
         }
 
@@ -171,7 +171,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
             getConnection().closeIteration(this);
 
             if (connection != null) {
-                connection.release();
+                connection.getDriver().releaseConnection(connection);
                 connection = null;
             }
         } catch (MorphiumDriverException e) {
@@ -202,7 +202,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
         if (getCursorId() == 0L) {
             if (connection != null) {
-                connection.release();
+                connection.getDriver().releaseConnection(connection);
                 connection = null;
             }
         }

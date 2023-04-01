@@ -220,23 +220,23 @@ public class MultiDriverTestBase {
         if (morphiums.get(0).get()[0] instanceof InMemoryDriver) {
             log.info("Not erasing DBs - inMem");
         } else {
-            Morphium m = (Morphium) morphiums.get(0).get()[0];
-
-            for (String db : m.listDatabases()) {
-                if (db.startsWith("morphium")) {
-                    log.info(m.getDriver().getName()+": Dropping db " + db);
-
-                    try {
-                        DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
-                        cmd.setDb(db);
-                        cmd.setComment("Delete for testing");
-                        cmd.execute();
-                        cmd.releaseConnection();
-                    } catch (MorphiumDriverException e) {
-                        log.error(m.getDriver().getName()+" Dropping failed",e);
-                    }
-                }
-            }
+            // Morphium m = (Morphium) morphiums.get(0).get()[0];
+            //
+            // for (String db : m.listDatabases()) {
+            //     if (db.startsWith("morphium")) {
+            //         log.info(m.getDriver().getName()+": Dropping db " + db);
+            //
+            //         try {
+            //             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
+            //             cmd.setDb(db);
+            //             cmd.setComment("Delete for testing");
+            //             cmd.execute();
+            //             cmd.releaseConnection();
+            //         } catch (MorphiumDriverException e) {
+            //             log.error(m.getDriver().getName()+" Dropping failed",e);
+            //         }
+            //     }
+            // }
         }
 
         return morphiums.stream();

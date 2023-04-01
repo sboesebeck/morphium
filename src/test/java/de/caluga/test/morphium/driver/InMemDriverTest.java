@@ -9,6 +9,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Test;
@@ -96,7 +97,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         createIndexesCommand.addIndex(new IndexDescription().setKey(Doc.of("strVal", 1)));
         createIndexesCommand.execute();
 
-        CollStatsCommand collStatsCommand = new CollStatsCommand((MorphiumDriver) drv).setDb(db).setColl(coll);
+        CollStatsCommand collStatsCommand = new CollStatsCommand((MongoConnection) drv).setDb(db).setColl(coll);
         var collStats = collStatsCommand.execute();
         assertNotNull(collStats.get("nindexes"));
         assertTrue((int) collStats.get("nindexes") > 1);

@@ -188,8 +188,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     @Override
     public void run() {
-        MongoConnection con = null;
-
+        WatchCommand watch=null;
         while (running) {
             try {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
@@ -225,8 +224,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                con = dedicatedConnection.getPrimaryConnection(null);
-                WatchCommand watchCommand = new WatchCommand(con)
+                var con = dedicatedConnection.getPrimaryConnection(null);
+                watch = new WatchCommand(con)
                     .setCb(callback)
                     .setDb(morphium.getDatabase())
                     .setBatchSize(1)
@@ -235,11 +234,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     .setPipeline(pipeline);
 
                 if (!dbOnly) {
-                    watchCommand.setColl(collectionName);
+                    watch.setColl(collectionName);
                     //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 }
 
-                watchCommand.watch();
+                watch.watch();
             } catch (Exception e) {
                 if (e.getMessage()==null){
                     log.warn("Restarting changestream",e);
@@ -262,13 +261,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
                 }
+            } finally {
+                if (watch!=null){
+                    watch.releaseConnection();
+                }
             }
         }
-
-        if (con != null) {
-            con.release();
-        }
-
         try {
             if (!(dedicatedConnection instanceof InMemoryDriver)) {
                 dedicatedConnection.close();

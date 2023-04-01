@@ -221,7 +221,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     long dur = System.currentTimeMillis() - start;
                     log.info(thrNum + ": Getting: " + dur);
                     Thread.sleep(10);
-                    c.release();
+                    c.getDriver().releaseConnection(c);
                     log.info(thrNum + "release: " + (System.currentTimeMillis() - start - 10));
                 } catch (Exception e) {
                     e.printStackTrace();

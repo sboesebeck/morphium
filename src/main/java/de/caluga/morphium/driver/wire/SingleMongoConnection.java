@@ -346,10 +346,10 @@ public class SingleMongoConnection implements MongoConnection {
         driver.closeConnection(this);
     }
 
-    @Override
-    public void release() {
-        driver.releaseConnection(this);
-    }
+    // @Override
+    // public void release() {
+    //     driver.releaseConnection(this);
+    // }
 
 
     // @Override

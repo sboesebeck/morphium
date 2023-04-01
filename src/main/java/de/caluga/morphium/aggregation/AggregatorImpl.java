@@ -164,7 +164,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         try {
             return cmd.explain(verbosity);
         } finally {
-            cmd.getConnection().release();
+            cmd.releaseConnection();
         }
     }
 

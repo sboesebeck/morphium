@@ -36,7 +36,8 @@ public abstract class MongoCommand<T extends MongoCommand> {
     }
 
     public void releaseConnection() {
-        getConnection().release();
+        if (getConnection()==null) return;
+        getConnection().getDriver().releaseConnection(connection);
         connection=null;
     }
 

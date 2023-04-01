@@ -39,15 +39,16 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
         if (getConnection() != null) {
             return super.executeAsync();
         }
-        MongoConnection con = null;
+
         try {
+            MongoConnection con = null;
             con = drv.getPrimaryConnection(null);
             setConnection(con);
             var ret = super.executeAsync();
             setConnection(null);
             return ret;
         } finally {
-            if (con != null) con.release();
+            // if (con != null) con.release();
         }
     }
 
@@ -70,19 +71,22 @@ public class CurrentOpCommand extends MongoCommand<CurrentOpCommand> {
         var m = super.asMap();
         m.put(getCommandName(), "1");
         m.remove("secsRunning");
+
         if (secsRunning != 0) {
             m.put("secs_running", Doc.of("$gt", secsRunning));
         }
+
         if (filter != null) {
             m.putAll(filter);
         }
+
         return m;
     }
 
     @Override
     public CurrentOpCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        secsRunning= (int) ((Map)m.get("secs_running")).get("$gt");
+        secsRunning = (int)((Map) m.get("secs_running")).get("$gt");
         return this;
     }
 

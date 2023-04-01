@@ -405,7 +405,6 @@ public class Morphium implements AutoCloseable {
         config.getCache().setAnnotationAndReflectionHelper(getARHelper());
         config.getCache().setGlobalCacheTimeout(config.getGlobalCacheValidTime());
         config.getCache().setHouskeepingIntervalPause(config.getHousekeepingTimeout());
-
         // if (getConfig().isOplogMonitorEnabled()) {
         // oplogMonitor = new OplogMonitor(this);
         // oplogMonitorThread = new Thread(oplogMonitor);
@@ -413,13 +412,11 @@ public class Morphium implements AutoCloseable {
         // oplogMonitorThread.setName("oplogmonitor");
         // oplogMonitorThread.start();
         // }
-
         // if (isReplicaSet()) {
         //     rsMonitor = new RSMonitor(this);
         //     rsMonitor.start();
         //     rsMonitor.getReplicaSetStatus(false);
         // }
-
         log.debug("Checking for capped collections...");
         // checking capped
         var capped = checkCapped();
@@ -448,10 +445,11 @@ public class Morphium implements AutoCloseable {
                     try {
                         if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
                             MongoConnection primaryConnection = null;
+                            CreateCommand cmd = null;
 
                             try {
                                 primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                                CreateCommand cmd = new CreateCommand(primaryConnection);
+                                cmd = new CreateCommand(primaryConnection);
                                 cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
                                 var ret = cmd.execute();
                                 log.debug("Created capped collection");
@@ -459,7 +457,7 @@ public class Morphium implements AutoCloseable {
                                 throw new RuntimeException(e);
                             } finally {
                                 if (primaryConnection != null) {
-                                    primaryConnection.release();
+                                    cmd.releaseConnection();
                                 }
                             }
                         }
@@ -828,7 +826,7 @@ public class Morphium implements AutoCloseable {
                     // cmd.put("autoIndexId",
                     // (annotationHelper.getIdField(c).getType().equals(MorphiumId.class)));
                     create.execute();
-                    primaryConnection.release();
+                    create.releaseConnection();
                 } else {
                     Capped capped = annotationHelper.getAnnotationFromHierarchy(c, Capped.class);
 
@@ -1967,7 +1965,7 @@ public class Morphium implements AutoCloseable {
             MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
             FindCommand settings = new FindCommand(con).setDb(config.getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
             List<Map<String, Object>> found = settings.execute();
-            con.release();
+            settings.releaseConnection();
             // log.info("Reread took: "+settings.getMetaData().get("duration"));
 
             if (found != null && !found.isEmpty()) {
@@ -2263,7 +2261,7 @@ public class Morphium implements AutoCloseable {
         long timeout = safety.timeout();
 
         if (isReplicaSet() && w > 2) {
-            var hostSeed=getDriver().getHostSeed(); //list of available hosts
+            var hostSeed = getDriver().getHostSeed(); //list of available hosts
             // de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
 
             if (log.isDebugEnabled()) {
@@ -3384,14 +3382,17 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
-        var con = getDriver().getPrimaryConnection(null);
+        StoreMongoCommand store = null;
 
         try {
-            StoreMongoCommand settings = new StoreMongoCommand(con).setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocuments(lst);
-            con.release();
+            var con = getDriver().getPrimaryConnection(null);
+            store = new StoreMongoCommand(con).setColl(getMapper().getCollectionName(type)).setDb(getDatabase()).setDocuments(lst);
+            store.execute();
             return null;
         } finally {
-            con.release();
+            if (store != null) {
+                store.releaseConnection();
+            }
         }
     }
 
@@ -3411,16 +3412,19 @@ public class Morphium implements AutoCloseable {
     }
 
     public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
-        MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
+        StoreMongoCommand store = null;
 
         try {
-            StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setColl(collection).setDb(getDatabase()).setDocuments(lst);
-            Map<String, Object> ret = settings.execute();
+            MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
+            store = new StoreMongoCommand(primaryConnection).setColl(collection).setDb(getDatabase()).setDocuments(lst);
+            Map<String, Object> ret = store.execute();
             Map<String, Integer> res = new HashMap<>();
             res.put("stored", (Integer) ret.get("stored"));
             return res;
         } finally {
-            primaryConnection.release();
+            if (store != null) {
+                store.releaseConnection();
+            }
         }
     }
 
@@ -4118,12 +4122,11 @@ public class Morphium implements AutoCloseable {
     }
 
     public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
-        MongoConnection con = null;
+        WatchCommand cmd = null;
 
         try {
-            con = getDriver().getPrimaryConnection(null);
-            WatchCommand cmd =
-             new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
+            MongoConnection con = getDriver().getPrimaryConnection(null);
+            cmd = new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
              .setPipeline(pipeline).setCb(new DriverTailableIterationCallback() {
                 @Override
                 public void incomingData(Map<String, Object> data, long dur) {
@@ -4142,8 +4145,8 @@ public class Morphium implements AutoCloseable {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            if (con != null) {
-                con.release();
+            if (cmd != null) {
+                cmd.releaseConnection();
             }
         }
     }
@@ -4367,7 +4370,7 @@ public class Morphium implements AutoCloseable {
          // .verbose() // Enable verbose logging
          .enableAnnotationInfo()
          // .enableFieldInfo()
-         .enableClassInfo()       // Scan classes, methods, fields, annotations
+         .enableClassInfo()             // Scan classes, methods, fields, annotations
          .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
