@@ -282,8 +282,9 @@ public class MorphiumTestBase {
             while (retry) {
                 con = morphium.getDriver().getPrimaryConnection(null);
                  cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-
-                for (var collMap : cmd.execute()) {
+                var lst=cmd.execute();
+                cmd.releaseConnection();
+                for (var collMap : lst) {
                     String coll = (String) collMap.get("name");
                     log.info("Dropping collection " + coll);
 
@@ -299,16 +300,24 @@ public class MorphiumTestBase {
                 long start = System.currentTimeMillis();
                 retry = false;
 
-                while (cmd.execute().size() > 0) {
+                boolean collectionsExist=true;
+                while (collectionsExist) {
                     Thread.sleep(100);
 
-                    for (var k : cmd.execute()) {
+                    con = morphium.getDriver().getPrimaryConnection(null);
+                     cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                    lst=cmd.execute();
+                    cmd.releaseConnection();
+                    for (var k : lst) {
                         log.info("Collections still there..." + k.get("name"));
                     }
 
                     if (System.currentTimeMillis() - start > 1500) {
                         retry = true;
                         break;
+                    }
+                    if (lst.size()==0){
+                        collectionsExist=false;
                     }
                 }
             }
