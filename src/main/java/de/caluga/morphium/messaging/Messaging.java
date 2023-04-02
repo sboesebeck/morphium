@@ -1252,7 +1252,9 @@ public class Messaging extends Thread implements ShutdownListener {
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
