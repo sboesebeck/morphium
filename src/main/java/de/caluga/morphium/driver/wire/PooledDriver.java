@@ -409,7 +409,7 @@ public class PooledDriver extends DriverBase {
                         }
 
                         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-                        log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
+                        // log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
                         return c.getCon();
                     }
 
