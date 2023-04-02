@@ -75,16 +75,6 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
         MongoConnection primaryConnection = getPrimaryConnection(null);
-        if (primaryConnection==null){
-            log.info("waiting");
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-            }
-            primaryConnection=getPrimaryConnection(null);
-            if (primaryConnection==null) throw new IllegalArgumentException("could not get connection");
-        }
         ListCollectionsCommand cmd=null;
         try {
              cmd = new ListCollectionsCommand(primaryConnection);
@@ -104,8 +94,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
             return colNames;
         } finally {
-            // if (cmd!=null) cmd.releaseConnection();
-            //DO NOT RELEASE - Internally using cursor, you might release it twice!!
+            if (cmd!=null) cmd.releaseConnection();
         }
     }
 

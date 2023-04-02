@@ -38,7 +38,6 @@ public class IteratorTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void iteratorSortTest(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
-        Thread.sleep(1000);
         try (morphium) {
 
             for (int i = 0; i < 100; i++) {
