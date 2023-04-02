@@ -353,10 +353,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 createCappedCollection(type, coll);
             }
 
-            // if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
-            //     morphium.ensureIndicesFor(type, coll, callback);
-            // }
-
+            // // if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
+            // //     morphium.ensureIndicesFor(type, coll, callback);
+            // // }
+            //
             // switch (morphium.getConfig().getIndexCheck()) {
             // case CREATE_ON_WRITE_NEW_COL:
             // if (logger.isDebugEnabled()) {

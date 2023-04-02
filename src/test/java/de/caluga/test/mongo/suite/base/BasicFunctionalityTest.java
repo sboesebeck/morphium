@@ -96,7 +96,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
 
         try (morphium) {
-            log.info("----> Running with: "+morphium.getDriver().getName());
+            log.info("----> Running with: " + morphium.getDriver().getName());
             //trying to connect with the sepcified driver to non existent mongo
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg.setCredentialsEncrypted(false);
@@ -113,7 +113,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void idQueryTest(Morphium m) {
         try (m) {
-            log.info("----> Running with: "+m.getDriver().getName());
+            log.info("----> Running with: " + m.getDriver().getName());
             createUncachedObjects(m, 10);
             var lst = m.createQueryFor(UncachedObject.class).limit(3).idList();
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.morphiumId).nin(lst).countAll();
@@ -125,7 +125,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void inTest(Morphium m) {
         try (m) {
-            log.info("----> Running with: "+m.getDriver().getName());
+            log.info("----> Running with: " + m.getDriver().getName());
             createUncachedObjects(m, 10);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).in(Arrays.asList(1, 5, 6, 102)).countAll();
             assertEquals(3, cnt);
@@ -144,7 +144,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void existTest(Morphium m) {
         try (m) {
-            log.info("----> Running with: "+m.getDriver().getName());
+            log.info("----> Running with: " + m.getDriver().getName());
             createUncachedObjects(m, 10);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).exists().countAll();
             assertEquals(0, cnt);
@@ -683,11 +683,47 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
+    public void cachedObjectWriting(Morphium morphium) throws Exception {
+        String tstName = new Object() {
+        }
+        .getClass().getEnclosingMethod().getName();
+        log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
+
+        try (morphium) {
+            for (int i = 0; i < 100; i++) {
+                CachedObject co = new CachedObject();
+                co.setValue("test");
+                co.setCounter(4242);
+                morphium.store(co);
+            }
+
+            Thread.sleep(1000);
+
+            while (true) {
+                Thread.sleep(1000);
+
+                try {
+                    var cnt = morphium.createQueryFor(CachedObject.class).countAll();
+
+                    if (cnt == 100) {
+                        break;
+                    }
+
+                    log.info("Still waiting...");
+                } catch (Exception e) {
+                    log.info("Error getting count..");
+                }
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
     public void mixedListWritingTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
         .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
             List<Object> tst = new ArrayList<>();
@@ -715,6 +751,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             long start = System.currentTimeMillis();
 
             while (true) {
+                Thread.sleep(1000);
                 Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
 

@@ -20,6 +20,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void testCount(Morphium morphium) throws Exception {
         try (morphium) {
+
             createUncachedObjects(morphium, 1000);
 
             Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);

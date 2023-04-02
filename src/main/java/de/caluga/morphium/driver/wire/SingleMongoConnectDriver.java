@@ -104,14 +104,15 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     public MongoConnection getConnection() throws MorphiumDriverException {
-        long waitUntil=System.currentTimeMillis()+getMaxWaitTime();
+        long waitUntil=System.currentTimeMillis()+getMaxWaitTime()*5; //just to be sure - single connection!
+
         while (connectionInUse){
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
             }
             if (System.currentTimeMillis()>waitUntil){
-                throw new MorphiumDriverException("could not get connection - still in use!");
+                throw new MorphiumDriverException("could not get connection - still in use after "+getMaxWaitTime());
             }
         }
         incStat(DriverStatsKey.CONNECTIONS_BORROWED);
