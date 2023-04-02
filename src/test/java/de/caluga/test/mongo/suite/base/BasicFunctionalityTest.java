@@ -612,6 +612,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             var q = m.createQueryFor(CachedObject.class);
 
             while (q.countAll() < NO_OBJECTS) {
+                Thread.sleep(100);
                 m.clearCachefor(CachedObject.class);
                 assertThat(System.currentTimeMillis() - start < 5000);
             }
