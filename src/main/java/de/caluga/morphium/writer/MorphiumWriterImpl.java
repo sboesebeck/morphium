@@ -1716,8 +1716,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     if (settings != null && settings.getUpdates().size() != 0) {
-                        con = morphium.getDriver().getPrimaryConnection(wc);
-                        settings = new UpdateMongoCommand(con).setDb(getDbName()).setColl(coll);
                         var result = settings.execute();
                         settings.releaseConnection();
                         sumUp(result, ret);
