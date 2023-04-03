@@ -8,6 +8,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.morphium.annotations.Property;
+import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CappedCol;
@@ -58,6 +59,7 @@ public class IndexTest extends MultiDriverTestBase {
             morphium.dropCollection(IndexedObject.class);
             morphium.dropCollection(CappedCol.class);
             morphium.getConfig().setIndexCheck(MorphiumConfig.IndexCheck.NO_CHECK);
+            // morphium.createIndex(UncachedObject.class,"uncached_object",new IndexDescription().setKey(Doc.of("counter",-1)).setName("test1"),null);
             morphium.storeNoCache(new UncachedObject("value", 12));
             Thread.sleep(100);
             morphium.getConfig().setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_WRITE_NEW_COL);

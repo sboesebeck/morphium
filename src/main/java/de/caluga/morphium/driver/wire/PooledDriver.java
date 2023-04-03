@@ -573,7 +573,7 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-    public MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
+    public synchronized MongoConnection getPrimaryConnection(WriteConcern wc) throws MorphiumDriverException {
         if (primaryNode == null) {
             throw new MorphiumDriverException("No primary node found - connection not established yet?");
         }

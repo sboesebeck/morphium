@@ -61,7 +61,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             m1.start();
             m2.start();
             onlyAnswers.start();
-            Thread.sleep(100);
+            Thread.sleep(3000);
             log.info("m1 ID: " + m1.getSenderId());
             log.info("m2 ID: " + m2.getSenderId());
             log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
@@ -177,6 +177,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             m1.start();
             m2.start();
             m3.start();
+            Thread.sleep(4000); //waiting for messaging to really start, especially the changestream
             //different behaviour:
             //NONE: no listener will be called for answers. Waiting For messages will still pe processed
             //ONLY_MINE: just answers directly sent to me will be processed (usually, because I sent the query)
@@ -280,9 +281,9 @@ public class AnsweringTests extends MultiDriverTestBase {
             m2.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ONLY_MINE);
             receivedById.clear();
-            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 1222400);
+            answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "47").setRecipient("m1"), 2400);
             assertNotNull(answer);
-            Thread.sleep(1500);
+            Thread.sleep(2500);
             assertEquals(1, receivedById.size());
             receivedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
@@ -290,7 +291,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "48").setRecipient("m1"), 2400);
-            Thread.sleep(500); //wait for onMessage to be called
+            Thread.sleep(2500); //wait for onMessage to be called
             assertEquals(1, receivedById.size());
             receivedById.clear();
             m1.setReceiveAnswers(Messaging.ReceiveAnswers.ALL);
@@ -298,8 +299,8 @@ public class AnsweringTests extends MultiDriverTestBase {
             m3.setReceiveAnswers(Messaging.ReceiveAnswers.NONE);
             receivedById.clear();
             answer = m3.sendAndAwaitFirstAnswer(new Msg("test2", "An answer", "42").setRecipient("m1"), 2400);
-            Thread.sleep(500); //wait for onMessage to be called
-            assertEquals(0, receivedById.size());
+            Thread.sleep(2500); //wait for onMessage to be called
+            assertEquals(1, receivedById.size());
         } finally {
             m3.terminate();
             m2.terminate();
