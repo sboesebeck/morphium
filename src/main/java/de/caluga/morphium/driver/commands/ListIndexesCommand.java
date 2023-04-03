@@ -41,6 +41,7 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
             }
             lst.add(idx);
         }
+        setConnection(null); //cursor released connection already!!!!!
         return lst;
     }
 }

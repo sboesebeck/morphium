@@ -396,6 +396,9 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
     public void releaseConnection(MongoConnection con) {
+        // if (!connectionInUse) {
+        //     log.error("Connection was NOT borrowed!!!");
+        // }
         incStat(DriverStatsKey.CONNECTIONS_RELEASED);
         connectionInUse = false;
 

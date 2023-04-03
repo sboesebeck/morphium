@@ -2499,10 +2499,11 @@ public class Morphium implements AutoCloseable {
     @SuppressWarnings("unchecked")
     public List<Object> distinct(String key, Query q) {
         MongoConnection con = null;
+        DistinctMongoCommand settings = null; //new DistinctMongoCommand(con).setColl(q.getCollectionName()).setDb(config.getDatabase()).setQuery(Doc.of(q.toQueryObject())).setKey(key);
 
         try {
             con = getDriver().getPrimaryConnection(null);
-            DistinctMongoCommand settings = new DistinctMongoCommand(con).setColl(q.getCollectionName()).setDb(config.getDatabase()).setQuery(Doc.of(q.toQueryObject())).setKey(key);
+            settings = new DistinctMongoCommand(con).setColl(q.getCollectionName()).setDb(config.getDatabase()).setQuery(Doc.of(q.toQueryObject())).setKey(key);
 
             if (q.getCollation() != null) {
                 settings.setCollation(Doc.of(q.getCollation().toQueryObject()));
@@ -2512,7 +2513,7 @@ public class Morphium implements AutoCloseable {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            getDriver().releaseConnection(con);
+            if (settings!=null) settings.releaseConnection();
         }
     }
 
@@ -2522,10 +2523,10 @@ public class Morphium implements AutoCloseable {
 
     public List<Object> distinct(String key, Class cls, Collation collation) {
         MongoConnection con = null;
-
+        DistinctMongoCommand settings=null;
         try {
             con = morphiumDriver.getPrimaryConnection(null);
-            DistinctMongoCommand settings = new DistinctMongoCommand(con).setColl(objectMapper.getCollectionName(cls)).setDb(config.getDatabase()).setKey(getARHelper().getMongoFieldName(cls, key));
+             settings = new DistinctMongoCommand(con).setColl(objectMapper.getCollectionName(cls)).setDb(config.getDatabase()).setKey(getARHelper().getMongoFieldName(cls, key));
 
             if (collation != null) {
                 settings.setCollation(Doc.of(collation.toQueryObject()));
@@ -2535,7 +2536,7 @@ public class Morphium implements AutoCloseable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            getDriver().releaseConnection(con);
+            settings.releaseConnection();
         }
     }
 
@@ -2546,10 +2547,10 @@ public class Morphium implements AutoCloseable {
 
     public List<Object> distinct(String key, String collectionName, Collation collation) {
         MongoConnection con = null;
-
+        DistinctMongoCommand cmd=null;
         try {
             con = getDriver().getPrimaryConnection(null);
-            DistinctMongoCommand cmd = new DistinctMongoCommand(con);
+             cmd = new DistinctMongoCommand(con);
             cmd.setColl(collectionName).setDb(config.getDatabase()).setKey(key).setCollation(collation.toQueryObject());
             return cmd.execute();
             // return morphiumDriver.distinct(config.getDatabase(), collectionName, key, new
@@ -2557,7 +2558,7 @@ public class Morphium implements AutoCloseable {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            getDriver().releaseConnection(con);
+            cmd.releaseConnection();
         }
     }
 
@@ -3091,7 +3092,7 @@ public class Morphium implements AutoCloseable {
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            getDriver().releaseConnection(readConnection);
+            cmd.releaseConnection();
         }
     }
 
@@ -3448,7 +3449,7 @@ public class Morphium implements AutoCloseable {
         StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(collection).setDocuments(Arrays.asList(Doc.of(m)));
         Map<String, Integer> res = new HashMap<>();
         Map<String, Object> result = settings.execute();
-        getDriver().releaseConnection(primaryConnection);
+        settings.releaseConnection();
         res.put("stored", (Integer) result.get("stored"));
         return res;
     }
@@ -3467,15 +3468,23 @@ public class Morphium implements AutoCloseable {
     public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
         StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setDocuments(Arrays.asList(m));
-        WriteConcern wc = getWriteConcernForClass(type);
 
-        if (wc != null) {
-            settings.setWriteConcern(wc.asMap());
+        try {
+            WriteConcern wc = getWriteConcernForClass(type);
+
+            if (wc != null) {
+                settings.setWriteConcern(wc.asMap());
+            }
+
+            var ret = settings.execute();
+            settings.releaseConnection();
+            settings = null;
+            return ret;
+        } finally {
+            if (settings != null) {
+                settings.releaseConnection();
+            }
         }
-
-        var ret = settings.execute();
-        getDriver().releaseConnection(primaryConnection);
-        return ret;
     }
 
     /**
@@ -3745,7 +3754,7 @@ public class Morphium implements AutoCloseable {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
         ListDatabasesCommand cmd = new ListDatabasesCommand(primaryConnection);
         var dbs = cmd.getList();
-        getDriver().releaseConnection(primaryConnection);
+        cmd.releaseConnection();
 
         // var ret = getDriver().runCommand("admin", Doc.of("listDatabasess", 1));
         for (Map<String, Object> l : dbs) {
@@ -3866,9 +3875,9 @@ public class Morphium implements AutoCloseable {
 
         try {
             MapReduceCommand mr = new MapReduceCommand(readConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setMap(map).setReduce(reduce);
+            mr.releaseConnection();
             return mr.explain(verbose);
         } finally {
-            getDriver().releaseConnection(readConnection);
         }
     }
 
@@ -3878,6 +3887,7 @@ public class Morphium implements AutoCloseable {
         try {
             MapReduceCommand mr = new MapReduceCommand(readConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setMap(map).setReduce(reduce);
             List<Map<String, Object>> result = mr.execute();
+            mr.releaseConnection();
             List<T> ret = new ArrayList<>();
 
             for (Map<String, Object> o : result) {
@@ -3886,7 +3896,6 @@ public class Morphium implements AutoCloseable {
 
             return ret;
         } finally {
-            getDriver().releaseConnection(readConnection);
         }
     }
 
@@ -4077,7 +4086,7 @@ public class Morphium implements AutoCloseable {
                 }
             });
             getDriver().watch(settings);
-            getDriver().releaseConnection(primaryConnection);
+            settings.releaseConnection();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         }
@@ -4370,7 +4379,7 @@ public class Morphium implements AutoCloseable {
          // .verbose() // Enable verbose logging
          .enableAnnotationInfo()
          // .enableFieldInfo()
-         .enableClassInfo()             // Scan classes, methods, fields, annotations
+         .enableClassInfo()                   // Scan classes, methods, fields, annotations
          .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 

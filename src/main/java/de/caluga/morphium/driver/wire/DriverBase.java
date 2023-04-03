@@ -85,6 +85,10 @@ public abstract class DriverBase implements MorphiumDriver {
             }
 
             var lst = cmd.execute();
+            if (cmd.getConnection()!=null){
+               cmd.releaseConnection();
+                log.warn("connection not released!?!?");
+            }
             List<String> colNames = new ArrayList<>();
 
             for (Map<String, Object> doc : lst) {
