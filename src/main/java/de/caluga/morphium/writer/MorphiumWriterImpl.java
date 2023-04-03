@@ -2540,6 +2540,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     idesc.setKey(keys);
                     cmd.addIndex(idesc);
                     var res = cmd.execute();
+                    cmd.releaseConnection();
 
                     if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         if (((String) res.get("errmsg")).contains("already exists")) {
@@ -2549,6 +2550,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                     }
                 } catch (MorphiumDriverException e) {
+                    e.printStackTrace();
                     throw new RuntimeException(e);
                 } finally {
                     if (cmd!=null) cmd.releaseConnection();
