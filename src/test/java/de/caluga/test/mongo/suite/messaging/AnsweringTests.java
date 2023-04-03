@@ -448,7 +448,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
-
+        Thread.sleep(3000);
         for (int i = 0; i < 100; i++) {
             log.info("Sending msg " + i);
             Msg question = new Msg("q_wait_for", "question" + i, "a value " + i);
@@ -478,6 +478,7 @@ public class AnsweringTests extends MultiDriverTestBase {
         Messaging m2 = new Messaging(morphium, 10, false, true, 10);
         m1.start();
         m2.start();
+        Thread.sleep(2000);
         m2.addListenerForMessageNamed("q_no_listener", (msg, m)->m.createAnswerMsg());
         m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
         Thread.sleep(1000);

@@ -25,6 +25,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
         Messaging sender = new Messaging(morphium);
         sender.setSenderId("sender");
         sender.start();
+        Thread.sleep(2000);
         Messaging rec = new Messaging(morphium);
         rec.setSenderId("rec");
         rec.start();
@@ -70,6 +71,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
         Messaging sender = new Messaging(morphium);
         sender.setSenderId("sender");
         sender.start();
+        Thread.sleep(2000);
         Vector<Messaging> clients = new Vector<>();
         Vector<MorphiumId> processedMessages = new Vector<>();
 
@@ -106,13 +108,13 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
             l.setLockId("someone");
             morphium.save(l,"msg_lck",null);
             sender.sendMessage(m);
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             assertEquals(0, processedMessages.size());
             var q = morphium.createQueryFor(MsgLock.class).setCollectionName("msg_lck").f("_id").eq(m.getMsgId());
             q.remove();
             for (Messaging ms:clients) ms.triggerCheck();
             //now it should be processed...
-            Thread.sleep(1000);
+            Thread.sleep(3000);
             assertEquals(1, processedMessages.size(), "not processed");
         } finally {
             for (Messaging m : clients) {
