@@ -2,7 +2,7 @@
 
 function quitting() {
 	echo "Shutting down... current test $t"
-    
+
 	kill -9 $(<test.pid) >/dev/null 2>&1
 	kill -9 $(<fail.pid) >/dev/null 2>&1
 	rm -f test.pid fail.pid >/dev/null 2>&1
@@ -26,13 +26,13 @@ if [ "q$1" == "q--skip" ]; then
 	shift
 fi
 
-if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then 
+if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
     count=$(ls -1 test.log/* | wc -l)
     if [ "$count" -gt 0 ]; then
         echo "There are restults from old tests there - continue tests (c), erase old logs and restart all (r) or abort (CTRL-C / a)?"
         read q
         case $q in
-            c) 
+            c)
                 echo "Will continue where we left of..."
                 skip=1;
                 ;;
@@ -43,9 +43,9 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
             a)
                 echo "Aborting..."
                 exit
-                ;; 
+                ;;
             *)
-                echo "Unknown answer - aborting" 
+                echo "Unknown answer - aborting"
                 exit 1
         esac
     fi
@@ -91,8 +91,11 @@ if [ "$cnt" -eq 0 ]; then
 	exit 1
 fi
 testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-((testMethods = testMethods + 3 * testMethodsP))
+testMethods3=$(grep -E '@MethodSource("getMorphiumInstances")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods2=$(grep -E '@MethodSource("getMorphiumInstancesNo.*")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods1=$(grep -E '@MethodSource("getMorphiumInstances.*Only")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+# testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+((testMethods = testMethods + 3 * testMethods3 + testMethods2*2 + testMethods1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
@@ -172,4 +175,4 @@ cat failed.txt
 echo "Finished! List of failed tests in ./failed.txt"
 
 kill $(<fail.pid) >/dev/null 2>&1
-rm -f fail.pid >/dev/null 2>&1 
+rm -f fail.pid >/dev/null 2>&1
