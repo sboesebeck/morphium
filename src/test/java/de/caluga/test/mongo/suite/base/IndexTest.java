@@ -77,7 +77,7 @@ public class IndexTest extends MultiDriverTestBase {
             assertThat(missing.get(CappedCol.class)).isNull(); //all indices created
             String collectionName = morphium.getMapper().getCollectionName(UncachedObject.class);
             morphium.createIndex(UncachedObject.class, collectionName, missing.get(UncachedObject.class).get(0), null);
-            Thread.sleep(100);
+            Thread.sleep(1600);
             List<IndexDescription> newMissingIndexLists = morphium.getMissingIndicesFor(UncachedObject.class);
             assertThat(newMissingIndexLists.size()).isLessThan(missing.get(UncachedObject.class).size());
             //look for capping info

@@ -62,7 +62,7 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
         Messaging m4 = new Messaging(morphium, 100, true, multithreadded, 10);
         m4.setSenderId("m4");
         m4.start();
-
+        Thread.sleep(2500);
         MessageListener l = new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
