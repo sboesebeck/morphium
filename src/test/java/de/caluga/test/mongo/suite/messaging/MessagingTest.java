@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.messaging;
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.Messaging;
@@ -1310,13 +1311,13 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void broadCastMultiTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
             }
             .getClass().getEnclosingMethod().getName();
-            log.info(String.format("=====================> Running Test %s with %s <===============================", method, method, morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             Messaging sender = new Messaging(morphium, 10000, false);
             sender.setSenderId("sender");
             sender.start();

@@ -40,6 +40,7 @@ import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -1435,14 +1436,17 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void queueMessage(final Msg m) {
-        storeMsg(m, true);
+        if (morphium.getDriver().equals(SingleMongoConnectDriver.driverName)) {
+            storeMsg(m, false);
+        } else {
+            storeMsg(m, true);
+        }
     }
 
     @Override
 
     public synchronized void start() {
         super.start();
-
         // if (useChangeStream) {
         //     try {
         //         Thread.sleep(250);
