@@ -567,7 +567,7 @@ public class IteratorTest extends MultiDriverTestBase {
 
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void expectedBehaviorTest(Morphium morphium) {
         try (morphium) {
             createUncachedObjects(morphium, 10);

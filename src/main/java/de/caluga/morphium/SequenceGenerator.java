@@ -102,7 +102,7 @@ public class SequenceGenerator {
         lock.setLockedBy(id);
 
         while (true) {
-            if (System.currentTimeMillis() - start > 30000) {
+            if (System.currentTimeMillis() - start > 65000) {
                 throw new RuntimeException(String.format("Getting lock on seqence %s failed!", name));
             }
 
