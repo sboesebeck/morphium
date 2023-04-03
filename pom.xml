@@ -31,7 +31,7 @@
   <developers>
     <developer>
       <id>sBoesebeck</id>
-      <name>Stephan Bösebeck</name>
+      <name>Stephan B&#xF6;sebeck</name>
       <email>sb@caluga.de</email>
     </developer>
   </developers>
@@ -184,6 +184,12 @@
       <groupId>org.openjdk.jol</groupId>
       <artifactId>jol-core</artifactId>
       <version>0.16</version>
+    </dependency>
+    <dependency>
+      <groupId>org.graalvm.js</groupId>
+      <artifactId>js-scriptengine</artifactId>
+      <version>22.0.0</version>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.graalvm.js</groupId>
