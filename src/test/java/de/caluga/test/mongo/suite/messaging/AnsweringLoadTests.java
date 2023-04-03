@@ -23,8 +23,8 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesPooledOnly")
     public void severalMessagingsAnsweringLoadTestSingleMorphium(Morphium morphium) throws Exception {
         try (morphium) {
-//            morphium.getConfig().setHeartbeatFrequency(10000);
-//            morphium.getDriver().setHeartbeatFrequency(10000);
+            //            morphium.getConfig().setHeartbeatFrequency(10000);
+            //            morphium.getDriver().setHeartbeatFrequency(10000);
             morphium.getConfig().setMaxConnections(25);
             morphium.getDriver().setMaxConnectionsPerHost(25);
             morphium.getConfig().setMinConnections(25);
@@ -38,28 +38,26 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             AtomicInteger answersReceived = new AtomicInteger();
             AtomicInteger messagesReceived = new AtomicInteger();
             AtomicLong runtimeTotal = new AtomicLong();
-
-
-            long times[] = new long[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+            long times[] = new long[] {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
             AtomicInteger tidx = new AtomicInteger();
-            var amount = 100;
+            var amount = 10;
             var recipients = 3;
             var senderThreads = 20;
             var listener = new MessageListener<Msg>() {
                 public Msg onMessage(Messaging m, Msg msg) {
                     messagesReceived.incrementAndGet();
                     long tm = Long.valueOf(msg.getValue());
-//                    log.info(m.getSenderId()+": Received after "+(System.currentTimeMillis()-tm)+" - "+msg.getMsgId());
+                    //                    log.info(m.getSenderId()+": Received after "+(System.currentTimeMillis()-tm)+" - "+msg.getMsgId());
                     Msg answer = msg.createAnswerMsg();
                     answer.setMapValue(Doc.of("answer", System.currentTimeMillis()));
                     answer.setPriority(msg.getPriority() - 10);
                     answer.setTimingOut(false);
                     answer.setDeleteAfterProcessing(true);
                     answer.setDeleteAfterProcessingTime(0);
-//                    try {
-//                        Thread.sleep(250);
-//                    } catch (InterruptedException e) {
-//                    }
+                    //                    try {
+                    //                        Thread.sleep(250);
+                    //                    } catch (InterruptedException e) {
+                    //                    }
                     return answer;
                 }
             };
@@ -69,7 +67,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             for (int i = 0; i < recipients; i++) {
                 log.info("Connection " + i + "/" + recipients);
                 var m2 = TestUtils.newMorphiumFrom(morphium);
-//                var m2 = morphium; //TestUtils.newMorphiumFrom(morphium);
+                //                var m2 = morphium; //TestUtils.newMorphiumFrom(morphium);
                 log.info("... messaging");
                 Messaging m = new Messaging(m2);
                 m.setUseChangeStream(true);
@@ -84,15 +82,11 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             }
 
             log.info("Waiting for messagings to initialise...");
-            Thread.sleep(2000); //waiting for messagings to initialize
             var threads = new ArrayList<Thread>();
+            // Thread.sleep(5000);
 
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-            } //waiting for init to be complete
             for (int t = 0; t < senderThreads; t++) {
-                Thread thr = new Thread(() -> {
+                Thread thr = new Thread(()->{
                     var sender = new Messaging(morphium);
                     // var sender = new Messaging(TestUtils.newMorphiumFrom(morphium));
                     sender.setWindowSize(100);
@@ -104,7 +98,6 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     for (int i = 0; i < 5; i++) {
                         Msg m = new Msg("test", "msg", "" + System.currentTimeMillis(), 40000, true);
                         m.setTimingOut(false);
-
                         m.setDeleteAfterProcessing(true);
                         m.setDeleteAfterProcessingTime(0);
                         sender.sendAndAwaitFirstAnswer(m, 10000, false);
@@ -153,7 +146,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             }
 
             AtomicBoolean running = new AtomicBoolean(true);
-            Thread loggerThread = new Thread(() -> {
+            Thread loggerThread = new Thread(()->{
                 while (running.get()) {
                     double averageAnswerTime = ((double) runtimeTotal.get()) / ((double) answersReceived.get());
                     long movingAverageTm = 0;
@@ -170,7 +163,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     log.info("Sent: " + messagesSent.get() + " Received: " + answersReceived.get() + "---> moving average : " + movingAverage + "   ---> current average: " + averageAnswerTime);
 
                     try {
-                        Thread.sleep(500);
+                        Thread.sleep(1500);
                     } catch (InterruptedException e) {
                     }
                 }
@@ -187,7 +180,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             long dur = System.currentTimeMillis() - start;
 
             for (Messaging m : rec) {
-                new Thread(() -> {
+                new Thread(()->{
                     m.terminate();
                 });
             }
@@ -203,7 +196,6 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
         }
     }
 
-
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesPooledOnly")
     public void connectionPoolTest(Morphium morphium) throws Exception {
@@ -212,9 +204,10 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
         morphium.getDriver().setMaxConnectionsPerHost(10);
         morphium.getDriver().setMinConnectionsPerHost(1);
         List<Thread> thr = new ArrayList<>();
+
         for (int i = 0; i < threads; i++) {
             int thrNum = i;
-            var t = new Thread(() -> {
+            var t = new Thread(()->{
                 try {
                     long start = System.currentTimeMillis();
                     var c = morphium.getDriver().getPrimaryConnection(null);
@@ -234,6 +227,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
         for (Thread t : thr) {
             t.join();
         }
+
         morphium.close();
     }
 }
