@@ -91,9 +91,9 @@ if [ "$cnt" -eq 0 ]; then
 	exit 1
 fi
 testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods3=$(grep -E '@MethodSource("getMorphiumInstances")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods2=$(grep -E '@MethodSource("getMorphiumInstancesNo.*")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods1=$(grep -E '@MethodSource("getMorphiumInstances.*Only")' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 ((testMethods = testMethods + 3 * testMethods3 + testMethods2*2 + testMethods1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
