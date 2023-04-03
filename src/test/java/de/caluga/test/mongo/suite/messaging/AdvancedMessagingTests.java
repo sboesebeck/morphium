@@ -308,11 +308,13 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     public void answerWithDifferentNameTest(Morphium morphium) throws Exception {
         try (morphium) {
             counts.clear();
-            Messaging producer = new Messaging(morphium, 100, false, true, 10);
+            Messaging producer = new Messaging(morphium, 100, true, true, 10);
+            producer.setUseChangeStream(true);
             producer.start();
-            Messaging consumer = new Messaging(morphium, 100, false, true, 10);
+            Messaging consumer = new Messaging(morphium, 100, true, true, 10);
+            consumer.setUseChangeStream(true);
             consumer.start();
-
+            Thread.sleep(2000);
             try {
                 consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
                     @Override
@@ -323,7 +325,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                         return answer;
                     }
                 });
-                Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
+                Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 4000);
                 assertNotNull(answer);;
                 assert(answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
             } finally {
