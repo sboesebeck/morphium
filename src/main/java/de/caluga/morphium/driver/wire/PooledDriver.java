@@ -440,6 +440,7 @@ public class PooledDriver extends DriverBase {
                 }
 
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
+                        // log.info("Borrowing new connection sourceport " + c.getCon().getSourcePort());
                 return con;
             } else {
                 synchronized (connectionPool) {
@@ -470,7 +471,12 @@ public class PooledDriver extends DriverBase {
         }
 
         synchronized (connectionPool) {
+            if(borrowedConnections.containsKey(c.getCon().getSourcePort())){
+                log.error("Re-borrowing same connection?!?!?! recursing...!");
+                return borrowConnection(host);
+            }
             borrowedConnections.put(c.getCon().getSourcePort(), c);
+
             // log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
         }
 
@@ -619,13 +625,11 @@ public class PooledDriver extends DriverBase {
 
         if (con.getSourcePort() != 0) { //sourceport== 0 probably closed or broken
             // log.info("Releasing connectino sourceport: " + con.getSourcePort());
-            // RuntimeException ex = new RuntimeException();
-            // LoggerFactory.getLogger(MongoCommand.class)
-            // .info("Release from: " + ex.getStackTrace()[2].getFileName() + "/" + ex.getStackTrace()[2].getMethodName() + ":" + ex.getStackTrace()[2].getLineNumber());
             var c = borrowedConnections.remove(con.getSourcePort());
 
             if (c == null) {
-                // log.debug("Returning not borrowed connection!?!?");
+                //log.debug("Returning not borrowed connection!?!?");
+
                 if (con.isConnected()) {
                     c = new Connection((SingleMongoConnection) con);
                 } else {

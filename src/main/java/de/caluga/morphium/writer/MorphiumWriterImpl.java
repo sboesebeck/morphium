@@ -279,6 +279,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                                 var writeResult = settings.execute();
                                 settings.releaseConnection();
+                                settings=null;
                                 if (writeResult.containsKey("writeErrors")) {
                                     int failedWrites = ((List) writeResult.get("writeErrors")).size();
                                     int success = (int) writeResult.get("n");
@@ -663,7 +664,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             con = morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(c));
             ListCollectionsCommand lcmd = new ListCollectionsCommand(con).setDb(getDbName()).setFilter(Doc.of("name", collectionName));
             var result = lcmd.execute();
-            // lcmd.releaseConnection();
+            lcmd.releaseConnection();
 
             if (result.size() > 0) {
                 logger.info("collection already exists");
@@ -2541,6 +2542,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     cmd.addIndex(idesc);
                     var res = cmd.execute();
                     cmd.releaseConnection();
+                    cmd=null;
 
                     if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         if (((String) res.get("errmsg")).contains("already exists")) {
@@ -2553,7 +2555,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     e.printStackTrace();
                     throw new RuntimeException(e);
                 } finally {
-                    if (cmd!=null) cmd.releaseConnection();
+                    // if (cmd!=null) cmd.releaseConnection();
                 }
 
                 long dur = System.currentTimeMillis() - start;

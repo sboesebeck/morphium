@@ -1442,13 +1442,14 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public synchronized void start() {
         super.start();
+
         // if (useChangeStream) {
-        // try {
-        // Thread.sleep(250);
-        // //wait for changestream to kick in ;-)
-        // } catch (Exception e) {
-        // log.error("error:" + e.getMessage());
-        //
+        //     try {
+        //         Thread.sleep(250);
+        //         //wait for changestream to kick in ;-)
+        //     } catch (Exception e) {
+        //         log.error("error:" + e.getMessage());
+        //     }
         // }
     }
 

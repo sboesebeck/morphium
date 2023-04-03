@@ -139,6 +139,10 @@ public class MultiDriverTestBase {
     public static Stream<Arguments> getMorphiumInstancesPooledOnly() {
         return getMorphiumAllInstances(false,false,true);
     }
+    public static Stream<Arguments> getMorphiumInstancesSingleOnly() {
+        return getMorphiumAllInstances(true,false,false);
+    }
+
     public static Stream<Arguments> getMorphiumInstancesNoSingle() {
         return getMorphiumAllInstances(false,true,true);
     }
