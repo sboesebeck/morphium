@@ -116,7 +116,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
     public int getCount() throws MorphiumDriverException {
         var ret = execute();
 
-        if (ret == null) {
+        if (ret == null || ret.get("n")==null) {
             return 0;
         }
 

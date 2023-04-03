@@ -90,7 +90,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 Thread.sleep(1000);
             }
         } catch (Exception e) {
+            if (!e.getMessage().contains("sleep interrupted")){
             throw new RuntimeException(e);
+            }
         }
 
         listeners = new ConcurrentLinkedDeque<>();
