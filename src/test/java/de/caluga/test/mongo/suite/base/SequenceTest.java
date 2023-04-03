@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
+import de.caluga.morphium.Sequence.SeqLock;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +55,7 @@ public class SequenceTest extends MorphiumTestBase {
     @Test
     public void errorLockedSequenceTest() {
         morphium.dropCollection(Sequence.class);
+        morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
         sg.getNextValue(); //initializing
 
