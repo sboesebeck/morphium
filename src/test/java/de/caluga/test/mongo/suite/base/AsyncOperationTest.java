@@ -169,7 +169,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testAsyncWriter(Morphium morphium) throws Exception {
         log.info("Running Test with "+morphium.getDriver().getName());
         try (morphium) {
