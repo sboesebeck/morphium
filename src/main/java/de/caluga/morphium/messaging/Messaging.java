@@ -666,6 +666,7 @@ public class Messaging extends Thread implements ShutdownListener {
     @SuppressWarnings("CommentedOutCode")
     public Long unpauseProcessingOfMessagesNamed(String name) {
         // log.debug("unpausing processing for "+name);
+        skipped.incrementAndGet();
         if (!pauseMessages.containsKey(name)) {
             return 0L;
         }
@@ -676,7 +677,6 @@ public class Messaging extends Thread implements ShutdownListener {
             ret = System.currentTimeMillis() - ret;
         }
 
-        skipped.incrementAndGet();
         return ret;
     }
 
