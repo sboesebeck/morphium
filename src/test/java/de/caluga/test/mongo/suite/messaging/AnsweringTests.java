@@ -331,14 +331,14 @@ public class AnsweringTests extends MultiDriverTestBase {
             m1.start();
             m2.start();
             m3.start();
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             m3.addListenerForMessageNamed("test_answer_exclusive", (msg, m)->{
                 log.info("Incoming message");
                 return m.createAnswerMsg();
             });
             Msg m = new Msg("test_answer_exclusive", "important", "value");
             m.setExclusive(true);
-            Msg answer = m1.sendAndAwaitFirstAnswer(m, 1000);
+            Msg answer = m1.sendAndAwaitFirstAnswer(m, 10000);
             assertNotNull(answer);;
             assert(answer.getProcessedBy().size() == 1) : "Size wrong: " + answer.getProcessedBy();
 

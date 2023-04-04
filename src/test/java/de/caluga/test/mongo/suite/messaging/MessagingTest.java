@@ -66,10 +66,12 @@ public class MessagingTest extends MultiDriverTestBase {
             Messaging rec = new Messaging(morphium);
             rec.setSenderId("rec");
             rec.start();
+
             rec.addMessageListener((mess, msg)->{
                 received.incrementAndGet();
                 return null;
             });
+            Thread.sleep(2000);
             Msg msg = new Msg("test", "msg1", "value1");
             msg.setProcessedBy(Arrays.asList("Paused"));
             msg.setExclusive(true);

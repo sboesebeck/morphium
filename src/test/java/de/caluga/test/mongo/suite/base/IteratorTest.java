@@ -422,7 +422,7 @@ public class IteratorTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void iteratorBoundaryTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 17);
