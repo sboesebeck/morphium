@@ -536,6 +536,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 return running;
             });
             changeStreamMonitor.start();
+            lockMonitor.start();
         }
 
         skipped.incrementAndGet();
@@ -1077,27 +1078,28 @@ public class Messaging extends Thread implements ShutdownListener {
                             log.error("Error in rejection handling", e);
                         }
                     } else {
-                        if (mre.isSendAnswer()) {
-                            Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
-                            msg.sendAnswer(Messaging.this, answer);
-                        }
-
-                        if (mre.isContinueProcessing()) {
-                            UpdateMongoCommand cmd = null;
-
-                            try {
-                                cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
-                                cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-                                cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$addToSet", Doc.of("processed_by", id)), null, false, false, null, null, null);
-                                cmd.execute();
-                            } catch (MorphiumDriverException e) {
-                                log.error("Error unlocking message", e);
-                            } finally {
-                                cmd.releaseConnection();
-                            }
-
-                            log.debug(id + ": Message will be re-processed by others");
-                        }
+                        log.error("No rejection  handler defined!!!");
+                        // if (mre.isSendAnswer()) {
+                        //     Msg answer = new Msg(msg.getName(), "message rejected by listener", mre.getMessage());
+                        //     msg.sendAnswer(Messaging.this, answer);
+                        // }
+                        //
+                        // if (mre.isContinueProcessing() && !msg.isExclusive()) {
+                        //     UpdateMongoCommand cmd = null;
+                        //
+                        //     try {
+                        //         cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+                        //         cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+                        //         cmd.addUpdate(Doc.of("_id", msg.getMsgId()), Doc.of("$addToSet", Doc.of("processed_by", id)), null, false, false, null, null, null);
+                        //         cmd.execute();
+                        //     } catch (MorphiumDriverException e) {
+                        //         log.error("Error unlocking message", e);
+                        //     } finally {
+                        //         cmd.releaseConnection();
+                        //     }
+                        //
+                        //     log.debug(id + ": Message will be re-processed by others");
+                        // }
                     }
                 }
             } else if (!wasProcessed && !wasRejected) { // keeping !wasRejected to make it more clear
@@ -1184,7 +1186,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void removeProcessingFor(Msg msg) {
         Runnable rb = new RemoveProcessTask(processing, msg.getMsgId());
-        long timeout = msg.getTtl();
+        long timeout = msg.getTtl()/2; //check for rejeted messages at least once more
 
         if (msg.getTtl() == 0 || !msg.isTimingOut()) {
             timeout = 1000;

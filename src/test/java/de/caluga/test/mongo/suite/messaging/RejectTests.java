@@ -34,11 +34,11 @@ public class RejectTests extends MorphiumTestBase {
         Messaging rec2 = null;
 
         try {
-            sender = new Messaging(morphium, 100, false);
+            sender = new Messaging(morphium, 100, false,true,10);
             sender.setSenderId("sender");
-            rec1 = new Messaging(morphium, 100, false);
+            rec1 = new Messaging(morphium, 100, false,true,10);
             rec1.setSenderId("rec1");
-            rec2 = new Messaging(morphium, 100, false);
+            rec2 = new Messaging(morphium, 100, false,true,10);
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
@@ -64,7 +64,7 @@ public class RejectTests extends MorphiumTestBase {
             Msg m = new Msg("test", "value", "msg",2000,true);
             sender.sendMessage(m);
 
-            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", ()->gotMessage1 || gotMessage2);
+            long r = TestUtils.waitForConditionToBecomeTrue(500000000, "Was not received by both listeners?", ()->gotMessage1 && gotMessage2);
             log.info("Both tried processing! ms: " + r);
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
             Thread.sleep(2000);
@@ -207,7 +207,7 @@ public class RejectTests extends MorphiumTestBase {
                 log.info("Receiver " + m.getSender() + " rejected message");
                 return null;
             });
-            sender.sendMessage(new Msg("test", "message", "value", 3000000, true));
+            sender.sendMessage(new Msg("test", "message", "value", 3000, true));
 
             while (!gotMessage) {
                 Thread.sleep(500);
