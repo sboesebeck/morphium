@@ -363,7 +363,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (processing.contains(obj.getMsgId())) {
                             return running;
                         }
-
+                        // obj.getMapValue().put("incoming","insert");
                         processing.add(obj.getMsgId());
 
                         if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
@@ -462,6 +462,7 @@ public class Messaging extends Thread implements ShutdownListener {
                             return running;
                         }
 
+                        // obj.getMapValue().put("incoming","update");
                         processing.add(obj.getMsgId());
 
                         // log.info("Got update Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
@@ -1146,7 +1147,7 @@ public class Messaging extends Thread implements ShutdownListener {
             if (!running) {
                 return;
             }
-
+            if (processing.contains(mId)) continue;
             processing.add(mId);
 
             try {
