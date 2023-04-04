@@ -57,7 +57,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
         try {
             m1.start();
-
+            Thread.sleep(2500);
             m1.pauseProcessingOfMessagesNamed("tst1");
 
             sender.sendMessage(new Msg("test", "a message", "the value"));
@@ -96,6 +96,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     public void priorityPausedMessagingTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
+        Thread.sleep(2500);
         final AtomicInteger count = new AtomicInteger();
         final AtomicLong lastTS = new AtomicLong(0);
 
@@ -138,7 +139,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         }
         //this can only work, if the receiver is started _after_ all messages are sent
         receiver.start();
-        Thread.sleep(100);
+        Thread.sleep(1000);
         long s = System.currentTimeMillis();
         while (count.get() < 6) {
             Thread.sleep(500);
@@ -265,6 +266,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             return null;
         });
         m1.start();
+        Thread.sleep(1000);
         try {
             log.info("receiver id: " + m1.getSenderId());
 
@@ -456,6 +458,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.start();
+        Thread.sleep(2000);
 
         final AtomicInteger received = new AtomicInteger();
         final AtomicInteger dups = new AtomicInteger();
@@ -496,6 +499,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             receiver4.addListenerForMessageNamed("m", messageListener);
             int exclusiveAmount = 50;
             int broadcastAmount = 100;
+            Thread.sleep(2000);
             for (int i = 0; i < exclusiveAmount; i++) {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
