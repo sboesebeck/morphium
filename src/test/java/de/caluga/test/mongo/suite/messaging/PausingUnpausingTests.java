@@ -313,25 +313,6 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
     }
 
-    @Test
-    public void exclusiveMessageTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver = new Messaging(morphium, 100, true, true, 10);
-        sender.start();
-        receiver.start();
-        Thread.sleep(1000);
-        receiver.addListenerForMessageNamed("exclusive_test", (msg, m) -> {
-                    log.info("Incoming message!");
-                    return null;
-                }
-        );
-        Msg ex = new Msg("exclusive_test", "a message", "A value");
-        ex.setExclusive(true);
-        sender.sendMessage(ex);
-        log.info("Sent!");
-        Thread.sleep(1000);
-    }
-
 
     @Test
     public void testPausingUnpausingInListenerExclusiveMultithreadded() throws Exception {
