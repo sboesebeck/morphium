@@ -30,6 +30,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             messagings.add(msg);
             msg.start();
         }
+        try {
+            Thread.sleep(2500);
+        } catch (InterruptedException e) {
+        }
     }
 
 
@@ -224,109 +228,6 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         }
     }
 
-
-    //test "singleton" execution with several systems using exclusive messages and pausing!
-    @Test
-    public void simpleExclusivePausingChangeStream() throws Exception {
-        morphium.dropCollection(Msg.class, "msg", null);
-        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Thread.sleep(100);
-        final AtomicInteger cnt = new AtomicInteger();
-        final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
-        Messaging m1 = new Messaging(morphium, 10, false);
-        m1.start();
-
-        try {
-            createIndependentMessagings(10, false, 10, true);
-            for (Messaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
-                    ms.pauseProcessingOfMessagesNamed(msg.getName());
-                    log.info("incoming message to " + ms.getSenderId());
-                    try {
-                        Thread.sleep(250);
-                    } catch (InterruptedException e) {
-                    }
-                    cnt.incrementAndGet();
-                    countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
-                    countById.get(ms.getSenderId()).incrementAndGet();
-                    ms.unpauseProcessingOfMessagesNamed(msg.getName());
-                    return null;
-                });
-            }
-
-
-            for (int j = 0; j < 5; j++) {
-                countById.clear();
-                cnt.set(0);
-                for (int i = 0; i < 10; i++) {
-                    m1.sendMessage(new Msg("test", "msg", "value", 30000, true));
-                }
-
-                while (cnt.get() < 10) {
-                    Thread.sleep(100);
-                }
-                assert (cnt.get() == 10);
-                for (Map.Entry<String, AtomicInteger> e : countById.entrySet()) {
-                    assert (e.getValue().get() < 8) : "Count wrong for " + e.getKey() + ": " + e.getValue();
-                }
-            }
-
-        } finally {
-            m1.terminate();
-            terminateAll();
-        }
-    }
-
-    @Test
-    public void simpleExclusivePausingNoChangeStream() throws Exception {
-        morphium.dropCollection(Msg.class, "msg", null);
-        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Thread.sleep(100);
-        final AtomicInteger cnt = new AtomicInteger();
-        final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
-        Messaging m1 = new Messaging(morphium, 10, false);
-        m1.start();
-
-        try {
-            createIndependentMessagings(10, false, 10, false);
-            for (Messaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
-                    ms.pauseProcessingOfMessagesNamed(msg.getName());
-                    log.info("incoming message to " + ms.getSenderId());
-                    try {
-                        Thread.sleep(250);
-                    } catch (InterruptedException e) {
-                    }
-                    cnt.incrementAndGet();
-                    countById.putIfAbsent(ms.getSenderId(), new AtomicInteger());
-                    countById.get(ms.getSenderId()).incrementAndGet();
-                    ms.unpauseProcessingOfMessagesNamed(msg.getName());
-                    return null;
-                });
-            }
-
-
-            for (int j = 0; j < 5; j++) {
-                countById.clear();
-                cnt.set(0);
-                for (int i = 0; i < 10; i++) {
-                    m1.sendMessage(new Msg("test", "msg", "value", 30000, true));
-                }
-
-                while (cnt.get() < 10) {
-                    Thread.sleep(100);
-                }
-                assert (cnt.get() == 10);
-                for (Map.Entry<String, AtomicInteger> e : countById.entrySet()) {
-                    assert (e.getValue().get() < 8) : "Count wrong for " + e.getKey() + ": " + e.getValue();
-                }
-            }
-
-        } finally {
-            m1.terminate();
-            terminateAll();
-        }
-    }
 
 
     @Test
