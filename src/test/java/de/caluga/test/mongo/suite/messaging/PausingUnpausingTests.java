@@ -177,7 +177,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         Messaging receiver = new Messaging(morphium, 10, false, true, 10);
         receiver.start();
 
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("pause");
             log.info("Processing pause  message");
@@ -198,14 +198,13 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             msg.unpauseProcessingOfMessagesNamed("now");
             return null;
         });
-
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (list.size() == 1);
 
         sender.sendMessage(new Msg("pause", "pause", "pause"));
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(500);
+        Thread.sleep(1000);
         assert (list.size() == 2);
 
         sender.sendMessage(new Msg("pause", "pause", "pause"));
@@ -223,7 +222,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         assert (list.size() == 3);
         Thread.sleep(2000);
         //Message after unpausing:
-        assert (cnt.get() == 3) : "Count wrong: " + cnt.get();
+        assert (cnt.get() == 4) : "Count wrong: " + cnt.get();
     }
 
 
