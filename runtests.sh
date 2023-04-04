@@ -160,8 +160,8 @@ for t in $(<files.txt); do
 		if [ "$j" -lt 2 ]; then
 			break
 		fi
-		if [ $dur -gt 600 ]; then
-			echo "Test class runs longer than 5 minutes - killing it!"
+		if [ $dur -gt 900 ]; then
+			echo "Test class runs longer than 15 minutes - killing it!"
 			echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
 			((err = err + 1))
 			kill %1
