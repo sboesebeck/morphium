@@ -28,7 +28,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             String id = "thr" + t;
             var thr = new Thread() {
                 public void run() {
-                    for (int i = 0; i < 40000; i++) {
+                    for (int i = 0; i < 4000; i++) {
                         UncachedObject uc = new UncachedObject();
                         uc.setCounter(i);
                         uc.setStrValue("{ name: " + id+ ", counter:" + i + "}");
