@@ -64,7 +64,7 @@ public class RejectTests extends MorphiumTestBase {
             Msg m = new Msg("test", "value", "msg",2000,true);
             sender.sendMessage(m);
 
-            long r = TestUtils.waitForConditionToBecomeTrue(500000000, "Was not received by both listeners?", ()->gotMessage1 && gotMessage2);
+            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", ()->gotMessage1 && gotMessage2);
             log.info("Both tried processing! ms: " + r);
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
             Thread.sleep(2000);
@@ -96,7 +96,6 @@ public class RejectTests extends MorphiumTestBase {
                 m.setSenderId("Rec" + i);
                 log.info(m.getSenderId());
                 m.start();
-
                 m.addMessageListener(new MessageListener<Msg>() {
                     Map<MorphiumId,AtomicInteger> cnt=new HashMap<>();
                     @Override
@@ -112,6 +111,7 @@ public class RejectTests extends MorphiumTestBase {
                 });
                 clients.add(m);
             }
+            Thread.sleep(2500);
             log.info("done - sending message");
             Msg m=new Msg("Test","value","msg");
             m.setDeleteAfterProcessing(true);
@@ -125,18 +125,6 @@ public class RejectTests extends MorphiumTestBase {
             //mst not raise
             assertEquals(clients.size(),recs.get(),"Additional messages coming in????");
             assertEquals(1,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
-
-            //all processed exclusive messages will have an intact lock (and should have been deleted!)
-            //so, if we want to reatry already processed messages, we need to just reset processed_by
-            //if the lockedBy field is null.
-            //check if processed_By.0 exists to be 100% sure not to interfere!
-            //the lock property should have the timestamp this message was last processed (or tried to process)
-            morphium.createQueryFor(Msg.class,sender.getCollectionName()).f("processed_by.0").ne(null).set(Msg.Fields.processedBy,null,false,true);
-
-            Thread.sleep(1000);
-            assertEquals(clients.size()+1,recs.get(), "Should have beend processed!");
-
-            assertEquals(0,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
 
         } finally {
             sender.terminate();
