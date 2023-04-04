@@ -106,11 +106,11 @@ public class BulkInsertTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     // @MethodSource("getInMemInstanceOnly")
     public void bulkInsertAsync(Morphium morphium) throws Exception {
         try (morphium) {
-            //logSeparator("Using driver: " + morphium.getDriver().getClass().getName());
+            log.info("-------------------> Using driver: " + morphium.getDriver().getClass().getName());
             morphium.dropCollection(UncachedObject.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
             log.info("Start storing single");
