@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
@@ -51,24 +52,24 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
         AtomicInteger procCounter = new AtomicInteger(0);
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(2500);
         final Messaging producer = new Messaging(morphium, 100, true, false, 10);
-        final Messaging consumer = new Messaging(morphium, 100, true, true, 2000);
+        final Messaging consumer = new Messaging(morphium, 100, true, true, 100);
         producer.start();
         consumer.start();
-
+        Thread.sleep(2000);
         try {
             Vector<String> processedIds = new Vector<>();
+            Hashtable<String,Long> processedAt=new Hashtable<>();
             procCounter.set(0);
             consumer.addMessageListener((msg, m) -> {
                 procCounter.incrementAndGet();
 
                 if (processedIds.contains(m.getMsgId().toString())) {
-                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId());
+                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId()+"  - "+(System.currentTimeMillis()-processedAt.get(m.getMsgId().toString()))+"ms ago");
                     return null;
                 }
                 processedIds.add(m.getMsgId().toString());
+                processedAt.put(m.getMsgId().toString(),System.currentTimeMillis());
                 //simulate processing
                 try {
                     Thread.sleep((long)(100 * Math.random()));
@@ -81,14 +82,16 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             log.info("------------- sending messages");
 
             for (int i = 0; i < amount; i++) {
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+                if (i%100==0){
+                    log.info("Sending message "+i);
+                }
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i,30000,false));
             }
-
+            log.info("--- sending finished");
             for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
                 Thread.sleep(1000);
                 log.info("Still processing: " + procCounter.get());
             }
-
             assert(procCounter.get() == amount) : "Did process " + procCounter.get();
         } finally {
             producer.terminate();
