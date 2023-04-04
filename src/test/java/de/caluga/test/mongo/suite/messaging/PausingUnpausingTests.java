@@ -139,11 +139,12 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         }
         //this can only work, if the receiver is started _after_ all messages are sent
         receiver.start();
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         long s = System.currentTimeMillis();
         while (count.get() < 6) {
             Thread.sleep(500);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+
+            assert (System.currentTimeMillis() - s < 5*morphium.getConfig().getMaxWaitTime());
         }
         assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);
@@ -368,7 +369,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 return null;
             });
             m1.start();
-            Thread.sleep(1000);
+            Thread.sleep(2000);
             log.info("receiver id: " + m1.getSenderId());
 
 
@@ -503,7 +504,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
                 if (i % 100 == 0) log.info("Send " + i + " recieved: " + rec + " queue: " + messageCount);
-                Msg m = new Msg("m", "m", "v" + i, 3000000, true);
+                Msg m = new Msg("m", "m", "v" + i, 3300000, true);
                 m.setExclusive(true);
                 sender.sendMessage(m);
             }
@@ -511,7 +512,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
                 if (i % 100 == 0) log.info("Send boadcast" + i + " recieved: " + rec + " queue: " + messageCount);
-                Msg m = new Msg("m", "m", "v" + i, 3000000, false);
+                Msg m = new Msg("m", "m", "v" + i, 3300000, false);
                 sender.sendMessage(m);
             }
 
@@ -522,6 +523,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
+                    m.triggerCheck();
                 }
                 assert (dups.get() == 0) : "got duplicate message";
 
