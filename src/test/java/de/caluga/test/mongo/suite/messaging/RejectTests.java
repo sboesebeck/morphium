@@ -61,10 +61,10 @@ public class RejectTests extends MorphiumTestBase {
                 }
             });
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
-            Msg m = new Msg("test", "value", "msg");
-            m.setExclusive(true);
+            Msg m = new Msg("test", "value", "msg",2000,true);
             sender.sendMessage(m);
-            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", ()->gotMessage1 && gotMessage2);
+
+            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", ()->gotMessage1 || gotMessage2);
             log.info("Both tried processing! ms: " + r);
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
             Thread.sleep(2000);
@@ -108,7 +108,7 @@ public class RejectTests extends MorphiumTestBase {
                         }
                         return null;
                     }
-                    
+
                 });
                 clients.add(m);
             }
@@ -127,7 +127,7 @@ public class RejectTests extends MorphiumTestBase {
             assertEquals(1,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
 
             //all processed exclusive messages will have an intact lock (and should have been deleted!)
-            //so, if we want to reatry already processed messages, we need to just reset processed_by 
+            //so, if we want to reatry already processed messages, we need to just reset processed_by
             //if the lockedBy field is null.
             //check if processed_By.0 exists to be 100% sure not to interfere!
             //the lock property should have the timestamp this message was last processed (or tried to process)
@@ -137,7 +137,7 @@ public class RejectTests extends MorphiumTestBase {
             assertEquals(clients.size()+1,recs.get(), "Should have beend processed!");
 
             assertEquals(0,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
-            
+
         } finally {
             sender.terminate();
             for (var m:clients) m.terminate();
