@@ -232,19 +232,19 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
     @Test
     public void parallelExclusiveMessages() throws Exception {
-        morphium.dropCollection(Msg.class, "msg", null);
-        TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Thread.sleep(100);
+        // morphium.dropCollection(Msg.class, "msg", null);
+        // TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
+        // Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
         Messaging m1 = new Messaging(morphium, 10, false);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, true);
+            createIndependentMessagings(10, true, 100, true);
             for (Messaging m : messagings) {
                 m.addListenerForMessageNamed("test", (ms, msg) -> {
-                    //log.info("incoming message to "+ms.getSenderId());
+                    log.info("incoming message to "+msg.getMsg());
                     try {
                         Thread.sleep(250);
                     } catch (InterruptedException e) {
@@ -256,16 +256,18 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 });
             }
 
-
+            Thread.sleep(1000);
             for (int j = 0; j < 5; j++) {
+                log.info("j="+j);
                 countById.clear();
                 cnt.set(0);
                 for (int i = 0; i < 30; i++) {
-                    m1.sendMessage(new Msg("test", "msg", "value", 30000, true));
+                    m1.sendMessage(new Msg("test", "msg"+i, "value", 30000, true));
                 }
 
                 while (cnt.get() != 30) {
-                    Thread.sleep(100);
+                    log.info("Did not get all messages yet. Need 30, got "+cnt.get());
+                    Thread.sleep(1000);
                 }
                 assert (cnt.get() == 30);
                 for (Map.Entry<String, AtomicInteger> e : countById.entrySet()) {

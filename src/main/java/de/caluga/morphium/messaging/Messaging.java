@@ -241,9 +241,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -268,8 +268,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-          morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor)->{
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        threadPool.setRejectedExecutionHandler((r, executor) -> {
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -336,13 +336,13 @@ public class Messaging extends Thread implements ShutdownListener {
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), true, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
-            lockMonitor.addListener(evt->{
+            lockMonitor.addListener(evt -> {
                 //some lock removed
                 skipped.incrementAndGet();
                 return running;
             });
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
-            changeStreamMonitor.addListener(evt->{
+            changeStreamMonitor.addListener(evt -> {
                 if (!running)
                     return false;
                 try {
@@ -363,6 +363,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         if (processing.contains(obj.getMsgId())) {
                             return running;
                         }
+
                         // obj.getMapValue().put("incoming","insert");
                         processing.add(obj.getMsgId());
 
@@ -520,7 +521,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 } finally {
                     while (true) {
                         try {
-                            decouplePool.schedule(()->{
+                            decouplePool.schedule(() -> {
                                 triggerCheck();
                             }, 5000, TimeUnit.MILLISECONDS);
                             break;
@@ -667,6 +668,7 @@ public class Messaging extends Thread implements ShutdownListener {
     public Long unpauseProcessingOfMessagesNamed(String name) {
         // log.debug("unpausing processing for "+name);
         skipped.incrementAndGet();
+
         if (!pauseMessages.containsKey(name)) {
             return 0L;
         }
@@ -982,7 +984,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        Runnable r = ()->{
+        Runnable r = () -> {
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -1149,7 +1151,11 @@ public class Messaging extends Thread implements ShutdownListener {
             if (!running) {
                 return;
             }
-            if (processing.contains(mId)) continue;
+
+            if (processing.contains(mId)) {
+                continue;
+            }
+
             processing.add(mId);
 
             try {
@@ -1186,7 +1192,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void removeProcessingFor(Msg msg) {
         Runnable rb = new RemoveProcessTask(processing, msg.getMsgId());
-        long timeout = msg.getTtl()/2; //check for rejeted messages at least once more
+        long timeout = msg.getTtl() / 2; //check for rejeted messages at least once more
 
         if (msg.getTtl() == 0 || !msg.isTimingOut()) {
             timeout = 1000;
@@ -1195,7 +1201,10 @@ public class Messaging extends Thread implements ShutdownListener {
         while (true) {
             try {
                 if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {
-                    decouplePool.schedule(rb, timeout, TimeUnit.MILLISECONDS); // avoid re-executing message
+                    decouplePool.schedule(() -> {
+                        rb.run();
+                        skipped.incrementAndGet();
+                    }, timeout, TimeUnit.MILLISECONDS); // avoid re-executing message
                 }
 
                 break;
@@ -1475,8 +1484,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-                }
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
