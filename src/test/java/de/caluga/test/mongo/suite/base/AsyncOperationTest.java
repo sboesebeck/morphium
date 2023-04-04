@@ -174,7 +174,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
         log.info("Running Test with "+morphium.getDriver().getName());
         try (morphium) {
             morphium.getDriver().setMaxWaitTime(15000);
-            morphium.dropCollection(AsyncObject.class);
+            // morphium.dropCollection(AsyncObject.class);
             morphium.ensureIndicesFor(AsyncObject.class);
             Thread.sleep(2000);
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
