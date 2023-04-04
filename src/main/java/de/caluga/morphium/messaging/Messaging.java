@@ -241,9 +241,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -268,8 +268,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor) -> {
+          morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        threadPool.setRejectedExecutionHandler((r, executor)->{
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -336,205 +336,208 @@ public class Messaging extends Thread implements ShutdownListener {
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), true, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
-            lockMonitor.addListener(evt -> {
+            lockMonitor.addListener(evt->{
                 //some lock removed
                 skipped.incrementAndGet();
                 return running;
             });
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
-            changeStreamMonitor.addListener(evt -> {
+            changeStreamMonitor.addListener(evt->{
                 if (!running)
                     return false;
-                try {
-                    if (evt == null || evt.getOperationType() == null) {
-                        return running;
-                    }
-
-                    if (evt.getOperationType().equals("insert")) {
-                        // insert => new Message
-                        Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-
-                        //                        log.info(id+" - incoming: "+obj.getMsgId());
-                        if (obj.isExclusive() && obj.getProcessedBy().size() != 0) {
-                            // inserted already processed message?!?!?
+                synchronized (Messaging.this) {
+                    try {
+                        if (evt == null || evt.getOperationType() == null) {
                             return running;
                         }
 
-                        if (processing.contains(obj.getMsgId())) {
-                            return running;
-                        }
+                        if (evt.getOperationType().equals("insert")) {
+                            // insert => new Message
+                            Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
 
-                        // obj.getMapValue().put("incoming","insert");
-                        processing.add(obj.getMsgId());
-
-                        if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        if (obj.getSender().equals(id)) {
-                            //processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        if (obj.getInAnswerTo() != null) {
-                            if (obj.isExclusive()) {
-                                if (!lockMessage(obj, id)) {
-                                    removeProcessingFor(obj);
-                                    return running;
-                                }
+                            //                        log.info(id+" - incoming: "+obj.getMsgId());
+                            if (obj.isExclusive() && obj.getProcessedBy().size() != 0) {
+                                // inserted already processed message?!?!?
+                                return running;
                             }
 
-                            handleAnswer(obj);
-                            //processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
+                            if (processing.contains(obj.getMsgId())) {
+                                return running;
+                            }
+
+                            // obj.getMapValue().put("incoming","insert");
+                            processing.add(obj.getMsgId());
+
+                            if (obj.getRecipients() != null && !obj.getRecipients().contains(getSenderId())) {
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (obj.getSender().equals(id)) {
+                                //processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (obj.getInAnswerTo() != null) {
+                                if (obj.isExclusive()) {
+                                    if (!lockMessage(obj, id)) {
+                                        removeProcessingFor(obj);
+                                        return running;
+                                    }
+                                }
+
+                                handleAnswer(obj);
+                                //processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
+                                // ignoring incoming message, we do not have listener for
+                                //processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (pauseMessages.containsKey(obj.getName())) {
+                                processing.remove(obj.getMsgId());
+                                //removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (obj.getProcessedBy().contains(id)) {
+                                // already processed it
+                                //processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
+                                // ignoring my own messages
+                                //                            processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            // log.info("Got Message inserted " + (System.currentTimeMillis() - obj.getTimestamp()) + "ms ago - " + obj.getMsgId());
+
+                            try {
+                                if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
+                                    //                                log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
+                                    lockAndProcess(obj);
+                                } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
+                                    // I need process this new message... it is either for all or for me directly
+                                    processMessage(obj);
+                                }
+                            } catch (Exception e) {
+                                log.error("Error during message processing ", e);
+                            }
+
+                            // processing.remove(obj.getMsgId());
+                        } else if (evt.getOperationType().equals("delete")) {
+                            var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(((Map) evt.getDocumentKey()).get("_id")).get();
+
+                            if (x != null) {
+                                morphium.delete(x, getLockCollectionName());
+                            }
+
                             return running;
-                        }
+                            //                        skipped.incrementAndGet();
+                        } else if (evt.getOperationType().equals("update")) {
+                            Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
 
-                        if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
-                            // ignoring incoming message, we do not have listener for
-                            //processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
+                            if (obj == null) {
+                                return running;
+                            }
 
-                        if (pauseMessages.containsKey(obj.getName())) {
-                            processing.remove(obj.getMsgId());
-                            //removeProcessingFor(obj);
-                            return running;
-                        }
+                            if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
+                                return running;
+                            }
 
-                        if (obj.getProcessedBy().contains(id)) {
-                            // already processed it
-                            //processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
+                            if (obj.getProcessedBy().contains(id)) {
+                                return running;
+                            }
 
-                        if (obj.getSender().equals(id) || obj.getProcessedBy().contains(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
-                            // ignoring my own messages
-                            //                            processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
+                            if (processing.contains(obj.getMsgId())) {
+                                // already processing it
+                                return running;
+                            }
 
-                        // log.info("Got Message inserted " + (System.currentTimeMillis() - obj.getTimestamp()) + "ms ago - " + obj.getMsgId());
+                            // obj.getMapValue().put("incoming","update");
+                            processing.add(obj.getMsgId());
 
-                        try {
-                            if (obj.isExclusive() && (obj.getRecipients() == null || obj.getRecipients().contains(id)) && obj.getProcessedBy().size() == 0) {
-                                //                                log.info(id + ": Exclusive message inserted - " + obj.getMsgId());
+                            // log.info("Got update Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
+                            if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
+                                // ignoring my own messages
+                                //                            processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (obj.getInAnswerTo() != null) {
+                                if (obj.isExclusive()) {
+                                    if (!lockMessage(obj, id)) {
+                                        removeProcessingFor(obj);
+                                        return running;
+                                    }
+                                }
+
+                                handleAnswer(obj);
+                                //                            processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
+                                // ignoring incoming message, we do not have listener for
+                                //                            processing.remove(obj.getMsgId());
+                                removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            if (pauseMessages.containsKey(obj.getName())) {
+                                processing.remove(obj.getMsgId());
+                                //removeProcessingFor(obj);
+                                return running;
+                            }
+
+                            // if (processing.contains(obj.getMsgId())) {
+                            //     processing.remove(obj.getMsgId());;
+                            //     return running;
+                            // }
+
+                            if (obj.isExclusive()) {
+                                // locking
+                                // log.info("Exclusive message update: " + obj.getMsgId());
                                 lockAndProcess(obj);
-                            } else if (!obj.isExclusive() || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
-                                // I need process this new message... it is either for all or for me directly
+                            } else {
                                 processMessage(obj);
                             }
-                        } catch (Exception e) {
-                            log.error("Error during message processing ", e);
+
+                            // processing.remove(obj.getMsgId());
                         }
-
-                        // processing.remove(obj.getMsgId());
-                    } else if (evt.getOperationType().equals("delete")) {
-                        var x = morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(((Map) evt.getDocumentKey()).get("_id")).get();
-
-                        if (x != null) {
-                            morphium.delete(x, getLockCollectionName());
-                        }
-
-                        return running;
-                        //                        skipped.incrementAndGet();
-                    } else if (evt.getOperationType().equals("update")) {
-                        Msg obj = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-
-                        if (obj == null) {
-                            return running;
-                        }
-
-                        if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
-                            return running;
-                        }
-
-                        if (obj.getProcessedBy().contains(id)) {
-                            return running;
-                        }
-
-                        if (processing.contains(obj.getMsgId())) {
-                            // already processing it
-                            return running;
-                        }
-
-                        // obj.getMapValue().put("incoming","update");
-                        processing.add(obj.getMsgId());
-
-                        // log.info("Got update Message inserted "+(System.currentTimeMillis()-obj.getTimestamp())+"ms ago");
-                        if (obj.getSender().equals(id) || (obj.getRecipients() != null && !obj.getRecipients().contains(id))) {
-                            // ignoring my own messages
-                            //                            processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        if (obj.getInAnswerTo() != null) {
-                            if (obj.isExclusive()) {
-                                if (!lockMessage(obj, id)) {
-                                    removeProcessingFor(obj);
-                                    return running;
-                                }
+                    } catch (Exception e) {
+                        log.error("Error during event processing in changestream", e);
+                    } finally {
+                        while (true) {
+                            try {
+                                decouplePool.schedule(()->{
+                                    triggerCheck();
+                                }, 5000, TimeUnit.MILLISECONDS);
+                                break;
+                            } catch (Exception e) {
                             }
 
-                            handleAnswer(obj);
-                            //                            processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        if (listenerByName.get(obj.getName()) == null && listeners.size() == 0) {
-                            // ignoring incoming message, we do not have listener for
-                            //                            processing.remove(obj.getMsgId());
-                            removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        if (pauseMessages.containsKey(obj.getName())) {
-                            processing.remove(obj.getMsgId());
-                            //removeProcessingFor(obj);
-                            return running;
-                        }
-
-                        // if (processing.contains(obj.getMsgId())) {
-                        //     processing.remove(obj.getMsgId());;
-                        //     return running;
-                        // }
-
-                        if (obj.isExclusive()) {
-                            // locking
-                            // log.info("Exclusive message update: " + obj.getMsgId());
-                            lockAndProcess(obj);
-                        } else {
-                            processMessage(obj);
-                        }
-
-                        // processing.remove(obj.getMsgId());
-                    }
-                } catch (Exception e) {
-                    log.error("Error during event processing in changestream", e);
-                } finally {
-                    while (true) {
-                        try {
-                            decouplePool.schedule(() -> {
-                                triggerCheck();
-                            }, 5000, TimeUnit.MILLISECONDS);
-                            break;
-                        } catch (Exception e) {
-                        }
-
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                            }
                         }
                     }
+
+                    return running;
                 }
-                return running;
             });
             changeStreamMonitor.start();
             lockMonitor.start();
@@ -549,11 +552,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 //     skipped.incrementAndGet();
                 // }
                 if (skipped.get() > 0 || !useChangeStream) {
-                    morphium.inc(StatisticKeys.PULL);
-                    StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
-                    sk.set(sk.get() + skipped.get());
-                    skipped.set(0);
-                    findAndProcessMessages(processMultiple);
+                    synchronized (this) {
+                        morphium.inc(StatisticKeys.PULL);
+                        StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
+                        sk.set(sk.get() + skipped.get());
+                        skipped.set(0);
+                        findAndProcessMessages(processMultiple);
+                    }
                 } else {
                     morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
                 }
@@ -984,7 +989,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        Runnable r = () -> {
+        Runnable r = ()->{
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -1152,10 +1157,10 @@ public class Messaging extends Thread implements ShutdownListener {
                 return;
             }
 
-            if (processing.contains(mId)) {
-                continue;
-            }
-
+            // if (processing.contains(mId)) {
+            //     continue;
+            // }
+            //
             processing.add(mId);
 
             try {
@@ -1201,7 +1206,7 @@ public class Messaging extends Thread implements ShutdownListener {
         while (true) {
             try {
                 if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {
-                    decouplePool.schedule(() -> {
+                    decouplePool.schedule(()->{
                         rb.run();
                         skipped.incrementAndGet();
                     }, timeout, TimeUnit.MILLISECONDS); // avoid re-executing message
@@ -1484,7 +1489,8 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                }
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
