@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AdvancedMessagingTests extends MultiDriverTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
@@ -343,6 +344,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             producer.start();
             Messaging consumer = new Messaging(morphium, 100, false, true, 10);
             consumer.start();
+            Thread.sleep(2000); //waiting for messaging
             consumer.addListenerForMessageNamed("testAnswering", (msg, m)->{
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
@@ -352,7 +354,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             MorphiumId msgId = new MorphiumId();
             producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m)->{
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
-                assert(msgId.equals(m.getInAnswerTo()));
+                assertTrue(msgId.equals(m.getInAnswerTo()));
                 counts.put(msgId, 1);
                 return null;
             });
@@ -360,7 +362,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             msg.setMsgId(msgId);
             producer.sendMessage(msg);
             Thread.sleep(2500);
-            assert(counts.get(msgId).equals(1));
+            assertTrue(counts.containsKey(msgId));
             producer.terminate();
             consumer.terminate();
         }
