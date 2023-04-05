@@ -90,8 +90,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 Thread.sleep(1000);
             }
         } catch (Exception e) {
-            if (!e.getMessage().contains("sleep interrupted")){
-            throw new RuntimeException(e);
+            if (!e.getMessage().contains("sleep interrupted")) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -147,6 +147,14 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         try {
             long start = System.currentTimeMillis();
 
+            try {
+                dedicatedConnection.close();
+            } catch (Exception e) {
+                log.warn("Closing mongo connection error", e.getMessage());
+            }
+
+            dedicatedConnection = null;
+
             while (changeStreamThread != null && changeStreamThread.isAlive()) {
                 try {
                     Thread.sleep(100);
@@ -178,6 +186,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             }
 
             changeStreamThread = null;
+        } catch (Exception e1) {
+            log.warn("Exception when closing changestreamMonitor", e1.getMessage());
         } finally {
             listeners.clear();
             morphium.removeShutdownListener(this);
@@ -190,7 +200,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     @Override
     public void run() {
-        WatchCommand watch=null;
+        WatchCommand watch = null;
+
         while (running) {
             try {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
@@ -200,11 +211,14 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                             return;
                         }
 
-                        @SuppressWarnings("unchecked") Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                         data.remove("fullDocument");
-                        if (data.get("documentKey") instanceof MorphiumId || data.get("documentKey") instanceof ObjectId){
-                            data.put("documentKey",Doc.of("_id",data.get("documentKey")));
+
+                        if (data.get("documentKey") instanceof MorphiumId || data.get("documentKey") instanceof ObjectId) {
+                            data.put("documentKey", Doc.of("_id", data.get("documentKey")));
                         }
+
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
@@ -227,13 +241,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     }
                 };
                 var con = dedicatedConnection.getPrimaryConnection(null);
-                watch = new WatchCommand(con)
-                    .setCb(callback)
-                    .setDb(morphium.getDatabase())
-                    .setBatchSize(1)
-                    .setMaxTimeMS(0)
-                    .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
-                    .setPipeline(pipeline);
+                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(0)
+                .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
                 if (!dbOnly) {
                     watch.setColl(collectionName);
@@ -242,33 +251,34 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 watch.watch();
             } catch (Exception e) {
-                if (e.getMessage()==null){
-                    log.warn("Restarting changestream",e);
+                if (e.getMessage() == null) {
+                    log.warn("Restarting changestream", e);
                 } else if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
                     log.debug("changestream iteration");
-                // } else if (e.getMessage().equals("error")){
-                //     //probably timeout
-                //     try {
-                //         dedicatedConnection.connect();
-                //     } catch (MorphiumDriverException e1) {
-                //         // TODO Auto-generated catch block
-                //         e1.printStackTrace();
-                //     }
-                //
-                } else if (e.getMessage().contains("closed")){
+                    // } else if (e.getMessage().equals("error")){
+                    //     //probably timeout
+                    //     try {
+                    //         dedicatedConnection.connect();
+                    //     } catch (MorphiumDriverException e1) {
+                    //         // TODO Auto-generated catch block
+                    //         e1.printStackTrace();
+                    //     }
+                    //
+                } else if (e.getMessage().contains("closed")) {
                     log.error("connection closed!");
                     break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
                 }
             } finally {
-                if (watch!=null){
+                if (watch != null) {
                     watch.releaseConnection();
                 }
             }
         }
+
         try {
             if (!(dedicatedConnection instanceof InMemoryDriver)) {
                 dedicatedConnection.close();

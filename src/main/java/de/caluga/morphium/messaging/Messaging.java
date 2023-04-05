@@ -134,7 +134,11 @@ public class Messaging extends Thread implements ShutdownListener {
         morphium = m;
         statusInfoListener = new StatusInfoListener();
         statusInfoListenerEnabled = m.getConfig().isMessagingStatusInfoListenerEnabled();
-        statusInfoListenerName = m.getConfig().getMessagingStatusInfoListenerName();
+
+        if (m.getConfig().getMessagingStatusInfoListenerName() != null) {
+            statusInfoListenerName = m.getConfig().getMessagingStatusInfoListenerName();
+        }
+
         setMultithreadded(multithreadded);
         decouplePool = new ScheduledThreadPoolExecutor(1);
         // noinspection unused,unused
