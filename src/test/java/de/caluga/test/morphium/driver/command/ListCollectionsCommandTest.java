@@ -22,11 +22,13 @@ public class ListCollectionsCommandTest extends DriverTestBase {
         var drv = getDriver();
         MongoConnection con = drv.getConnection();
         new InsertMongoCommand(con).setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123))).execute();
+        drv.releaseConnection(con);con = drv.getConnection();
         new InsertMongoCommand(con).setDb(db).setColl(coll + "_2").setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123))).execute();
+        drv.releaseConnection(con);con = drv.getConnection();
         new InsertMongoCommand(con).setDb(db).setColl(coll + "_3").setDocuments(Arrays.asList(Doc.of("str", "string", "value", 123))).execute();
+        drv.releaseConnection(con);
         var lst = drv.listCollections(db, null);
         assertNotNull(lst);
         assertTrue(5 > lst.size() && 0 < lst.size());
-        drv.releaseConnection(con);
     }
 }
