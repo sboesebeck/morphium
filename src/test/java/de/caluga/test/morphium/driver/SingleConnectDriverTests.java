@@ -45,23 +45,25 @@ public class SingleConnectDriverTests extends DriverTestBase {
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
         Thread.sleep(drv.getHeartbeatFrequency() * 5);
         MongoConnection con = drv.getConnection();
+        var originalConnectedTo = con.getConnectedTo();
+        log.info("Stepping down on node "+originalConnectedTo);
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
-        var originalConnectedTo = con.getConnectedTo();
         cmd.releaseConnection();
 
         while (true) {
             while (!drv.isConnected()) {
-                //log.info("Connected: "+drv.isConnected()+" "+con.getConnectedTo());
-                //Thread.sleep(500);
-                Thread.yield();
+                log.info("not connected yet...");
+                Thread.sleep(500);
             }
 
             con = drv.getConnection();
 
             if (con.getConnectedTo().equals(originalConnectedTo)) {
+                log.info("still on same node: "+originalConnectedTo);
                 drv.releaseConnection(con);
+                Thread.sleep(1000);
                 continue;
             }
 
