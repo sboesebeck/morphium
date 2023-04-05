@@ -1,5 +1,6 @@
 package de.caluga.morphium.messaging.jms;
 
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Msg;
 
@@ -10,6 +11,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Entity(typeId = "jmsmessage",polymorph = true)
 public class JMSMessage extends Msg implements Message {
     private boolean redelivered = false;
     private Object body;
