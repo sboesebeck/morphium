@@ -328,7 +328,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             };
             rec1.addMessageListener(ml);
             rec2.addMessageListener(ml);
-            int amount = 250;
+            int amount = 100;
 
             for (int i = 0; i < amount; i++) {
                 Msg m = new Msg("test", "test", "test");

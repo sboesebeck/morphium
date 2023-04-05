@@ -972,6 +972,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                 getDelegate().watch(settings);
                 return null;
             }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries(), (t) -> {
+                    if (t.getMessage().contains("Socket closed")){
+                        log.info("Socket closed");
+                        close();
+                    }
                 close();
                 SingleMongoConnectDriver.this.connect();
             });

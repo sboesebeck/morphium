@@ -1263,7 +1263,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 try {
                     // throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
-                        log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
+                        // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
                         Thread.sleep(morphium.getConfig().getIdleSleepTime());
                     }
 
