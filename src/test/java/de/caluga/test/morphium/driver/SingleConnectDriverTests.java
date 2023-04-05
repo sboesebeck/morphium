@@ -118,8 +118,8 @@ public class SingleConnectDriverTests extends DriverTestBase {
     @Test
     public void testFailover() throws Exception {
         log.info("Not testing failover!");
-        if (true) return;
         SingleMongoConnectDriver drv = getDriver();
+        if (true) return;
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
 
         while (!drv.isConnected()) {
