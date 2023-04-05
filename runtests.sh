@@ -74,6 +74,7 @@ rg -l "@Test" | grep ".java" >files.lst
 rg -l "@ParameterizedTest" | grep ".java" >>files.lst
 
 sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
+sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
 if [ "$skip" -ne 0 ]; then
 	echo "Skipping tests already run"
 	for i in $(ls -1 test.log); do
