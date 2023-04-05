@@ -293,81 +293,84 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
             }
         }
-
+        startHeartbeat();
         incStat(DriverStatsKey.CONNECTIONS_IN_POOL);
         // log.info("Connected! "+connection.getConnectedTo()+" / "+getHostSeed().get(connectToIdx));
     }
 
-    // protected void startHeartbeat() {
-    //     if (heartbeat == null) {
-    //         // log.debug("Starting heartbeat ");
-    //         heartbeat = executor.scheduleWithFixedDelay(() -> {
-    //             if (connectionInUse) {
-    //                 return;
-    //             }
-    //             // log.info("checking connection");
-    //             if (connection==null)return;
-    //             try {
-    //                 HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
-    //                 var hello = cmd.execute();
-    //
-    //                 if (hello == null) {
-    //                     log.warn("Could not run heartbeat!");
-    //                     return;
-    //                 }
-    //
-    //                 if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
-    //                     log.warn("state change -> wanted primary connection, changed to secondary, retrying");
-    //                     incStat(DriverStatsKey.FAILOVERS);
-    //                     connection.close();
-    //                     decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
-    //                     connection = null;
-    //                     incStat(DriverStatsKey.CONNECTIONS_CLOSED);
-    //                     Thread.sleep(1000);
-    //                     connect(getReplicaSetName());
-    //                 } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
-    //                     log.warn("state changed -> wanted secondary, got something differnt now -reconnecting");
-    //                     connection.close();
-    //                     decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
-    //                     incStat(DriverStatsKey.CONNECTIONS_CLOSED);
-    //                     connection = null;
-    //                     incStat(DriverStatsKey.FAILOVERS);
-    //                     Thread.sleep(1000);//Slowing down
-    //                     connect(getReplicaSetName());
-    //                 }
-    //             } catch (MorphiumDriverException e) {
-    //                 incStat(DriverStatsKey.ERRORS);
-    //                 log.error("Connection error", e);
-    //                 log.warn("Trying reconnect");
-    //
-    //                 try {
-    //                     close();
-    //                 } catch (Exception ex) {
-    //                     //swallow - maybe error because connection died
-    //                 }
-    //
-    //                 try {
-    //                     Thread.sleep(1000);
-    //                 } catch (InterruptedException ex) {
-    //                     //really?
-    //                 }
-    //
-    //                 try {
-    //                     connect();
-    //                 } catch (MorphiumDriverException ex) {
-    //                     log.error("Could not reconnect", ex);
-    //                 }
-    //             } catch (InterruptedException e) {
-    //                 //e.printStackTrace();
-    //             } catch (Exception e) {
-    //                 incStat(DriverStatsKey.ERRORS);
-    //                 e.printStackTrace();
-    //             }
-    //         }, 10, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
-    //     } else {
-    //         log.debug("Heartbeat already scheduled...");
-    //     }
-    // }
+    protected void startHeartbeat() {
+        if (heartbeat == null) {
+            // log.debug("Starting heartbeat ");
+            heartbeat = executor.scheduleWithFixedDelay(() -> {
+                if (connectionInUse) {
+                    return;
+                }
+                // log.info("checking connection");
+                if (connection==null)return;
+                connectionInUse=true;
+                try {
+                    HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
+                    var hello = cmd.execute();
+
+                    if (hello == null) {
+                        log.warn("Could not run heartbeat!");
+                        return;
+                    }
+
+                    if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())) {
+                        log.warn("state change -> wanted primary connection, changed to secondary, retrying");
+                        incStat(DriverStatsKey.FAILOVERS);
+                        connection.close();
+                        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
+                        connection = null;
+                        incStat(DriverStatsKey.CONNECTIONS_CLOSED);
+                        Thread.sleep(1000);
+                        connect(getReplicaSetName());
+                    } else if (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary())) {
+                        log.warn("state changed -> wanted secondary, got something differnt now -reconnecting");
+                        connection.close();
+                        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
+                        incStat(DriverStatsKey.CONNECTIONS_CLOSED);
+                        connection = null;
+                        incStat(DriverStatsKey.FAILOVERS);
+                        Thread.sleep(1000);//Slowing down
+                        connect(getReplicaSetName());
+                    }
+                } catch (MorphiumDriverException e) {
+                    incStat(DriverStatsKey.ERRORS);
+                    log.error("Connection error", e);
+                    log.warn("Trying reconnect");
+
+                    try {
+                        close();
+                    } catch (Exception ex) {
+                        //swallow - maybe error because connection died
+                    }
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        //really?
+                    }
+
+                    try {
+                        connect();
+                    } catch (MorphiumDriverException ex) {
+                        log.error("Could not reconnect", ex);
+                    }
+                } catch (InterruptedException e) {
+                    //e.printStackTrace();
+                } catch (Exception e) {
+                    incStat(DriverStatsKey.ERRORS);
+                    e.printStackTrace();
+                } finally {
+                    connectionInUse=false;
+                }
+            }, 10, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
+        } else {
+            log.debug("Heartbeat already scheduled...");
+        }
+    }
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
