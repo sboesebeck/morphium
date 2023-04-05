@@ -229,7 +229,12 @@ public class MorphiumTestBase {
 
         for (ShutdownListener l : morphium.getShutDownListeners()) {
             if (l instanceof Messaging) {
-                ((Messaging) l).terminate();
+                try {
+                    ((Messaging) l).terminate();
+                } catch (Exception e) {
+                    log.error("could not terminate messaging!!!");
+                }
+
                 long start = System.currentTimeMillis();
                 var id = ((Messaging) l).getSenderId();
                 log.info("Terminating still running messaging..." + id);
@@ -275,15 +280,17 @@ public class MorphiumTestBase {
         }
 
         MongoConnection con = null;
-        ListCollectionsCommand cmd=null;
+        ListCollectionsCommand cmd = null;
+
         try {
             boolean retry = true;
 
             while (retry) {
                 con = morphium.getDriver().getPrimaryConnection(null);
-                 cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-                var lst=cmd.execute();
+                cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                var lst = cmd.execute();
                 cmd.releaseConnection();
+
                 for (var collMap : lst) {
                     String coll = (String) collMap.get("name");
                     log.info("Dropping collection " + coll);
@@ -299,15 +306,15 @@ public class MorphiumTestBase {
 
                 long start = System.currentTimeMillis();
                 retry = false;
+                boolean collectionsExist = true;
 
-                boolean collectionsExist=true;
                 while (collectionsExist) {
                     Thread.sleep(100);
-
                     con = morphium.getDriver().getPrimaryConnection(null);
-                     cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-                    lst=cmd.execute();
+                    cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                    lst = cmd.execute();
                     cmd.releaseConnection();
+
                     for (var k : lst) {
                         log.info("Collections still there..." + k.get("name"));
                     }
@@ -316,16 +323,18 @@ public class MorphiumTestBase {
                         retry = true;
                         break;
                     }
-                    if (lst.size()==0){
-                        collectionsExist=false;
+
+                    if (lst.size() == 0) {
+                        collectionsExist = false;
                     }
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-           if (cmd!=null) cmd.releaseConnection();
-
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
 
         Thread.sleep(150);
