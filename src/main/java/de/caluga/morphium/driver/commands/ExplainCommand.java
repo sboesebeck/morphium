@@ -32,6 +32,15 @@ public class ExplainCommand extends MongoCommand<ExplainCommand> {
         return m;
     }
 
+
+    @Override
+    public ExplainCommand fromMap(Map<String, Object> m) {
+        // TODO Auto-generated method stub
+        super.fromMap(m);
+        setCommand((Map<String, Object>) m.get(getCommandName()));
+        return this;
+    }
+
     public Map<String, Object> getCommand() {
         return command;
     }
