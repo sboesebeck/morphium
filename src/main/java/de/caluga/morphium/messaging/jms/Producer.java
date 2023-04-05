@@ -74,7 +74,7 @@ public class Producer implements JMSProducer {
             waitingForAck.add(jmsMessage.getMsgId());
         } else {
             try {
-                messaging.sendAndAwaitFirstAnswer(jmsMessage, 8000);
+                messaging.sendAndAwaitFirstAnswer(jmsMessage, ttl);
                 if (log.isDebugEnabled()) log.debug("Message " + jmsMessage.getMsgId() + " acknowledged");
             } catch (Exception e) {
                 throw new RuntimeException("message " + jmsMessage.getMsgId() + " was not acknowledged", e);
