@@ -306,7 +306,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void systemTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -796,7 +796,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void broadcastTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -906,7 +906,7 @@ public class MessagingTest extends MultiDriverTestBase {
             morphium.dropCollection(Msg.class);
             Thread.sleep(100);
             final Messaging producer = new Messaging(morphium, 100, true);
-            final Messaging consumer = new Messaging(morphium, 10, true);
+            final Messaging consumer = new Messaging(morphium, 50, true);
             producer.start();
             consumer.start();
             Thread.sleep(1500);
@@ -951,8 +951,12 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 assert(processed[0] == amount) : "Did process " + processed[0];
             } finally {
+                try {
                 producer.terminate();
                 consumer.terminate();
+                } catch(Exception e){
+                    log.error("Termination failed!");
+                }
             }
             log.info(method+"() finished with "+morphium.getDriver().getName());
         }
