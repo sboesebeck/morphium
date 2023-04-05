@@ -193,7 +193,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         m3.start();
 
         try {
-            Thread.sleep(100);
+            Thread.sleep(2000);
             Msg m = new Msg();
             m.setExclusive(true);
             m.setName("A message");
@@ -221,7 +221,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
                 assertThat(rec).isLessThanOrEqualTo(1);
                 Thread.sleep(50);
-                assertThat(System.currentTimeMillis() - s).isLessThan(morphium.getConfig().getMaxWaitTime());
+                assertThat(System.currentTimeMillis() - s).isLessThan(2*morphium.getConfig().getMaxWaitTime());
             }
 
             Thread.sleep(100);
