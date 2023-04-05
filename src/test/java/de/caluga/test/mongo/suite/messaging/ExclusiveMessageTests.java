@@ -113,7 +113,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         m3.start();
 
         try {
-            Thread.sleep(100);
+            Thread.sleep(2000);
             Msg m = new Msg();
             m.setExclusive(true);
             m.setDeleteAfterProcessing(true);
