@@ -96,6 +96,7 @@ public class CountMongoCommand extends MongoCommand<CountMongoCommand> implement
 
     @Override
     public Map<String, Object> execute() throws MorphiumDriverException {
+        if (getConnection()==null) throw new RuntimeException("Connection not set!");
         if (getConnection().getDriver().isTransactionInProgress()) {
             // log.warn("Cannot count while in transaction, will use IDlist!");
             // TODO: use Aggregation
