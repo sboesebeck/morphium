@@ -99,6 +99,7 @@ public class MorphiumDriverSpeedTest {
         ClearCollectionCommand clear = new ClearCollectionCommand(con.getConnection());
         clear.setDb("morphium_test").setColl("uncached_object");
         log.info("Deleted documents:" + clear.doClear());
+        clear.releaseConnection();
         List<Map<String, Object>> dat = new ArrayList<>();
 
         for (int i = 0; i < amount; i++) {
@@ -108,6 +109,7 @@ public class MorphiumDriverSpeedTest {
         long start = System.currentTimeMillis();
         InsertMongoCommand insert = new InsertMongoCommand(con.getConnection()).setDocuments(dat).setColl("uncached_object").setDb("morphium_test");
         insert.execute();
+        insert.releaseConnection();
         long dur = System.currentTimeMillis() - start;
         //log.info(String.format("Storing took %dms", dur));
         ret.put("storing", dur);
@@ -120,6 +122,8 @@ public class MorphiumDriverSpeedTest {
             var d = it.next();
             assertEquals(i, d.get("counter"));
             assertEquals(Boolean.FALSE, it.hasNext());
+            it.close();
+            fnd.releaseConnection();
         }
 
         dur = System.currentTimeMillis() - start;
