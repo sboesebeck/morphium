@@ -81,22 +81,25 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         FindCommand fnd = new FindCommand(drv).setColl(coll).setDb(db);
         fnd.setFilter(Doc.of("value", 14));
         var found = fnd.execute();
+        fnd.releaseConnection();
         assertEquals(1, found.size());
-
+        fnd = new FindCommand(drv).setColl(coll).setDb(db);
         fnd.setFilter(null);
         found = fnd.execute();
+        fnd.releaseConnection();
         assertEquals(4, found.size());
 
         DistinctMongoCommand distinct = new DistinctMongoCommand(drv).setKey("strVal");
         distinct.setDb(db).setColl(coll);
         var distinctResult = distinct.execute();
+        distinct.releaseConnection();
         log.info("Distinct values: " + distinctResult.size());
         assertEquals(4, distinctResult.size());
 
         CreateIndexesCommand createIndexesCommand = new CreateIndexesCommand(drv).setDb(db).setColl(coll);
         createIndexesCommand.addIndex(new IndexDescription().setKey(Doc.of("strVal", 1)));
         createIndexesCommand.execute();
-
+        createIndexesCommand.releaseConnection();
         CollStatsCommand collStatsCommand = new CollStatsCommand((MongoConnection) drv).setDb(db).setColl(coll);
         var collStats = collStatsCommand.execute();
         assertNotNull(collStats.get("nindexes"));
@@ -104,8 +107,10 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         assertTrue((long) collStats.get("totalSize") > 0);
         CountMongoCommand count = new CountMongoCommand(drv).setColl(coll).setDb(db).setQuery(Doc.of());
         assertEquals(4, count.getCount());
+        count.releaseConnection();
         ClearCollectionCommand clr = new ClearCollectionCommand(drv).setColl(coll).setDb(db);
         var cleared = clr.execute();
+        clr.releaseConnection();
         assertEquals(drv.getDatabase(db).get(coll).size(), 0);
         drv.close();
     }
