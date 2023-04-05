@@ -241,6 +241,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             counts.clear();
             Messaging m1 = new Messaging(morphium, 100, false, true, 10);
             m1.start();
+
             MorphiumConfig cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg2.setCredentialsEncryptionKey("1234567890abcdef");
             cfg2.setCredentialsDecryptionKey("1234567890abcdef");
@@ -262,6 +263,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             Messaging m4 = new Messaging(morphium4, 100, false, true, 10);
             //        m4.setUseChangeStream(false);
             m4.start();
+            Thread.sleep(2000);
             MessageListener<Msg> msgMessageListener = (msg, m)->{
                 log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 Msg answer = m.createAnswerMsg();
