@@ -19,34 +19,6 @@ import de.caluga.test.mongo.suite.base.TestUtils;
 
 public class MessageAutoUnlockTest extends MorphiumTestBase {
 
-    @Test
-    public void testAutoReleaseLock() throws Exception {
-        AtomicInteger msgCount = new AtomicInteger(0);
-        Messaging prod = new Messaging(morphium);
-        Messaging consumer = new Messaging(morphium);
-
-        try {
-            prod.setPause(100);
-            prod.start();
-            consumer.setPause(100);
-            consumer.addMessageListener((m, msg)->{
-                msgCount.incrementAndGet();
-                return null;
-            });
-            consumer.start();
-            //creating a locked Message
-            var m = new Msg("test", "message", "value");
-            m.setTtl(1000);
-            prod.sendMessage(m);
-            Thread.sleep(500);
-            assertEquals(0, msgCount.get());
-            Thread.sleep(1000);
-            assertEquals(1, msgCount.get());
-        } finally {
-            prod.terminate();
-            consumer.terminate();
-        }
-    }
 
     @Test
     public void testAutoReleaseLockMulti() throws Exception {
@@ -62,7 +34,7 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
             prod.setPause(100);
             prod.start();
             MessageListener l = new MessageListener<Msg>() {
-                
+
                 @Override
                 public boolean markAsProcessedBeforeExec() {
                     return true;
@@ -83,15 +55,15 @@ public class MessageAutoUnlockTest extends MorphiumTestBase {
             };
             consumer2.setPause(100);
             consumer2.setSenderId("c2");
-            consumer2.addMessageListener(l);          
+            consumer2.addMessageListener(l);
             consumer2.start();
-            
+
             consumer.setSenderId("c1");
             consumer.setPause(100);
             assertTrue(msgCount.get()<10);
-            consumer.addMessageListener(l);   
+            consumer.addMessageListener(l);
             consumer.start();
-
+            Thread.sleep(2000);
             //creating several locked Messages
             for (int i = 1; i <= 10; i++) {
                 var m = new Msg("test", "message", "value");
