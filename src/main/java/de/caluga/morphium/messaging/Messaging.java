@@ -71,7 +71,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private boolean autoAnswer = false;
     private String hostname;
     private boolean processMultiple;
-    private ReceiveAnswers receiveAnswers = ReceiveAnswers.ONLY_MINE;
 
     private final List<MessageListener> listeners;
 
@@ -127,14 +126,8 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
-        this(m, queueName, pause, processMultiple, multithreadded, windowSize, useChangeStream, ReceiveAnswers.ONLY_MINE);
-    }
-
-    @SuppressWarnings("CommentedOutCode")
-    public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream, ReceiveAnswers recieveAnswers) {
         setWindowSize(windowSize);
         setUseChangeStream(useChangeStream);
-        setReceiveAnswers(recieveAnswers);
         setQueueName(queueName);
         setPause(pause);
         setProcessMultiple(processMultiple);
@@ -241,9 +234,9 @@ public class Messaging extends Thread implements ShutdownListener {
     public Map<String, Long> getThreadPoolStats() {
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
@@ -268,8 +261,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
         threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-          morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor)->{
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        threadPool.setRejectedExecutionHandler((r, executor) -> {
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -336,13 +329,13 @@ public class Messaging extends Thread implements ShutdownListener {
             match.put("operationType", in);
             pipeline.add(UtilsMap.of("$match", match));
             ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), true, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
-            lockMonitor.addListener(evt->{
+            lockMonitor.addListener(evt -> {
                 //some lock removed
                 skipped.incrementAndGet();
                 return running;
             });
             changeStreamMonitor = new ChangeStreamMonitor(morphium, getCollectionName(), true, pause, pipeline);
-            changeStreamMonitor.addListener(evt->{
+            changeStreamMonitor.addListener(evt -> {
                 if (!running)
                     return false;
                 synchronized (Messaging.this) {
@@ -522,7 +515,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     } finally {
                         while (true) {
                             try {
-                                decouplePool.schedule(()->{
+                                decouplePool.schedule(() -> {
                                     triggerCheck();
                                 }, 5000, TimeUnit.MILLISECONDS);
                                 break;
@@ -615,25 +608,13 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
                 }
             }
-        } else if (!receiveAnswers.equals(ReceiveAnswers.NONE)) {
-            if (receiveAnswers.equals(ReceiveAnswers.ALL) || (obj.getRecipients() != null && obj.getRecipients().contains(id))) {
-                try {
-                    if (obj.isExclusive() && obj.getProcessedBy().size() > 0) {
-                        // exclusive message already processed
-                        return;
-                    }
+        } else {
+            log.warn("Incoming unexpected answer...");
 
-                    /* if (obj.isExclusive()) {
-                     *   lockAndProcess(obj);
-                     * } else {*/
-                    // if (obj.getName().equals(statusInfoListenerName)) {
-                    // log.info(id + ":: processing answer from statusInfoListener");
-                    // }
-                    processMessage(obj);
-                    //                    }
-                } catch (Exception e) {
-                    log.error("Error during message processing ", e);
-                }
+            if (obj.isExclusive()) {
+                lockAndProcess(obj);
+            } else {
+                processMessage(obj);
             }
         }
 
@@ -716,14 +697,8 @@ public class Messaging extends Thread implements ShutdownListener {
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
         if (listenerByName.isEmpty() && listeners.isEmpty()) {
-            if (getReceiveAnswers().equals(ReceiveAnswers.ALL)) {
-                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).ne(null).limit(windowSize).idList();
-            } else if (getReceiveAnswers().equals(ReceiveAnswers.ONLY_MINE)) {
-                // No listeners - only answers will be processed
-                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).limit(windowSize).idList();
-            } else { // NO_ANSWER_PROCESSING
-                return new ArrayList<>();
-            }
+            // No listeners - only answers will be processed
+            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).limit(windowSize).idList();
         }
 
         // locking messages.. and getting broadcasts
@@ -989,7 +964,7 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        Runnable r = ()->{
+        Runnable r = () -> {
             boolean wasProcessed = false;
             boolean wasRejected = false;
             List<MessageRejectedException> rejections = new ArrayList<>();
@@ -1206,7 +1181,7 @@ public class Messaging extends Thread implements ShutdownListener {
         while (true) {
             try {
                 if (!decouplePool.isTerminated() && !decouplePool.isTerminating() && !decouplePool.isShutdown()) {
-                    decouplePool.schedule(()->{
+                    decouplePool.schedule(() -> {
                         rb.run();
                         skipped.incrementAndGet();
                     }, timeout, TimeUnit.MILLISECONDS); // avoid re-executing message
@@ -1489,8 +1464,7 @@ public class Messaging extends Thread implements ShutdownListener {
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
-                }
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {}
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
@@ -1693,29 +1667,6 @@ public class Messaging extends Thread implements ShutdownListener {
         return this;
     }
 
-    /**
-     * Receive answers=false, onMessage is not called, when answers come in
-     * if true, onMessage is called for all answers
-     * this is not affecting the sendAndWaitFor-Methods!
-     *
-     * @return
-     */
-    public boolean isReceiveAnswers() {
-        return !receiveAnswers.equals(ReceiveAnswers.NONE);
-    }
-
-    public ReceiveAnswers getReceiveAnswers() {
-        return receiveAnswers;
-    }
-
-    /**
-     * Receive answers=false, onMessage is not called, when answers come in
-     * if true, onMessage is called for all answers
-     * this is not affecting the sendAndWaitFor-Methods!
-     */
-    public void setReceiveAnswers(ReceiveAnswers receiveAnswers) {
-        this.receiveAnswers = receiveAnswers;
-    }
 
     public boolean isUseChangeStream() {
         return useChangeStream;
@@ -1747,10 +1698,6 @@ public class Messaging extends Thread implements ShutdownListener {
     public Messaging setUseChangeStream(boolean useChangeStream) {
         this.useChangeStream = useChangeStream;
         return this;
-    }
-
-    public enum ReceiveAnswers {
-        NONE, ONLY_MINE, ALL,
     }
 
     public static class MessageTimeoutException extends RuntimeException {
