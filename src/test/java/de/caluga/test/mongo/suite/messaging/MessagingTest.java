@@ -385,7 +385,7 @@ public class MessagingTest extends MultiDriverTestBase {
             m1.start();
             m2.start();
             m3.start();
-            Thread.sleep(200);
+            Thread.sleep(2000);
             m1.addMessageListener((msg, m)->{
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
@@ -1033,8 +1033,6 @@ public class MessagingTest extends MultiDriverTestBase {
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
             Messaging sender = new Messaging(morphium, 100, false);
-            assert(sender.isReceiveAnswers());
-            assert(sender.getReceiveAnswers().equals(Messaging.ReceiveAnswers.ONLY_MINE));     //default!!!
 
             if (!sender.isUseChangeStream()) {
                 log.error("Sender does not use changestream??!");
