@@ -349,7 +349,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoInMem")
     public void changeStreamPipelineTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
