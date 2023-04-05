@@ -89,6 +89,7 @@ public class MorphiumDriverSpeedTest {
         Map<String, Long> ret = new HashMap<>();
         log.info("Using sync connection...");
         SingleMongoConnectDriver con = new SingleMongoConnectDriver();
+        con.setHeartbeatFrequency(20000);
         con.setHostSeed("localhost:27017");
         con.setUser("test");
         con.setPassword("test");
