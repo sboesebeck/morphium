@@ -243,7 +243,7 @@ public class SingleMongoConnection implements MongoConnection {
             return msg;
         } catch (Exception e) {
             close();
-            throw new MorphiumDriverException("error", e);
+            throw new MorphiumDriverException("error: "+e.getMessage(), e);
         }
     }
 

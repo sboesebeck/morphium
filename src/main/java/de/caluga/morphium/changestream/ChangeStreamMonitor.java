@@ -240,6 +240,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
+                if (dedicatedConnection==null) break;
                 var con = dedicatedConnection.getPrimaryConnection(null);
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(0)
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
@@ -280,7 +281,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         }
 
         try {
-            if (!(dedicatedConnection instanceof InMemoryDriver)) {
+            if (dedicatedConnection!=null && !(dedicatedConnection instanceof InMemoryDriver)) {
                 dedicatedConnection.close();
             }
         } catch (IOException e) {
