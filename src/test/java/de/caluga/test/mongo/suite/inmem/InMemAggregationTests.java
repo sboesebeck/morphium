@@ -173,12 +173,13 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             UncachedObject u = new UncachedObject("mod" + (i % 3), i);
             morphium.store(u);
         }
+
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
         agg.group("all").addToSet("mods", "$str_value");
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
         assert (lst.size() == 1);
-        assert (((List) lst.get(0).get("mods")).size() == 3);
+        assertEquals (3,((List) lst.get(0).get("mods")).size());
     }
 
     @Test
