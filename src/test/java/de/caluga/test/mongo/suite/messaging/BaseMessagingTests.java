@@ -48,7 +48,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleBroadcastTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Running simple broadcast test");
+            log.info("Running simple broadcast test with driver "+morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             Messaging sender = new Messaging(morphium);
