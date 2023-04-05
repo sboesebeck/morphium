@@ -39,7 +39,7 @@ public class MultithreaddingTests extends MorphiumTestBase {
                 return null;
             }
         });
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         List<Msg> toSend = new ArrayList<>();
 
         for (int i = 0; i < 10; i++) {
