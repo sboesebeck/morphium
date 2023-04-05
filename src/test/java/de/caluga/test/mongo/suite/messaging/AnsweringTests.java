@@ -379,6 +379,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             Messaging recipient = new Messaging(morphium, 100, true);
             sender.start();
             recipient.start();
+            Thread.sleep(2000);
             gotMessage1 = false;
             recipient.addListenerForMessageNamed("query", (msg, m)->{
                 gotMessage1 = true;

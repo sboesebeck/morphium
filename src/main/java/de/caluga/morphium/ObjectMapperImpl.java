@@ -839,8 +839,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             } else {
                 return (T)((HashMap<String, Object>) jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
             }
-        } catch (Exception e) {
-            throw new RuntimeException("Parsing failed",e);
+        } catch (
+                Exception e) {
+            throw new RuntimeException("Parsing failed", e);
         }
     }
 
@@ -994,14 +995,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     continue;
                 }
 
-                if (valueFromDb == null) {
-                    if (!fldType.isPrimitive() && objectMap.containsKey(f)) {
-                        fld.set(ret, null);
-                    }
-
-                    continue;
-                }
-
                 if (fld.isAnnotationPresent(Encrypted.class)) {
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
@@ -1025,12 +1018,24 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
 
                     try {
+                        if (((String)valueFromDb).startsWith("{")){
                         valueFromDb = deserialize(fldType, (String) valueFromDb);
+                        } else {
+                            valueFromDb=deserialize(Map.class,(String)valueFromDb).get("value");
+                        }
                     } catch (Exception e) {
                         log.debug("Not a json string, cannot deserialize further");
                     }
 
                     annotationHelper.setValue(ret, valueFromDb, f);
+                    continue;
+                }
+
+                if (valueFromDb == null) {
+                    if (!fldType.isPrimitive() && objectMap.containsKey(f)) {
+                        fld.set(ret, null);
+                    }
+
                     continue;
                 }
 

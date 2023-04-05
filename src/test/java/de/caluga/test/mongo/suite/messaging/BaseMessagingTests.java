@@ -30,6 +30,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleMsgLockTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("----------------------> Running test simpleMsgLockTest with driver "+morphium.getDriver().getName());
             MorphiumId id = new MorphiumId();
             MsgLock l = new MsgLock(id);
             l.setLockId("someone");
@@ -48,7 +49,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleBroadcastTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Running simple broadcast test with driver "+morphium.getDriver().getName());
+            log.info("----------------------> Running simple broadcast test with driver "+morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             Messaging sender = new Messaging(morphium);
@@ -100,6 +101,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void nonExMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("---------> Running Tst nonExMessageTest with "+morphium.getDriver().getName());
             Messaging sender = new Messaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
@@ -152,6 +154,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
+            log.info("---------> Running Tst  exclusiveMessageTest with "+morphium.getDriver().getName());
             Messaging sender = new Messaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
@@ -238,7 +241,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveProcessedByTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Running simple processedBy test");
+            log.info("---------> Running simple processedBy test: "+morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             morphium.dropCollection(MsgLock.class, "msg_lck", null);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
@@ -292,7 +295,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleExclusiveTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("Simple exclusive message test");
+            log.info("---------------> Simple exclusive message test: "+morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             Messaging sender = new Messaging(morphium);
