@@ -100,6 +100,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         assertEquals(1, updateInfo.get("nModified"));
         log.info("...done");
         log.info("Re-Reading...");
+        fnd.setConnection(con);
         fnd.setFilter(Doc.of("_id", res.get(0).get("_id")));
         res = fnd.execute();
         assertEquals(1, res.size());
@@ -107,16 +108,15 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         con.close();
 
         for (var e : con.getStats().entrySet()) {
-log.info("Stats: " + e.getKey() + " -> " + e.getValue());
+            log.info("Stats: " + e.getKey() + " -> " + e.getValue());
         }
     }
 
     @Test
-public void testMongoTypes() throws Exception {
-        var con=getConnection();
-        ObjectMapperImpl mapper=new ObjectMapperImpl();
+    public void testMongoTypes() throws Exception {
+        var con = getConnection();
+        ObjectMapperImpl mapper = new ObjectMapperImpl();
         mapper.setAnnotationHelper(new AnnotationAndReflectionHelper(true));
-
         MTestClass cls = new MTestClass();
         cls.stringValue = "strValue";
         cls.charValue = new Character('c');
@@ -138,7 +138,7 @@ public void testMongoTypes() throws Exception {
         cls.localDateValue = LocalDate.now();
         cls.localTimeValue = LocalTime.now();
         cls.localDateTimeValue = LocalDateTime.now();
-        InsertMongoCommand cmd=new InsertMongoCommand(con);
+        InsertMongoCommand cmd = new InsertMongoCommand(con);
         cmd.setDb(db).setColl(coll).setDocuments(Arrays.asList(mapper.serialize(cls)));
         cmd.execute();
         FindCommand fnd = new FindCommand(con);
@@ -148,13 +148,11 @@ public void testMongoTypes() throws Exception {
         OpMsg q = new OpMsg();
         q.setMessageId(1234);
         q.setFirstDoc(Doc.of(fnd.asMap()));
-
-        var  r=con.sendAndWaitForReply(q);
-
+        var r = con.sendAndWaitForReply(q);
         var lst = fnd.execute();
         Thread.sleep(100);
-        var m=lst.get(0);
-        var cls2=mapper.deserialize(MTestClass.class, m);;
+        var m = lst.get(0);
+        var cls2 = mapper.deserialize(MTestClass.class, m);;
         assertEquals(cls.stringValue, cls2.stringValue);
         assertEquals(cls.charValue, cls2.charValue);
         assertEquals(cls.integerValue, cls2.integerValue);
@@ -175,7 +173,6 @@ public void testMongoTypes() throws Exception {
         assertEquals(cls.localDateTimeValue, cls2.localDateTimeValue);
         assertEquals(cls.localTimeValue, cls2.localTimeValue);
         con.close();
-
     }
 
     @Entity()
@@ -284,7 +281,7 @@ public void testMongoTypes() throws Exception {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd =
-                     new StoreMongoCommand(con.getConnection()).setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                        new StoreMongoCommand(con.getConnection()).setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -294,8 +291,7 @@ public void testMongoTypes() throws Exception {
                     throw new RuntimeException(e);
                 }
             }
-        }
-        .start();
+        } .start();
         con.watch(new WatchCommand(con).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
             private int counter = 0;
             @Override
@@ -337,7 +333,7 @@ public void testMongoTypes() throws Exception {
                     UncachedObject o = new UncachedObject("value", 123);
                     UncachedObject o2 = new UncachedObject("value2", 124);
                     StoreMongoCommand cmd =
-                     new StoreMongoCommand(con.getConnection()).setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
+                        new StoreMongoCommand(con.getConnection()).setDb(db).setColl(coll).setDocuments(Arrays.asList(Doc.of(objectMapper.serialize(o)), Doc.of(objectMapper.serialize(o2))));
                     cmd.execute();
                     cmd.setColl("test2");
                     cmd.execute();
@@ -347,8 +343,7 @@ public void testMongoTypes() throws Exception {
                     throw new RuntimeException(e);
                 }
             }
-        }
-        .start();
+        } .start();
         final AtomicInteger counter = new AtomicInteger(0);
         final long waitStart = System.currentTimeMillis();
         con.watch(new WatchCommand(con).setMaxTimeMS(10000).setCb(new DriverTailableIterationCallback() {
@@ -383,9 +378,9 @@ public void testMongoTypes() throws Exception {
         StoreMongoCommand cmd = new StoreMongoCommand(con).setDb(db).setColl(coll).setDocuments(testList);
         cmd.execute();
         MapReduceCommand settings = new MapReduceCommand(con).setColl(coll).setDb(db).setOutConfig(Doc.of("inline", 1)).setMap("function(){ if (this.counter%2==0) emit(this.counter,1); }")
-         .setReduce("function(key,values){ return values; }").setFinalize("function(key, reducedValue){ return reducedValue;}").setSort(Doc.of("counter", 1)).setScope(Doc.of("myVar", 1));
+        .setReduce("function(key,values){ return values; }").setFinalize("function(key, reducedValue){ return reducedValue;}").setSort(Doc.of("counter", 1)).setScope(Doc.of("myVar", 1));
         List<Map<String, Object>> res = settings.execute();
-        res.sort((o1, o2)->((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
+        res.sort((o1, o2) -> ((Comparable) o1.get("_id")).compareTo(o2.get("_id")));
         log.info("Got results");
         assertEquals(50, res.size());
         assertTrue(res.get(0).containsKey("_id"));
@@ -461,8 +456,9 @@ public void testMongoTypes() throws Exception {
         var out = s.getOutputStream();
         OpQuery q = new OpQuery();
         q.setMessageId(100);
-        q.setDoc(Doc.of("ismaster", true, "helloOk", true, "client", Doc.of("driver", Doc.of("name", "morphium", "version", 1), "os", Doc.of("type", "darvin", "name", "macos", "architecture", "arm64"),
-         "platform", "Java", "version", "0.0.1", "application", Doc.of("name", "Morphium-Test")), "compression", Arrays.asList("none"), "loadBalanced", false));
+        q.setDoc(
+            Doc.of("ismaster", true, "helloOk", true, "client", Doc.of("driver", Doc.of("name", "morphium", "version", 1), "os", Doc.of("type", "darvin", "name", "macos", "architecture", "arm64"),
+                    "platform", "Java", "version", "0.0.1", "application", Doc.of("name", "Morphium-Test")), "compression", Arrays.asList("none"), "loadBalanced", false));
         q.setColl("admin.$cmd");
         q.setLimit(-1);
         q.setDb(null);
