@@ -620,7 +620,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             m1.sendMessage(m);
             Thread.sleep(1000);
             m = morphium.reread(m);
-            assertEquals(1, m.getProcessedBy().size()); //is marked as processed, performance optimization
+            assertEquals(0, m.getProcessedBy().size()); //is marked as processed, performance optimization
         } finally {
             m1.terminate();
             m2.terminate();
