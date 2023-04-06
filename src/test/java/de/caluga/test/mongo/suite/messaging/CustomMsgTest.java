@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -35,12 +36,13 @@ public class CustomMsgTest extends MorphiumTestBase {
         cm.setName("test");
         m1.sendMessage(cm);
 
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (received);
         m1.terminate();
         m2.terminate();
     }
 
+    // @Entity(typeId="cmsg", polymorph = true)
     public static class CustomMsg extends Msg {
         private String customBuiltValue;
 
