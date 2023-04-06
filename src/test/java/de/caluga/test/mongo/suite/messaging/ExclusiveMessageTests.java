@@ -56,7 +56,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             Thread.sleep(1250);
 
             for (int i = 0; i < 10; i++) {
-                Msg m = new Msg("test", "ignore me please", "value", 2000, true);
+                Msg m = new Msg("test", "ignore me please", "value", 20000, true);
                 m1.sendMessage(m);
 
                 while (true) {
