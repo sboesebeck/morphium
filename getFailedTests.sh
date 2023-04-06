@@ -3,7 +3,7 @@
 getFailure() {
 	cls=$1
 	type=$2
-    #echo "Checking $cls for type $type"
+	#echo "Checking $cls for type $type"
 	failures=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase\[[0-9]*\].'$type'\["@type"\]' | cut -f 2 -d '[' | cut -f1 -d ']')
 	for id in $(echo $failures); do
 		# echo "ID: '$id'"
@@ -14,7 +14,7 @@ getFailure() {
 		else
 			err="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].$type\\[\"@type\"\\]" | cut -f2 -d= | tr -d '"; ')"
 			msg="$(xq . ./target/surefire-reports/TEST-$cls.xml | gron | grep "testcase\\[$id\\].$type\\[\"@message\"\\]" | cut -f2 -d= | tr -d '"; ')"
-            echo "$cls#$m - $err ($msg)"
+			echo "$cls#$m - $err ($msg)"
 		fi
 	done
 	if xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@type"\]' >/dev/null; then
@@ -25,8 +25,8 @@ getFailure() {
 		else
 			err=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@type"\]' | cut -f2 -d= | tr -d "!; ')")
 			msg=$(xq . ./target/surefire-reports/TEST-"$cls".xml | gron | grep 'testcase.'$type'\["@message"\]' | cut -f2 -d= | tr -d "!; ')")
-            
-            echo "$cls#$m - $err ($msg)"
+
+			echo "$cls#$m - $err ($msg)"
 		fi
 	fi
 
@@ -56,9 +56,20 @@ for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f4 -d: | cut -f1 -d,
 	((fail = fail + i))
 done
 run=0
-for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f3 -d: | cut -f1 -d,); do
-	((run = run + i))
+for i in test.log/*; do
+	fn=$(basename $i)
+	fn=src/test/java/$(echo "${fn%%.log}" | tr "." "/").java
+	testMethods=$(grep -E "@Test" $fn | cut -f2 -d: | grep -vc '^ *//')
+	testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $fn | cut -f2 -d: | grep -vc '^ *//')
+	testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $fn | cut -f2 -d: | grep -vc '^ *//')
+	testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $fn | cut -f2 -d: | grep -vc '^ *//')
+	# testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+	((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1))
+    ((run = run + testMethods))
 done
+# for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f3 -d: | cut -f1 -d,); do
+# 	((run = run + i))
+# done
 err=0
 for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f5 -d: | cut -f1 -d,); do
 	((err = err + i))
@@ -79,14 +90,14 @@ else
 		# for cls in $(grep -E "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' | grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'); do
 		# echo "Getting failures in $cls"
 		if [ ! -e ./target/surefire-reports/TEST-$cls.xml ]; then
-            # if [ "$noreason" -eq 1 ]; then
-    			echo "$cls"
-            # else 
-            #     echo "$cls (no more details available)"
-            # fi
+			# if [ "$noreason" -eq 1 ]; then
+			echo "$cls"
+			# else
+			#     echo "$cls (no more details available)"
+			# fi
 			continue
 		fi
-        getFailure $cls "failure"
-        getFailure $cls "error"
+		getFailure $cls "failure"
+		getFailure $cls "error"
 	done
 fi
