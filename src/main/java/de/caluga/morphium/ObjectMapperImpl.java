@@ -67,6 +67,7 @@ import de.caluga.morphium.annotations.UseIfnull;
 import de.caluga.morphium.annotations.encryption.Encrypted;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.AtomicBooleanMapper;
 import de.caluga.morphium.objectmapping.AtomicIntegerMapper;
 import de.caluga.morphium.objectmapping.AtomicLongMapper;
@@ -879,7 +880,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (cN == null) {
                         cN = (String) objectMap.get("className");
                     }
-
+                    if (cN.equals("msg")){
+                        cN=Msg.class.getName();
+                    }
                     cls = annotationHelper.getClassForTypeId(cN);
                 } catch (ClassNotFoundException e) {
                     throw new RuntimeException(e);
