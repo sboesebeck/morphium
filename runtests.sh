@@ -144,7 +144,7 @@ for t in $(<files.txt); do
 		echo "Total number methods to run in matching classes $testMethods"
 		echo "Number of test methods in $t: $(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')"
 		if [ "$m" != "." ]; then
-			echo " Tests matchin: $m"
+			echo " Tests matching: $m"
 		fi
 		cat failed.txt | pr -t -2 -w280
 		((dur = $(date +%s) - tm))
