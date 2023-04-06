@@ -251,6 +251,7 @@ public class SingleMongoConnectionTest extends ConnectionTestBase {
         log.info("...done");
         log.info("Re-Reading...");
         fnd.setFilter(Doc.of("_id", res.get(0).get("_id")));
+        fnd.setConnection(con);
         res = fnd.execute();
         assertEquals(1, res.size());
         assertEquals(9999, res.get(0).get("counter"));
