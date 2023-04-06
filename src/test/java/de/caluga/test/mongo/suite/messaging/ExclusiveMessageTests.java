@@ -197,7 +197,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             Msg m = new Msg();
             m.setExclusive(true);
             m.setName("A message");
-            sender.queueMessage(m);
+            sender.sendMessage(m);
             long s = System.currentTimeMillis();
 
             while (true) {
