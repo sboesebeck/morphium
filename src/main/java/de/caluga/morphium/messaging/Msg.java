@@ -20,7 +20,7 @@ import java.util.*;
  * write!t
  */
 @SuppressWarnings({"WeakerAccess", "UnusedReturnValue", "CommentedOutCode"})
-@Entity(polymorph = true, typeId = "msg")
+@Entity(polymorph = true)
 @NoCache
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
