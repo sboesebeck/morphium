@@ -505,7 +505,7 @@ public class PooledDriverTest {
             drv.releaseConnection(c3);
             drv.releaseConnection(c4);
             assertTrue(drv.getNumConnectionsByHost().get("127.0.0.1:27017") > 2);
-            Thread.sleep(6100);
+            Thread.sleep(1100);
             assertEquals(2, drv.getNumConnectionsByHost().get("127.0.0.1:27017"));
         } finally {
             drv.close();
