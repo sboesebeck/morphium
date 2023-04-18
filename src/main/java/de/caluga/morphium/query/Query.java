@@ -62,6 +62,7 @@ public class Query<T> implements Cloneable {
     private Collation collation;
     private int batchSize = 0;
     private UtilsMap<String, UtilsMap<String, String>> additionalFields;
+    private Integer maxTimeMS=null;
 
     public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
         this(m);
@@ -2432,13 +2433,32 @@ public class Query<T> implements Cloneable {
         FindCommand settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
          .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
         settings.setBatchSize(getBatchSize());
+        int ms=getMaxTimeMS();
+        if (ms<=0){
+            settings.setNoCursorTimeout(true);
+        } else {
+            settings.setMaxTimeMS(ms);
+        }
         return settings;
+    }
+
+    public void setMaxTimeMS(Integer max){
+        maxTimeMS=max;
+    }
+
+    public int getMaxTimeMS(){
+        if (maxTimeMS==null){
+            return morphium.getConfig().getMaxWaitTime();
+        } else {
+            return maxTimeMS;
+        }
     }
 
     public enum TextSearchLanguages {
         danish, dutch, english, finnish, french, german, hungarian, italian, norwegian, portuguese, romanian, russian, spanish, swedish, turkish, mongo_default, none,
-
     }
+
+
 
     public static Logger getLog() {
         return log;
