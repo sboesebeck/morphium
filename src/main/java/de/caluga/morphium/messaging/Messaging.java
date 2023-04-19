@@ -613,7 +613,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         } else {
-            log.warn("Incoming unexpected answer...");
+            // log.warn("Incoming unexpected answer...");
 
             if (obj.isExclusive()) {
                 lockAndProcess(obj);
