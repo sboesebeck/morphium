@@ -240,59 +240,57 @@ public class PooledDriver extends DriverBase {
                             c = connectionPool.get(hst).remove(0);
                         }
 
-                        if (c == null) {
-                            continue;
-                        }
-
-                        // checking max lifetime
-                        if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
-                            log.debug("Lifetime exceeded...host: " + hst);
-                            c.getCon().close();
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            continue;
-                        } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
-                            log.debug("Unused connection to " + hst + " closed");
-                            c.getCon().close();
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            continue;
-                        }
-
-                        synchronized (connectionPool) {
-                            connectionPool.get(hst).add(0, c);
-                        }
-
-                        // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
-                        HelloCommand h = new HelloCommand(borrowConnection(hst)).setHelloOk(true).setIncludeClient(false);
-
-                        try {
-                            long start = System.currentTimeMillis();
-                            var hello = h.execute();
-                            h.releaseConnection();
-                            long dur = System.currentTimeMillis() - start;
-
-                            if (dur < fastestTime) {
-                                fastestTime = dur;
-                                fastestHost = hst;
+                        if (c != null) {
+                            // checking max lifetime
+                            if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
+                                log.debug("Lifetime exceeded...host: " + hst);
+                                c.getCon().close();
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                continue;
+                            } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
+                                log.debug("Unused connection to " + hst + " closed");
+                                c.getCon().close();
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                continue;
                             }
 
-                            if (hello != null && hello.getWritablePrimary()) {
-                                handleHello(hello);
-                            } else {
-                                // log.info("Hello from secondary");
+                            synchronized (connectionPool) {
+                                connectionPool.get(hst).add(0, c);
                             }
-                        } catch (Throwable ex) {
-                            if (!ex.getMessage().contains("closed")) {
-                                log.error("Error talking to " + hst, ex);
 
-                                try {
-                                    c.getCon().close();
-                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                } catch (Exception exc) {
-                                    // swallow - something was broken before already!
+                            // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
+                            HelloCommand h = new HelloCommand(borrowConnection(hst)).setHelloOk(true).setIncludeClient(false);
+
+                            try {
+                                long start = System.currentTimeMillis();
+                                var hello = h.execute();
+                                h.releaseConnection();
+                                long dur = System.currentTimeMillis() - start;
+
+                                if (dur < fastestTime) {
+                                    fastestTime = dur;
+                                    fastestHost = hst;
                                 }
+
+                                if (hello != null && hello.getWritablePrimary()) {
+                                    handleHello(hello);
+                                } else {
+                                    // log.info("Hello from secondary");
+                                }
+                            } catch (Throwable ex) {
+                                if (!ex.getMessage().contains("closed")) {
+                                    log.error("Error talking to " + hst, ex);
+
+                                    try {
+                                        c.getCon().close();
+                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                    } catch (Exception exc) {
+                                        // swallow - something was broken before already!
+                                    }
+                                }
+                            } finally {
+                                h.releaseConnection();
                             }
-                        } finally {
-                            h.releaseConnection();
                         }
 
                         while (getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
@@ -440,7 +438,7 @@ public class PooledDriver extends DriverBase {
                 }
 
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
-                        // log.info("Borrowing new connection sourceport " + c.getCon().getSourcePort());
+                // log.info("Borrowing new connection sourceport " + c.getCon().getSourcePort());
                 return con;
             } else {
                 synchronized (connectionPool) {
@@ -471,12 +469,12 @@ public class PooledDriver extends DriverBase {
         }
 
         synchronized (connectionPool) {
-            if(borrowedConnections.containsKey(c.getCon().getSourcePort())){
+            if (borrowedConnections.containsKey(c.getCon().getSourcePort())) {
                 log.error("Re-borrowing same connection?!?!?! recursing...!");
                 return borrowConnection(host);
             }
-            borrowedConnections.put(c.getCon().getSourcePort(), c);
 
+            borrowedConnections.put(c.getCon().getSourcePort(), c);
             // log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
         }
 
@@ -560,7 +558,7 @@ public class PooledDriver extends DriverBase {
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
                         getHostSeed().remove(lastSecondaryNode -
-                         1);                                                                                                                    //removing node - heartbeat should add it again...
+                         1);                                                                                                                           //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
@@ -629,7 +627,6 @@ public class PooledDriver extends DriverBase {
 
             if (c == null) {
                 //log.debug("Returning not borrowed connection!?!?");
-
                 if (con.isConnected()) {
                     c = new Connection((SingleMongoConnection) con);
                 } else {
