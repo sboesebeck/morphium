@@ -233,11 +233,9 @@ public class PooledDriver extends DriverBase {
                         Connection c = null;
 
                         synchronized (connectionPool) {
-                            if (connectionPool.get(hst) == null || connectionPool.get(hst).isEmpty()) {
-                                continue;
+                            if (connectionPool.get(hst) != null && !connectionPool.get(hst).isEmpty()) {
+                                c = connectionPool.get(hst).remove(0);
                             }
-
-                            c = connectionPool.get(hst).remove(0);
                         }
 
                         if (c != null) {
@@ -558,7 +556,7 @@ public class PooledDriver extends DriverBase {
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
                         getHostSeed().remove(lastSecondaryNode -
-                         1);                                                                                                                           //removing node - heartbeat should add it again...
+                         1);                                                                                                                                  //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
