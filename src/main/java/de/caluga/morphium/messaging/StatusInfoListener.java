@@ -76,9 +76,6 @@ public class StatusInfoListener implements MessageListener<Msg> {
         answer.setMapValue(new HashMap<>());
         StatusInfoLevel level = StatusInfoLevel.MESSAGING_ONLY;
 
-        if (m.getMapValue() != null) {
-        }
-
         if (m.getValue() != null) {
             for (StatusInfoLevel l : StatusInfoLevel.values()) {
                 if (l.name().equals(m.getValue())) {
