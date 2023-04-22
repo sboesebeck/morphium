@@ -236,29 +236,23 @@ public class PooledDriver extends DriverBase {
                             if (connectionPool.get(hst) != null && !connectionPool.get(hst).isEmpty()) {
                                 c = connectionPool.get(hst).remove(0);
                             }
-
-                            c = connectionPool.get(hst).remove(0);
                         }
 
-                        if (c == null) {
-                            continue;
-                        }
-
-                        // checking max lifetime
-                        if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
-                            log.debug("Lifetime exceeded...host: " + hst);
-                            c.getCon().close();
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            continue;
-                        } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
-                            log.debug("Unused connection to " + hst + " closed");
-                            c.getCon().close();
-                            stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            continue;
-                        }
-
-                        synchronized (connectionPool) {
-                            connectionPool.get(hst).add(0, c);
+                        if (c != null) {
+                            // checking max lifetime
+                            if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
+                                log.debug("Lifetime exceeded...host: " + hst);
+                                c.getCon().close();
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                            } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
+                                log.debug("Unused connection to " + hst + " closed");
+                                c.getCon().close();
+                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                            } else {
+                                synchronized (connectionPool) {
+                                    connectionPool.get(hst).add(0, c);
+                                }
+                            }
                         }
 
                         // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
@@ -275,39 +269,24 @@ public class PooledDriver extends DriverBase {
                                 fastestHost = hst;
                             }
 
-                            // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
-                            HelloCommand h = new HelloCommand(borrowConnection(hst)).setHelloOk(true).setIncludeClient(false);
-
-                            try {
-                                long start = System.currentTimeMillis();
-                                var hello = h.execute();
-                                h.releaseConnection();
-                                long dur = System.currentTimeMillis() - start;
-
-                                if (dur < fastestTime) {
-                                    fastestTime = dur;
-                                    fastestHost = hst;
-                                }
-
-                                if (hello != null && hello.getWritablePrimary()) {
-                                    handleHello(hello);
-                                } else {
-                                    // log.info("Hello from secondary");
-                                }
-                            } catch (Throwable ex) {
-                                if (!ex.getMessage().contains("closed")) {
-                                    log.error("Error talking to " + hst, ex);
-
-                                    try {
-                                        c.getCon().close();
-                                        stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                    } catch (Exception exc) {
-                                        // swallow - something was broken before already!
-                                    }
-                                }
-                            } finally {
-                                h.releaseConnection();
+                            if (hello != null && hello.getWritablePrimary()) {
+                                handleHello(hello);
+                            } else {
+                                // log.info("Hello from secondary");
                             }
+                        } catch (Throwable ex) {
+                            if (!ex.getMessage().contains("closed")) {
+                                log.error("Error talking to " + hst, ex);
+
+                                try {
+                                    c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                } catch (Exception exc) {
+                                    // swallow - something was broken before already!
+                                }
+                            }
+                        } finally {
+                            h.releaseConnection();
                         }
 
                         while (getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
@@ -575,7 +554,7 @@ public class PooledDriver extends DriverBase {
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
                         getHostSeed().remove(lastSecondaryNode -
-                         1);                                                                                                                    //removing node - heartbeat should add it again...
+                         1);                                                                                                                                                //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
