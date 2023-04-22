@@ -244,16 +244,14 @@ public class PooledDriver extends DriverBase {
                                 log.debug("Lifetime exceeded...host: " + hst);
                                 c.getCon().close();
                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                continue;
                             } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
                                 log.debug("Unused connection to " + hst + " closed");
                                 c.getCon().close();
                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                                continue;
-                            }
-
-                            synchronized (connectionPool) {
-                                connectionPool.get(hst).add(0, c);
+                            } else {
+                                synchronized (connectionPool) {
+                                    connectionPool.get(hst).add(0, c);
+                                }
                             }
                         }
 
@@ -556,7 +554,7 @@ public class PooledDriver extends DriverBase {
 
                         log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
                         getHostSeed().remove(lastSecondaryNode -
-                         1);                                                                                                                                         //removing node - heartbeat should add it again...
+                         1);                                                                                                                                                //removing node - heartbeat should add it again...
 
                         try {
                             Thread.sleep(getSleepBetweenErrorRetries());
