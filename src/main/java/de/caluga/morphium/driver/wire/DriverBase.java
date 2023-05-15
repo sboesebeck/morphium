@@ -2,6 +2,7 @@ package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.morphium.driver.bson.UUIDRepresentation;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.driver.commands.ListDatabasesCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
@@ -212,7 +213,7 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     public String getUuidRepresentation() {
-        return BsonEncoder.UUIDRepresentation.STANDARD.name();
+        return UUIDRepresentation.STANDARD.name();
     }
 
     public void setUuidRepresentation(String uuidRepresentation) {}
