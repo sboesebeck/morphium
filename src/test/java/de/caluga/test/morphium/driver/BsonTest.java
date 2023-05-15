@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.bson.BsonDecoder;
 import de.caluga.morphium.driver.bson.BsonEncoder;
+import de.caluga.morphium.driver.bson.UUIDRepresentation;
 import de.caluga.test.morphium.driver.connection.BaseTest;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -105,7 +106,7 @@ public class BsonTest extends BaseTest {
         assertTrue(res.get("uuid_value") instanceof UUID);
         assertEquals(uuid, res.get("uuid_value"));
 
-        ret = BsonEncoder.encodeDocument(d, BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
+        ret = BsonEncoder.encodeDocument(d, UUIDRepresentation.JAVA_LEGACY);
         res = BsonDecoder.decodeDocument(ret);
         assertNotNull(res);
         assertNotNull(res);
@@ -125,7 +126,7 @@ public class BsonTest extends BaseTest {
                 "00000010:  55 66 77 88 99 AA BB CC DD EE FF                    Ufw........\n");
         //LEGACY_JAVA
         enc = new BsonEncoder();
-        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.JAVA_LEGACY);
+        enc.setUuidRepresentation(UUIDRepresentation.JAVA_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
         assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 77 66 55 44 33     .test-.---.wfUD.\n" +
@@ -133,7 +134,7 @@ public class BsonTest extends BaseTest {
 
         //PYTHON_LEGACY
         enc = new BsonEncoder();
-        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.PYTHON_LEGACY);
+        enc.setUuidRepresentation(UUIDRepresentation.PYTHON_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
         assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 00 11 22 33 44     .test-.---.-...D\n" +
@@ -141,7 +142,7 @@ public class BsonTest extends BaseTest {
 
         //CSHarp
         enc = new BsonEncoder();
-        enc.setUuidRepresentation(BsonEncoder.UUIDRepresentation.C_SHARP_LEGACY);
+        enc.setUuidRepresentation(UUIDRepresentation.C_SHARP_LEGACY);
         enc.encodeObject("test", u);
         log.info("\n" + Utils.getHex(enc.getBytes()));
         assertEquals(Utils.getHex(enc.getBytes()), "00000000:  05 74 65 73 74 00 10 00 00 00 03 33 22 11 00 55     .test-.---....-U\n" +
