@@ -2,24 +2,8 @@ package de.caluga.morphium.messaging;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,11 +73,9 @@ public class Messaging extends Thread implements ShutdownListener {
     private ChangeStreamMonitor changeStreamMonitor;
 
     //answers for messages
-    private final Map<MorphiumId, List<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
 
-    private final Map<MorphiumId, Msg> waitingForMessages = new ConcurrentHashMap<>(); //messages, we await answers for
-
-    private final List<MorphiumId> processing = new CopyOnWriteArrayList<>();
+    private final Set<MorphiumId> processing = ConcurrentHashMap.newKeySet();
 
     private final AtomicInteger skipped = new AtomicInteger(0);
 
@@ -592,12 +574,13 @@ public class Messaging extends Thread implements ShutdownListener {
         // if (id.equals("m2")){
         //     log.info("M2!");
         // }
-        if (waitingForMessages.containsKey(obj.getInAnswerTo())) {
+        final Queue<Msg> answers = waitingForAnswers.get(obj.getInAnswerTo());
+        if (null != answers) {
             // we're expecting this message!
             updateProcessedBy(obj);
 
-            if (waitingForAnswers.containsKey(obj.getInAnswerTo()) && !waitingForAnswers.get(obj.getInAnswerTo()).contains(obj)) {
-                waitingForAnswers.get(obj.getInAnswerTo()).add(obj);
+            if (!answers.contains(obj)) {
+                answers.add(obj);
             }
 
             if (obj.isDeleteAfterProcessing()) {
@@ -702,12 +685,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
         if (listenerByName.isEmpty() && listeners.isEmpty()) {
             // No listeners - only answers will be processed
-            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForMessages.keySet()).limit(windowSize).idList();
+            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForAnswers.keySet()).limit(windowSize).idList();
         }
 
         // locking messages.. and getting broadcasts
         var preLockedIds = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
-        preLockedIds.addAll(new ArrayList<>(processing));
+        preLockedIds.addAll(processing);
         // q1: Exclusive messages, not locked yet, not processed yet
         var q1 = q.q().f("_id").nin(preLockedIds).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id)).f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
         // q2: non-exclusive messages, cannot be locked, not processed by me yet
@@ -1351,8 +1334,7 @@ public class Messaging extends Thread implements ShutdownListener {
         running = false;
         listenerByName.clear();
         listeners.clear();
-        waitingForMessages.clear();
-        waitingForMessages.clear();
+        waitingForAnswers.clear();
         processing.clear();
         skipped.set(0);
 
@@ -1543,40 +1525,26 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
-        theMessage.setMsgId(new MorphiumId());
-        waitingForAnswers.put(theMessage.getMsgId(), new ArrayList<>());
-        waitingForMessages.put(theMessage.getMsgId(), theMessage);
-        sendMessage(theMessage);
-        long start = System.currentTimeMillis();
-
-        while (waitingForAnswers.get(theMessage.getMsgId()).size() == 0) {
-            if (!running) {
-                throw new SystemShutdownException("Messaging shutting down - abort waiting!");
-            }
-
-            if (System.currentTimeMillis() - start > timeoutInMs) {
-                log.error("Did not receive answer " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
-                waitingForMessages.remove(theMessage.getMsgId());
-                waitingForAnswers.remove(theMessage.getMsgId());
-
-                if (throwExceptionOnTimeout) {
-                    throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + " in time (" + timeoutInMs + "ms)");
-                }
-
-                return null;
-            }
-
-            try {
-                Thread.sleep(morphium.getConfig().getIdleSleepTime());
-            } catch (InterruptedException e) {
-            }
+        if (!running) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }
-
-        // if (log.isDebugEnabled()) {
-        //     log.debug("got message after: " + (System.currentTimeMillis() - start) + "ms");
-        // }
-        waitingForMessages.remove(theMessage.getMsgId());
-        return (T) waitingForAnswers.remove(theMessage.getMsgId()).get(0);
+        theMessage.setMsgId(new MorphiumId());
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final LinkedBlockingDeque<Msg> blockingQueue = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, blockingQueue);
+        try {
+            sendMessage(theMessage);
+            T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
+            if (null == firstAnswer && throwExceptionOnTimeout) {
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
+            }
+            return firstAnswer;
+        } catch (InterruptedException e) {
+            log.error("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " interrupted.", e);
+        } finally {
+            waitingForAnswers.remove(requestMsgId);
+        }
+        return null;
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
@@ -1584,18 +1552,19 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
-        if (theMessage.getMsgId() == null) {
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        if (requestMsgId == null) {
             theMessage.setMsgId(new MorphiumId());
         }
 
-        waitingForAnswers.put(theMessage.getMsgId(), new ArrayList<>());
-        waitingForMessages.put(theMessage.getMsgId(), theMessage);
+        final Queue<Msg> answerList = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, answerList);
         sendMessage(theMessage);
         long start = System.currentTimeMillis();
 
         while (running) {
-            if (waitingForAnswers.get(theMessage.getMsgId()).size() > 0) {
-                if (numberOfAnswers > 0 && waitingForAnswers.get(theMessage.getMsgId()).size() >= numberOfAnswers) {
+            if (answerList.size() > 0) {
+                if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
                     break;
                 }
 
@@ -1603,8 +1572,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             // Did not receive any message in time
-            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (waitingForAnswers.get(theMessage.getMsgId()).isEmpty())) {
-                throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + theMessage.getMsgId() + "in time (" + timeout + ")");
+            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
             }
 
             if (System.currentTimeMillis() - start > timeout) {
@@ -1622,8 +1591,7 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         }
 
-        waitingForMessages.remove(theMessage.getMsgId());
-        return (List<T>) waitingForAnswers.remove(theMessage.getMsgId());
+        return (List<T>) new ArrayList<>(waitingForAnswers.remove(requestMsgId));
     }
 
     public boolean isProcessMultiple() {
