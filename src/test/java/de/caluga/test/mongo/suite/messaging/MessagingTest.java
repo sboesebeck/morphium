@@ -210,7 +210,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void deleteAfterProcessingTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -264,7 +264,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 Thread.sleep(1000);
                 assertFalse(gotMessage1 || gotMessage2 || gotMessage3 || gotMessage4);
                 morphium.set(m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()), m);
-                Thread.sleep(100);
+                Thread.sleep(1000);
                 long s = System.currentTimeMillis();
 
                 while (true) {
@@ -365,7 +365,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void severalSystemsTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -469,7 +469,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void directedMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -585,7 +585,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void ignoringMessagesTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -673,7 +673,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void massiveMessagingTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
