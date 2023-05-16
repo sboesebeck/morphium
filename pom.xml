@@ -120,6 +120,7 @@
           <excludes>
             <exclude>log4j*.xml</exclude>
             <exclude>logging*.properties</exclude>
+            <exclude>logback*.xml</exclude>
           </excludes>
         </configuration>
         <version>3.2.2</version>
