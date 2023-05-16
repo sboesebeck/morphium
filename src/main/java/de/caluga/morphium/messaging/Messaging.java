@@ -594,6 +594,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId()).set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
                     }
                 }
+                removeProcessingFor(obj);
             }
         } else {
             // log.warn("Incoming unexpected answer...");
@@ -1163,6 +1164,13 @@ public class Messaging extends Thread implements ShutdownListener {
 
         if (msg.getTtl() == 0 || !msg.isTimingOut()) {
             timeout = 1000;
+        }
+        if (msg.isDeleteAfterProcessing()){
+            if (msg.getDeleteAfterProcessingTime()==0){
+                timeout=1000;
+            } else if (msg.getDeleteAfterProcessingTime()/2<timeout){
+                timeout=msg.getDeleteAfterProcessingTime()/2;
+            }
         }
 
         while (true) {
