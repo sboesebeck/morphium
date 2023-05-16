@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>5.1.7</version>
+  <version>5.1.8-SNAPSHOT</version>
   <packaging>jar</packaging>
   <!--    <parent>-->
   <!--        <groupId>org.sonatype.oss</groupId>-->
@@ -26,7 +26,7 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v5.1.7</tag>
+    <tag>v5.1.5</tag>
   </scm>
   <developers>
     <developer>
