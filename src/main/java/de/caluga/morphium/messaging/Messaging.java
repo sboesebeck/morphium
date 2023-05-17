@@ -1560,9 +1560,10 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
-        final MorphiumId requestMsgId = theMessage.getMsgId();
+        MorphiumId requestMsgId = theMessage.getMsgId();
         if (requestMsgId == null) {
             theMessage.setMsgId(new MorphiumId());
+            requestMsgId=theMessage.getMsgId();
         }
 
         final Queue<Msg> answerList = new LinkedBlockingDeque<>();
