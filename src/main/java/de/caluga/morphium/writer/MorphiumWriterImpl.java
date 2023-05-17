@@ -258,7 +258,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         InsertMongoCommand settings = null;
 
                         try {
-
                             while (dbLst.size() != 0) {
                                 var con = morphium.getDriver().getPrimaryConnection(wc);
                                 settings = new InsertMongoCommand(con).setDb(morphium.getDatabase()).setColl(collectionName).setOrdered(false)
@@ -279,20 +278,19 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                                 var writeResult = settings.execute();
                                 settings.releaseConnection();
-                                settings=null;
+                                settings = null;
+
                                 if (writeResult.containsKey("writeErrors")) {
                                     int failedWrites = ((List) writeResult.get("writeErrors")).size();
                                     int success = (int) writeResult.get("n");
                                     //                                    con.release();
                                     throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
                                 }
-
                             }
                         } finally {
                             if (settings != null) {
                                 settings.releaseConnection();
                             }
-
                         }
 
                         // dur = System.currentTimeMillis() - start;
@@ -357,6 +355,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
                 morphium.ensureIndicesFor(type, coll, callback);
             }
+
             //
             // switch (morphium.getConfig().getIndexCheck()) {
             // case CREATE_ON_WRITE_NEW_COL:
@@ -535,7 +534,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 // true,
                                 // WriteAccessType.BULK_INSERT);
                                 // null because key changed => mongo _id
-                                es.getValue().forEach(record->{                             // null because key changed => mongo _id
+                                es.getValue().forEach(record->{                               // null because key changed => mongo _id
                                     morphium.firePostStore(record, true);
                                 });
                             } finally {
@@ -603,7 +602,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                         }
 
-                        lst.forEach(record->{                             // null because key changed => mongo
+                        lst.forEach(record->{                               // null because key changed => mongo
                             // _id
                             morphium.firePostStore(record, true);
                         });
@@ -1065,6 +1064,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
 
                         var ret = up.execute();
+                        up.releaseConnection();
 
                         if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                             throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
@@ -1231,6 +1231,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     ret = settings.execute();
+                    settings.releaseConnection();
                     long dur = System.currentTimeMillis() - start;
                     // morphium.fireProfilingWriteEvent(
                     // q.getType(),
@@ -1332,6 +1333,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     //var res = settings.execute();
                     settings.execute();
+                    settings.releaseConnection();
                     // long dur = System.currentTimeMillis() - start;
                     morphium.clearCachefor(o.getClass());
                     morphium.inc(StatisticKeys.WRITES);
@@ -1425,7 +1427,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     Map<String, Object> ret = settings.execute();
-
+                    settings.releaseConnection();
                     if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
@@ -1576,6 +1578,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     settings = new UpdateMongoCommand(con).setDb(getDbName()).setColl(coll);
                     settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, query.getCollation(), null, null);
                     ret = settings.execute();
+                    settings.releaseConnection();
                     long dur = System.currentTimeMillis() - start;
                     // morphium.fireProfilingWriteEvent(
                     // cls,
@@ -2379,14 +2382,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     handleCreationTimeOnUpsert(cls, coll, query.toQueryObject(), update, upsert);
                     WriteConcern wc = morphium.getWriteConcernForClass(cls);
                     MongoConnection con = null;
-                    UpdateMongoCommand settings=null;
+                    UpdateMongoCommand settings = null;
+
                     try {
                         if (upsert) {
                             checkIndexAndCaps(cls, coll, callback);
                         }
 
                         con = morphium.getDriver().getPrimaryConnection(wc);
-                         settings = new UpdateMongoCommand(con).setColl(coll).setDb(getDbName());
+                        settings = new UpdateMongoCommand(con).setColl(coll).setDb(getDbName());
 
                         if (wc != null) {
                             settings.setWriteConcern(wc.asMap());
@@ -2474,7 +2478,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
 
                     MongoConnection con = null;
-                    DropMongoCommand settings=null;
+                    DropMongoCommand settings = null;
+
                     try {
                         con = morphium.getDriver().getPrimaryConnection(null);
                         settings = new DropMongoCommand(con).setColl(co).setDb(getDbName());
@@ -2486,7 +2491,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             throw new RuntimeException(e);
                         }
                     } finally {
-                        if(settings!=null) settings.releaseConnection();
+                        if (settings != null) {
+                            settings.releaseConnection();
+                        }
                     }
 
                     long dur = System.currentTimeMillis() - start;
@@ -2533,7 +2540,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 MongoConnection con = null;
-                CreateIndexesCommand cmd=null;
+                CreateIndexesCommand cmd = null;
+
                 try {
                     con = morphium.getDriver().getPrimaryConnection(null);
                     cmd = new CreateIndexesCommand(con);
@@ -2542,7 +2550,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     cmd.addIndex(idesc);
                     var res = cmd.execute();
                     cmd.releaseConnection();
-                    cmd=null;
+                    cmd = null;
 
                     if (res.containsKey("ok") && res.get("ok").equals(Double.valueOf(0))) {
                         if (((String) res.get("errmsg")).contains("already exists")) {
@@ -2599,7 +2607,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             MongoConnection con = null;
-            UpdateMongoCommand settings=null;
+            UpdateMongoCommand settings = null;
+
             try {
                 checkIndexAndCaps(cls, coll, callback);
                 con = morphium.getDriver().getPrimaryConnection(null);
@@ -2624,7 +2633,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (IllegalAccessException e) {
                     // May happen, if null is not allowed for example
                 } finally {
-                   if (settings !=null) settings.releaseConnection();
+                    if (settings != null) {
+                        settings.releaseConnection();
+                    }
                 }
 
                 morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
