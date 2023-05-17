@@ -534,7 +534,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 // true,
                                 // WriteAccessType.BULK_INSERT);
                                 // null because key changed => mongo _id
-                                es.getValue().forEach(record->{                               // null because key changed => mongo _id
+                                es.getValue().forEach(record->{                                 // null because key changed => mongo _id
                                     morphium.firePostStore(record, true);
                                 });
                             } finally {
@@ -576,6 +576,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
 
                                 var result = insert.execute();
+                                insert.releaseConnection();
 
                                 if (result.containsKey("writeErrors")) {
                                     int failedWrites = ((List) result.get("writeErrors")).size();
@@ -602,7 +603,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                         }
 
-                        lst.forEach(record->{                               // null because key changed => mongo
+                        lst.forEach(record->{                                 // null because key changed => mongo
                             // _id
                             morphium.firePostStore(record, true);
                         });
@@ -1428,6 +1429,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     Map<String, Object> ret = settings.execute();
                     settings.releaseConnection();
+
                     if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
                     }
@@ -1721,9 +1723,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (settings != null && settings.getUpdates().size() != 0) {
                         var result = settings.execute();
-                        settings.releaseConnection();
                         sumUp(result, ret);
                     }
+
+                    settings.releaseConnection();
 
                     if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                         throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
@@ -1912,6 +1915,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         sumUp(daa, ret);
                     }
 
+                    settings.releaseConnection();
                     morphium.inc(StatisticKeys.WRITES);
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
@@ -2013,6 +2017,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         sumUp(r, ret);
                     }
 
+                    settings.releaseConnection();
                     // long dur = System.currentTimeMillis() - start;
                     morphium.getCache().clearCacheIfNecessary(cls);
                     morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.SET);
@@ -2293,6 +2298,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             settings = new UpdateMongoCommand(con).setColl(coll).setDb(getDbName()).setWriteConcern(wc != null ? wc.asMap() : null);
             settings.addUpdate(Doc.of(qobj), Doc.of(update), null, upsert, multiple, collation, null, null);
             var r = settings.execute();
+            settings.releaseConnection();
             sumUp(r, result);
 
             if (result.containsKey("ok") && result.get("ok").equals(0.0)) {
@@ -2414,6 +2420,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             var r = settings.execute();
                             sumUp(r, ret);
                         }
+
+                        settings.releaseConnection();
 
                         if (ret.containsKey("ok") && ret.get("ok").equals(0.0)) {
                             throw new MorphiumDriverException("Error: " + ret.get("code") + " - " + ret.get("errmsg"));
@@ -2619,6 +2627,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 settings.execute();
+                settings.releaseConnection();
                 morphium.inc(StatisticKeys.WRITES);
                 handleLastChange(cls, update);
                 long dur = System.currentTimeMillis() - start;
@@ -2632,10 +2641,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 } catch (IllegalAccessException e) {
                     // May happen, if null is not allowed for example
-                } finally {
-                    if (settings != null) {
-                        settings.releaseConnection();
-                    }
                 }
 
                 morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
@@ -2653,6 +2658,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
 
                 callback.onOperationError(AsyncOperationType.UNSET, null, System.currentTimeMillis() - start, e.getMessage(), e, toSet, field);
+            } finally {
+                if (settings != null) {
+                    settings.releaseConnection();
+                }
             }
         }
     }
