@@ -14,6 +14,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String morphiumCachestatsKey = "morphium.cachestats";
     public final static String morphiumConfigKey = "morphium.config";
     public final static String morphiumDriverStatsKey= "morphium.driver.stats";
+    public final static String morphiumDriverConnections= "morphium.driver.connections";
     public final static String morphiumDriverReplstatKey= "morphium.driver.replicaset_status";
 
     private Map<String, InternalCommand> commands = new HashMap<>();
@@ -106,6 +107,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
             answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
             answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
             answer.getMapValue().put(morphiumDriverStatsKey,msg.getMorphium().getDriver().getDriverStats());
+            answer.getMapValue().put(morphiumDriverConnections,msg.getMorphium().getDriver().getNumConnectionsByHost());
             try {
                 answer.getMapValue().put(morphiumDriverReplstatKey,msg.getMorphium().getDriver().getReplsetStatus());
             } catch (MorphiumDriverException e) {
