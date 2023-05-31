@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import de.caluga.morphium.driver.MorphiumDriverException;
 
 public class StatusInfoListener implements MessageListener<Msg> {
 
@@ -12,6 +13,8 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String globalListenersKey = "global_listeners";
     public final static String morphiumCachestatsKey = "morphium.cachestats";
     public final static String morphiumConfigKey = "morphium.config";
+    public final static String morphiumDriverStatsKey= "morphium.driver.stats";
+    public final static String morphiumDriverReplstatKey= "morphium.driver.replicaset_status";
 
     private Map<String, InternalCommand> commands = new HashMap<>();
 
@@ -102,6 +105,12 @@ public class StatusInfoListener implements MessageListener<Msg> {
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
             answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
             answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+            answer.getMapValue().put(morphiumDriverStatsKey,msg.getMorphium().getDriver().getDriverStats());
+            try {
+                answer.getMapValue().put(morphiumDriverReplstatKey,msg.getMorphium().getDriver().getReplsetStatus());
+            } catch (MorphiumDriverException e) {
+                answer.getMapValue().put(morphiumDriverReplstatKey,"could not get replicaset status: "+e.getMessage());
+            }
         }
 
         return answer;
