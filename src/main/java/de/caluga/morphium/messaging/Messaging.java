@@ -324,7 +324,7 @@ public class Messaging extends Thread implements ShutdownListener {
             changeStreamMonitor.addListener(evt -> {
                 if (!running)
                     return false;
-                synchronized (Messaging.this) {
+                // synchronized (Messaging.this) {
                     try {
                         if (evt == null || evt.getOperationType() == null) {
                             return running;
@@ -516,7 +516,7 @@ public class Messaging extends Thread implements ShutdownListener {
                     }
 
                     return running;
-                }
+                // }
             });
             changeStreamMonitor.start();
             lockMonitor.start();
@@ -531,13 +531,13 @@ public class Messaging extends Thread implements ShutdownListener {
                 //     skipped.incrementAndGet();
                 // }
                 if (skipped.get() > 0 || !useChangeStream) {
-                    synchronized (this) {
+                    // synchronized (this) {
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + skipped.get());
                         skipped.set(0);
                         findAndProcessMessages(processMultiple);
-                    }
+                    // }
                 } else {
                     morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
                 }
@@ -1431,7 +1431,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     @Override
 
-    public synchronized void start() {
+    public void start() {
         super.start();
         // if (useChangeStream) {
         //     try {
