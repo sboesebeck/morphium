@@ -936,7 +936,7 @@ public abstract class MorphiumBase {
     }
 
     public <T> Map<String, Object> push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
-        return push(query, field, value, upsert, multiple);
+        return push(query, field, value, upsert, multiple,null);
     }
     public <T> void save(List<T> lst, AsyncOperationCallback<T> callback) {
         saveList(lst, callback);
