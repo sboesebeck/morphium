@@ -1052,7 +1052,7 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public void queueMessage(final Msg m) {
-        if (morphium.getDriver().equals(SingleMongoConnectDriver.driverName)) {
+        if (morphium.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
             storeMsg(m, false);
         } else {
             storeMsg(m, true);
