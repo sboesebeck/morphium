@@ -2639,7 +2639,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 if (doc != null) {
                     if (doc.get("_id") != null) {
-                        data.put("documentKey", doc.get("_id"));
+                        if (doc.get("_id") instanceof ObjectId){
+                            data.put("documentKey",new MorphiumId((ObjectId)doc.get("_id")));
+                        } else {
+                            data.put("documentKey", doc.get("_id"));
+                        }
                     }
                 }
 

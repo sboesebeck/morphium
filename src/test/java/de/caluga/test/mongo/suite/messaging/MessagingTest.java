@@ -185,11 +185,11 @@ public class MessagingTest extends MultiDriverTestBase {
                 gotMessage = true;
                 return null;
             });
-            messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000000));
+            messaging.sendMessage(new Msg("Testmessage", "A message", "the value - for now", 5000));
             Thread.sleep(1000);
             assertFalse(gotMessage, "Message recieved from self?!?!?!");;
             log.info("Did not get own message - cool!");
-            Msg m = new Msg("meine Message", "The Message", "value is a string", 5000000);
+            Msg m = new Msg("meine Message", "The Message", "value is a string", 5000);
             m.setMsgId(new MorphiumId());
             m.setSender("Another sender");
             morphium.store(m, messaging.getCollectionName(), null);
@@ -1349,8 +1349,8 @@ public class MessagingTest extends MultiDriverTestBase {
             int amount = 100;
 
             for (int i = 0; i < amount; i++) {
-                sender.queueMessage(new Msg("bcast", "msg", "value", 4000000));
-                sender.queueMessage(new Msg("bcast", "msg", "value", 4000000, true));
+                sender.queueMessage(new Msg("bcast", "msg", "value", 40000));
+                sender.queueMessage(new Msg("bcast", "msg", "value", 40000, true));
 
                 if (i % 10 == 0) {
                     log.info("Sent message #" + i);
@@ -1379,6 +1379,8 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 if (totalNum == amount * receivers.size() + amount) {
                     break;
+                } else {
+                    log.info("Did not receive all: "+totalNum);
                 }
 
                 Thread.sleep(1500);

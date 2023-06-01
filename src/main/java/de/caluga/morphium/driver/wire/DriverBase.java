@@ -38,7 +38,6 @@ public abstract class DriverBase implements MorphiumDriver {
     private int retriesOnNetworkError = 5;
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
-    private int localThreshold = 0;
     private List<String> hostSeed;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
@@ -76,9 +75,10 @@ public abstract class DriverBase implements MorphiumDriver {
     @Override
     public List<String> listCollections(String db, String regex) throws MorphiumDriverException {
         MongoConnection primaryConnection = getPrimaryConnection(null);
-        ListCollectionsCommand cmd=null;
+        ListCollectionsCommand cmd = null;
+
         try {
-             cmd = new ListCollectionsCommand(primaryConnection);
+            cmd = new ListCollectionsCommand(primaryConnection);
             cmd.setDb(db).setNameOnly(true);
 
             if (regex != null) {
@@ -86,10 +86,12 @@ public abstract class DriverBase implements MorphiumDriver {
             }
 
             var lst = cmd.execute();
-            if (cmd.getConnection()!=null){
-               cmd.releaseConnection();
+
+            if (cmd.getConnection() != null) {
+                cmd.releaseConnection();
                 log.warn("connection not released!?!?");
             }
+
             List<String> colNames = new ArrayList<>();
 
             for (Map<String, Object> doc : lst) {
@@ -99,7 +101,9 @@ public abstract class DriverBase implements MorphiumDriver {
 
             return colNames;
         } finally {
-            if (cmd!=null) cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
@@ -216,7 +220,8 @@ public abstract class DriverBase implements MorphiumDriver {
         return UUIDRepresentation.STANDARD.name();
     }
 
-    public void setUuidRepresentation(String uuidRepresentation) {}
+    public void setUuidRepresentation(String uuidRepresentation) {
+    }
 
     @Override
     public int getReadTimeout() {
@@ -260,9 +265,10 @@ public abstract class DriverBase implements MorphiumDriver {
         }
 
         MongoConnection primaryConnection = getPrimaryConnection(null);
-ListDatabasesCommand cmd=null;
+        ListDatabasesCommand cmd = null;
+
         try {
-             cmd = new ListDatabasesCommand(primaryConnection);
+            cmd = new ListDatabasesCommand(primaryConnection);
             var msg = primaryConnection.sendCommand(cmd);
             Map<String, Object> res = primaryConnection.readSingleAnswer(msg);
             List<String> ret = new ArrayList<>();
@@ -282,7 +288,9 @@ ListDatabasesCommand cmd=null;
 
             return ret;
         } finally {
-            if (cmd!=null) cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
@@ -498,13 +506,6 @@ ListDatabasesCommand cmd=null;
         defaultJ = j;
     }
 
-    public int getLocalThreshold() {
-        return localThreshold;
-    }
-
-    public void setLocalThreshold(int thr) {
-        localThreshold = thr;
-    }
 
     public void heartBeatFrequency(int t) {
         heartbeatFrequency = t;
@@ -514,18 +515,6 @@ ListDatabasesCommand cmd=null;
         useSSL = ssl;
     }
 
-    //
-    //    public String getHostAdress(String hn) throws UnknownHostException {
-    //        String hst[] = hn.split(":");
-    //        String h = hst[0];
-    //        h = h.replaceAll(" ", "");
-    //        int port = 27017;
-    //        if (hst.length > 1) {
-    //            port = Integer.parseInt(hst[1]);
-    //        }
-    //        InetAddress in = InetAddress.getByName(h);
-    //        return in.getHostAddress() + ":" + port;
-    //    }
 
     @Override
     public MorphiumTransactionContext startTransaction(boolean autoCommit) {
@@ -569,168 +558,6 @@ ListDatabasesCommand cmd=null;
 
     public abstract void watch(WatchCommand settings) throws MorphiumDriverException;
 
-    //    public abstract void sendQuery(OpMsg q) throws MorphiumDriverException;
-
-    //    public abstract OpMsg sendAndWaitForReply(OpMsg q) throws MorphiumDriverException;
-
-    //    protected abstract OpMsg getReply(int waitingFor, int timeout) throws MorphiumDriverException;
-
-    //
-    //    public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Integer> s, Map<String, Object> projection, int skip, int limit, int batchSize, ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-    //        if (s == null) {
-    //            s = new HashMap<>();
-    //        }
-    //        final Map<String, Integer> sort = s;
-    //        //noinspection unchecked
-    //        new NetworkCallHelper().doCall(() -> {
-    //            Doc doc = new Doc();
-    //            doc.put("find", collection);
-    //            doc.put("$db", db);
-    //            if (limit > 0) {
-    //                doc.put("limit", limit);
-    //            }
-    //            doc.put("skip", skip);
-    //            if (!query.isEmpty()) {
-    //                doc.put("filter", query);
-    //            }
-    //            if (projection != null) {
-    //                doc.put("projection", projection);
-    //            }
-    //            int t = timeout;
-    //            if (t == 0) {
-    //                t = Integer.MAX_VALUE;
-    //            }
-    //            doc.put("sort", sort);
-    //            doc.put("batchSize", batchSize);
-    //            doc.put("maxTimeMS", t);
-    //            doc.put("tailable", true);
-    //            doc.put("awaitData", true);
-    //
-    //            OpMsg q = new OpMsg();
-    //            q.setMessageId(getNextId());
-    //            q.setFirstDoc(doc);
-    //            q.setResponseTo(0);
-    //
-    //            long start = System.currentTimeMillis();
-    //            List<Map<String, Object>> ret = null;
-    //
-    //            OpMsg reply;
-    //            int waitingfor = q.getMessageId();
-    //            long cursorId;
-    //            log.info("Starting...");
-    //
-    //            while (true) {
-    //                log.debug("reading result");
-    //                reply = sendAndWaitForReply(q);
-    //
-    //                @SuppressWarnings("unchecked") Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-    //                if (cursor == null) {
-    //                    log.debug("no-cursor result");
-    //                    //                    //trying result
-    //                    if (reply.getFirstDoc().get("result") != null) {
-    //                        //noinspection unchecked
-    //                        for (Map<String, Object> d : (List<Map<String, Object>>) reply.getFirstDoc().get("result")) {
-    //                            cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
-    //                        }
-    //                    }
-    //                    log.error("did not get cursor. Data: " + Utils.toJsonString(reply.getFirstDoc()));
-    //                    //                    throw new MorphiumDriverException("did not get any data, cursor == null!");
-    //
-    //                    log.debug("Retrying");
-    //                    continue;
-    //                }
-    //                if (cursor.get("firstBatch") != null) {
-    //                    log.debug("Firstbatch...");
-    //                    //noinspection unchecked
-    //                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("firstBatch")) {
-    //                        cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
-    //                    }
-    //                } else if (cursor.get("nextBatch") != null) {
-    //                    log.debug("NextBatch...");
-    //                    //noinspection unchecked
-    //                    for (Map<String, Object> d : (List<Map<String, Object>>) cursor.get("nextBatch")) {
-    //                        cb.incomingData(Doc.of(d), System.currentTimeMillis() - start);
-    //                    }
-    //                }
-    //                if (((Long) cursor.get("id")) != 0) {
-    //                    //                        log.info("getting next batch for cursor " + cursor.get("id"));
-    //                    //there is more! Sending getMore!
-    //                    //there is more! Sending getMore!
-    //
-    //                    //                } else {
-    //                    //                    break;
-    //                    log.debug("CursorID:" + cursor.get("id").toString());
-    //                    cursorId = Long.valueOf(cursor.get("id").toString());
-    //                } else {
-    //                    log.error("Cursor closed - reviving!");
-    //                    try {
-    //                        Thread.sleep(100);
-    //                    } catch (InterruptedException e) {
-    //                        e.printStackTrace();
-    //                    }
-    //                    q = new OpMsg();
-    //
-    //
-    //                    doc = new Doc();
-    //                    doc.put("find", collection);
-    //                    doc.put("$db", db);
-    //                    if (limit > 0) {
-    //                        doc.put("limit", limit);
-    //                    }
-    //                    doc.put("skip", skip);
-    //                    if (!query.isEmpty()) {
-    //                        doc.put("filter", query);
-    //                    }
-    //                    if (projection != null) {
-    //                        doc.put("projection", projection);
-    //                    }
-    //                    doc.put("sort", sort);
-    //                    doc.put("batchSize", 1);
-    //                    doc.put("maxTimeMS", timeout);
-    //                    doc.put("tailable", true);
-    //                    doc.put("awaitData", true);
-    //                    doc.put("noCursorTimeout", true);
-    //                    doc.put("allowPartialResults", false);
-    //                    q.setMessageId(getNextId());
-    //
-    //                    q.setFirstDoc(doc);
-    //                    q.setResponseTo(0);
-    //                    sendQuery(q);
-    //                    continue;
-    //                }
-    //                q = new OpMsg();
-    //                q.setMessageId(getNextId());
-    //
-    //                doc = new Doc();
-    //                doc.put("getMore", cursorId);
-    //                doc.put("collection", collection);
-    //                doc.put("batchSize", batchSize);
-    //                doc.put("maxTimeMS", timeout);
-    //                doc.put("limit", 1);
-    //                doc.put("tailable", true);
-    //                doc.put("awaitData", true);
-    //                //doc.put("slaveOk")
-    //                doc.put("noCursorTimeout", true);
-    //                doc.put("$db", db);
-    //
-    //                q.setFirstDoc(doc);
-    //                waitingfor = q.getMessageId();
-    //                sendQuery(q);
-    //
-    //                log.debug("sent getmore....");
-    //
-    //            }
-    //
-    //        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-    //
-    //
-    //    }
-
-    //    public abstract OpMsg getReplyFor(int msgid, long timeout) throws MorphiumDriverException;
-
-    //    public abstract boolean replyForMsgAvailable(int msg);
-
-    //    public abstract List<Map<String, Object>> getIndexes(String db, String collection) throws MorphiumDriverException;
 
     public abstract boolean isCapped(String db, String coll) throws MorphiumDriverException;
 }

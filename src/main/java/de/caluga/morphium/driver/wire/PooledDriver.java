@@ -19,14 +19,12 @@ public class PooledDriver extends DriverBase {
     public final static String driverName = "PooledDriver";
     private Map<String, List<Connection>> connectionPool;
     private Map<Integer, Connection> borrowedConnections;
-    //    private Map<String, AtomicInteger> borrowedConnectionsByCaller = new ConcurrentHashMap<>();
     private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
     private int idleSleepTime = 5;
     private String fastestHost = "";
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private String primaryNode;
-    // private boolean readerRunning = true;
     private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
         private AtomicLong l = new AtomicLong(0);
         @Override
@@ -54,15 +52,12 @@ public class PooledDriver extends DriverBase {
     public void connect(String replSet) throws MorphiumDriverException {
         int retries = 0;
         boolean connected = false;
-        // readerExecutor = new ThreadPoolExecutor(getMinConnectionsPerHost(), getMaxConnectionsPerHost(), getMaxConnectionLifetime(), TimeUnit.MILLISECONDS,
-        // new LinkedBlockingQueue<>(getMaxConnectionsPerHost()));
 
         for (String host : new ArrayList<String>(getHostSeed())) {
             for (int i = 0; i < getMinConnectionsPerHost(); i++) {
                 while (true) {
                     try {
                         connectToHost(host);
-                        //                        log.info("host: "+host+" "+i+"/"+getMaxConnectionsPerHost()+" Connecting took "+(System.currentTimeMillis()-start));
                         connected = true;
                         break;
                     } catch (MorphiumDriverException e) {
@@ -91,18 +86,6 @@ public class PooledDriver extends DriverBase {
         }
 
         setReplicaSet(getHostSeed().size() > 1);
-        // for (String host : new ArrayList<String>(getHostSeed())) {
-        //     HelloCommand h=new HelloCommand(borrowConnection(host));
-        //     try {
-        //         h.setIncludeClient(false).setHelloOk(true);
-        //         h.execute();
-        //     } catch (Exception e){
-        //         log.error("Something went wrong:",e);
-        //
-        //     } finally {
-        //         h.releaseConnection();
-        //     }
-        // }
         startHeartbeat();
     }
 
@@ -228,8 +211,6 @@ public class PooledDriver extends DriverBase {
                 try {
                     // log.debug("heartbeat running");
                     for (var hst : new ArrayList<String>(getHostSeed())) {
-                        // MongoConnection mc = borrowConnection(hst);
-                        // log.debug("Checking host: " + hst);
                         Connection c = null;
 
                         synchronized (connectionPool) {
