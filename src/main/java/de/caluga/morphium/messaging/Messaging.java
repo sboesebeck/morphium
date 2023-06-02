@@ -327,6 +327,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 el.setTimestamp((Long) msg.get("timestamp"));
                 synchronized (processing) {
                     if (!processing.contains(el)) {
+//                        log.info("ChangeStream: adding el "+el.getPriority()+"/"+el.getTimestamp());
                         processing.add(el);
                     }
                 }
@@ -659,7 +660,9 @@ public class Messaging extends Thread implements ShutdownListener {
             synchronized (processing) {
                 if (!processing.contains(el) && !idsInProgress.contains(el)) {
                     processing.add(el);
+
                 }
+                int oldPrio = -10;
             }
         }
     }
@@ -1182,8 +1185,8 @@ public class Messaging extends Thread implements ShutdownListener {
         if (!running) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }
-
-        theMessage.setMsgId(new MorphiumId());
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
         final MorphiumId requestMsgId = theMessage.getMsgId();
         final LinkedBlockingDeque<Msg> blockingQueue = new LinkedBlockingDeque<>();
         waitingForAnswers.put(requestMsgId, blockingQueue);
@@ -1344,7 +1347,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    private class ProcessingQueueElement implements Comparable<ProcessingQueueElement> {
+    public static class ProcessingQueueElement implements Comparable<ProcessingQueueElement> {
         private int priority;
         private MorphiumId id;
         private long timestamp;
@@ -1387,10 +1390,10 @@ public class Messaging extends Thread implements ShutdownListener {
 
         @Override
         public int compareTo(ProcessingQueueElement o) {
-            if (o.getPriority() < priority) return -1;
-            if (o.getPriority() > priority) return 1;
-            if (o.getTimestamp() < timestamp) return -1;
-            if (o.getTimestamp() > timestamp) return 1;
+            if (o.getPriority() < priority) return 1;
+            if (o.getPriority() > priority) return -1;
+            if (o.getTimestamp() < timestamp) return 1;
+            if (o.getTimestamp() > timestamp) return -1;
             return o.getId().compareTo(id);
         }
 

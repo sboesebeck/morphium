@@ -1,5 +1,6 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
@@ -8,8 +9,10 @@ import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.PriorityBlockingQueue;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -156,11 +159,12 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         Messaging m = new Messaging(morphium);
         m.setWindowSize(1);
         m.setProcessMultiple(false);
-
+        m.setMultithreadded(false);
+        m.setUseChangeStream(false);
         m.start();
         assertTrue(m.isStatusInfoListenerEnabled());
         m.addMessageListener((msg, m1) -> {
-            log.info("Incoming message!");
+            log.info("Incoming message! " + m1.getMsgId());
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
@@ -187,10 +191,38 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         morphium.storeList(lst);
         for (int i = 0; i < 10; i++) {
             Thread.sleep(100);
-            var msg = new Msg(sender.getStatusInfoListenerName(), "", "");
+            var msg = new Msg(sender.getStatusInfoListenerName(), "PING", "");
             msg.setPriority(10);
-            var answer = sender.sendAndAwaitFirstAnswer(msg, 5000, true);
+            msg.setTtl(12030303);
+            msg.setMsgId(new MorphiumId());
+            log.info("Sending ping: " + msg.getMsgId().toString());
+            var answer = sender.sendAndAwaitFirstAnswer(msg, 1500000, true);
             log.info("Got answer - " + i);
+        }
+    }
+
+
+    @Test
+    public void prioQueueTest() throws Exception {
+        PriorityBlockingQueue<Messaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
+
+        Messaging.ProcessingQueueElement el = new Messaging.ProcessingQueueElement(500, 123, new MorphiumId());
+        qu.add(el);
+        el = new Messaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        qu.add(el);
+        el = new Messaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        qu.add(el);
+        el = new Messaging.ProcessingQueueElement(500, 125, new MorphiumId());
+        qu.add(el);
+        el = new Messaging.ProcessingQueueElement(5, 128, new MorphiumId());
+        qu.add(el);
+        el = new Messaging.ProcessingQueueElement(5, 138, new MorphiumId());
+        qu.add(el);
+        int sz = qu.size();
+        log.info("Queue size: " + sz);
+        for (int i = 0; i < sz; i++) {
+            var e = qu.take();
+            log.info(i + ". element: " + e.getPriority() + " / " + e.getTimestamp());
         }
     }
 
