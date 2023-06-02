@@ -1,21 +1,28 @@
 package de.caluga.morphium;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.GenericArrayType;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.lang.reflect.WildcardType;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import de.caluga.morphium.aggregation.Expr;
+import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.encryption.Encrypted;
+import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.objectmapping.*;
+import de.caluga.morphium.query.geospatial.*;
+import io.github.classgraph.ClassGraph;
+import io.github.classgraph.ClassGraphException;
+import io.github.classgraph.ClassInfoList;
+import io.github.classgraph.ScanResult;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.ClassUtils;
+import org.bson.types.Binary;
+import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import sun.reflect.ReflectionFactory;
+
+import java.io.*;
+import java.lang.reflect.*;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -24,76 +31,16 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
+import java.util.*;
 import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.ClassUtils;
-import org.bson.types.Binary;
-import org.bson.types.ObjectId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.annotations.AdditionalData;
-import de.caluga.morphium.annotations.Aliases;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
-import de.caluga.morphium.annotations.ReadOnly;
-import de.caluga.morphium.annotations.Reference;
-import de.caluga.morphium.annotations.UseIfnull;
-import de.caluga.morphium.annotations.encryption.Encrypted;
-import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.objectmapping.AtomicBooleanMapper;
-import de.caluga.morphium.objectmapping.AtomicIntegerMapper;
-import de.caluga.morphium.objectmapping.AtomicLongMapper;
-import de.caluga.morphium.objectmapping.BigDecimalMapper;
-import de.caluga.morphium.objectmapping.BigIntegerTypeMapper;
-import de.caluga.morphium.objectmapping.BsonGeoMapper;
-import de.caluga.morphium.objectmapping.CharacterMapper;
-import de.caluga.morphium.objectmapping.InstantMapper;
-import de.caluga.morphium.objectmapping.LocalDateMapper;
-import de.caluga.morphium.objectmapping.LocalDateTimeMapper;
-import de.caluga.morphium.objectmapping.LocalTimeMapper;
-import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
-import de.caluga.morphium.objectmapping.TimestampMapper;
-import de.caluga.morphium.query.geospatial.Geo;
-import de.caluga.morphium.query.geospatial.LineString;
-import de.caluga.morphium.query.geospatial.MultiLineString;
-import de.caluga.morphium.query.geospatial.MultiPoint;
-import de.caluga.morphium.query.geospatial.MultiPolygon;
-import de.caluga.morphium.query.geospatial.Point;
-import de.caluga.morphium.query.geospatial.Polygon;
-import io.github.classgraph.ClassGraph;
-import io.github.classgraph.ClassGraphException;
-import io.github.classgraph.ClassInfoList;
-import io.github.classgraph.ScanResult;
-import sun.reflect.ReflectionFactory;
 
 /**
  * User: Stpehan Bösebeck
@@ -149,10 +96,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         //initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-            //                     .verbose()             // Enable verbose logging
-            .enableAnnotationInfo()
-            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-            .scan()) {
+                //                     .verbose()             // Enable verbose logging
+                .enableAnnotationInfo()
+                //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+                .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             log.debug("Found " + entities.size() + " entities in classpath");
@@ -201,7 +148,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
      * override nameprovider in runtime!
      *
      * @param cls - class to use
-     * @param np - the NameProvider for that class
+     * @param np  - the NameProvider for that class
      */
     public void setNameProviderForClass(Class<?> cls, NameProvider np) {
         nameProviders.put(cls, np);
@@ -432,13 +379,19 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 Object value = fld.get(o);
 
                 if (fld.isAnnotationPresent(Encrypted.class)) {
+                    if (value == null) continue;
                     try {
                         Encrypted enc = fld.getAnnotation(Encrypted.class);
                         ValueEncryptionProvider encP = enc.provider().getDeclaredConstructor().newInstance();
                         byte[] encKey = morphium.getEncryptionKeyProvider().getEncryptionKey(enc.keyName());
                         encP.setEncryptionKey(encKey);
-                        byte[] encrypted = encP.encrypt(Utils.toJsonString(marshallIfNecessary(value)).getBytes());
-                        dbo.put(fName, encrypted);
+                        if (value instanceof String) {
+                            byte[] encrypted = encP.encrypt(((String) value).getBytes());
+                            dbo.put(fName, encrypted);
+                        } else {
+                            byte[] encrypted = encP.encrypt(Utils.toJsonString(marshallIfNecessary(value)).getBytes());
+                            dbo.put(fName, encrypted);
+                        }
                         continue;
                     } catch (Exception exc) {
                         throw new RuntimeException("Ecryption failed. Field: " + fName + " class: " + cls.getName(), exc);
@@ -838,7 +791,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 HashMap<String, Object> obj = (HashMap<String, Object>) jacksonOM.readValue(jsonString.getBytes(), Map.class); //jsonParser.parse(jsonString, containerFactory);
                 return deserialize(cls, obj);
             } else {
-                return (T)((HashMap<String, Object>) jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
+                return (T) (jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
             }
         } catch (
                 Exception e) {
@@ -880,8 +833,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (cN == null) {
                         cN = (String) objectMap.get("className");
                     }
-                    if (cN.equals("msg")){
-                        cN=Msg.class.getName();
+                    if (cN.equals("msg")) {
+                        cN = Msg.class.getName();
                     }
                     cls = annotationHelper.getClassForTypeId(cN);
                 } catch (ClassNotFoundException e) {
@@ -999,6 +952,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 }
 
                 if (fld.isAnnotationPresent(Encrypted.class)) {
+                    if (valueFromDb == null) continue;
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
                     Class<? extends ValueEncryptionProvider> encCls = enc.provider();
@@ -1021,10 +975,12 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     }
 
                     try {
-                        if (((String)valueFromDb).startsWith("{")){
-                        valueFromDb = deserialize(fldType, (String) valueFromDb);
-                        } else {
-                            valueFromDb=deserialize(Map.class,(String)valueFromDb).get("value");
+                        if (((String) valueFromDb).trim().startsWith("{") || ((String) valueFromDb).trim().startsWith("[")) {
+                            valueFromDb = deserialize(fldType, (String) valueFromDb);
+
+
+                        } else if (valueFromDb instanceof Map) {
+                            valueFromDb = deserialize(Map.class, (String) valueFromDb).get("value");
                         }
                     } catch (Exception e) {
                         log.debug("Not a json string, cannot deserialize further");
@@ -1525,10 +1481,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //Override type if className is specified - needed for polymoprh lists etc.
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                     //Entity to map!
-                    String cn = (String)((Map<String, Object>) val).get("class_name");
+                    String cn = (String) ((Map<String, Object>) val).get("class_name");
 
                     if (cn == null) {
-                        cn = (String)((Map<String, Object>) val).get("className");
+                        cn = (String) ((Map<String, Object>) val).get("className");
                     }
 
                     try {
