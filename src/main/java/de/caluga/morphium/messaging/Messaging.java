@@ -124,7 +124,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         setMultithreadded(multithreadded);
-        decouplePool = new ScheduledThreadPoolExecutor(1);
+        decouplePool = new ScheduledThreadPoolExecutor(windowSize);
         // noinspection unused,unused
         decouplePool.setThreadFactory(new ThreadFactory() {
             private final AtomicInteger num = new AtomicInteger(1);
