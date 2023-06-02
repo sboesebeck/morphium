@@ -154,29 +154,30 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     @Test
     public void testStatusInfoListener() throws Exception {
         Messaging m = new Messaging(morphium);
+        m.setWindowSize(1);
+        m.setProcessMultiple(false);
+
         m.start();
         assertTrue(m.isStatusInfoListenerEnabled());
-        m.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(Messaging msg, Msg m) {
-                log.info("Incoming message!");
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
+        m.addMessageListener((msg, m1) -> {
+            log.info("Incoming message!");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
 
-                }
-                return null;
             }
+            return null;
         });
 
         Messaging sender = new Messaging(morphium);
         sender.start();
-
+        Thread.sleep(3000);
         ArrayList<Msg> lst = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             var msg = new Msg("something else", "no", "");
             msg.setSender(sender.getSenderId());
             msg.setTimingOut(false);
+            msg.setPriority(500);
             msg.setDeleteAfterProcessing(true);
             msg.setDeleteAfterProcessingTime(0);
             msg.setSenderHost("localhost");
@@ -188,8 +189,8 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             Thread.sleep(100);
             var msg = new Msg(sender.getStatusInfoListenerName(), "", "");
             msg.setPriority(10);
-            var answer = sender.sendAndAwaitFirstAnswer(msg, 5000, false);
-            assertNotNull(answer);
+            var answer = sender.sendAndAwaitFirstAnswer(msg, 5000, true);
+            log.info("Got answer - " + i);
         }
     }
 

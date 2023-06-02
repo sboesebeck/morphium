@@ -44,16 +44,16 @@ public class RoundTripTests extends MorphiumTestBase {
          + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
         //        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
         //        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
-        Messaging m1 = new Messaging(morphium, 1000, processMultiple, multithreadded, 10);
+        Messaging m1 = new Messaging(morphium, 100, processMultiple, multithreadded, 10);
         m1.setSenderId("m1");
         Messaging m2;
         Morphium morphium2 = null;
 
         if (sameMorphium) {
-            m2 = new Messaging(morphium, 1000, processMultiple, multithreadded, 10);
+            m2 = new Messaging(morphium, 100, processMultiple, multithreadded, 10);
         } else {
             morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-            m2 = new Messaging(morphium2, 1000, processMultiple, multithreadded, 10);
+            m2 = new Messaging(morphium2, 100, processMultiple, multithreadded, 10);
         }
 
         m2.setSenderId("m2");
@@ -61,23 +61,17 @@ public class RoundTripTests extends MorphiumTestBase {
         try {
             m1.start();
             m2.start();
-            Thread.sleep(1000);
-            m2.addListenerForMessageNamed("ping", new MessageListener() {
-                @Override
-                public Msg onMessage(Messaging msg, Msg m) {
-                    pingReceived.add(System.currentTimeMillis());
-                    msg.sendMessage(new Msg("pong", "msg", "v", 30000, exclusive));
-                    pongSent.add(System.currentTimeMillis());
-                    return null;
-                }
+            Thread.sleep(5000);
+            m2.addListenerForMessageNamed("ping", (msg, m) -> {
+                pingReceived.add(System.currentTimeMillis());
+                msg.sendMessage(new Msg("pong", "msg", "v", 30000, exclusive));
+                pongSent.add(System.currentTimeMillis());
+                return null;
             });
-            m1.addListenerForMessageNamed("pong", new MessageListener() {
-                @Override
-                public Msg onMessage(Messaging msg, Msg m) {
-                    pongReceived.add(System.currentTimeMillis());
-                    //log.info("got pong back...");
-                    return null;
-                }
+            m1.addListenerForMessageNamed("pong", (msg, m) -> {
+                pongReceived.add(System.currentTimeMillis());
+                //log.info("got pong back...");
+                return null;
             });
             // log.info("warming up...");
             // pingSent.clear();

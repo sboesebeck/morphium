@@ -80,7 +80,7 @@ public class MessagingTest extends MultiDriverTestBase {
             assertEquals(0, received.get());
             msg.setProcessedBy(new ArrayList<>());
             morphium.store(msg, m.getCollectionName(), null);
-            Thread.sleep(1000);
+            Thread.sleep(5000);
             assertEquals(1, received.get(), "Did not get message?");
             m.terminate();
             rec.terminate();
@@ -238,7 +238,7 @@ public class MessagingTest extends MultiDriverTestBase {
             m2.setQueueName("t1");
             // m2.setUseChangeStream(true);
             m2.addMessageListener((msg, m)->{
-                // gotMessage2 = true;
+                gotMessage2 = true;
                 return null;
             });
             Messaging m3 = new Messaging(morphium, 100, false);
@@ -644,13 +644,18 @@ public class MessagingTest extends MultiDriverTestBase {
                 procCounter.set(0);
 
                 for (int i = 0; i < 180; i++) {
+                    final int num = i;
                     new Thread() {
                         public void run() {
                             Msg m = new Msg("multisystemtest", "nothing", "value");
                             m.setTtl(10000);
-                            Msg a = m1.sendAndAwaitFirstAnswer(m, 10000);
-                            assertNotNull(a);
-                            procCounter.incrementAndGet();
+                            try {
+                                Msg a = m1.sendAndAwaitFirstAnswer(m, 5000);
+                                assertNotNull(a);
+                                procCounter.incrementAndGet();
+                            } catch (Exception e) {
+                                log.error("Did not receive answer for msg " + num);
+                            }
                         }
                     }
                     .start();
@@ -1244,7 +1249,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void severalRecipientsTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {

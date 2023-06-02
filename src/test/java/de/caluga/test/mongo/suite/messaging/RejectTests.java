@@ -61,16 +61,15 @@ public class RejectTests extends MorphiumTestBase {
                 }
             });
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
-            Msg m = new Msg("test", "value", "msg",2000,true);
+            Msg m = new Msg("test", "value", "msg", 2000, true);
             sender.sendMessage(m);
 
-            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", ()->gotMessage1 && gotMessage2);
+            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", () -> gotMessage1 && gotMessage2);
             log.info("Both tried processing! ms: " + r);
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
             Thread.sleep(2000);
-            //Messages will not be reprocessed!
-            assertFalse(gotMessage1);
-            assertFalse(gotMessage2);
+            //Messages will be reprocessed!
+            assertTrue(gotMessage1 || gotMessage2);
         } finally {
             if (sender != null) { sender.terminate(); }
 
@@ -119,12 +118,10 @@ public class RejectTests extends MorphiumTestBase {
             m.setExclusive(true);
 
             sender.sendMessage(m);
-            TestUtils.waitForConditionToBecomeTrue(5000, "not all listeners received", ()->recs.get()==clients.size());
-
+            TestUtils.waitForConditionToBecomeTrue(5000, "did not receive messages?", () -> recs.get() > 0);
             Thread.sleep(1000);
             //mst not raise
-            assertEquals(clients.size(),recs.get(),"Additional messages coming in????");
-            assertEquals(1,morphium.createQueryFor(Msg.class,sender.getCollectionName()).countAll());
+            assertTrue(recs.get() > 1, "should have been received more than once: " + recs.get());
 
         } finally {
             sender.terminate();
