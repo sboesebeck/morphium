@@ -919,7 +919,12 @@ public abstract class MorphiumBase {
     }
 
     public <T> Map<String, Object> addToSet(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple) {
-        return addToSet(query, field, value, upsert, multiple);
+        if (query == null || field == null) {
+            throw new RuntimeException("Cannot update null!");
+        }
+
+        MorphiumWriter wr = getWriterForClass(query.getType());
+        return wr.pushPull(UpdateTypes.ADD_TO_SET, query, field, value, upsert, multiple, null);
     }
 
     public void push(Object entity, String collection, Enum<?> field, Object value, boolean upsert) {
@@ -1002,7 +1007,7 @@ public abstract class MorphiumBase {
     }
 
     public void push(Object entity, String field, Object value, boolean upsert) {
-        push(entity, field, value, upsert);
+        push(entity, getMapper().getCollectionName(entity.getClass()), field, value, upsert);
     }
 
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val) {
