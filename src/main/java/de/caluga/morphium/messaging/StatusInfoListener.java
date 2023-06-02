@@ -4,10 +4,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import de.caluga.morphium.driver.MorphiumDriverException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class StatusInfoListener implements MessageListener<Msg> {
-
+    private Logger log = LoggerFactory.getLogger(StatusInfoListener.class);
     public final static String messagingThreadpoolstatsKey = "messaging_threadpoolstats";
     public final static String messageListenersbyNameKey = "message_listeners_by_name";
     public final static String globalListenersKey = "global_listeners";
@@ -17,56 +20,56 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String morphiumDriverConnections= "morphium.driver.connections";
     public final static String morphiumDriverReplstatKey= "morphium.driver.replicaset_status";
 
-    private Map<String, InternalCommand> commands = new HashMap<>();
+//    private Map<String, InternalCommand> commands = new HashMap<>();
 
     public StatusInfoListener() {
-        commands.put("unpause", new InternalCommand("pause") {
-            public void exec(Messaging msg, Msg answer, Object params) {
-                if (params != null) {
-                    if (params instanceof List) {
-                        var lst = (List<String>)params;
-
-                        for (String n : lst) {
-                            msg.unpauseProcessingOfMessagesNamed(n);
-                        }
-                    } else {
-                        var n=params.toString();
-                        msg.unpauseProcessingOfMessagesNamed(n);
-
-                    }
-                } else {
-                    //pause ALL
-                    var lst=msg.getPausedMessageNames();
-                    for (String n:lst){
-                        msg.unpauseProcessingOfMessagesNamed(n);
-                    }
-                }
-            }
-        });
-        commands.put("pause", new InternalCommand("pause") {
-            public void exec(Messaging msg, Msg answer, Object params) {
-                if (params != null) {
-                    if (params instanceof List) {
-                        var lst = (List<String>)params;
-
-                        for (String n : lst) {
-                            msg.pauseProcessingOfMessagesNamed(n);
-                        }
-                    } else {
-                        var n=params.toString();
-                        msg.pauseProcessingOfMessagesNamed(n);
-
-                    }
-                } else {
-                    //pause ALL
-                    var lst=new ArrayList<String>(msg.getListenerNames().keySet());
-                    lst.addAll(msg.getGlobalListeners());
-                    for (String n:lst){
-                        msg.pauseProcessingOfMessagesNamed(n);
-                    }
-                }
-            }
-        });
+//        commands.put("unpause", new InternalCommand("pause") {
+//            public void exec(Messaging msg, Msg answer, Object params) {
+//                if (params != null) {
+//                    if (params instanceof List) {
+//                        var lst = (List<String>)params;
+//
+//                        for (String n : lst) {
+//                            msg.unpauseProcessingOfMessagesNamed(n);
+//                        }
+//                    } else {
+//                        var n=params.toString();
+//                        msg.unpauseProcessingOfMessagesNamed(n);
+//
+//                    }
+//                } else {
+//                    //pause ALL
+//                    var lst=msg.getPausedMessageNames();
+//                    for (String n:lst){
+//                        msg.unpauseProcessingOfMessagesNamed(n);
+//                    }
+//                }
+//            }
+//        });
+//        commands.put("pause", new InternalCommand("pause") {
+//            public void exec(Messaging msg, Msg answer, Object params) {
+//                if (params != null) {
+//                    if (params instanceof List) {
+//                        var lst = (List<String>)params;
+//
+//                        for (String n : lst) {
+//                            msg.pauseProcessingOfMessagesNamed(n);
+//                        }
+//                    } else {
+//                        var n=params.toString();
+//                        msg.pauseProcessingOfMessagesNamed(n);
+//
+//                    }
+//                } else {
+//                    //pause ALL
+//                    var lst=new ArrayList<String>(msg.getListenerNames().keySet());
+//                    lst.addAll(msg.getGlobalListeners());
+//                    for (String n:lst){
+//                        msg.pauseProcessingOfMessagesNamed(n);
+//                    }
+//                }
+//            }
+//        });
     }
 
     @Override
@@ -74,7 +77,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
         if (m.isAnswer()) {
             return null;
         }
-
+        log.info("Preparing status info... " + m.getMsgId());
         long tripDur = System.currentTimeMillis() - m.getTimestamp();
         Msg answer = m.createAnswerMsg();
         answer.setMapValue(new HashMap<>());
@@ -115,6 +118,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
             }
         }
 
+        log.info(" status info done... " + m.getMsgId());
         return answer;
     }
 
