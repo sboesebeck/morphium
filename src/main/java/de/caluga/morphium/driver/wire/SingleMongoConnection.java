@@ -645,14 +645,23 @@ public class SingleMongoConnection implements MongoConnection {
         if (!msg.hasCursor()) {
             return null;
         }
-
+        if (!(msg.getFirstDoc().get("cursor") instanceof Map)){
+            log.error("Cursor has wrong type: "+msg.getFirstDoc().get("cursor").toString());
+            return null;
+        }
         Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
-            ret = (Map<String, Object>) cursor.get("firstBatch");
+            List<Map<String,Object>> lst= (List<Map<String, Object>>) cursor.get("firstBatch");
+            if (lst!=null && !lst.isEmpty()){
+                ret=lst.get(0);
+            }
         } else {
-            ret = (Map<String, Object>) cursor.get("nextBatch");
+            List<Map<String,Object>> lst= (List<Map<String, Object>>) cursor.get("nextBatch");
+            if (lst!=null && !lst.isEmpty()){
+                ret=lst.get(0);
+            }
         }
 
         String[] namespace = cursor.get("ns").toString().split("\\.");
