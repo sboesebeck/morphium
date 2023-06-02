@@ -72,10 +72,10 @@ public class Messaging extends Thread implements ShutdownListener {
     //answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
 
-    private final BlockingDeque<MorphiumId> processing = new LinkedBlockingDeque<MorphiumId>();
+    private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
-    private List<MorphiumId> idsInProgress = new Vector<>();
+    private final List<MorphiumId> idsInProgress = new Vector<>();
 
     /**
      * attaches to the default queue named "msg"
@@ -301,14 +301,37 @@ public class Messaging extends Thread implements ShutdownListener {
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
             if (id instanceof MorphiumId) {
+                FindCommand fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(null));
+                Map<String, Object> msg = null;
+                try {
+                    fnd.setFilter(Doc.of("_id", id));
+                    fnd.setColl(getCollectionName()).setDb(morphium.getDatabase());
+                    fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1));
+//                    .add("processed_by",1).add( "exclusive", 1).add("recipients", 1)
+//                            .add("name", 1)
+//                            .add("in_answer_to", 1));
+                    List<Map<String, Object>> msgs = fnd.execute();
+                    if (!msgs.isEmpty()) {
+                        msg = msgs.get(0);
+                    }
+                } finally {
+                    fnd.releaseConnection();
+                }
+                if (msg == null) return running;
+                if (msg.get("sender").equals("id")) {
+                    return running;
+                }
+                ProcessingQueueElement el = new ProcessingQueueElement();
+                el.setPriority((Integer) msg.get("priority"));
+                el.setId((MorphiumId) msg.get("_id"));
+                el.setTimestamp((Long) msg.get("timestamp"));
                 synchronized (processing) {
-                    if (!processing.contains(id)) {
-                        processing.add((MorphiumId) id);
+                    if (!processing.contains(el)) {
+                        processing.add(el);
                     }
                 }
             } else {
                 log.error("Some other id?!?!?" + id.getClass().getName());
-                // processing.remove(obj.getMsgI());
             }
         } catch (Exception e) {
             log.error("Error during event processing in changestream", e);
@@ -378,23 +401,23 @@ public class Messaging extends Thread implements ShutdownListener {
         //Main processing thread!
         while (running) {
             try {
-                var msgId = processing.pollFirst(1000, TimeUnit.MILLISECONDS);
+                var prEl = processing.poll(1000, TimeUnit.MILLISECONDS);
 
-                if (msgId == null) {
+                if (prEl == null) {
                     continue;
                 }
 
                 synchronized (processing) {
-                    if (idsInProgress.contains(msgId)) {
+                    if (idsInProgress.contains(prEl.getId())) {
                         continue;
                     }
 
-                    idsInProgress.add(msgId);
+                    idsInProgress.add(prEl.getId());
                 }
 
                 Runnable r = () -> {
                     try {
-                        var msg = morphium.findById(Msg.class, msgId, getCollectionName());
+                        var msg = morphium.findById(Msg.class, prEl.getId(), getCollectionName());
 
                         //message was deleted
                         if (msg == null) {
@@ -454,7 +477,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         }
                     } finally {
                         synchronized (processing) {
-                            idsInProgress.remove(msgId);
+                            idsInProgress.remove(prEl.getId());
                         }
                     }
                 };
@@ -524,7 +547,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return ret;
     }
 
-    private List<MorphiumId> getMessagesForProcessing(boolean multiple) {
+    private List<ProcessingQueueElement> getMessagesForProcessing(boolean multiple) {
         if (!running) {
             return new ArrayList<>();
         }
@@ -540,7 +563,9 @@ public class Messaging extends Thread implements ShutdownListener {
         var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
 
         synchronized (processing) {
-            idsToIgnore.addAll(processing);
+            for (var p : processing) {
+                idsToIgnore.add(p.getId());
+            }
             idsToIgnore.addAll(idsInProgress);
         }
 
@@ -560,7 +585,7 @@ public class Messaging extends Thread implements ShutdownListener {
         // Only handle messages we have listener for - not working, because of answers...
         q.setLimit(windowSize);
         q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
-        List<MorphiumId> msgIdsForProcessing = new ArrayList<>();
+        List<ProcessingQueueElement> queueElements = new ArrayList<>();
         // just trigger unprocessed messages for Changestream...
         FindCommand fnd = null;
 
@@ -575,7 +600,7 @@ public class Messaging extends Thread implements ShutdownListener {
             fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             fnd.setDb(morphium.getDatabase());
             fnd.setFilter(q.toQueryObject());
-            fnd.setProjection(Doc.of("_id", 1, "ttl", 1, "timing_out", 1, "exclusive", 1, "processed_by", 1));
+            fnd.setProjection(Doc.of("_id", 1, "priority", 1, "timestamp", 1));
             fnd.setLimit(ws);
             fnd.setBatchSize(q.getBatchSize());
             fnd.setSort(q.getSort());
@@ -588,17 +613,17 @@ public class Messaging extends Thread implements ShutdownListener {
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
-                    msgIdsForProcessing.add((MorphiumId) el.get("_id"));
+                    queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"), (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
                 }
             }
 
-            if (q.countAll() != msgIdsForProcessing.size()) {
-                //still messages left for processing
+            if (q.countAll() != queueElements.size()) {
+                //still messages left in mongodb for processing
                 //or some messages were delete -> check to be sure
                 requestPoll.incrementAndGet();
             }
 
-            return msgIdsForProcessing;
+            return queueElements;
         } catch (Exception e) {
             log.error(id + ": Error while processing", e);
             return null;
@@ -620,7 +645,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         // log.debug("getting messages...");
-        List<MorphiumId> messages = getMessagesForProcessing(multiple);
+        List<ProcessingQueueElement> messages = getMessagesForProcessing(multiple);
 
         if (messages == null) {
             return;
@@ -630,10 +655,10 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        for (MorphiumId id : messages) {
+        for (ProcessingQueueElement el : messages) {
             synchronized (processing) {
-                if (!processing.contains(id) && !idsInProgress.contains(id)) {
-                    processing.add(id);
+                if (!processing.contains(el) && !idsInProgress.contains(el)) {
+                    processing.add(el);
                 }
             }
         }
@@ -1316,6 +1341,70 @@ public class Messaging extends Thread implements ShutdownListener {
     public static class SystemShutdownException extends RuntimeException {
         public SystemShutdownException(String msg) {
             super(msg);
+        }
+    }
+
+    private class ProcessingQueueElement implements Comparable<ProcessingQueueElement> {
+        private int priority;
+        private MorphiumId id;
+        private long timestamp;
+
+        public ProcessingQueueElement() {
+        }
+
+        public ProcessingQueueElement(int priority, long timestamp, MorphiumId id) {
+            this.priority = priority;
+            this.id = id;
+            this.timestamp = timestamp;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
+        }
+
+        public ProcessingQueueElement setTimestamp(long timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public int getPriority() {
+            return priority;
+        }
+
+        public ProcessingQueueElement setPriority(int priority) {
+            this.priority = priority;
+            return this;
+        }
+
+        public MorphiumId getId() {
+            return id;
+        }
+
+        public ProcessingQueueElement setId(MorphiumId id) {
+            this.id = id;
+            return this;
+        }
+
+        @Override
+        public int compareTo(ProcessingQueueElement o) {
+            if (o.getPriority() < priority) return -1;
+            if (o.getPriority() > priority) return 1;
+            if (o.getTimestamp() < timestamp) return -1;
+            if (o.getTimestamp() > timestamp) return 1;
+            return o.getId().compareTo(id);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ProcessingQueueElement that = (ProcessingQueueElement) o;
+            return Objects.equals(id, that.id);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(priority, id, timestamp);
         }
     }
 }
