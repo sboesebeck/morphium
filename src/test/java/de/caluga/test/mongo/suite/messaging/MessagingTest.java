@@ -613,7 +613,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void severalMessagingsTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -911,7 +911,7 @@ public class MessagingTest extends MultiDriverTestBase {
             final Messaging consumer = new Messaging(morphium, 50, true);
             producer.start();
             consumer.start();
-            Thread.sleep(1500);
+            Thread.sleep(1500);e
 
             try {
                 final int[] processed = {0};
