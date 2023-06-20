@@ -256,7 +256,7 @@ public class PooledDriver extends DriverBase {
                                 // log.info("Hello from secondary");
                             }
                         } catch (Throwable ex) {
-                            if (!ex.getMessage().contains("closed")) {
+                            if (ex.getMessage()!=null && !ex.getMessage().contains("closed")) {
                                 log.error("Error talking to " + hst, ex);
 
                                 try {
