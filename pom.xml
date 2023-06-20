@@ -31,7 +31,7 @@
   <developers>
     <developer>
       <id>sBoesebeck</id>
-      <name>Stephan Bösebeck</name>
+      <name>Stephan B&#xF6;sebeck</name>
       <email>sb@caluga.de</email>
     </developer>
   </developers>
@@ -181,6 +181,13 @@
     </profile>
   </profiles>
   <dependencies>
+    <dependency>
+      <groupId>org.xerial.snappy</groupId>
+      <artifactId>snappy-java</artifactId>
+      <version>LATEST</version>
+      <type>jar</type>
+      <scope>compile</scope>
+    </dependency>
     <dependency>
       <groupId>org.openjdk.jol</groupId>
       <artifactId>jol-core</artifactId>
