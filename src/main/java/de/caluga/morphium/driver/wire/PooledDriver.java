@@ -1,7 +1,6 @@
 package de.caluga.morphium.driver.wire;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
 import de.caluga.morphium.driver.*;
@@ -668,6 +667,9 @@ public class PooledDriver extends DriverBase {
         }
 
         heartbeat = null;
+        if (executor != null) {
+            executor.shutdownNow();
+        }
 
         synchronized (connectionPool) {
             for (var e : new ArrayList<>(connectionPool.entrySet())) {
