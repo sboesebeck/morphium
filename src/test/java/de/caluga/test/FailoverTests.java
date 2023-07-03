@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
@@ -21,6 +24,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
+import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.messaging.Messaging;
@@ -66,6 +70,11 @@ public class FailoverTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesPooledOnly")
     public void primaryFailoverMessagingTest(Morphium morphium) throws Exception {
+        var l=(Logger)LoggerFactory.getLogger(PooledDriver.class);
+        l.setLevel(Level.OFF);
+        l=(Logger)LoggerFactory.getLogger(SingleMongoConnectDriver.class);
+        l.setLevel(Level.OFF);
+
         try (morphium) {
             Messaging sender = new Messaging(morphium, 250, true);
             sender.start();
@@ -103,6 +112,7 @@ public class FailoverTests extends MultiDriverTestBase {
 
             for (int i = 0; i < 10; i++) {
                 log.info("Errors after shutdown: " + unanswered.get() + " - received: " + answers.get());
+                Thread.sleep(1000);
             }
 
             b.set(false);
