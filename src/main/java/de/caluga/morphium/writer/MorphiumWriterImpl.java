@@ -890,6 +890,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         //log.error("Error executing... retrying");
                         Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                     } else {
+
                         throw new RuntimeException(e);
                     }
                 }
