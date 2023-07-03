@@ -239,13 +239,11 @@ public class PooledDriverTest {
                         res.setIncludeClient(false);
                         var r = res.execute();
                         res.releaseConnection();
-
-                        con=drv.getPrimaryConnection(null);
-                        InsertMongoCommand cmd=new InsertMongoCommand(con);
-                        cmd.setDb("testdb").setColl("testcoll").setDocuments(List.of(Doc.of("value","Hello world")));
+                        con = drv.getPrimaryConnection(null);
+                        InsertMongoCommand cmd = new InsertMongoCommand(con);
+                        cmd.setDb("testdb").setColl("testcoll").setDocuments(List.of(Doc.of("value", "Hello world")));
                         cmd.execute();
                         cmd.releaseConnection();
-
                     } catch (Exception e) {
                         log.error("error", e);
                         error.incrementAndGet();
@@ -364,8 +362,8 @@ public class PooledDriverTest {
                 insert.execute();
                 insert.releaseConnection();
             } catch (Exception e) {
-                log.error("find failed " + e.getMessage());
-                e.printStackTrace();
+                log.error("write failed " + e.getMessage());
+                // e.printStackTrace();
                 errors++;
             }
 
@@ -382,6 +380,63 @@ public class PooledDriverTest {
 
         log.info("Waiting for you to restart node...");
         Thread.sleep(5000);
+        long start = System.currentTimeMillis();
+
+        while (true) {
+            cnt = 0;
+
+            for (var e : drv.getNumConnectionsByHost().entrySet()) {
+                if (e.getValue() > 0) {
+                    cnt++;
+                }
+            }
+
+            if (cnt == 3) {
+                log.info("got 3 - retrying...");
+                Thread.sleep(5000);
+
+                cnt = 0;
+
+                for (var e : drv.getNumConnectionsByHost().entrySet()) {
+                    if (e.getValue() > 0) {
+                        cnt++;
+                    }
+                }
+                if (cnt==3) break;
+            }
+
+            Thread.sleep(1000);
+            log.info("Host-Seed still: " + cnt);
+            assertTrue(System.currentTimeMillis() - start < 180000);
+        }
+
+        log.info("Waiting for master...");
+
+
+        log.info("Got all connections...");
+        for (int i = 2000; i < 2100; i++) {
+            InsertMongoCommand insert = null;
+
+            try {
+                insert = new InsertMongoCommand(drv.getPrimaryConnection(null));
+                insert.setDocuments(List.of(Map.of("_id", new ObjectId(), "val", i, "str", "Str" + i), Map.of("_id", new ObjectId(), "val", i + 100, "str", "Str" + (i + 100))));
+                insert.setDb("test");
+                insert.setColl("tst_data");
+                log.info("Writing to: " + insert.getConnection().getConnectedTo());
+                insert.execute();
+                insert.releaseConnection();
+                Thread.sleep(100);
+            } catch (Exception e) {
+                log.error("write failed " + e.getMessage());
+                e.printStackTrace();
+                errors++;
+            }
+
+            if (insert != null) {
+                insert.releaseConnection();
+            }
+        }
+        assertTrue(errors < 10);
         drv.close();
     }
 
