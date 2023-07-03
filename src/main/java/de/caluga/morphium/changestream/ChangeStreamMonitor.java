@@ -242,7 +242,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 };
                 if (dedicatedConnection==null) break;
                 var con = dedicatedConnection.getPrimaryConnection(null);
-                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(0)
+                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxConnectionIdleTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
                 if (!dbOnly) {

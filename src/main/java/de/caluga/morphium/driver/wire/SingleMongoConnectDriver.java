@@ -118,6 +118,14 @@ public class SingleMongoConnectDriver extends DriverBase {
             }
         }
 
+        while (!connection.isConnected()) {
+            try {
+                log.info("Waiting for heartbeat to fix connection...");
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+            }//waiting for heartbeat
+        }
+
         incStat(DriverStatsKey.CONNECTIONS_BORROWED);
         connectionInUse = true;
         return new ConnectionWrapper(connection);
