@@ -136,6 +136,7 @@ public class AnnotationAndReflectionHelper {
     }
 
     public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class<? extends Annotation>annotationClass) {
+        if (aClass == null || Map.class.isAssignableFrom(aClass)) return false;
         for (Field f : getAllFields(aClass)) {
             if (f.getAnnotation(annotationClass) != null) { return true; }
         }
@@ -261,6 +262,7 @@ public class AnnotationAndReflectionHelper {
         return getMongoFieldName(clz, field, isAnnotationOnAnyField(clz, AdditionalData.class));
     }
     public String getMongoFieldName(Class clz, String field, boolean ignoreUnknownField) {
+        if (clz==null || Map.class.isAssignableFrom(clz)) return field;
         Class cls = getRealClass(clz);
 
         if (field.contains(".") || field.contains("(") || field.contains("$")) {
@@ -394,6 +396,7 @@ public class AnnotationAndReflectionHelper {
      * @return list of fields in that class
      */
     public List<Field> getAllFields(Class clz) {
+        if (clz==null || Map.class.isAssignableFrom(clz)) return new ArrayList<Field>();
         if (fieldListCache.containsKey(clz)) {
             return fieldListCache.get(clz);
         }
@@ -408,7 +411,6 @@ public class AnnotationAndReflectionHelper {
             hierachy.add(sc);
             sc = sc.getSuperclass();
         }
-
         Collections.addAll(hierachy, cls.getInterfaces());
 
         //now we have a list of all classed up to Object
@@ -439,6 +441,7 @@ public class AnnotationAndReflectionHelper {
      * @return field, if found, null else
      */
     public Field getField(Class clz, String fld) {
+        if (clz==null || Map.class.isAssignableFrom(clz)) return null;
         String key = clz.toString() + "->" + fld;
         Field val = fieldCache.get(key);
 
