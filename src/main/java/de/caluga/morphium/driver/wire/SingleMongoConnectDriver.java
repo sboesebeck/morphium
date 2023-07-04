@@ -67,7 +67,7 @@ public class SingleMongoConnectDriver extends DriverBase {
         @Override
         public Thread newThread(Runnable r) {
             Thread ret = new Thread(r);
-            ret.setName("MCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
+            ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
             ret.setDaemon(true);
             return ret;
         }
