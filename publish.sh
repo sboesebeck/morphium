@@ -20,14 +20,14 @@ version=$(grep "project.rel.de.caluga\\\\\\:morphium" release.properties | cut -
 tag=$(grep "scm.tag=" release.properties | cut -f2 -d=)
 
 echo "Releasing $version - tagging as $tag"
-mvn release:perform >>test.log/release.log 
+mvn release:perform >>test.log/release.log
 # mvn nexus-staging:release -Ddescription="Latest release" -DstagingRepositoryId="sonatype-nexus-staging" ||
 
 git checkout master
 git merge $tag
 git push
 
-./create_bundle.sh >> test.log/release.log
+#./create_bundle >> test.log/release.log
 git checkout develop
 git push
 #. ./slackurl.inc

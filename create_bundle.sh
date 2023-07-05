@@ -1,5 +1,4 @@
 #!/bin/bash
-#mvn package gpg:sign -Dgpg.passphrase="$GPGPWD" -Dmaven.test.skip=true $@ || exit 1
 mvn package verify -DskipTests || exit 1
 echo "creating bundle"
 version=$(grep '<version>' pom.xml | head -n1 | tr -d ' a-z<>/')
