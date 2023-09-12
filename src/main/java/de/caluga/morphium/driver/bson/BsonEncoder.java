@@ -340,7 +340,7 @@ public class BsonEncoder {
         try {
             out.write(data);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 

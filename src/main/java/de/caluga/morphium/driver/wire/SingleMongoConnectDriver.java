@@ -364,7 +364,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                     //e.printStackTrace();
                 } catch (Exception e) {
                     incStat(DriverStatsKey.ERRORS);
-                    e.printStackTrace();
+                    log.error("Error during heartbeat",e);
                 } finally {
                     connectionInUse = false;
                 }

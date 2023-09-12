@@ -313,7 +313,8 @@ public class Query<T> implements Cloneable {
 
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
+            log.error("Error while talking to mongo",e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -398,7 +399,8 @@ public class Query<T> implements Cloneable {
 
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
-            e.printStackTrace();
+            // e.printStackTrace();
+            log.error("Error",e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();

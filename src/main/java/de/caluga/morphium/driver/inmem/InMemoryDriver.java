@@ -1189,11 +1189,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     try {
                         r1.run();
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        log.error("Error",e);
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("Error",e);
             }
         };
         exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); // check for events every 500ms
@@ -1232,7 +1232,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                             getCollection(db, coll).remove(o);
                                         }
                                     } catch (Exception e) {
-                                        e.printStackTrace();
+                                        log.error("Error",e);
                                     }
                                 }
                             }
@@ -1240,7 +1240,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error("Error",e);
             }
         }, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
@@ -1379,7 +1379,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             ObjectInputStream ois = new ObjectInputStream(bais);
             return (T) ois.readObject();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error",e);
             return null;
         }
     }

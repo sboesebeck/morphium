@@ -136,7 +136,8 @@ public abstract class MongoCommand<T extends MongoCommand> {
                     }
                 }
             } catch (IllegalAccessException e) {
-                e.printStackTrace();
+                // e.printStackTrace();
+                LoggerFactory.getLogger(this.getClass()).error("Illegal access",e);
             }
         }
         return (T) this;
@@ -172,7 +173,8 @@ public abstract class MongoCommand<T extends MongoCommand> {
                     map.put(n, v);
 
             } catch (IllegalAccessException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                LoggerFactory.getLogger(this.getClass()).error("Illegal access",e);
             }
         }
 
