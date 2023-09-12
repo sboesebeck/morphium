@@ -2569,7 +2569,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         }
                     }
                 } catch (MorphiumDriverException e) {
-                    e.printStackTrace();
+                    // e.printStackTrace();
                     throw new RuntimeException(e);
                 } finally {
                     // if (cmd!=null) cmd.releaseConnection();
