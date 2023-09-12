@@ -268,7 +268,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     //     }
                     //
                 } else if (e.getMessage().contains("closed")) {
-                    log.error("connection closed!");
+                    log.warn("connection closed!");
                     break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
