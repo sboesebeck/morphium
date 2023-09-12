@@ -611,7 +611,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             q.setCollectionName(collection);
             return q;
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Error",e);
         }
 
         return null;
@@ -2428,7 +2428,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             try {
                 morphiumDriver.close();
             } catch (Exception e) {
-                e.printStackTrace();
+                //swallow - during close! e.printStackTrace();
             }
 
             morphiumDriver = null;

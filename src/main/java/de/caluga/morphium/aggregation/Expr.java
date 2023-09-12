@@ -105,7 +105,7 @@ public abstract class Expr {
                             m.setAccessible(true);
                             return (Expr) m.invoke(null, p);
                         } catch (Exception e) {
-                            e.printStackTrace();
+                            log.error("Error during parsing of expr",e);
                         }
                     }
                 }

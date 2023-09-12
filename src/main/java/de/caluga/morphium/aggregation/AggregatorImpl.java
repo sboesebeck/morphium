@@ -345,7 +345,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                     List<R> result = deserializeList();
                     callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
                 } catch (MorphiumDriverException e) {
-                    e.printStackTrace();
+                    log.error("error in queued task",e);
                 }
             });
         }

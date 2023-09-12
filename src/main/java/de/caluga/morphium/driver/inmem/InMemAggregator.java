@@ -1547,7 +1547,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                 }
                             }
                         } catch (MorphiumDriverException e) {
-                            e.printStackTrace();
+                            throw new RuntimeException(e);
+                            // e.printStackTrace();
                         }
                     }
                 } else {

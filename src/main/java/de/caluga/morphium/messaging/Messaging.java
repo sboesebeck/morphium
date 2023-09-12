@@ -1172,7 +1172,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 changeStreamMonitor.terminate();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            //e.printStackTrace();
             // swallow
         }
     }

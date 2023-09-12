@@ -697,7 +697,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     cmd.setValidationLevel(e.validationLevel().name());
                     cmd.setValidationAction(e.validationAction().name());
                 } catch (Exception parseException) {
-                    parseException.printStackTrace();
+                    // parseException.printStackTrace();
                     throw new RuntimeException("Error parsing", parseException);
                 }
             }
@@ -947,8 +947,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             try {
                 Thread.sleep(5);
             } catch (InterruptedException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+                // e.printStackTrace();
             }
         }
 

@@ -258,7 +258,8 @@ public class IndexDescription {
                     map.put(fn, v);
                 }
             } catch (IllegalAccessException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                log.error("IllegalAccess",e);
             }
         }
 

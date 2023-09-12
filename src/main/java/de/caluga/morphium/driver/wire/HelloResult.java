@@ -10,6 +10,7 @@ import java.lang.reflect.Modifier;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.LoggerFactory;
 
 public class HelloResult {
     private static AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(false);
@@ -58,7 +59,8 @@ public class HelloResult {
                 }
             } catch (Exception e) {
                 //something went wrong...
-                e.printStackTrace();
+                //e.printStackTrace();
+                LoggerFactory.getLogger(HelloResult.class).error("Exception parsing answer",e);
             }
         }
         return ret;
@@ -76,7 +78,8 @@ public class HelloResult {
                     ret.add(f.getName(), f.get(this));
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                LoggerFactory.getLogger(this.getClass()).error("Exception parsing answer",e);
             }
         }
         return ret;
