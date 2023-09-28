@@ -24,3 +24,7 @@ failed.txt
 pom.xml.releaseBackup
 release.properties
 failed.tmp
+
+*.nix
+.direnv
+.envrc
