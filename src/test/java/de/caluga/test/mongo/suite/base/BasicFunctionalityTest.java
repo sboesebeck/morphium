@@ -69,7 +69,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
                 if (i % 10 == 0) {
                     log.info("Stored..." + i);
-                }
+               }
             }
 
             log.info("Stored...");
@@ -131,7 +131,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertEquals(3, cnt);
             cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).nin(Arrays.asList(1, 2, 102)).countAll();
             assertEquals(8, cnt);
-            var lst = m.createQueryFor(UncachedObject.class).limit(3).idList();
+            var lst = m.createQueryFor(UncachedObject.class).limit(3).sort("counter").idList();
             var q = m.createQueryFor(UncachedObject.class).f("_id").nin(lst);
             var q1 = q.q().f("counter").eq(2);
             var q2 = q.q().f("counter").eq(9);
