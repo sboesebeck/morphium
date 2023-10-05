@@ -1,10 +1,11 @@
 package de.caluga.morphium;
 
-import net.sf.cglib.proxy.MethodInterceptor;
-import net.sf.cglib.proxy.MethodProxy;
+// import net.sf.cglib.proxy.MethodInterceptor;
+// import net.sf.cglib.proxy.MethodProxy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.cglib.proxy.MethodInterceptor;
+import org.springframework.cglib.proxy.MethodProxy;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 

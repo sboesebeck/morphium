@@ -39,7 +39,8 @@ import de.caluga.morphium.writer.MorphiumWriterImpl;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-import net.sf.cglib.proxy.Enhancer;
+// import net.sf.cglib.proxy.Enhancer;
+import org.springframework.cglib.proxy.Enhancer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
