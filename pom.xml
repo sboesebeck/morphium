@@ -244,9 +244,10 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>cglib</groupId>
-      <artifactId>cglib</artifactId>
-      <version>3.3.0</version>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-core</artifactId>
+        <version>6.0.12</version>
+        <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.mongodb</groupId>
