@@ -5,11 +5,12 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.*;
-import net.sf.cglib.proxy.Enhancer;
-import net.sf.cglib.proxy.FixedValue;
+// import net.sf.cglib.proxy.Enhancer;
+// import net.sf.cglib.proxy.FixedValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
+import org.springframework.cglib.proxy.Enhancer;
+import org.springframework.cglib.proxy.FixedValue;
 import java.lang.reflect.Field;
 import java.util.*;
 
