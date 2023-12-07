@@ -348,7 +348,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
 
             Thread.sleep(2000);
             assertEquals(amount, count.get());
-            assertEquals(amount, morphium.createQueryFor(Msg.class).setCollectionName("msg_lck").countAll());
+            assertEquals(0, morphium.createQueryFor(Msg.class).setCollectionName("msg_lck").countAll());
         }
     }
 }
