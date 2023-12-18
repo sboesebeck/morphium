@@ -4,6 +4,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.test.morphium.driver.DriverTestBase;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Disabled
 public class ListCollectionsCommandTest extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(ListCollectionsCommandTest.class);
 

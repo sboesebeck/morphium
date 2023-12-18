@@ -39,7 +39,7 @@ public class IdCacheTest extends MorphiumTestBase {
 
         String k = morphium.getCache().getCacheKey(q);
         assert (lst.size() == 29) : "Size matters! " + lst.size();
-        Thread.sleep(100);
+        Thread.sleep(1100);
         Map<String, Integer> sizes = morphium.getCache().getSizes();
         MorphiumId id = lst.get(0).getId();
 

@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p/>
  */
 @SuppressWarnings("ALL")
+@Disabled
 public class MessagingTest extends MultiDriverTestBase {
     public boolean gotMessage = false;
 

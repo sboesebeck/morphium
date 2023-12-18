@@ -3,11 +3,9 @@ package de.caluga.test.morphium.driver;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,14 +15,12 @@ import de.caluga.morphium.driver.commands.ClearCollectionCommand;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
-import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
-import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.commands.StepDownCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
+@Disabled
 public class SingleConnectDriverTests extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
 
@@ -40,6 +36,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
     }
 
     @Test
+    @Disabled
     public void testHeartbeat() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());

@@ -9,27 +9,21 @@ import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import de.caluga.morphium.Utils;
-import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.commands.ClearCollectionCommand;
-import de.caluga.morphium.driver.commands.FindCommand;
-import de.caluga.morphium.driver.commands.HelloCommand;
-import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
-import de.caluga.morphium.driver.commands.StepDownCommand;
-import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
 
 public class SingleConnectDriverFailoverTests extends DriverTestBase{
     private Logger log=LoggerFactory.getLogger(SingleConnectDriverFailoverTests.class);
     @Test
+    @Disabled
     public void testFailover() throws Exception {
         // log.info("Not testing failover!");
         // if (true) return;

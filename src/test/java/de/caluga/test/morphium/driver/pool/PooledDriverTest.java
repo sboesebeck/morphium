@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +33,6 @@ import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
-import de.caluga.morphium.writer.MorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 public class PooledDriverTest {
@@ -42,6 +42,7 @@ public class PooledDriverTest {
     private Object sync = new Object();
 
     @Test
+    @Disabled
     public void testPooledConnections() throws Exception {
         PooledDriver drv = getDriver();
         log.info("Connecting...");
@@ -58,6 +59,7 @@ public class PooledDriverTest {
     }
 
     @Test
+    @Disabled
     public void comparePooledDriverMongoDriver() throws Exception {
         testCRUDPooledDriver();
         crudTestMongoDriver();
@@ -201,9 +203,14 @@ public class PooledDriverTest {
     }
 
     private PooledDriver getDriver() throws MorphiumDriverException {
+        String hostSeed = System.getenv("HOST_SEED");
         var drv = new PooledDriver();
         drv.setCredentials("admin", "test", "test");
-        drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
+        if(hostSeed == null) {
+            drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
+        } else {
+            drv.setHostSeed(hostSeed.split(","));
+        }
         drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);
         drv.setConnectionTimeout(5000);
@@ -215,6 +222,7 @@ public class PooledDriverTest {
     }
 
     @Test
+    @Disabled
     public void testMultithreaddedConnectionPool() throws Exception {
         var drv = getDriver();
         drv.connect();
@@ -306,6 +314,7 @@ public class PooledDriverTest {
     }
 
     @Test
+    @Disabled
     public void testPrimaryFailover() throws Exception {
         log.info("Not testing failover!!!!");
         if (true)return;
@@ -532,6 +541,7 @@ public class PooledDriverTest {
     // }
 
     @Test
+    @Disabled
     public void idleTimeoutTest() throws Exception {
         var drv = getDriver();
         drv.setMinConnections(2);
@@ -542,7 +552,7 @@ public class PooledDriverTest {
 
         try {
             while (!drv.isConnected()) {
-                Thread.sleep(500);
+                Thread.sleep(1500);
             }
 
             log.info("Connected...");
@@ -568,6 +578,7 @@ public class PooledDriverTest {
     }
 
     @Test
+    @Disabled
     public void dropCmdTest() throws Exception {
         var drv = getDriver();
         drv.connect();

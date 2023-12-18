@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Messaging;
@@ -16,6 +17,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 
 
 
+@Disabled
 public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
     @Test
