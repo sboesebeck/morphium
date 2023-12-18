@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CappedCol;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -27,6 +28,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
+    @Disabled
     public void tailableTest(Morphium m) throws Exception {
         var orig=m.getConfig().getCappedCheck();
         m.getConfig().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);

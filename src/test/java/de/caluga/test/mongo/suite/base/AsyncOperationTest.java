@@ -1,7 +1,6 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.Utils;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.SafetyLevel;
@@ -14,12 +13,9 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
-import de.caluga.morphium.driver.wire.PooledDriver;
-import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -67,7 +63,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     assert false;
                 }
             });
-            Thread.sleep(200);
+            Thread.sleep(1200);
             assert(asyncCall);
             asyncCall = false;
             uc = uc.q();

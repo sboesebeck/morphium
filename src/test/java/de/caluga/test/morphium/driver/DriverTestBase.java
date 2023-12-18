@@ -27,7 +27,13 @@ public class DriverTestBase {
             drv.setCredentials("admin", "test", "test");
             drv.setMaxWaitTime(1000);
             drv.setHeartbeatFrequency(1000);
-            drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");
+
+            String hostSeed = System.getenv("HOST_SEED");
+            if(hostSeed == null) {
+                drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");
+            } else {
+                drv.setHostSeed(hostSeed.split(","));
+            }
             drv.connect();
             driver = drv;
         }

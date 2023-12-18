@@ -24,15 +24,13 @@ public class TypeIdTests extends MorphiumTestBase {
         ad.setAdditionals(UtilsMap.of("test", new EmbeddedObject("name", "value", 123)));
         morphium.store(ad);
 
-        Thread.sleep(100);
         ad.setAdditionals(null);
-        morphium.reread(ad);
-        assertNotNull(ad.getAdditionals());
-        ;
-        assert (ad.getAdditionals().containsKey("test"));
-        assert (ad.getAdditionals().get("test") instanceof EmbeddedObject);
-        assert (((EmbeddedObject) ad.getAdditionals().get("test")).getName().equals("name"));
-        checkTypeId(EmbeddedObject.class, ad, "test");
+        AdditionalDataEntity adReread = TestUtils.waitForObject( () -> morphium.reread(ad));
+        assertNotNull(adReread.getAdditionals());
+        assert (adReread.getAdditionals().containsKey("test"));
+        assert (adReread.getAdditionals().get("test") instanceof EmbeddedObject);
+        assert (((EmbeddedObject) adReread.getAdditionals().get("test")).getName().equals("name"));
+        checkTypeId(EmbeddedObject.class, adReread, "test");
 
     }
 

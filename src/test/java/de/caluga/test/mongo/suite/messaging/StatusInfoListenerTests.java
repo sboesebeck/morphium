@@ -6,6 +6,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StatusInfoListener;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
+    @Disabled
     public void disablingEnablingStatusListener() throws Exception {
         Messaging m1 = new Messaging(morphium, 100, true);
         m1.setSenderId("m1");

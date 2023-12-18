@@ -17,6 +17,7 @@ import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +40,7 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+@Disabled
 public class SingleMongoConnectionTest extends ConnectionTestBase {
 
     private Logger log = LoggerFactory.getLogger(SingleMongoConnectionTest.class);

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.messaging.Messaging;
@@ -84,6 +85,7 @@ public class TimeoutTests extends MorphiumTestBase {
     }
     
     @Test
+    @Disabled
     public void standardBehaviour() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);

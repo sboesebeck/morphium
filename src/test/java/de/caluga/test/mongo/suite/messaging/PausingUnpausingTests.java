@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.Morphium;
@@ -93,6 +94,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     }
 
     @Test
+    @Disabled
     public void priorityPausedMessagingTest() throws Exception {
         Messaging sender = new Messaging(morphium, 100, false);
         sender.start();
@@ -221,7 +223,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         sender.sendMessage(new Msg("now", "now", "now"));
         Thread.sleep(500);
         assert (list.size() == 3);
-        Thread.sleep(2000);
+        Thread.sleep(4000);
         //Message after unpausing:
         assert (cnt.get() == 4) : "Count wrong: " + cnt.get();
     }

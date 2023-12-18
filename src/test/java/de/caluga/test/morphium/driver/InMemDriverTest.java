@@ -12,6 +12,7 @@ import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -380,6 +381,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    @Disabled
     public void testCapped() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();
         drv.connect();

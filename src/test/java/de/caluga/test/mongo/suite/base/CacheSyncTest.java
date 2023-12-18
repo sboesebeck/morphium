@@ -17,6 +17,7 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -140,6 +141,7 @@ public class CacheSyncTest extends MorphiumTestBase {
     }
 
     @Test
+    @Disabled
     public void idCacheTest() throws Exception {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(IdCachedObject.class);

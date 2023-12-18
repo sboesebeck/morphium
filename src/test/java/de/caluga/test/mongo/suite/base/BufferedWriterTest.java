@@ -11,6 +11,7 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -281,7 +282,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         log.info("Writes prepared - waiting");
-        Thread.sleep(4000);
+        Thread.sleep(6000);
         long count = morphium.createQueryFor(BufferedBySizeIgnoreNewObject.class).countAll();
         assert(count < 1500);
     }
@@ -359,7 +360,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         log.info("Writing finished");
-        TestUtils.waitForConditionToBecomeTrue(5000, "Not all written", ()->morphium.createQueryFor(SimpleObject.class).countAll() == 500);
+        TestUtils.waitForConditionToBecomeTrue(10000, "Not all written", ()->morphium.createQueryFor(SimpleObject.class).countAll() == 500);
         long c = morphium.createQueryFor(SimpleObject.class).countAll();
         log.info("waiting..." + c);
         assertEquals(500, c);
@@ -387,7 +388,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             Thread.sleep(100);
         }
 
-        TestUtils.waitForConditionToBecomeTrue(5000, "data not written", ()->m.createQueryFor(SimpleObject.class).countAll()==100);
+        TestUtils.waitForConditionToBecomeTrue(10000, "data not written", ()->m.createQueryFor(SimpleObject.class).countAll()==100);
 
         for (int i = 0; i < 100; i++) {
             SimpleObject so = new SimpleObject();

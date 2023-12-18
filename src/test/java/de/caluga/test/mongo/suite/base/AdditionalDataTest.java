@@ -37,11 +37,9 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             additional.put("test", dat);
             d.setAdditionals(additional);
             morphium.store(d);
-            Thread.sleep(2000);
             System.out.println("Stored some additional data!");
-            AdditionalDataEntity d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
+            AdditionalDataEntity d2 = TestUtils.waitForObject( () -> morphium.findById(AdditionalDataEntity.class, d.getMorphiumId()));
             assertNotNull(d2.getAdditionals());
-            ;
             assert (d2.getAdditionals().get("102-92-93").equals(3234));
             assert (((Map) d2.getAdditionals().get("test")).get("tst").equals("tst"));
             assert (d2.getAdditionals().get("_id") == null);
@@ -81,13 +79,10 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             morphium.store(d);
 
             log.info(str);
-            Thread.sleep(2000);
-            d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
+            d2 = TestUtils.waitForObject( () -> morphium.findById(AdditionalDataEntity.class, d.getMorphiumId()));
 
             assertNotNull(d2.getAdditionals());
-            ;
             assertNotNull(d2.getAdditionals().get("object"));
-            ;
 
         }
     }
@@ -100,10 +95,8 @@ public class AdditionalDataTest extends MultiDriverTestBase {
             d.setCounter(999);
             d.setAdditionals(null);
             morphium.store(d);
-            Thread.sleep(500);
-            AdditionalDataEntity d2 = morphium.findById(AdditionalDataEntity.class, d.getMorphiumId());
+            AdditionalDataEntity d2 = TestUtils.waitForObject( () -> morphium.findById(AdditionalDataEntity.class, d.getMorphiumId()));
             assertNotNull(d2);
-            ;
             assert (d2.getAdditionals() == null || d2.getAdditionals().isEmpty());
         }
 

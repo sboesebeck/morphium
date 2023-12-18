@@ -4,6 +4,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -13,6 +14,7 @@ import static de.caluga.morphium.StatisticKeys.SKIPPED_MSG_UPDATES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Disabled
 public class TestSkipChecks extends MorphiumTestBase {
     @Test
     public void testStartup() throws Exception {

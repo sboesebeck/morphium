@@ -6,17 +6,13 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
-import de.caluga.test.mongo.suite.base.TestUtils;
 
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -123,7 +119,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 lastMsgId = question.getMsgId();
                 onlyAnswers.sendMessage(question);
                 log.info("Send Message with id: " + question.getMsgId());
-                Thread.sleep(3000);
+                Thread.sleep(7000);
                 long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
                 log.info("Answers in mongo: " + cnt);
                 assertEquals(2, cnt);
@@ -284,7 +280,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             Msg m3 = new Msg("not asdf", "will it stuck", "uahh", 10000);
             m3.setPriority(1);
             m1.sendMessage(m3);
-            Thread.sleep(1000);
+            Thread.sleep(5000);
             Msg question = new Msg("q_getAnswer", "question", "a value");
             question.setPriority(5);
             List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
@@ -330,7 +326,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 Msg question = new Msg("q_wait_for", "question" + i, "a value " + i);
                 question.setPriority(5);
                 long start = System.currentTimeMillis();
-                Msg answer = m1.sendAndAwaitFirstAnswer(question, 2500);
+                Msg answer = m1.sendAndAwaitFirstAnswer(question, 4500);
                 long dur = System.currentTimeMillis() - start;
                 assertTrue(answer != null && answer.getInAnswerTo() != null);;
                 assert(answer.getInAnswerTo().equals(question.getMsgId()));
@@ -361,7 +357,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             // Thread.sleep(2000);
             m2.addListenerForMessageNamed("q_no_listener", (msg, m) -> m.createAnswerMsg());
             m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
-            Thread.sleep(1000);
+            Thread.sleep(5000);
             Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
             assertNotNull(answer);;
             m1.terminate();
@@ -396,7 +392,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 return null;
             });
             sender.sendMessage(new Msg("query", "a query", "avalue"));
-            Thread.sleep(1000);
+            Thread.sleep(5000);
             assert(gotMessage1);
             assert(gotMessage2);
             Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);

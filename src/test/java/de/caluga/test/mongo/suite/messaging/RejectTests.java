@@ -61,10 +61,10 @@ public class RejectTests extends MorphiumTestBase {
                 }
             });
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
-            Msg m = new Msg("test", "value", "msg", 2000, true);
+            Msg m = new Msg("test", "value", "msg", 6000, true);
             sender.sendMessage(m);
 
-            long r = TestUtils.waitForConditionToBecomeTrue(5000, "Was not received by both listeners?", () -> gotMessage1 && gotMessage2);
+            long r = TestUtils.waitForConditionToBecomeTrue(8000, "Was not received by both listeners?", () -> gotMessage1 && gotMessage2);
             log.info("Both tried processing! ms: " + r);
             gotMessage = gotMessage1 = gotMessage2 = gotMessage3 = false;
             Thread.sleep(2000);

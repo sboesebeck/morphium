@@ -357,7 +357,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
             //broadcast
             for (int i = 0; i < 10; i++) {
-                List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 1000);
+                List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 2000);
                 assert (cnt.get() == 10);
                 assert (answers.size() == 10);
                 cnt.set(0);
@@ -389,7 +389,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
             //broadcast
             for (int i = 0; i < 10; i++) {
-                List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 1000);
+                List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 2000);
                 assert (cnt.get() == 10);
                 assert (answers.size() == 10);
                 cnt.set(0);

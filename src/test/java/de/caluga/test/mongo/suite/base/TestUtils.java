@@ -6,6 +6,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+import java.util.function.Supplier;
+
 public class TestUtils {
     public interface Condition {
         boolean test() throws Exception;
@@ -117,4 +119,64 @@ public class TestUtils {
         }
     }
 
+    /**
+     * Waits for the object to be delivered by the supplier.
+     * The first attempt is made after the initialDelay (in ms). Then if the object is still not ready,
+     * it calls the supplier every step (in ms) until
+     * either maxDelay is reached or the object is delivered.
+     * It returns null, if the object is not delivered within maxDelay time (in ms).
+     *
+     * @param supplier Supplier
+     * @param maxDelay long
+     * @return T
+     * @param <T>
+     * @throws InterruptedException
+     */
+    public static <T> T waitForObject(Supplier<T> supplier, long initialDelay, long step, long maxDelay) throws InterruptedException {
+        Thread.sleep(initialDelay);
+        T value = supplier.get();
+        long currentDelay = initialDelay;
+        while(value == null) {
+            if(currentDelay + step > maxDelay) {
+                break;
+            }
+            currentDelay += step;
+            Thread.sleep(step);
+            value = supplier.get();
+        }
+        return value;
+    }
+
+    /**
+     * Waits for the object to be delivered by the supplier.
+     * The first attempt is made after 10ms. Then if the object is still not ready,
+     * it calls the supplier every 30 ms until
+     * either 10 seconds is reached or the object is delivered.
+     * It returns null, if the object is not delivered within 10 seconds (in ms).
+     *
+     * @param supplier
+     * @return
+     * @param <T>
+     * @throws InterruptedException
+     */
+    public static <T> T waitForObject(Supplier<T> supplier) throws InterruptedException {
+        return (T) TestUtils.waitForObject(supplier, 10L, 30L, 10000L);
+    }
+
+    /**
+     * Waits for the object to be delivered by the supplier.
+     * The first attempt is made after 10ms. Then if the object is still not ready,
+     * it calls the supplier every 30 ms until
+     * either maxDelay (in ms) is reached or the object is delivered.
+     * It returns null, if the object is not delivered within maxDelay time (in ms).
+     *
+      * @param supplier Supplier
+     * @param maxDelay long
+     * @return T
+     * @param <T>
+     * @throws InterruptedException
+     */
+    public static <T> T waitForObject(Supplier<T> supplier, long maxDelay) throws InterruptedException {
+        return (T) TestUtils.waitForObject(supplier, 10L, 30L, maxDelay);
+    }
 }

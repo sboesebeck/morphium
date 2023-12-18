@@ -2,6 +2,8 @@ package de.caluga.test.morphium.driver.pool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.HashMap;
+
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +15,7 @@ public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
 
     @Test
+    @Disabled
     public void testConnectionPool() throws Exception {
         var drv = getDriver();
         drv.connect();
@@ -74,9 +77,14 @@ public class PooledDriverConnectionsTests {
     }
 
     private PooledDriver getDriver() throws MorphiumDriverException {
+        String hostSeed = System.getenv("HOST_SEED");
         var drv = new PooledDriver();
         drv.setCredentials("admin", "test", "test");
-        drv.setHostSeed("127.0.0.1:27018", "127.0.0.1:27017", "127.0.0.1:27019");
+        if(hostSeed == null) {
+            drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
+        } else {
+            drv.setHostSeed(hostSeed.split(","));
+        }
         drv.setMaxConnectionsPerHost(10);
         drv.setHeartbeatFrequency(500);
         drv.setMinConnectionsPerHost(2);

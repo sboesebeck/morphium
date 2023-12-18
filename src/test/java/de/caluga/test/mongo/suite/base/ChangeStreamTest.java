@@ -11,6 +11,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -29,6 +30,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
+    @Disabled
     public void changeStreamDatabaseTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));

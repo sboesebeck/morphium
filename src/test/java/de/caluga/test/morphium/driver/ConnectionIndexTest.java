@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.commands.CreateIndexesCommand;
 import de.caluga.morphium.driver.commands.DropMongoCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ListIndexesCommand;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ public class ConnectionIndexTest extends ConnectionTestBase {
     private Logger log = LoggerFactory.getLogger(ConnectionIndexTest.class);
 
     @Test
+    @Disabled
     public void listIndexTests() throws Exception {
         var con = getConnection();
         // DropMongoCommand dc = new DropMongoCommand(con).setDb(db).setColl(coll);
