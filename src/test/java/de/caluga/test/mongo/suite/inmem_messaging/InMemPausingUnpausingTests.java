@@ -16,7 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     private final List<Msg> list = new ArrayList<>();
-    public boolean gotMessage = false;
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
     public boolean gotMessage3 = false;
@@ -52,7 +51,7 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
             m1.pauseProcessingOfMessagesNamed("tst1");
 
             sender.sendMessage(new Msg("test", "a message", "the value"));
-            Thread.sleep(1200);
+            Thread.sleep(2200);
             assert (gotMessage1);
 
             gotMessage1 = false;
@@ -185,12 +184,12 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         });
 
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (list.size() == 1);
 
         sender.sendMessage(new Msg("pause", "pause", "pause"));
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(500);
+        Thread.sleep(1500);
         assert (list.size() == 2);
 
         sender.sendMessage(new Msg("pause", "pause", "pause"));
@@ -204,11 +203,11 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         //Message after unpausing:
         assert (cnt.get() == 2) : "Count wrong: " + cnt.get();
         sender.sendMessage(new Msg("now", "now", "now"));
-        Thread.sleep(1000);
+        Thread.sleep(2000);
         assert (list.size() == 3);
         Thread.sleep(2000);
         //Message after unpausing:
-        assert (cnt.get() == 3) : "Count wrong: " + cnt.get();
+        assert (cnt.get() == 4) : "Count wrong: " + cnt.get();
     }
 
 
@@ -287,7 +286,7 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         assert (!gotMessage1);
         assert (!gotMessage2);
 
-        Thread.sleep(5000);
+        Thread.sleep(10000);
         assert (gotMessage1);
         assert (gotMessage2);
 

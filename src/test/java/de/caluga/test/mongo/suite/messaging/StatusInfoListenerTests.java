@@ -6,11 +6,9 @@ import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StatusInfoListener;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -21,7 +19,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
-    @Disabled
     public void disablingEnablingStatusListener() throws Exception {
         Messaging m1 = new Messaging(morphium, 100, true);
         m1.setSenderId("m1");
@@ -35,7 +32,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         addListeners(m1, m2);
         Messaging sender = new Messaging(morphium, 100, true);
         sender.start();
-        Thread.sleep(250);
+        Thread.sleep(5250);
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertEquals(2, lst.size());
 

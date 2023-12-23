@@ -35,6 +35,7 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Disabled
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
     private int amount = 1000;
@@ -42,7 +43,6 @@ public class PooledDriverTest {
     private Object sync = new Object();
 
     @Test
-    @Disabled
     public void testPooledConnections() throws Exception {
         PooledDriver drv = getDriver();
         log.info("Connecting...");

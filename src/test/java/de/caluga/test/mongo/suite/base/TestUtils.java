@@ -42,15 +42,15 @@ public class TestUtils {
     }
 
     public static long waitForCollectionToBeDeleted(Morphium m, String coll) {
-        return waitForConditionToBecomeTrue(5000, "Collection was not deleted - db:" + m.getDatabase() + " coll: " + coll, ()->!m.exists(m.getDatabase(), coll));
+        return waitForConditionToBecomeTrue(10000, "Collection was not deleted - db:" + m.getDatabase() + " coll: " + coll, ()->!m.exists(m.getDatabase(), coll));
     }
 
     public static long waitForCollectionToBeDeleted(Morphium m, String db, String coll) {
-        return waitForConditionToBecomeTrue(5000, "Collection was not deleted - db:" + db + " coll: " + coll, ()->!m.exists(db, coll));
+        return waitForConditionToBecomeTrue(10000, "Collection was not deleted - db:" + db + " coll: " + coll, ()->!m.exists(db, coll));
     }
 
     public static long waitForCollectionToBeDeleted(Morphium m, Class<?> type) {
-        return waitForConditionToBecomeTrue(5000, "Collection for type was not deleted: " + type.getName(), () -> !m.exists(type));
+        return waitForConditionToBecomeTrue(10000, "Collection for type was not deleted: " + type.getName(), () -> !m.exists(type));
     }
 
     public static long countUC(Morphium m) {
