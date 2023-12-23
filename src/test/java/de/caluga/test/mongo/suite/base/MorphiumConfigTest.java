@@ -3,7 +3,6 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -22,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 public class MorphiumConfigTest extends MorphiumTestBase {
 
     @Test
-    @Disabled
     public void credentialsEncrypted() {
         var cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
         cfg.setCredentialsEncrypted(true);

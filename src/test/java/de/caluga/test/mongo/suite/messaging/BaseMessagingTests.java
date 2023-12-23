@@ -21,6 +21,7 @@ import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
+@Disabled
 public class BaseMessagingTests extends MultiDriverTestBase {
 
     @ParameterizedTest

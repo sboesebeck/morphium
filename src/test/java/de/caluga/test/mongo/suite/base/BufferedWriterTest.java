@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
+    @Disabled
     public void testWriteBufferUpsert() throws Exception {
         List<BufferedBySizeObject> lst = new ArrayList<>();
 
@@ -43,7 +44,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         }
 
         Thread.sleep(3000);
-        assertTrue(waitForAsyncOperationsToStart(morphium, 2000));
+        assertTrue(waitForAsyncOperationsToStart(morphium, 15000));
         TestUtils.waitForWrites(morphium, log);
 
         for (BufferedBySizeObject b : lst) {

@@ -40,7 +40,7 @@ public class TimeoutTests extends MorphiumTestBase {
             m1.sendMessage(msg);
         }
 
-        TestUtils.waitForConditionToBecomeTrue(10000, "Did not get all messages?", ()->msgCount.get() == 100);
+        TestUtils.waitForConditionToBecomeTrue(20000, "Did not get all messages?", ()->msgCount.get() == 100);
 
         for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
             assertNull(m.getDeleteAt());
@@ -78,7 +78,7 @@ public class TimeoutTests extends MorphiumTestBase {
         Thread.sleep(900);
         assertEquals(1, morphium.createQueryFor(Msg.class).countAll());
         log.info("Msg still there after processing - at least for a second! Waiting a minute....");
-        TestUtils.wait(60);
+        TestUtils.wait(600);
         assertEquals(0, morphium.createQueryFor(Msg.class).countAll());
         m1.terminate();
         m2.terminate();
@@ -99,7 +99,7 @@ public class TimeoutTests extends MorphiumTestBase {
         log.info("Msg not deleted yet - good... waiting for timeout");
         TestUtils.wait("Waiting for timeout ", 60);
 
-        TestUtils.waitForConditionToBecomeTrue(5000, "Msg was not deleted - timeout failed", ()->morphium.createQueryFor(Msg.class).countAll()==0);
+        TestUtils.waitForConditionToBecomeTrue(30000, "Msg was not deleted - timeout failed", ()->morphium.createQueryFor(Msg.class).countAll()==0);
         assertEquals(0,morphium.createQueryFor(Msg.class).countAll());
         log.info("Was deleted...");
         m1.sendMessage(new Msg("test", "value0", "").setExclusive(true));

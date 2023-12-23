@@ -1,18 +1,21 @@
 <component name="ProjectRunConfigurationManager">
-    <configuration default="false" name="IndexTest" type="JUnit" factoryName="JUnit" nameIsGenerated="true">
-        <module name="morphium"/>
-        <extension name="coverage">
-            <pattern>
-                <option name="PATTERN" value="de.caluga.test.mongo.suite.data.*"/>
-                <option name="ENABLED" value="true"/>
-            </pattern>
-        </extension>
-        <option name="PACKAGE_NAME" value="de.caluga.test.mongo.suite"/>
-        <option name="MAIN_CLASS_NAME" value="de.caluga.test.mongo.suite.base.IndexTest"/>
-        <option name="METHOD_NAME" value=""/>
-        <option name="TEST_OBJECT" value="class"/>
-        <method v="2">
-            <option name="Make" enabled="true"/>
-        </method>
-    </configuration>
+  <configuration default="false" name="IndexTest" type="JUnit" factoryName="JUnit" nameIsGenerated="true">
+    <module name="morphium" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="de.caluga.test.mongo.suite.data.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <option name="PACKAGE_NAME" value="de.caluga.test.mongo.suite.base" />
+    <option name="MAIN_CLASS_NAME" value="de.caluga.test.mongo.suite.base.IndexTest" />
+    <option name="METHOD_NAME" value="" />
+    <option name="TEST_OBJECT" value="class" />
+    <envs>
+      <env name="-DHOST_SEED" value="msg1.dev.genios.de:27017,msg2.dev.genios.de:27017,msg3.dev.genios.de:27017" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
 </component>

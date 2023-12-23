@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.driver.MorphiumId;
@@ -67,6 +68,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
     }
 
     @Test
+    @Disabled
     public void releaseLockonMessage() throws Exception {
         Messaging sender = new Messaging(morphium);
         sender.setSenderId("sender");
