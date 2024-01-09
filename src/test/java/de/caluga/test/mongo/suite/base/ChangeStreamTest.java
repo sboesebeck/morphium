@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ChangeStreamTest extends MultiDriverTestBase {
-    long start;
-    long count;
+    volatile long start;
+    volatile long count;
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -62,7 +62,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             assertTrue(count >= 2 && count <= 3);
             long cnt = count;
             m2.set(m2.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
-            Thread.sleep(1550);
+            Thread.sleep(2550);
             assertEquals(cnt + 1, count);
 
             if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {

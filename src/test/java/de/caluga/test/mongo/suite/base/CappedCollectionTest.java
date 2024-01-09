@@ -3,7 +3,6 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig.CappedCheck;
 import de.caluga.test.mongo.suite.data.CappedCol;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -17,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Created by stephan on 08.08.14.
  */
 @SuppressWarnings("AssertWithSideEffects")
-@Disabled
 public class CappedCollectionTest extends MultiDriverTestBase {
 
     @ParameterizedTest
