@@ -236,9 +236,10 @@ public class PooledDriver extends DriverBase {
                         }
 
                         // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
-                        HelloCommand h = new HelloCommand(borrowConnection(hst)).setHelloOk(true).setIncludeClient(false);
+                        HelloCommand h = null;
 
                         try {
+                            h = new HelloCommand(borrowConnection(hst)).setHelloOk(true).setIncludeClient(false);
                             long start = System.currentTimeMillis();
                             var hello = h.execute();
                             h.releaseConnection();
