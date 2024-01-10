@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.inmem_messaging;
 
-import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
@@ -16,13 +15,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     private final List<Msg> list = new ArrayList<>();
-    public boolean gotMessage1 = false;
-    public boolean gotMessage2 = false;
-    public boolean gotMessage3 = false;
-    public boolean gotMessage4 = false;
-    public boolean error = false;
-    public MorphiumId lastMsgId;
-    public AtomicInteger procCounter = new AtomicInteger(0);
+    public volatile boolean gotMessage1 = false;
+    public volatile boolean gotMessage2 = false;
     private Logger log= LoggerFactory.getLogger(InMemPausingUnpausingTests.class);
 
 
@@ -36,8 +30,6 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         Thread.sleep(2500);
         gotMessage1 = false;
         gotMessage2 = false;
-        gotMessage3 = false;
-        gotMessage4 = false;
 
         Messaging m1 = new Messaging(morphium, 100, false, false, 1);
         m1.addMessageListener((msg, m) -> {
