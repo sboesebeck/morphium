@@ -267,6 +267,7 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
                         } finally {
+                            if (h != null)
                             h.releaseConnection();
                         }
 
