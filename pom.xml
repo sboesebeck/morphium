@@ -134,6 +134,9 @@
   </build>
   <profiles>
     <profile>
+      <id>release-nosign-artifacts</id>
+    </profile>
+    <profile>
       <id>release-sign-artifacts</id>
       <activation>
         <activeByDefault>true</activeByDefault>
@@ -177,12 +180,6 @@
       <groupId>org.openjdk.jol</groupId>
       <artifactId>jol-core</artifactId>
       <version>0.16</version>
-    </dependency>
-    <dependency>
-      <groupId>org.graalvm.js</groupId>
-      <artifactId>js-scriptengine</artifactId>
-      <version>22.0.0</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.graalvm.js</groupId>
