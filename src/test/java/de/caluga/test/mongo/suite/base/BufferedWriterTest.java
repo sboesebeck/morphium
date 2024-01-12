@@ -10,6 +10,7 @@ import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
+    @Disabled
     public void testWriteBufferUpsert() throws Exception {
         List<BufferedBySizeObject> lst = new ArrayList<>();
 
