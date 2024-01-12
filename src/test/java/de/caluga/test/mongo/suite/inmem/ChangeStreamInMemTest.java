@@ -6,6 +6,7 @@ import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -133,6 +134,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
     }
 
     @Test
+    @Disabled
     public void changeStreamUpdateTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);

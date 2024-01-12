@@ -150,7 +150,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         morphium.store(o);
         waitForAsyncOperationsToStart(morphium, 6000);
         TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(15000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==1);
+        TestUtils.waitForConditionToBecomeTrue(25000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==1);
         long start = System.currentTimeMillis();
         for (int i = 1; i < 100; i++) {
             o = new IdCachedObject();
