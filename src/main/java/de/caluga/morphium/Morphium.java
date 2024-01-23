@@ -2,7 +2,6 @@
  */
 package de.caluga.morphium;
 
-import de.caluga.morphium.MorphiumStorageListener.UpdateTypes;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.annotations.*;
@@ -25,13 +24,9 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
 import de.caluga.morphium.replicaset.RSMonitor;
-import de.caluga.morphium.replicaset.ReplicaSetNode;
-import de.caluga.morphium.replicaset.ReplicaSetStatus;
-import de.caluga.morphium.replicaset.ReplicasetStatusListener;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -39,10 +34,9 @@ import de.caluga.morphium.writer.MorphiumWriterImpl;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfoList;
 import io.github.classgraph.ScanResult;
-// import net.sf.cglib.proxy.Enhancer;
-import org.springframework.cglib.proxy.Enhancer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cglib.proxy.Enhancer;
 
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
@@ -656,10 +650,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      */
     @SuppressWarnings({"unchecked", "UnusedDeclaration"})
     @Deprecated
-    public <T> List<T> findByTemplate(T template, String ... fields) {
+    public <T> List<T> findByTemplate(T template, String... fields) {
         return createQueryByTemplate(template, fields).asList();
     }
 
+    /**
+     * This method unsets a field
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(boolean, String...)} if possible.
+     */
+    @Deprecated
     @Override
     public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
@@ -669,6 +670,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         MorphiumWriter wr = getWriterForClass(toSet.getClass());
         wr.unset(toSet, collection, field, callback);
     }
+
     public List<Map<String, Object>> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
         GenericCommand cmd = new GenericCommand(getDriver().getPrimaryConnection(null));
 
@@ -895,6 +897,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
     }
 
+    /**
+     * This method sets a map of properties (defined by enums in the map) with their associated values
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#setEnum(Map, boolean, boolean, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
         Map<String, Object> strValues = new HashMap<>();
 
@@ -905,6 +914,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         set(toSet, collection, strValues, upserts, callback);
     }
 
+    /**
+     * This method sets a map of properties with their associated values
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}   instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts, AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
