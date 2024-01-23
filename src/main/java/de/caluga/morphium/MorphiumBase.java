@@ -1,13 +1,5 @@
 package de.caluga.morphium;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import de.caluga.morphium.MorphiumStorageListener.UpdateTypes;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -19,32 +11,78 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.MorphiumWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 public abstract class MorphiumBase {
     private Logger log = LoggerFactory.getLogger(Morphium.class);
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(Enum[])} (...)} ()} instead.
+     */
+    @Deprecated
     public <T> void unset(T toSet, Enum<?> field) {
         unset(toSet, field.name(), (AsyncOperationCallback) null);
     }
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(String...)} ()} ()} instead.
+     */
+    @Deprecated
     public <T> void unset(final T toSet, final String field) {
         // noinspection unchecked
         unset(toSet, field, (AsyncOperationCallback) null);
     }
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(Enum[])} instead.
+     */
+    @Deprecated
     public <T> void unset(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, field.name(), callback);
     }
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(Enum[])} instead.
+     */
+    @Deprecated
     public <T> void unset(final T toSet, String collection, final Enum<?> field) {
         unset(toSet, collection, field.name(), null);
     }
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(Enum[])} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unused")
     public <T> void unset(final T toSet, String collection, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unset(toSet, collection, field.name(), callback);
     }
 
+    /**
+     * This method unsets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(String...)} instead.
+     */
+    @Deprecated
     public <T> void unset(final T toSet, final String field, final AsyncOperationCallback<T> callback) {
         unset(toSet, getMapper().getCollectionName(toSet.getClass()), field, callback);
     }
@@ -668,31 +706,82 @@ public abstract class MorphiumBase {
     // SET with object
     //
     @SuppressWarnings("unused")
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object)} instead.
+     */
+    @Deprecated
     public <T> void set(T toSet, Enum<?> field, Object value, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, callback);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object)} instead.
+     */
+    @Deprecated
     public <T> void set(T toSet, Enum<?> field, Object value) {
         set(toSet, field.name(), value, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object)} instead.
+     */
+    @Deprecated
     @SuppressWarnings("unused")
     public <T> void set(T toSet, String collection, Enum<?> field, Object value) {
         set(toSet, collection, field.name(), value, false, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object, boolean, boolean)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, final Enum<?> field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, field.name(), value, upserts, callback);
     }
 
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, final Map<Enum, Object> values) {
         set(toSet, getMapper().getCollectionName(toSet.getClass()), false, values, null);
     }
 
+
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(String inCollection, final Map<Enum, Object> values, final T into) {
         set(into, inCollection, false, values, null);
     }
 
+
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
         set(toSet, collection, upserts, values, null);
     }
@@ -709,38 +798,92 @@ public abstract class MorphiumBase {
      * this alteres the given object toSet in a similar way
      *
      * @param toSet - object to set the value in (or better - the corresponding
-     *        entry in mongo)
+     *              entry in mongo)
      * @param field - the field to change
      * @param value - the value to set
+     *              *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean)} instead.
      */
+    @Deprecated
     public <T> void set(final T toSet, final String field, final Object value) {
         set(toSet, field, value, null);
     }
 
+
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, callback);
     }
 
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> void set(final Map<String, Object> values, final T into) {
         set(into, getMapper().getCollectionName(into.getClass()), values, false, null);
     }
 
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, final Map<String, Object> values) {
         set(toSet, collection, values, false, null);
     }
 
+    /**
+     * This method sets properties.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
         set(toSet, collection, values, upserts, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)} instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         set(toSet, collection, UtilsMap.of(field, value), upserts, callback);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
         set(toSet, field, value, false, callback);
     }
@@ -998,7 +1141,7 @@ public abstract class MorphiumBase {
 
     @SuppressWarnings({"UnusedDeclaration"})
     public Map<String, Object> pull(Query<?> query, Enum<?> field, Object value, boolean upsert, boolean multiple) {
-        return pull(query, field.name(), value, upsert, multiple,null);
+        return pull(query, field.name(), value, upsert, multiple, null);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
@@ -1010,20 +1153,48 @@ public abstract class MorphiumBase {
         push(entity, getMapper().getCollectionName(entity.getClass()), field, value, upsert);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val) {
         return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field.name(), val);
         return getWriterForClass(query.getType()).set(query, toSet, false, false, callback);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, String field, Object val) {
         return set(query, field, val, (AsyncOperationCallback<T>) null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, AsyncOperationCallback<T> callback) {
         Map<String, Object> toSet = new HashMap<>();
         toSet.put(field, val);
@@ -1098,36 +1269,75 @@ public abstract class MorphiumBase {
      * @param upsert - insert, if it does not exist (query needs to be simple!)
      * @param multiple - update several documents, if false, only first hit will be
      *        updated
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
      */
+    @Deprecated
     @SuppressWarnings("unused")
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple) {
         return set(query, field.name(), val, upsert, multiple, null);
     }
 
     @SuppressWarnings("unused")
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return set(query, field.name(), val, upsert, multiple, callback);
     }
 
     @SuppressWarnings({"UnusedDeclaration"})
     public Map<String, Object> pullAll(Query<?> query, String field, List<Object> value, boolean upsert, boolean multiple) {
-        return pull(query, field, value, upsert, multiple,null);
+        return pull(query, field, value, upsert, multiple, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple) {
         return set(query, field, val, upsert, multiple, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(String, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
         return set(query, map, upsert, multiple, callback);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public Map<String, Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
         return set(query, map, upsert, multiple, null);
     }
 
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
+     */
+    @Deprecated
     public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
         if (query == null) {
             throw new RuntimeException("Cannot update null!");
@@ -1273,23 +1483,53 @@ public abstract class MorphiumBase {
         ensureIndicesFor(type, onCollection, callback, getWriterForClass(type));
     }
 
-    public <T> Map<String, Object> unsetQ(Query<T> q, String ... field) {
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(boolean, String...)}  instead.
+     */
+    @Deprecated
+    public <T> Map<String, Object> unsetQ(Query<T> q, String... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, String ... field) {
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(boolean, String[])} instead.
+     */
+    @Deprecated
+    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, String... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> Map<String, Object> unsetQ(Query<T> q, Enum ... field) {
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(boolean, String[])} instead.
+     */
+    @Deprecated
+    public <T> Map<String, Object> unsetQ(Query<T> q, Enum... field) {
         return getWriterForClass(q.getType()).unset(q, null, false, field);
     }
 
-    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, Enum ... field) {
+
+    /**
+     * This method sets a property.
+     *
+     * @deprecated There is a newer implementation.
+     * Please use {@link Query#unset(boolean, Enum[])} instead.
+     */
+    @Deprecated
+    public <T> Map<String, Object> unsetQ(Query<T> q, boolean multiple, Enum... field) {
         return getWriterForClass(q.getType()).unset(q, null, multiple, field);
     }
 
-    public <T> Map<String, Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String ... field) {
+
+    public <T> Map<String, Object> unsetQ(Query<T> q, AsyncOperationCallback<T> cb, String... field) {
         return getWriterForClass(q.getType()).unset(q, cb, false, field);
     }
 
