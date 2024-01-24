@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.Map;
 
 import static de.caluga.morphium.ThrowOnError.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -67,6 +68,57 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
                 morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").eq(entity.getMorphiumId())
                         .set("name", "Spongebob"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void throwIfReallyModified(Morphium morphium) {
+
+        if (morphium.getDriver().getName().contains("InMem")) {
+            // In the in-memory case, 'nModified' is currently based on the number of matches,
+            // not on the number of entities modified.
+            // This is a future TODO
+            return;
+        }
+
+        AdditionalDataEntity entity = new AdditionalDataEntity();
+        entity.setAdditionals(Map.of("name", "Spongebob"));
+        morphium.store(entity);
+
+        throwOnErrorOrExpectationMismatch(
+                morphium.createQueryFor(AdditionalDataEntity.class)
+                        .f("_id").eq(entity.getMorphiumId())
+                        .set("name", "Spongebob"),
+                // nothing changes "name" : "Spongebob" should already be there
+                (map) -> 0 == ((Integer) map.get(NUMBER_MODIFIED)).intValue()
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstances")
+    public void throwIfMatches(Morphium morphium) {
+
+        if (morphium.getDriver().getName().contains("InMem")) {
+            // In the in-memory case, 'n' is currently not based on the number of matches,
+            // The in-Memory driver has the right value under a different key ('matched')
+            // This is a future TODO
+            return;
+        }
+
+        AdditionalDataEntity entity = new AdditionalDataEntity();
+        morphium.store(entity);
+
+        throwOnErrorOrExpectationMismatch(
+                morphium.createQueryFor(AdditionalDataEntity.class)
+                        .f("_id").eq(entity.getMorphiumId())
+                        .set("name", "Spongebob"),
+                EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
+
+        throwOnErrorOrExpectationMismatch(
+                morphium.createQueryFor(AdditionalDataEntity.class)
+                        .f("_id").eq(entity.getMorphiumId())
+                        .set("name", "Spongebob"),
+                EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
     }
 
     @ParameterizedTest
