@@ -5,9 +5,12 @@ import java.util.function.Predicate;
 
 public class ThrowOnError {
 
-    private static final String MODIFIED = "nModified";
-    public static final Predicate<Map> EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED = (map) -> 1 <= ((Integer) map.get(MODIFIED)).intValue();
-    private static final Predicate<Map> EXPECTATION_EXACTLY_ONE_ENTITY_MODIFIED = (map) -> 1 == (((Integer) map.get(MODIFIED)).intValue());
+    public static final String NUMBER_MODIFIED = "nModified";
+    public static final String NUMBER_MATCHES = "n";
+    public static final Predicate<Map> EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED = (map) -> 1 <= ((Integer) map.get(NUMBER_MODIFIED)).intValue();
+    public static final Predicate<Map> EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED = (map) -> 1 <= ((Integer) map.get(NUMBER_MATCHES)).intValue();
+    private static final Predicate<Map> EXPECTATION_EXACTLY_ONE_ENTITY_MODIFIED = (map) -> 1 == (((Integer) map.get(NUMBER_MODIFIED)).intValue());
+    private static final Predicate<Map> EXPECTATION_EXACTLY_ONE_ENTITY_MATCHED = (map) -> 1 == (((Integer) map.get(NUMBER_MATCHES)).intValue());
 
     public static Map throwOnWriteError(Map mongoResponse) {
         if (mongoResponse.containsKey("writeErrors")) {
@@ -21,7 +24,7 @@ public class ThrowOnError {
             throw new IllegalStateException("Mongo write error: " + mongoResponse.get("writeErrors"));
         }
         if (!expectation.test(mongoResponse)) {
-            throw new IllegalStateException("Mongo write error: " + mongoResponse.get(MODIFIED));
+            throw new IllegalStateException("Mongo write error, MongoResponse was: " + mongoResponse);
         }
         return mongoResponse;
     }
