@@ -349,43 +349,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             return;    //happens during shutdonw
         }
 
-        if (!morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
-            if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL)) {
-                createCappedCollection(type, coll);
-            }
+        if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
+            createCappedCollection(type, coll);
+        }
 
-            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
-                morphium.ensureIndicesFor(type, coll, callback);
-            }
-
-            //
-            // switch (morphium.getConfig().getIndexCheck()) {
-            // case CREATE_ON_WRITE_NEW_COL:
-            // if (logger.isDebugEnabled()) {
-            // logger.debug("Collection " + coll + " does not exist - ensuring indices");
-            // }
-            //
-            // morphium.ensureIndicesFor(type, coll, callback);
-            // break;
-            //
-            // case CREATE_ON_STARTUP:
-            // case WARN_ON_STARTUP:
-            // case NO_CHECK:
-            // default:
-            // // nothing
-            // }
-            // switch(morphium.getConfig().getCappedCheck()){
-            // case CREATE_ON_WRITE_NEW_COL:
-            // createCappedCollection(type, coll);
-            // break;
-            // case CREATE_ON_STARTUP:
-            // case WARN_ON_STARTUP:
-            // case NO_CHECK:
-            // default:
-            // //ignore
-            // }
-            //
-            //
+        if (morphium.getConfig().getCappedCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
+            morphium.ensureIndicesFor(type, coll, callback);
         }
     }
 
