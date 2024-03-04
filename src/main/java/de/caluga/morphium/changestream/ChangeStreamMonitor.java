@@ -1,20 +1,15 @@
 package de.caluga.morphium.changestream;
 
-import de.caluga.morphium.AnnotationAndReflectionHelper;
-import de.caluga.morphium.Morphium;
-import de.caluga.morphium.ShutdownListener;
+import de.caluga.morphium.*;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.ConnectionType;
-import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
-import de.caluga.morphium.ObjectMapperImpl;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -170,15 +165,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
                         // e.printStackTrace();
-                    }
-
-                    if (changeStreamThread.isAlive()) {
-                        try {
-                            changeStreamThread.stop();
-                        } catch (Throwable e) {
-                            //swallow
-                            // e.printStackTrace();
-                        }
                     }
 
                     break;

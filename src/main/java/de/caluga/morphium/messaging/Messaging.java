@@ -1056,12 +1056,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
             retry++;
 
-            if (retry > morphium.getConfig().getMaxWaitTime() / 150) {
-                log.warn("Force stopping messaging!");
-                // noinspection deprecation
-                stop();
-            }
-
             if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150) {
                 throw new RuntimeException("Could not terminate Messaging!");
             }
