@@ -55,22 +55,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     public void close() {
         running = false;
 
-        try {
-            long start = System.currentTimeMillis();
-
-            while (housekeeping.isAlive()) {
-                if (System.currentTimeMillis() - start > 1000) {
-                    //noinspection deprecation
-                    housekeeping.stop();
-                    break;
-                }
-
-                //noinspection BusyWait
-                Thread.sleep(50);
-            }
-        } catch (Exception e) {
-            // swallow on shutdown
-        }
+        // There is no way to stop a thread forcefully.
+        // Because running is set to false,
+        // this thread will stop eventually
     }
 
     @SuppressWarnings("unused")
@@ -742,6 +729,9 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                             List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
                             for (Class<?> clz : localBuffer) {
+                                if (! running) {
+                                    return;
+                                }
                                 if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
                                     continue;
                                 }
@@ -1147,16 +1137,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         logger.debug("Stopping housekeeping thread");
         running = false;
         flush();
-
-        try {
-            Thread.sleep((morphium.getConfig().getWriteBufferTimeGranularity()));
-
-            if (housekeeping != null) {
-                //noinspection deprecation
-                housekeeping.stop();
-            }
-        } catch (Throwable e) {
-        }
     }
 
     @Override
