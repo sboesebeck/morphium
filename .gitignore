@@ -28,3 +28,6 @@ failed.tmp
 *.nix
 .direnv
 .envrc
+/src/main/java/Examples.java
+/examples.md
+/.vscode/settings.json

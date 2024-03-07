@@ -511,10 +511,6 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 log.info(String.format("Number of ids: %d", ids.size()));
                 assert(dups.get() == 0) : "got duplicate message";
 
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
-                }
-
                 Thread.sleep(1000);
                 assertTrue(System.currentTimeMillis() < waitUntil, "Took too long!");
             }
@@ -527,11 +523,6 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
             }
-
-            log.info("R1 active: " + receiver.getRunningTasks());
-            log.info("R2 active: " + receiver2.getRunningTasks());
-            log.info("R3 active: " + receiver3.getRunningTasks());
-            log.info("R4 active: " + receiver4.getRunningTasks());
         } finally {
             sender.terminate();
             receiver.terminate();

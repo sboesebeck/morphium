@@ -91,7 +91,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private MorphiumObjectMapper objectMapper;
     private EncryptionKeyProvider encryptionKeyProvider;
     private RSMonitor rsMonitor;
-    private ThreadPoolExecutor asyncOperationsThreadPool;
+    //    private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
 
     private JavaxValidationStorageListener lst;
@@ -143,50 +143,50 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-            private static final long serialVersionUID = -6903933921423432194L;
-            @Override
-            public boolean offer(Runnable e) {
-                int poolSize = asyncOperationsThreadPool.getPoolSize();
-                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
-
-                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
-                    return super.offer(e);
-                } else {
-                    return false;
-                }
-            }
-        };
-        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-         TimeUnit.MILLISECONDS, queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)->{
-            try {
-                /*
-                 * This does the actual put into the queue. Once the max threads
-                 * have been reached, the tasks will then queue up.
-                 */
-                executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
-            private final AtomicInteger num = new AtomicInteger(1);
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "asyncOp " + num);
-                num.set(num.get() + 1);
-                ret.setDaemon(true);
-                return ret;
-            }
-        });
+//        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+//            private static final long serialVersionUID = -6903933921423432194L;
+//            @Override
+//            public boolean offer(Runnable e) {
+//                int poolSize = asyncOperationsThreadPool.getPoolSize();
+//                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
+//
+//                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
+//                    return super.offer(e);
+//                } else {
+//                    return false;
+//                }
+//            }
+//        };
+//        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
+//         TimeUnit.MILLISECONDS, queue, Thread.ofVirtual().factory());
+//        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)->{
+//            try {
+//                /*
+//                 * This does the actual put into the queue. Once the max threads
+//                 * have been reached, the tasks will then queue up.
+//                 */
+//                executor.getQueue().put(r);
+//            } catch (InterruptedException e) {
+//                Thread.currentThread().interrupt();
+//            }
+//        });
+//        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
+//            private final AtomicInteger num = new AtomicInteger(1);
+//            @Override
+//            public Thread newThread(Runnable r) {
+//                Thread ret = new Thread(r, "asyncOp " + num);
+//                num.set(num.get() + 1);
+//                ret.setDaemon(true);
+//                return ret;
+//            }
+//        });
         initializeAndConnect();
     }
 
-    public ThreadPoolExecutor getAsyncOperationsThreadPool() {
-        return asyncOperationsThreadPool;
-    }
-
+    //    public ThreadPoolExecutor getAsyncOperationsThreadPool() {
+//        return asyncOperationsThreadPool;
+//    }
+//
     @SuppressWarnings("CommentedOutCode")
     private void initializeAndConnect() {
         if (config == null) {
@@ -602,7 +602,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public Query<Map<String, Object>> createMapQuery(String collection) {
         try {
-            Query<Map<String, Object>> q = new Query<>(this, null, getAsyncOperationsThreadPool());
+            Query<Map<String, Object>> q = new Query<>(this, null);
             q.setCollectionName(collection);
             return q;
         } catch (Exception e) {
@@ -743,7 +743,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (callback == null) {
             r.run();
         } else {
-            asyncOperationsThreadPool.execute(r);
+            Thread.ofVirtual().start(r);
             // new Thread(r).start();
         }
     }
@@ -1443,7 +1443,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> Query<T> createQueryFor(Class<? extends T> type) {
-        Query<T> q = new Query<>(this, type, getAsyncOperationsThreadPool());
+        Query<T> q = new Query<>(this, type);
         q.setAutoValuesEnabled(isAutoValuesEnabledForThread());
         return q;
     }
@@ -2420,11 +2420,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     @SuppressWarnings("CommentedOutCode")
     public void close() {
-        if (asyncOperationsThreadPool != null) {
-            asyncOperationsThreadPool.shutdownNow();
-        }
-
-        asyncOperationsThreadPool = null;
 
         for (ShutdownListener l : shutDownListeners) {
             l.onShutdown(this);
@@ -2593,28 +2588,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void queueTask(Runnable runnable) {
-        boolean queued = false;
-
-        do {
-            try {
-                asyncOperationsThreadPool.execute(runnable);
-                queued = true;
-            } catch (Exception e) {
-                try {
-                    Thread.sleep(100); // wait a moment, reduce load
-                } catch (InterruptedException ignored) {
-                }
-            }
-        } while (!queued);
+        Thread.ofVirtual().start(runnable);
     }
 
-    public int getNumberOfAvailableThreads() {
-        return asyncOperationsThreadPool.getMaximumPoolSize() - asyncOperationsThreadPool.getActiveCount();
-    }
 
-    public int getActiveThreads() {
-        return asyncOperationsThreadPool.getActiveCount();
-    }
 
     public void startTransaction() {
         getDriver().startTransaction(false);
@@ -2645,19 +2622,19 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, null, lst));
+        Thread.ofVirtual().start(() -> watch(collectionName, updateFull, null, lst));
     }
 
     public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, pipeline, lst));
+        Thread.ofVirtual().start(() -> watch(collectionName, updateFull, pipeline, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(()->watch(entity, updateFull, null, lst));
+        Thread.ofVirtual().start(() -> watch(entity, updateFull, null, lst));
     }
 
     public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
-        asyncOperationsThreadPool.execute(()->watch(entity, updateFull, pipeline, lst));
+        Thread.ofVirtual().start(() -> watch(entity, updateFull, pipeline, lst));
     }
 
     public <T> void watch(Class<T> entity, boolean updateFull, ChangeStreamListener lst) {
@@ -2709,7 +2686,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
-        asyncOperationsThreadPool.execute(()->{
+        Thread.ofVirtual().start(() -> {
             watchDb(dbName, updateFull, null, runningFlag, lst);
             log.debug("watch async finished");
         });

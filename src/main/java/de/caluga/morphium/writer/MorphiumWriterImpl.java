@@ -79,7 +79,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     private Morphium morphium;
     private int maximumRetries = 10;
     private int pause = 250;
-    private ThreadPoolExecutor executor = null;
 
     @Override
     public void setMaximumQueingTries(int n) {
@@ -96,75 +95,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
     public void setMorphium(Morphium m) {
         morphium = m;
 
-        if (m != null) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-                @Override
-                public boolean offer(Runnable e) {
-                    /*
-                     * Offer it to the queue if there is 0 items already queued, else
-                     * return false so the TPE will add another thread. If we return false
-                     * and max threads have been reached then the RejectedExecutionHandler
-                     * will be called which will do the put into the queue.
-                     */
-                    int poolSize = executor.getPoolSize();
-                    int maximumPoolSize = executor.getMaximumPoolSize();
-
-                    if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
-                        return super.offer(e);
-                    } else {
-                        return false;
-                    }
-                }
-            };
-            int core = m.getConfig().getMaxConnections() / 2;
-
-            if (core <= 1) {
-                core = 1;
-            }
-
-            int max = m.getConfig().getMaxConnections() * m.getConfig().getThreadConnectionMultiplier();
-
-            if (max <= core) {
-                max = 2 * core;
-            }
-
-            executor = new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
-            executor.setRejectedExecutionHandler((r, executor)-> {
-                try {
-                    /*
-                     * This does the actual put into the queue. Once the max threads
-                     * have been reached, the tasks will then queue up.
-                     */
-                    executor.getQueue().put(r);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            // executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
-            // @Override
-            // public void rejectedExecution(Runnable r, ThreadPoolExecutor executor)
-            // {
-            // logger.warn("Could not schedule...");
-            // }
-            // });
-            executor.setThreadFactory(new ThreadFactory() {
-                private final AtomicInteger num = new AtomicInteger(1);
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread ret = new Thread(r, "writer " + num);
-                    num.set(num.get() + 1);
-                    ret.setDaemon(true);
-                    return ret;
-                }
-            });
+        if (morphium != null) {
             m.addShutdownListener(this);
         }
     }
 
     public void close() {
-        if (executor != null) {
-            executor.shutdownNow();
-        }
     }
 
     @Override
@@ -717,7 +653,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      * collection only works
      * if @Capped annotation is given for type
      *
-     * @param c - type
+     //     * @param c - type
      */
     // @SuppressWarnings("unused")
     // public <T> void convertToCapped(final Class<T> c) {
@@ -890,29 +826,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             int tries = 0;
             boolean retry = true;
 
-            while (retry) {
-                try {
-                    tries++;
-                    executor.execute(retryRunnable);
-                    retry = false;
-                } catch (OutOfMemoryError ignored) {
-                    logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
-                } catch (java.util.concurrent.RejectedExecutionException e) {
-                    if (tries > maximumRetries) {
-                        throw new RuntimeException("Could not write - not even after " + maximumRetries + " retries and pause of " + pause + "ms", e);
-                    }
 
-                    if (logger.isDebugEnabled()) {
-                        logger.warn("thread pool exceeded - waiting " + pause + " ms for the " + tries + ". time");
-                    }
-
-                    try {
-                        Thread.sleep(pause);
-                    } catch (InterruptedException ignored) {
-                        // swallow
-                    }
-                }
-            }
+            Thread.ofVirtual().start(retryRunnable);
 
             try {
                 Thread.sleep(5);
@@ -2554,18 +2469,13 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public int writeBufferCount() {
-        return executor.getActiveCount();
+        //TODO: how to see if there are still tasks running?
+        return 0;
     }
 
     @Override
     public void onShutdown(Morphium m) {
-        if (executor != null) {
-            try {
-                executor.shutdownNow();
-            } catch (Exception e) {
-                // swallow
-            }
-        }
+        //TODO: check virtual threads?maybe?
     }
 
     public abstract class WT<T> implements WriterTask<T> {

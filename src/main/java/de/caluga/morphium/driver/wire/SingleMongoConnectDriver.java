@@ -63,12 +63,11 @@ public class SingleMongoConnectDriver extends DriverBase {
     private boolean connectionInUse = false;
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
-    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
+    //TODO: check if this scheduledexecutor is ok with virtual threads
+    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(0, new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
-            Thread ret = new Thread(r);
-            ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
-            ret.setDaemon(true);
+            Thread ret = Thread.ofVirtual().name("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet())).unstarted(r);
             return ret;
         }
     });

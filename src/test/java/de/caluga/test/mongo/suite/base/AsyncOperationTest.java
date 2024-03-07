@@ -113,7 +113,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             waitForAsyncOperationsToStart(morphium, 3000);
             int count = 0;
 
-            while (q.getNumberOfPendingRequests() > 0) {
+            while (!asyncCall) {
                 count++;
                 assert(count < 10);
                 System.out.println("Still waiting...");
@@ -154,7 +154,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             Thread.sleep(2000);
             int count = 0;
 
-            while (q.getNumberOfPendingRequests() > 0) {
+            while (!asyncCall) {
                 count++;
                 assert(count < 10);
                 Thread.sleep(1000);

@@ -93,9 +93,6 @@ public class StatusInfoListener implements MessageListener<Msg> {
         }
 
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
-            if (msg.isMultithreadded()) {
-                answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
-            }
 
             answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
             answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());

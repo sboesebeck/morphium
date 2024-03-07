@@ -28,9 +28,7 @@ public class PooledDriver extends DriverBase {
         private AtomicLong l = new AtomicLong(0);
         @Override
         public Thread newThread(Runnable r) {
-            Thread ret = new Thread(r);
-            ret.setName("MCon_" + (l.incrementAndGet()));
-            ret.setDaemon(true);
+            Thread ret = Thread.ofVirtual().name("MCon_" + (l.incrementAndGet())).unstarted(r);
             return ret;
         }
         // todo - heartbeat implementation

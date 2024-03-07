@@ -716,11 +716,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         directWriter = m.getConfig().getWriter();
 
         if (housekeeping == null) {
-            housekeeping = new Thread() {
-                @SuppressWarnings("SynchronizeOnNonFinalField")
-                @Override
+            housekeeping = Thread.ofVirtual().name("WriteBufferThread").start(new Runnable() {
                 public void run() {
-                    setName("BufferedWriter_thread");
 
                     while (running) {
                         try {
@@ -806,9 +803,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         opLog.get(clz).addAll(localQueue);
                     }
                 }
-            };
-            housekeeping.setDaemon(true);
-            housekeeping.start();
+            });
         }
 
         m.addShutdownListener(m1->close());

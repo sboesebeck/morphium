@@ -524,7 +524,6 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
                 for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                     m.triggerCheck();
                 }
                 assert (dups.get() == 0) : "got duplicate message";
@@ -539,10 +538,6 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
             }
-            log.info("R1 active: " + receiver.getRunningTasks());
-            log.info("R2 active: " + receiver2.getRunningTasks());
-            log.info("R3 active: " + receiver3.getRunningTasks());
-            log.info("R4 active: " + receiver4.getRunningTasks());
 
             logStats(morphium);
             logStats(morphium2);

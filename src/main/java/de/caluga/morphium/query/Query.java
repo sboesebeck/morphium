@@ -45,7 +45,7 @@ public class Query<T> implements Cloneable {
     private int limit = 0, skip = 0;
     private Map<String, Object> sort;
     private Morphium morphium;
-    private ThreadPoolExecutor executor;
+    //    private ThreadPoolExecutor executor;
     private String collectionName;
     private String srv = null;
 
@@ -64,10 +64,10 @@ public class Query<T> implements Cloneable {
     private UtilsMap<String, UtilsMap<String, String>> additionalFields;
     private Integer maxTimeMS=null;
 
-    public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
+    public Query(Morphium m, Class<? extends T> type) {
         this(m);
         setType(type);
-        this.executor = executor;
+//        this.executor = executor;
 
         if (m != null && m.getConfig() != null && m.getConfig().getDefaultTagSet() != null) {
             tags = m.getConfig().getDefaultTags();
@@ -168,14 +168,6 @@ public class Query<T> implements Cloneable {
         return srv;
     }
 
-    public ThreadPoolExecutor getExecutor() {
-        return executor;
-    }
-
-    public Query<T> setExecutor(ThreadPoolExecutor executor) {
-        this.executor = executor;
-        return this;
-    }
 
     public String getWhere() {
         return where;
@@ -209,7 +201,7 @@ public class Query<T> implements Cloneable {
     }
 
     public Query<T> q() {
-        Query<T> q = new Query<>(morphium, type, executor);
+        Query<T> q = new Query<>(morphium, type);
         q.setCollectionName(getCollectionName());
         return q;
     }
@@ -968,7 +960,7 @@ public class Query<T> implements Cloneable {
                 c.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
-        getExecutor().submit(r);
+        Thread.ofVirtual().start(r);
     }
 
     public Map<String, Object> explainCount(ExplainVerbosity verbosity) throws MorphiumDriverException {
@@ -1210,7 +1202,7 @@ public class Query<T> implements Cloneable {
                 callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
-        getExecutor().submit(r);
+        Thread.ofVirtual().start(r);
     }
 
     @SuppressWarnings("unchecked")
@@ -1480,7 +1472,7 @@ public class Query<T> implements Cloneable {
                 callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
-        getExecutor().submit(c);
+        Thread.ofVirtual().start(c);
     }
 
     @Deprecated
@@ -1515,7 +1507,7 @@ public class Query<T> implements Cloneable {
                 callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
-        getExecutor().submit(r);
+        Thread.ofVirtual().start(r);
     }
 
     public T get() {
@@ -1618,7 +1610,7 @@ public class Query<T> implements Cloneable {
                 callback.onOperationError(AsyncOperationType.READ, Query.this, System.currentTimeMillis() - start, e.getMessage(), e, null);
             }
         };
-        getExecutor().submit(r);
+        Thread.ofVirtual().start(r);
     }
 
     @SuppressWarnings("CommentedOutCode")
@@ -2100,9 +2092,6 @@ public class Query<T> implements Cloneable {
         return morphium.dec(this, field, value);
     }
 
-    public int getNumberOfPendingRequests() {
-        return getExecutor().getActiveCount();
-    }
 
     public String getCollectionName() {
         if (collectionName == null) {

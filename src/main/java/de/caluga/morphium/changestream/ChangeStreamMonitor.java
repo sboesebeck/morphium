@@ -124,10 +124,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
             throw new RuntimeException("Already running!");
         }
 
-        changeStreamThread = new Thread(this);
-        changeStreamThread.setDaemon(true);
-        changeStreamThread.setName("changeStream");
-        changeStreamThread.start();
+        changeStreamThread = Thread.ofVirtual().name("ChangeStream").start(this);
+
         running = true;
     }
 

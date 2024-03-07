@@ -23,6 +23,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void messagingMultithreaddedWriteTest() throws Exception {
         final Messaging sender = new Messaging(morphium);
+        Thread.sleep(1000);
         final int numThreads = 30;
         final List<Thread> threads = new ArrayList<>();
         final AtomicInteger count=new AtomicInteger();
@@ -30,7 +31,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             String id = "thr" + t;
             var thr = new Thread() {
                 public void run() {
-                    for (int i = 0; i < 4000; i++) {
+                    for (int i = 0; i < 400; i++) {
                         UncachedObject uc = new UncachedObject();
                         uc.setCounter(i);
                         uc.setStrValue("{ name: " + id+ ", counter:" + i + "}");

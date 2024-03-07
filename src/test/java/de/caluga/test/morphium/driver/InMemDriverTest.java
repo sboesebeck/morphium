@@ -128,7 +128,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         ));
         var insertResult = insert.execute();
 
-        Query<Map> q = new Query<>(null, Map.class, null);
+        Query<Map> q = new Query<>(null, Map.class);
         q.expr(Expr.eq(Expr.field("value"), Expr.field("strVal")));
         log.info("Query:" + Utils.toJsonString(q.toQueryObject()));
         var ret = drv.find(db, coll, q.toQueryObject(), null, null, 0, 0);
@@ -205,7 +205,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
         update.addUpdate(Doc.of("value", "Hello2"), Doc.of("$set", Doc.of("strVal", "New Value")), null, false, false, null, null, null);
         var updateResult = update.execute();
-        Query<Map> q = new Query<>(null, Map.class, null);
+        Query<Map> q = new Query<>(null, Map.class);
         q.expr(Expr.eq(Expr.field("value"), Expr.field("strVal")));
         log.info("Query:" + Utils.toJsonString(q.toQueryObject()));
         var ret = drv.find(db, coll, q.toQueryObject(), null, null, 0, 0);

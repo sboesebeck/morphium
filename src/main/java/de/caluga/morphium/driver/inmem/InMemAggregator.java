@@ -324,7 +324,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
-            new Thread(this::doAggregation);
+            Thread.ofVirtual().start(this::doAggregation);
         } else {
             morphium.queueTask(() -> {
                 try {

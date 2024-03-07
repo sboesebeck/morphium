@@ -1701,9 +1701,6 @@ public class MessagingNCTest extends MorphiumTestBase {
                 long messageCount = sender.getPendingMessagesCount();
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
-                }
                 assert (dups.get() == 0) : "got duplicate message";
 
                 Thread.sleep(1000);
@@ -1716,10 +1713,6 @@ public class MessagingNCTest extends MorphiumTestBase {
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
             }
-            log.info("R1 active: " + receiver.getRunningTasks());
-            log.info("R2 active: " + receiver2.getRunningTasks());
-            log.info("R3 active: " + receiver3.getRunningTasks());
-            log.info("R4 active: " + receiver4.getRunningTasks());
 
 
             logStats(morphium);
@@ -1838,9 +1831,6 @@ public class MessagingNCTest extends MorphiumTestBase {
                 long messageCount = sender.getPendingMessagesCount();
                 log.info("Send excl: " + amount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (amount + broadcastAmount * 4 - rec - messageCount));
                 assert (dups.get() == 0) : "got duplicate message";
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
-                }
                 Thread.sleep(1000);
             }
             int rec = received.get();
@@ -1851,10 +1841,6 @@ public class MessagingNCTest extends MorphiumTestBase {
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
             }
-            log.info("R1 active: " + receiver.getRunningTasks());
-            log.info("R2 active: " + receiver2.getRunningTasks());
-            log.info("R3 active: " + receiver3.getRunningTasks());
-            log.info("R4 active: " + receiver4.getRunningTasks());
         } finally {
             sender.terminate();
             receiver.terminate();
