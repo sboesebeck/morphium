@@ -94,19 +94,19 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage4 = false;
         Messaging m1 = new Messaging(morphium, 100, false);
         m1.setQueueName("t1");
-        m1.addMessageListener((msg, m)->{
+        m1.addMessageListener((msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         Messaging m2 = new Messaging(morphium, 100, false);
         m2.setQueueName("t1");
-        m2.addMessageListener((msg, m)->{
+        m2.addMessageListener((msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);
         m3.setQueueName("t1");
-        m3.addMessageListener((msg, m)->{
+        m3.addMessageListener((msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -125,7 +125,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             sender.sendMessage(m);
             Thread.sleep(1000);
             assertFalse(gotMessage1 || gotMessage2 || gotMessage3 || gotMessage4);
-            morphium.set(m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()), m);
+            morphium.setInEntity(m, m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()));
             Thread.sleep(100);
             long s = System.currentTimeMillis();
 
@@ -177,17 +177,17 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
         Messaging m1 = new Messaging(morphium, 100, false);
-        m1.addMessageListener((msg, m)->{
+        m1.addMessageListener((msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         Messaging m2 = new Messaging(morphium, 100, false);
-        m2.addMessageListener((msg, m)->{
+        m2.addMessageListener((msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         Messaging m3 = new Messaging(morphium, 100, false);
-        m3.addMessageListener((msg, m)->{
+        m3.addMessageListener((msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -263,28 +263,28 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage4 = false;
             m1 = new Messaging(morphium, "test", 100, false);
             m1.setSenderId("m1");
-            m1.addMessageListener((msg, m)->{
+            m1.addMessageListener((msg, m)-> {
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
             m2 = new Messaging(morphium, "test", 100, false);
             m2.setSenderId("m2");
-            m2.addMessageListener((msg, m)->{
+            m2.addMessageListener((msg, m)-> {
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
             m3 = new Messaging(morphium, "test2", 100, false);
             m3.setSenderId("m3");
-            m3.addMessageListener((msg, m)->{
+            m3.addMessageListener((msg, m)-> {
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
             m4 = new Messaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
-            m4.addMessageListener((msg, m)->{
+            m4.addMessageListener((msg, m)-> {
                 gotMessage4 = true;
                 log.info("Got message m4");
                 return null;
@@ -425,7 +425,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(2000);
 
         try {
-            MessageListener messageListener = (msg, m)->{
+            MessageListener messageListener = (msg, m)-> {
                 try {
                     Thread.sleep((long)(500 * Math.random()));
                 } catch (InterruptedException e) {
@@ -507,7 +507,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
                 log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
-                 (amount + broadcastAmount * 4 - rec - messageCount)));
+                        (amount + broadcastAmount * 4 - rec - messageCount)));
                 log.info(String.format("Number of ids: %d", ids.size()));
                 assert(dups.get() == 0) : "got duplicate message";
 
@@ -583,11 +583,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
         Messaging receiver = new Messaging(morphium, 100, true);
-        receiver.addListenerForMessageNamed("test2", (messaging, msg)->{
+        receiver.addListenerForMessageNamed("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
-        receiver.addListenerForMessageNamed("test", (messaging, msg)->{
+        receiver.addListenerForMessageNamed("test", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
@@ -633,11 +633,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
         Messaging receiver = new Messaging(morphium, 100, true);
-        receiver.addListenerForMessageNamed("test2", (messaging, msg)->{
+        receiver.addListenerForMessageNamed("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
-        receiver.addListenerForMessageNamed("test", (messaging, msg)->{
+        receiver.addListenerForMessageNamed("test", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
@@ -668,7 +668,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             r.setSenderId("r" + i);
             recs.add(r);
             r.start();
-            r.addMessageListener((m, msg)->{
+            r.addMessageListener((m, msg)-> {
                 counts.incrementAndGet();
                 return null;
             });
