@@ -1,29 +1,57 @@
 package de.caluga.morphium.query;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.Collation;
-import de.caluga.morphium.*;
+import de.caluga.morphium.FilterExpression;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumAccessVetoException;
+import de.caluga.morphium.StatisticKeys;
+import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
-import de.caluga.morphium.annotations.*;
+import de.caluga.morphium.annotations.AdditionalData;
+import de.caluga.morphium.annotations.Aliases;
+import de.caluga.morphium.annotations.DefaultReadPreference;
+import de.caluga.morphium.annotations.Entity;
+import de.caluga.morphium.annotations.Id;
+import de.caluga.morphium.annotations.LastAccess;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.commands.CountMongoCommand;
+import de.caluga.morphium.driver.commands.DistinctMongoCommand;
+import de.caluga.morphium.driver.commands.ExplainCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
+import de.caluga.morphium.driver.commands.FindAndModifyMongoCommand;
+import de.caluga.morphium.driver.commands.FindCommand;
+import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.commands.GetMoreMongoCommand;
+import de.caluga.morphium.driver.commands.KillCursorsCommand;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import org.json.simple.parser.ParseException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.Collectors;
 
 /**
  * User: Stpehan Bösebeck
@@ -62,7 +90,7 @@ public class Query<T> implements Cloneable {
     private Collation collation;
     private int batchSize = 0;
     private UtilsMap<String, UtilsMap<String, String>> additionalFields;
-    private Integer maxTimeMS=null;
+    private Integer maxTimeMS = null;
 
     public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
         this(m);
@@ -314,7 +342,7 @@ public class Query<T> implements Cloneable {
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
             // e.printStackTrace();
-            log.error("Error while talking to mongo",e);
+            log.error("Error while talking to mongo", e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -400,7 +428,7 @@ public class Query<T> implements Cloneable {
             ret = settings.execute();
         } catch (MorphiumDriverException e) {
             // e.printStackTrace();
-            log.error("Error",e);
+            log.error("Error", e);
         } finally {
             if (settings != null) {
                 settings.releaseConnection();
@@ -813,7 +841,7 @@ public class Query<T> implements Cloneable {
                     clz = field.getType();
 
                     if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz) || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz)
-                     || Map.class.isAssignableFrom(clz)) {
+                        || Map.class.isAssignableFrom(clz)) {
                         if (log.isDebugEnabled()) {
                             log.debug("Cannot check fields in generic lists or maps");
                         }
@@ -958,7 +986,7 @@ public class Query<T> implements Cloneable {
             throw new IllegalArgumentException("Not really useful to read from db and not use the result");
         }
 
-        Runnable r = ()->{
+        Runnable r = ()-> {
             long start = System.currentTimeMillis();
 
             try {
@@ -1032,7 +1060,7 @@ public class Query<T> implements Cloneable {
     private CountMongoCommand getCountCommand(MongoConnection con) {
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
             CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB()).setColl(getCollectionName())
-             // .setQuery(Doc.of(this.toQueryObject()))
+            // .setQuery(Doc.of(this.toQueryObject()))
             ;
 
             if (getCollation() != null) {
@@ -1059,23 +1087,23 @@ public class Query<T> implements Cloneable {
         }
 
         switch (readPreferenceLevel) {
-        case PRIMARY:
-            return de.caluga.morphium.driver.ReadPreference.primary();
+            case PRIMARY:
+                return de.caluga.morphium.driver.ReadPreference.primary();
 
-        case PRIMARY_PREFERRED:
-            return de.caluga.morphium.driver.ReadPreference.primaryPreferred();
+            case PRIMARY_PREFERRED:
+                return de.caluga.morphium.driver.ReadPreference.primaryPreferred();
 
-        case SECONDARY:
-            return de.caluga.morphium.driver.ReadPreference.secondary();
+            case SECONDARY:
+                return de.caluga.morphium.driver.ReadPreference.secondary();
 
-        case SECONDARY_PREFERRED:
-            return de.caluga.morphium.driver.ReadPreference.secondaryPreferred();
+            case SECONDARY_PREFERRED:
+                return de.caluga.morphium.driver.ReadPreference.secondaryPreferred();
 
-        case NEAREST:
-            return de.caluga.morphium.driver.ReadPreference.nearest();
+            case NEAREST:
+                return de.caluga.morphium.driver.ReadPreference.nearest();
 
-        default:
-            return null;
+            default:
+                return null;
         }
     }
 
@@ -1200,7 +1228,7 @@ public class Query<T> implements Cloneable {
             throw new IllegalArgumentException("callback is null");
         }
 
-        Runnable r = ()->{
+        Runnable r = ()-> {
             long start = System.currentTimeMillis();
 
             try {
@@ -1443,13 +1471,13 @@ public class Query<T> implements Cloneable {
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
                         settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
-                          Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                                    Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
                         throw new RuntimeException(e);
                     } finally {
-                        if (settings!=null) settings.releaseConnection();
+                        if (settings != null) settings.releaseConnection();
                     }
                 }
             }
@@ -1468,7 +1496,7 @@ public class Query<T> implements Cloneable {
             throw new IllegalArgumentException("Callback is null");
         }
 
-        Runnable c = ()->{
+        Runnable c = ()-> {
             long start = System.currentTimeMillis();
 
             try {
@@ -1503,7 +1531,7 @@ public class Query<T> implements Cloneable {
             throw new IllegalArgumentException("Callback is null");
         }
 
-        Runnable r = ()->{
+        Runnable r = ()-> {
             long start = System.currentTimeMillis();
 
             try {
@@ -1608,7 +1636,7 @@ public class Query<T> implements Cloneable {
             throw new IllegalArgumentException("Callable is null?");
         }
 
-        Runnable r = ()->{
+        Runnable r = ()-> {
             long start = System.currentTimeMillis();
 
             try {
@@ -2314,7 +2342,7 @@ public class Query<T> implements Cloneable {
 
         try {
             FindCommand cmd = new FindCommand(con).setTailable(true).setFilter(toQueryObject()).setSort(getSort()).setHint(hint).setLimit(getLimit()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
-             .setDb(morphium.getDatabase()).setColl(getCollectionName());
+            .setDb(morphium.getDatabase()).setColl(getCollectionName());
 
             if (collation != null) {
                 cmd.setCollation(collation.toQueryObject());
@@ -2378,16 +2406,16 @@ public class Query<T> implements Cloneable {
         StringBuilder and = new StringBuilder();
 
         if (andExpr != null && !andExpr.isEmpty()) {
-            and.append("[");
+            and .append("[");
 
             for (FilterExpression fe : andExpr) {
-                and.append(fe.toString());
-                and.append(", ");
+                and .append(fe.toString());
+                and .append(", ");
             }
 
-            and.deleteCharAt(and.length() - 1);
-            and.deleteCharAt(and.length() - 1);
-            and.append(" ]");
+            and .deleteCharAt( and .length() - 1);
+            and .deleteCharAt( and .length() - 1);
+            and .append(" ]");
         }
 
         StringBuilder ors = new StringBuilder();
@@ -2421,7 +2449,7 @@ public class Query<T> implements Cloneable {
         }
 
         String ret = "Query{ " + "collectionName='" + collectionName + '\'' + ", type=" + type.getName() + ", skip=" + skip + ", limit=" + limit + ", andExpr=" + and + ", orQueries=" + ors
-         + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
+            + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
 
         if (fieldList != null) {
             ret += " Fields " + fieldList;
@@ -2433,23 +2461,25 @@ public class Query<T> implements Cloneable {
     public FindCommand getFindCmd() {
         MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
         FindCommand settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
-         .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
+        .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
         settings.setBatchSize(getBatchSize());
-        int ms=getMaxTimeMS();
-        if (ms<=0){
+        int ms = getMaxTimeMS();
+
+        if (ms <= 0) {
             settings.setNoCursorTimeout(true);
         } else {
             settings.setMaxTimeMS(ms);
         }
+
         return settings;
     }
 
-    public void setMaxTimeMS(Integer max){
-        maxTimeMS=max;
+    public void setMaxTimeMS(Integer max) {
+        maxTimeMS = max;
     }
 
-    public int getMaxTimeMS(){
-        if (maxTimeMS==null){
+    public int getMaxTimeMS() {
+        if (maxTimeMS == null) {
             return morphium.getConfig().getMaxWaitTime();
         } else {
             return maxTimeMS;
