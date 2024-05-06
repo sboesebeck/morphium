@@ -440,7 +440,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
-        if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
+        if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP) ||
+            getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP))) {
             Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
 
             if (missing != null && !missing.isEmpty()) {
