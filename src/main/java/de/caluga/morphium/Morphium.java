@@ -164,8 +164,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         };
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-         TimeUnit.MILLISECONDS, queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)->{
+            TimeUnit.MILLISECONDS, queue);
+        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
             try {
                 /*
                  * This does the actual put into the queue. Once the max threads
@@ -218,7 +218,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             });
 
             try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-             .scan()) {
+                .scan()) {
                 ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
 
                 if (log.isDebugEnabled()) {
@@ -395,58 +395,59 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (capped != null && !capped.isEmpty()) {
             for (Class cls : capped.keySet()) {
                 switch (getConfig().getCappedCheck()) {
-                case WARN_ON_STARTUP:
-                    log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
-                    break;
+                    case WARN_ON_STARTUP:
+                        log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
+                        break;
 
-                case CONVERT_EXISTING_ON_STARTUP:
-                    try {
-                        if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                            log.warn("Existing collection is not capped - ATTENTION!");
-                            // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"),
-                            // null);
+                    case CONVERT_EXISTING_ON_STARTUP:
+                        try {
+                            if (exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                                log.warn("Existing collection is not capped - ATTENTION!");
+                                // convertToCapped(cls, capped.get(cls).get("size"), capped.get(cls).get("max"),
+                                // null);
+                            }
+                        } catch (MorphiumDriverException e) {
+                            throw new RuntimeException(e);
                         }
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
-                    }
 
-                    break;
+                        break;
 
-                case CREATE_ON_STARTUP:
-                    try {
-                        if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
-                            MongoConnection primaryConnection = null;
-                            CreateCommand cmd = null;
+                    case CREATE_ON_STARTUP:
+                        try {
+                            if (!morphiumDriver.exists(getDatabase(), getMapper().getCollectionName(cls))) {
+                                MongoConnection primaryConnection = null;
+                                CreateCommand cmd = null;
 
-                            try {
-                                primaryConnection = morphiumDriver.getPrimaryConnection(null);
-                                cmd = new CreateCommand(primaryConnection);
-                                cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
-                                var ret = cmd.execute();
-                                log.debug("Created capped collection");
-                            } catch (MorphiumDriverException e) {
-                                throw new RuntimeException(e);
-                            } finally {
-                                if (primaryConnection != null) {
-                                    cmd.releaseConnection();
+                                try {
+                                    primaryConnection = morphiumDriver.getPrimaryConnection(null);
+                                    cmd = new CreateCommand(primaryConnection);
+                                    cmd.setDb(getDatabase()).setColl(getMapper().getCollectionName(cls)).setCapped(true).setMax(capped.get(cls).get("max")).setSize(capped.get(cls).get("size"));
+                                    var ret = cmd.execute();
+                                    log.debug("Created capped collection");
+                                } catch (MorphiumDriverException e) {
+                                    throw new RuntimeException(e);
+                                } finally {
+                                    if (primaryConnection != null) {
+                                        cmd.releaseConnection();
+                                    }
                                 }
                             }
+                        } catch (MorphiumDriverException e) {
+                            throw new RuntimeException(e);
                         }
-                    } catch (MorphiumDriverException e) {
-                        throw new RuntimeException(e);
-                    }
 
-                case CREATE_ON_WRITE_NEW_COL:
-                case NO_CHECK:
-                    break;
+                    case CREATE_ON_WRITE_NEW_COL:
+                    case NO_CHECK:
+                        break;
 
-                default:
-                    throw new IllegalArgumentException("Unknow value for cappedcheck " + getConfig().getCappedCheck());
+                    default:
+                        throw new IllegalArgumentException("Unknow value for cappedcheck " + getConfig().getCappedCheck());
                 }
             }
         }
 
-        if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
+        if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP) ||
+            getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP))) {
             Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
 
             if (missing != null && !missing.isEmpty()) {
@@ -612,7 +613,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             q.setCollectionName(collection);
             return q;
         } catch (Exception e) {
-            log.error("Error",e);
+            log.error("Error", e);
         }
 
         return null;
@@ -696,7 +697,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void ensureCapped(final Class<T> c, final AsyncOperationCallback<T> callback) {
-        Runnable r = ()->{
+        Runnable r = ()-> {
             String coll = getMapper().getCollectionName(c);
             // DBCollection collection = null;
 
@@ -2693,7 +2694,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
-        asyncOperationsThreadPool.execute(()->{
+        asyncOperationsThreadPool.execute(()-> {
             watchDb(dbName, updateFull, null, runningFlag, lst);
             log.debug("watch async finished");
         });
@@ -2843,11 +2844,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         // initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-         // .verbose() // Enable verbose logging
-         .enableAnnotationInfo()
-         // .enableFieldInfo()
-         .enableClassInfo()                         // Scan classes, methods, fields, annotations
-         .scan()) {
+            // .verbose() // Enable verbose logging
+            .enableAnnotationInfo()
+            // .enableFieldInfo()
+            .enableClassInfo()                         // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
 
             if (filter != null) {
