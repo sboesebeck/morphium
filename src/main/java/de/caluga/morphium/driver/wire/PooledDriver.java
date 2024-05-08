@@ -352,7 +352,7 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-    private synchronized MongoConnection borrowConnection(String host) throws MorphiumDriverException {
+    private  MongoConnection borrowConnection(String host) throws MorphiumDriverException {
         // var st=Thread.currentThread().getStackTrace();
         // int n = 3;
         // String s = st[n].getClassName() + "." + st[n].getMethodName() ;
