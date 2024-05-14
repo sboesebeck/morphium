@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PooledDriver extends DriverBase {
     public final static String driverName = "PooledDriver";
-    private Map<String, List<Connection>> connectionPool;
-    private Map<Integer, Connection> borrowedConnections;
+    private Map<String, List<ConnectionContainer>> connectionPool;
+    private Map<Integer, ConnectionContainer> borrowedConnections;
     private Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
     private int idleSleepTime = 5;
@@ -33,8 +33,10 @@ public class PooledDriver extends DriverBase {
             ret.setDaemon(true);
             return ret;
         }
+
         // todo - heartbeat implementation
     });
+
     private int lastSecondaryNode;
 
     public PooledDriver() {
@@ -92,7 +94,7 @@ public class PooledDriver extends DriverBase {
         String h = getHost(host);
         int port = getPortFromHost(host);
         var con = new SingleMongoConnection();
-        var theCon = new Connection(con);
+        var theCon = new ConnectionContainer(con);
 
         if (getAuthDb() != null) {
             con.setCredentials(getAuthDb(), getUser(), getPassword());
@@ -183,14 +185,14 @@ public class PooledDriver extends DriverBase {
                     if (!hello.getHosts().contains(k)) {
                         log.warn("Host " + k + " is not part of the replicaset anymore!");
                         getHostSeed().remove(k);
-                        List<Connection> lst = connectionPool.remove(k);
+                        List<ConnectionContainer> lst = connectionPool.remove(k);
 
                         if (fastestHost.equals(k)) {
                             fastestHost = null;
                             fastestTime = 10000;
                         }
 
-                        for (Connection con : lst) {
+                        for (ConnectionContainer con : lst) {
                             try {
                                 con.getCon().close();
                                 stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
@@ -210,7 +212,7 @@ public class PooledDriver extends DriverBase {
                 try {
                     // log.debug("heartbeat running");
                     for (var hst : new ArrayList<String>(getHostSeed())) {
-                        Connection c = null;
+                        ConnectionContainer c = null;
 
                         synchronized (connectionPool) {
                             if (connectionPool.get(hst) != null && !connectionPool.get(hst).isEmpty()) {
@@ -335,7 +337,7 @@ public class PooledDriver extends DriverBase {
 
     private int getTotalConnectionsToHost(String h) {
         int borrowed = 0;
-        Collection<Connection> values = new ArrayList<>(borrowedConnections.values());
+        Collection<ConnectionContainer> values = new ArrayList<>(borrowedConnections.values());
 
         for (var c : values) {
             if (c.getCon().getConnectedTo().equals(h)) {
@@ -362,7 +364,7 @@ public class PooledDriver extends DriverBase {
         // RuntimeException ex = new RuntimeException();
         // LoggerFactory.getLogger(MongoCommand.class)
         // .info("Borrow from: " + ex.getStackTrace()[2].getFileName() + "/" + ex.getStackTrace()[2].getMethodName() + ":" + ex.getStackTrace()[2].getLineNumber());
-        Connection c = null;
+        ConnectionContainer c = null;
         //        long start = System.currentTimeMillis();
 
         //        while (connectionPool.get(host).size()==0 && getTotalConnectionsToHost(host) >= getMaxConnectionsPerHost()) {
@@ -406,6 +408,7 @@ public class PooledDriver extends DriverBase {
 
                         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
                         // log.info("Borrowing connection sourceport " + c.getCon().getSourcePort());
+                        c.touch();
                         return c.getCon();
                     }
 
@@ -424,7 +427,7 @@ public class PooledDriver extends DriverBase {
                     con.setCredentials(getAuthDb(), getUser(), getPassword());
                 }
 
-                c = new Connection(con);
+                c = new ConnectionContainer(con);
                 var hello = con.connect(this, h, port);
 
                 if (hello == null) {
@@ -437,6 +440,7 @@ public class PooledDriver extends DriverBase {
 
                 stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
                 // log.info("Borrowing new connection sourceport " + c.getCon().getSourcePort());
+                c.touch();
                 return con;
             } else {
                 synchronized (connectionPool) {
@@ -477,6 +481,7 @@ public class PooledDriver extends DriverBase {
         }
 
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
+        c.touch();
         return c.getCon();
     }
 
@@ -589,7 +594,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             for (String k : connectionPool.keySet()) {
-                for (Connection c : new ArrayList<>(connectionPool.get(k))) { // avoid concurrendModification
+                for (ConnectionContainer c : new ArrayList<>(connectionPool.get(k))) { // avoid concurrendModification
                     if (c.getCon() == con) {
                         connectionPool.get(k).remove(c);
                         return;
@@ -599,7 +604,7 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-    public Map<Integer, Connection> getBorrowedConnections() {
+    public Map<Integer, ConnectionContainer> getBorrowedConnections() {
         synchronized (connectionPool) {
             return new HashMap(borrowedConnections);
         }
@@ -626,7 +631,8 @@ public class PooledDriver extends DriverBase {
             if (c == null) {
                 //log.debug("Returning not borrowed connection!?!?");
                 if (con.isConnected()) {
-                    c = new Connection((SingleMongoConnection) con);
+                    // c = new Connection((SingleMongoConnection) con);
+                    con.close();
                 } else {
                     return;
                 }
@@ -764,6 +770,7 @@ public class PooledDriver extends DriverBase {
             clearTransactionContext();
         }
     }
+
     //
     // @Override
     // public SingleElementResult runCommandSingleResult(SingleResultCommand cmd)
@@ -1051,12 +1058,12 @@ public class PooledDriver extends DriverBase {
         return false;
     }
 
-    private class Connection {
+    private class ConnectionContainer {
         private SingleMongoConnection con;
         private long created;
         private long lastUsed;
 
-        public Connection(SingleMongoConnection con) {
+        public ConnectionContainer(SingleMongoConnection con) {
             this.con = con;
             created = System.currentTimeMillis();
             lastUsed = System.currentTimeMillis();
@@ -1070,7 +1077,7 @@ public class PooledDriver extends DriverBase {
             return con;
         }
 
-        public Connection setCon(SingleMongoConnection con) {
+        public ConnectionContainer setCon(SingleMongoConnection con) {
             this.con = con;
             return this;
         }
@@ -1079,7 +1086,7 @@ public class PooledDriver extends DriverBase {
             return created;
         }
 
-        public Connection setCreated(long created) {
+        public ConnectionContainer setCreated(long created) {
             this.created = created;
             return this;
         }
@@ -1088,7 +1095,7 @@ public class PooledDriver extends DriverBase {
             return lastUsed;
         }
 
-        public Connection setLastUsed(long lastUsed) {
+        public ConnectionContainer setLastUsed(long lastUsed) {
             this.lastUsed = lastUsed;
             return this;
         }
@@ -1128,16 +1135,19 @@ public class PooledDriver extends DriverBase {
 
                 return new Doc();
             }
+
             public UpdateBulkRequest addUpdateBulkRequest() {
                 UpdateBulkRequest up = new UpdateBulkRequest();
                 requests.add(up);
                 return up;
             }
+
             public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
             }
+
             public DeleteBulkRequest addDeleteBulkRequest() {
                 DeleteBulkRequest del = new DeleteBulkRequest();
                 requests.add(del);
