@@ -359,16 +359,18 @@ public class PooledDriver extends DriverBase {
         // if pool is empty  -> wait increaseWaitCounter
         //
         // if connection available in pool -> put in borrowedConnections -> return That
-        synchronized (connectionPool) {
-            if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
-                waitCounter.putIfAbsent(host, new AtomicInteger());
-                waitCounter.get(host).incrementAndGet();
-                connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
-            }
-        }
-
         try {
-            var bc = connectionPool.get(host).poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+            ConnectionContainer bc = null;
+
+            synchronized (connectionPool) {
+                if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
+                    waitCounter.putIfAbsent(host, new AtomicInteger());
+                    waitCounter.get(host).incrementAndGet();
+                    connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
+                }
+
+                bc = connectionPool.get(host).poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+            }
 
             if (bc == null) {
                 throw new MorphiumDriverException("Could not get connection in time");
