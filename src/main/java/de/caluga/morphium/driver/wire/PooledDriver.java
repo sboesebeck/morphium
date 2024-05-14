@@ -253,6 +253,7 @@ public class PooledDriver extends DriverBase {
 
                         try {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
+                            log.info("WaitCounter {} ", waitCounter.get(hst).get());
 
                             while ((getTotalConnectionsToHost(hst) < getMinConnectionsPerHost() + waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) <= getMaxConnectionsPerHost())) {
                                 var con = new SingleMongoConnection();
@@ -361,16 +362,20 @@ public class PooledDriver extends DriverBase {
         // if connection available in pool -> put in borrowedConnections -> return That
         try {
             ConnectionContainer bc = null;
+            BlockingQueue<ConnectionContainer> queue = null;
 
             synchronized (connectionPool) {
-                if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
+                connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
+                queue = connectionPool.get(host);
+
+                if (queue.size() == 0) {
                     waitCounter.putIfAbsent(host, new AtomicInteger());
                     waitCounter.get(host).incrementAndGet();
-                    connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
+                    log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
                 }
-
-                bc = connectionPool.get(host).poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
             }
+
+            bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
 
             if (bc == null) {
                 throw new MorphiumDriverException("Could not get connection in time");
