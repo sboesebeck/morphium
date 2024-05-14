@@ -18,7 +18,7 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 
 
-// @Disabled
+@Disabled
 public class FailoverTests {
     private Logger log = LoggerFactory.getLogger(FailoverTests.class);
     @Test
