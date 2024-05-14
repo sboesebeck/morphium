@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cglib.core.Block;
 
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -126,7 +127,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private ScheduledFuture<?> heartbeat;
-    private AtomicInteger waitCounter = new AtomicInteger();
+    private Map<String, AtomicInteger> waitCounter = new ConcurrentHashMap<>();
 
     private String getHost(String hostPort) {
         if (hostPort == null) {
@@ -178,6 +179,7 @@ public class PooledDriver extends DriverBase {
             for (String hst : new ArrayList<String>(getHostSeed())) {
                 if (!hello.getHosts().contains(hst)) {
                     getHostSeed().remove(hst);
+                    waitCounter.remove(hst);
                 }
             }
 
@@ -186,6 +188,7 @@ public class PooledDriver extends DriverBase {
                     if (!hello.getHosts().contains(k)) {
                         log.warn("Host " + k + " is not part of the replicaset anymore!");
                         getHostSeed().remove(k);
+                        waitCounter.remove(k);
                         BlockingQueue<ConnectionContainer> lst = connectionPool.remove(k);
 
                         if (fastestHost.equals(k)) {
@@ -250,7 +253,9 @@ public class PooledDriver extends DriverBase {
                         var con = new SingleMongoConnection();
 
                         try {
-                            while (getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                            waitCounter.putIfAbsent(hst, new AtomicInteger());
+
+                            while ((getTotalConnectionsToHost(hst) < getMinConnectionsPerHost() + waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) <= getMaxConnectionsPerHost())) {
                                 con.connect(this, getHost(hst), getPortFromHost(hst));
                                 HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
                                 long start = System.currentTimeMillis();
@@ -261,6 +266,11 @@ public class PooledDriver extends DriverBase {
                                         var cont = new ConnectionContainer(con);
                                         connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
                                         connectionPool.get(hst).add(cont);
+                                        waitCounter.putIfAbsent(hst, new AtomicInteger());
+
+                                        if (waitCounter.get(hst).get() > 0)
+                                            waitCounter.get(hst).decrementAndGet();
+
                                         h = null;
                                     } else {
                                         con.close();
@@ -349,7 +359,12 @@ public class PooledDriver extends DriverBase {
         // if pool is empty  -> wait increaseWaitCounter
         //
         // if connection available in pool -> put in borrowedConnections -> return That
-        if (connectionPool.get(host).size() == 0) waitCounter.incrementAndGet();
+        synchronized (connectionPool) {
+            if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
+                waitCounter.putIfAbsent(host, new AtomicInteger());
+                waitCounter.get(host).incrementAndGet();
+            }
+        }
 
         try {
             var bc = connectionPool.get(host).poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
