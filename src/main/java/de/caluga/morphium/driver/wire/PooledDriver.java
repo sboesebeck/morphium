@@ -33,8 +33,6 @@ public class PooledDriver extends DriverBase {
             ret.setDaemon(true);
             return ret;
         }
-
-        // todo - heartbeat implementation
     });
 
     private int lastSecondaryNode;
@@ -207,7 +205,6 @@ public class PooledDriver extends DriverBase {
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
-            // log.debug("running Starting heartbeat "+getHostSeed().size()+" - "+getHeartbeatFrequency());
             heartbeat = executor.scheduleWithFixedDelay(()-> {
                 try {
                     // log.debug("heartbeat running");
@@ -237,7 +234,6 @@ public class PooledDriver extends DriverBase {
                             }
                         }
 
-                        // borrowedConnections.put(c.getCon().getSourcePort(), c); //otherwise no answers
                         HelloCommand h = null;
 
                         try {
@@ -355,33 +351,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private  MongoConnection borrowConnection(String host) throws MorphiumDriverException {
-        // var st=Thread.currentThread().getStackTrace();
-        // int n = 3;
-        // String s = st[n].getClassName() + "." + st[n].getMethodName() ;
-        //// log.info("Borrowing connection to: " + s+ ":" + st[n].getLineNumber());
-        // this.borrowedConnectionsByCaller.putIfAbsent(s,new AtomicInteger(0));
-        // this.borrowedConnectionsByCaller.get(s).incrementAndGet();
-        // RuntimeException ex = new RuntimeException();
-        // LoggerFactory.getLogger(MongoCommand.class)
-        // .info("Borrow from: " + ex.getStackTrace()[2].getFileName() + "/" + ex.getStackTrace()[2].getMethodName() + ":" + ex.getStackTrace()[2].getLineNumber());
         ConnectionContainer c = null;
-        //        long start = System.currentTimeMillis();
-
-        //        while (connectionPool.get(host).size()==0 && getTotalConnectionsToHost(host) >= getMaxConnectionsPerHost()) {
-        //            if ((System.currentTimeMillis() - start) % 1000 == 0) {
-        //                log.warn(String.format("Connection pool exceeded for host %s (in use: %d, max: %d)- need to wait", host, getTotalConnectionsToHost(host), getMaxConnectionsPerHost()));
-        //            }
-        //
-        //            if (System.currentTimeMillis() - start > getMaxWaitTime()) {
-        //                log.error(String.format("Could not get connection from pool to %s - timeout %d", host, getMaxWaitTime()));
-        //                throw new MorphiumDriverException("Could not get connection from pool in time - max connections per host exceeded");
-        //            }
-        //
-        //            try {
-        //                Thread.sleep(100);
-        //            } catch (InterruptedException e) {
-        //            }
-        //        }
 
         while (true) {
             if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
@@ -625,7 +595,6 @@ public class PooledDriver extends DriverBase {
         }
 
         if (con.getSourcePort() != 0) { //sourceport== 0 probably closed or broken
-            // log.info("Releasing connectino sourceport: " + con.getSourcePort());
             var c = borrowedConnections.remove(con.getSourcePort());
 
             if (c == null) {
@@ -687,9 +656,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void close() {
-        // if (connection != null)
-        // connection.close();
-        // readerRunning = false;
         if (heartbeat != null) {
             heartbeat.cancel(true);
         }
@@ -762,58 +728,12 @@ public class PooledDriver extends DriverBase {
             MorphiumTransactionContext ctx = getTransactionContext();
             var cmd = new AbortTransactionCommand(con).setTxnNumber(ctx.getTxnNumber()).setAutocommit(false).setLsid(ctx.getLsid());
             cmd.execute();
-            // getPrimaryConnection(null).sendCommand(Doc.of("abortTransaction", 1,
-            // "txnNumber", ctx.getTxnNumber(), "autocommit", false, "lsid", Doc.of("id",
-            // ctx.getLsid(), "$db", "admin")));
         } finally {
             releaseConnection(con);
             clearTransactionContext();
         }
     }
 
-    //
-    // @Override
-    // public SingleElementResult runCommandSingleResult(SingleResultCommand cmd)
-    // throws MorphiumDriverException {
-    // var start = System.currentTimeMillis();
-    // var m = cmd.asMap();
-    // var msg = getConnection().sendCommand(m);
-    // var res = getConnection().readSingleAnswer(msg);
-    // return new
-    // SingleElementResult().setResult(res).setDuration(System.currentTimeMillis() -
-    // start)
-    // .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    // }
-
-    // @Override
-    // public CursorResult runCommand(MultiResultCommand cmd) throws
-    // MorphiumDriverException {
-    // var start = System.currentTimeMillis();
-    // var msg = getConnection().sendCommand(cmd.asMap());
-    // return new CursorResult().setCursor(getConnection().getAnswerFor(msg,
-    // getDefaultBatchSize()))
-    // .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-    // .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    // }
-
-    // @Override
-    // public ListResult runCommandList(MultiResultCommand cmd) throws
-    // MorphiumDriverException {
-    // var start = System.currentTimeMillis();
-    // var msg = getConnection().sendCommand(cmd.asMap());
-    // return new ListResult().setResult(getConnection().readAnswerFor(msg))
-    // .setMessageId(msg).setDuration(System.currentTimeMillis() - start)
-    // .setServer(getConnection().getConnectedTo()).setMetadata(cmd.getMetaData());
-    // }
-
-    // @Override
-    // public Map<String, Object> runCommand(String db, Map<String, Object> cmd)
-    // throws MorphiumDriverException {
-    // cmd.put("$db", db);
-    // var start = System.currentTimeMillis();
-    // var msg = getConnection().sendCommand(cmd);
-    // return getConnection().readSingleAnswer(msg);
-    // }
 
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
@@ -877,76 +797,6 @@ public class PooledDriver extends DriverBase {
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
     }
 
-    // private List<Map<String, Object>> VreadBatches(MongoConnection connection, int waitingfor, int batchSize) throws MorphiumDriverException {
-    //     List<Map<String, Object>> ret = new ArrayList<>();
-    //     Map<String, Object> doc;
-    //     String db = null;
-    //     String coll = null;
-    //
-    //     while (true) {
-    //         OpMsg reply = connection.readNextMessage();//connection.getReplyFor(waitingfor, getMaxWaitTime());
-    //
-    //         if (reply.getResponseTo() != waitingfor) {
-    //             log.error("Wrong answer - waiting for " + waitingfor + " but got " + reply.getResponseTo());
-    //             log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
-    //             continue;
-    //         }
-    //
-    //         // replies.remove(i);
-    //         @SuppressWarnings("unchecked")
-    //         Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
-    //
-    //         if (cursor == null) {
-    //             // trying result
-    //             if (reply.getFirstDoc().get("result") != null) {
-    //                 // noinspection unchecked
-    //                 return (List<Map<String, Object>>) reply.getFirstDoc().get("result");
-    //             }
-    //
-    //             if (reply.getFirstDoc().containsKey("results")) {
-    //                 return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
-    //             }
-    //
-    //             throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
-    //         }
-    //
-    //         if (db == null) {
-    //             // getting ns
-    //             String[] namespace = cursor.get("ns").toString().split("\\.");
-    //             db = namespace[0];
-    //
-    //             if (namespace.length > 1) {
-    //                 coll = namespace[1];
-    //             }
-    //         }
-    //
-    //         if (cursor.get("firstBatch") != null) {
-    //             // noinspection unchecked
-    //             ret.addAll((List) cursor.get("firstBatch"));
-    //         } else if (cursor.get("nextBatch") != null) {
-    //             // noinspection unchecked
-    //             ret.addAll((List) cursor.get("nextBatch"));
-    //         }
-    //
-    //         if (((Long) cursor.get("id")) != 0) {
-    //             // there is more! Sending getMore!
-    //             OpMsg q = new OpMsg();
-    //             q.setFirstDoc(Doc.of("getMore", (Object) cursor.get("id")).add("$db", db).add("batchSize", batchSize));
-    //
-    //             if (coll != null) {
-    //                 q.getFirstDoc().put("collection", coll);
-    //             }
-    //
-    //             q.setMessageId(getNextId());
-    //             waitingfor = q.getMessageId();
-    //             // connection.sendQuery(q);
-    //         } else {
-    //             break;
-    //         }
-    //     }
-    //
-    //     return ret;
-    // }
 
     public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
         return new NetworkCallHelper<Map<String, Object>>().doCall(()-> {
@@ -965,37 +815,6 @@ public class PooledDriver extends DriverBase {
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
 
-    // @Override
-    // public RunCommandResult sendCommand(String db, Map<String, Object> cmd)
-    // throws MorphiumDriverException {
-    // OpMsg q = new OpMsg();
-    // cmd.put("$db", db);
-    // q.setMessageId(getNextId());
-    // q.setFirstDoc(Doc.of(cmd));
-    //
-    // OpMsg rep = null;
-    // long start = System.currentTimeMillis();
-    // connection.sendQuery(q);
-    // return new RunCommandResult().setMessageId(q.getMessageId())
-    // .setDuration(System.currentTimeMillis() - start)
-    // .setServer(connection.getConnectedTo());
-    // }
-    //
-    // private Map<String, Object> getSingleDocAndKillCursor(OpMsg msg) throws
-    // MorphiumDriverException {
-    // if (!msg.hasCursor()) return null;
-    // Map<String, Object> cursor = (Map<String, Object>)
-    // msg.getFirstDoc().get("cursor");
-    // Map<String, Object> ret = null;
-    // if (cursor.containsKey("firstBatch")) {
-    // ret = (Map<String, Object>) cursor.get("firstBatch");
-    // } else {
-    // ret = (Map<String, Object>) cursor.get("nextBatch");
-    // }
-    // String[] namespace = cursor.get("ns").toString().split("\\.");
-    // killCursors(namespace[0], namespace[1], (Long) cursor.get("id"));
-    // return ret;
-    // }
 
     public boolean exists(String db) throws MorphiumDriverException {
         // noinspection EmptyCatchBlock
@@ -1158,10 +977,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<DriverStatsKey, Double> getDriverStats() {
-        //        for (var e : borrowedConnectionsByCaller.entrySet()) {
-        //            log.debug("Caller: " + e.getKey() + " -> " + e.getValue());
-        //        }
-        //
         Map<DriverStatsKey, Double> m = new HashMap<>();
 
         for (var e : stats.entrySet()) {
@@ -1181,7 +996,6 @@ public class PooledDriver extends DriverBase {
         }
 
         m.put(DriverStatsKey.CONNECTIONS_IN_USE, Double.valueOf(borrowedConnections.size()));
-        // m.put(DriverStatsKey.CONNECTIONS_IN_USE,stats.get(DriverStatsKey.CONNECTIONS_BORROWED).doubleValue()-stats.get(DriverStatsKey.CONNECTIONS_RELEASED).doubleValue());
         return m;
     }
 
