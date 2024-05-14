@@ -80,7 +80,6 @@ public class SingleMongoConnection implements MongoConnection {
         HelloCommand cmd = new HelloCommand(null);
 
         if (authDb != null) {
-            cmd.setAuthDb(authDb);
             cmd.setUser(user);
         }
 

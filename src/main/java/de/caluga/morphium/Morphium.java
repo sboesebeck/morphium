@@ -157,6 +157,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 }
             }
         };
+
         asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
             TimeUnit.MILLISECONDS, queue);
         asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
@@ -180,6 +181,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 return ret;
             }
         });
+
         initializeAndConnect();
     }
 
@@ -663,6 +665,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         unsetInEntity(toSet, collection, field, callback);
     }
+
     public <T> void unsetInEntity(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
             throw new RuntimeException("Cannot update null!");
@@ -769,6 +772,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         return q;
     }
+
     public <T> Map<String, Object> push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback) {
         if (query == null || field == null) {
             throw new RuntimeException("Cannot update null!");
@@ -848,6 +852,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         // noinspection unchecked
         return pull((Query<T>)createQueryFor(entity.getClass()).f("_id").eq(getId(entity)), field, value, upsert, multiple, callback);
     }
+
     ////////
     /////
     /// SET with Query
@@ -1797,6 +1802,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
     }
+
     @Override
     public <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr) {
         if (annotationHelper.isAnnotationPresentInHierarchy(type, Index.class)) {
@@ -2687,11 +2693,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 public void incomingData(Map<String, Object> data, long dur) {
                     b = processEvent(lst, data);
                 }
+
                 @Override
                 public boolean isContinued() {
                     return b;
                 }
             });
+
             getDriver().watch(settings);
             settings.releaseConnection();
         } catch (MorphiumDriverException e) {
@@ -2752,11 +2760,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         runningFlag.set(false);
                     }
                 }
+
                 @Override
                 public boolean isContinued() {
                     return runningFlag.get();
                 }
             });
+
             cmd.watch();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);

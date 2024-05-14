@@ -1,21 +1,54 @@
 package de.caluga.morphium.driver.wire;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
-import de.caluga.morphium.driver.*;
-import de.caluga.morphium.driver.bulk.*;
-import de.caluga.morphium.driver.commands.*;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.MorphiumCursor;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumTransactionContext;
+import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.ReadPreferenceType;
+import de.caluga.morphium.driver.WriteConcern;
+import de.caluga.morphium.driver.bulk.BulkRequest;
+import de.caluga.morphium.driver.bulk.BulkRequestContext;
+import de.caluga.morphium.driver.bulk.DeleteBulkRequest;
+import de.caluga.morphium.driver.bulk.InsertBulkRequest;
+import de.caluga.morphium.driver.bulk.UpdateBulkRequest;
+import de.caluga.morphium.driver.commands.AbortTransactionCommand;
+import de.caluga.morphium.driver.commands.CollStatsCommand;
+import de.caluga.morphium.driver.commands.CommitTransactionCommand;
+import de.caluga.morphium.driver.commands.CurrentOpCommand;
+import de.caluga.morphium.driver.commands.DbStatsCommand;
+import de.caluga.morphium.driver.commands.DeleteMongoCommand;
+import de.caluga.morphium.driver.commands.HelloCommand;
+import de.caluga.morphium.driver.commands.InsertMongoCommand;
+import de.caluga.morphium.driver.commands.KillCursorsCommand;
+import de.caluga.morphium.driver.commands.ListCollectionsCommand;
+import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.cglib.core.Block;
-
-
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class PooledDriver extends DriverBase {
     public final static String driverName = "PooledDriver";
@@ -259,6 +292,11 @@ public class PooledDriver extends DriverBase {
                                 // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
                                 log.debug("Creating connection to {}", hst);
                                 var con = new SingleMongoConnection();
+
+                                if (getAuthDb() != null) {
+                                    con.setCredentials(getAuthDb(), getUser(), getPassword());
+                                }
+
                                 con.connect(this, getHost(hst), getPortFromHost(hst));
                                 HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
                                 long start = System.currentTimeMillis();
@@ -289,6 +327,13 @@ public class PooledDriver extends DriverBase {
 
                                 if (result != null && result.getWritablePrimary()) {
                                     handleHello(result);
+                                }
+
+                                try {
+                                    //throttel a bit, reduce load
+                                    Thread.sleep(getIdleSleepTime());
+                                } catch (Exception e) {
+                                    //swallow
                                 }
                             }
 
@@ -782,17 +827,17 @@ public class PooledDriver extends DriverBase {
 
     @Override
 
-    public synchronized Map<String, Integer> getNumConnectionsByHost() {
+    public Map<String, Integer> getNumConnectionsByHost() {
         Map<String, Integer> ret = new HashMap<>();
 
         synchronized (connectionPool) {
             for (var e : connectionPool.entrySet()) {
                 ret.put(e.getKey(), e.getValue().size());
             }
-        }
 
-        for (var e : borrowedConnections.values()) {
-            ret.put(e.getCon().getConnectedTo(), ret.get(e.getCon().getConnectedTo()).intValue() + 1);
+            for (var e : borrowedConnections.values()) {
+                ret.put(e.getCon().getConnectedTo(), ret.get(e.getCon().getConnectedTo()).intValue() + 1);
+            }
         }
 
         return ret;
