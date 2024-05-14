@@ -363,6 +363,7 @@ public class PooledDriver extends DriverBase {
             if (connectionPool.get(host) == null || connectionPool.get(host).size() == 0) {
                 waitCounter.putIfAbsent(host, new AtomicInteger());
                 waitCounter.get(host).incrementAndGet();
+                connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
             }
         }
 
