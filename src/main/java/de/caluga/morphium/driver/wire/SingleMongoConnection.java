@@ -243,7 +243,7 @@ public class SingleMongoConnection implements MongoConnection {
             return msg;
         } catch (Exception e) {
             close();
-            throw new MorphiumDriverException("error: "+e.getMessage(), e);
+            throw new MorphiumDriverException("error: " + e.getMessage(), e);
         }
     }
 
@@ -324,20 +324,28 @@ public class SingleMongoConnection implements MongoConnection {
         // }
         connected = false;
 
-        try {
-            if (in != null) {
+        if (in != null) {
+            try {
                 in.close();
+            } catch (IOException e) {
+                //swallow
             }
+        }
 
-            if (out != null) {
+        if (out != null) {
+            try {
                 out.close();
+            } catch (IOException e) {
+                //swallow
             }
+        }
 
-            if (s != null) {
+        if (s != null) {
+            try {
                 s.close();
+            } catch (IOException e) {
+                //swallow
             }
-        } catch (IOException e) {
-            //swallow
         }
 
         in = null;
@@ -645,22 +653,26 @@ public class SingleMongoConnection implements MongoConnection {
         if (!msg.hasCursor()) {
             return null;
         }
-        if (!(msg.getFirstDoc().get("cursor") instanceof Map)){
-            log.error("Cursor has wrong type: "+msg.getFirstDoc().get("cursor").toString());
+
+        if (!(msg.getFirstDoc().get("cursor") instanceof Map)) {
+            log.error("Cursor has wrong type: " + msg.getFirstDoc().get("cursor").toString());
             return null;
         }
+
         Map<String, Object> cursor = (Map<String, Object>) msg.getFirstDoc().get("cursor");
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
-            List<Map<String,Object>> lst= (List<Map<String, Object>>) cursor.get("firstBatch");
-            if (lst!=null && !lst.isEmpty()){
-                ret=lst.get(0);
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) cursor.get("firstBatch");
+
+            if (lst != null && !lst.isEmpty()) {
+                ret = lst.get(0);
             }
         } else {
-            List<Map<String,Object>> lst= (List<Map<String, Object>>) cursor.get("nextBatch");
-            if (lst!=null && !lst.isEmpty()){
-                ret=lst.get(0);
+            List<Map<String, Object>> lst = (List<Map<String, Object>>) cursor.get("nextBatch");
+
+            if (lst != null && !lst.isEmpty()) {
+                ret = lst.get(0);
             }
         }
 
