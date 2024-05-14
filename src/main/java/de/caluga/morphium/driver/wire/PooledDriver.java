@@ -209,27 +209,29 @@ public class PooledDriver extends DriverBase {
                 try {
                     // log.debug("heartbeat running");
                     for (var hst : new ArrayList<String>(getHostSeed())) {
-                        ConnectionContainer c = null;
+                        for (int i = 0; i < getMinConnectionsPerHost(); i++) {
+                            ConnectionContainer c = null;
 
-                        synchronized (connectionPool) {
-                            if (connectionPool.get(hst) != null && !connectionPool.get(hst).isEmpty()) {
-                                c = connectionPool.get(hst).remove(0);
+                            synchronized (connectionPool) {
+                                if (connectionPool.get(hst) != null && !connectionPool.get(hst).isEmpty()) {
+                                    c = connectionPool.get(hst).remove(0);
+                                }
                             }
-                        }
 
-                        if (c != null) {
-                            // checking max lifetime
-                            if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
-                                log.debug("Lifetime exceeded...host: " + hst);
-                                c.getCon().close();
-                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
-                                log.debug("Unused connection to " + hst + " closed");
-                                c.getCon().close();
-                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            } else {
-                                synchronized (connectionPool) {
-                                    connectionPool.get(hst).add(0, c);
+                            if (c != null) {
+                                // checking max lifetime
+                                if (System.currentTimeMillis() - c.getCreated() > getMaxConnectionLifetime()) {
+                                    log.debug("Lifetime exceeded...host: " + hst);
+                                    c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                } else if (System.currentTimeMillis() - c.getLastUsed() > getMaxConnectionIdleTime()) {
+                                    log.debug("Unused connection to " + hst + " closed");
+                                    c.getCon().close();
+                                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                                } else {
+                                    synchronized (connectionPool) {
+                                        connectionPool.get(hst).add(c);
+                                    }
                                 }
                             }
                         }
