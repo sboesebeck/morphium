@@ -156,7 +156,7 @@ public class PooledDriver extends DriverBase {
     private void handleHello(HelloResult hello) {
         if (hello.getWritablePrimary() && hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
             if (log.isDebugEnabled()) {
-                log.debug(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
+                log.warn(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
             }
 
             primaryNode = hello.getMe();
@@ -253,11 +253,11 @@ public class PooledDriver extends DriverBase {
 
                         try {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
-                            log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
+                            // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
 
                             while ((connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
-                                log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
-                                log.info("Creating connection to {}", hst);
+                                // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
+                                log.debug("Creating connection to {}", hst);
                                 var con = new SingleMongoConnection();
                                 con.connect(this, getHost(hst), getPortFromHost(hst));
                                 HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
@@ -292,7 +292,7 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
 
-                            log.info("Finished connection creation");
+                            // log.info("Finished connection creation");
                         } catch (Exception e) {
                             log.error("Could not create connection to host " + hst);
                             getHostSeed().remove(hst);
@@ -375,7 +375,7 @@ public class PooledDriver extends DriverBase {
                 if (queue.size() == 0) {
                     waitCounter.putIfAbsent(host, new AtomicInteger());
                     waitCounter.get(host).incrementAndGet();
-                    log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
+                    // log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
                 }
             }
 
