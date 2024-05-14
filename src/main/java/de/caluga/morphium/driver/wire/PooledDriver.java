@@ -250,12 +250,12 @@ public class PooledDriver extends DriverBase {
                     if (hostThreads.containsKey(hst)) continue;
 
                     Thread t = new Thread(()-> {
-                        var con = new SingleMongoConnection();
 
                         try {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
 
                             while ((getTotalConnectionsToHost(hst) < getMinConnectionsPerHost() + waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) <= getMaxConnectionsPerHost())) {
+                                var con = new SingleMongoConnection();
                                 con.connect(this, getHost(hst), getPortFromHost(hst));
                                 HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
                                 long start = System.currentTimeMillis();
