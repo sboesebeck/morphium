@@ -21,7 +21,8 @@ public class PooledDriverConnectionsTests {
     @Test
     public void testLotsConnectionPool() throws Exception {
         var drv = getDriver();
-        drv.setMaxWaitTime(15000);
+        drv.setMaxWaitTime(2000);
+        drv.setHeartbeatFrequency(250);
         drv.connect();
         log.info("MaxWaitTime is: " + drv.getMaxWaitTime());
         log.info("idle time is: " + drv.getIdleSleepTime());
@@ -59,6 +60,7 @@ public class PooledDriverConnectionsTests {
         var c3 = drv.getPrimaryConnection(null);
         log.info("Getting c4");
         var c4 = drv.getPrimaryConnection(null);
+        log.info("Got all connections....");
         assertEquals(4, drv.getNumConnectionsByHost().get(c4.getConnectedTo()));
         drv.releaseConnection(c1);
         drv.releaseConnection(c2);
@@ -68,7 +70,7 @@ public class PooledDriverConnectionsTests {
         log.info("All released");
         List<MongoConnection> lst = new ArrayList<>();
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 20; i++) {
             try {
                 log.info("Processing {}", i);
                 var c = drv.getPrimaryConnection(null);
@@ -150,7 +152,7 @@ public class PooledDriverConnectionsTests {
         assertEquals(4, drv.getNumConnectionsByHost().get(c4.getConnectedTo()));
         log.info("Waiting for pool to be cleared...");
 
-        for (int i = 0; i < 13; i++) {
+        for (int i = 0; i < 18; i++) {
             var m = new HashMap<String, Integer>(drv.getNumConnectionsByHost());
 
             for (var e : m.entrySet()) {

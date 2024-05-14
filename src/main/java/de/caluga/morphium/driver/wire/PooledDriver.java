@@ -253,9 +253,11 @@ public class PooledDriver extends DriverBase {
 
                         try {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
-                            log.info("WaitCounter {} ", waitCounter.get(hst).get());
+                            log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
 
-                            while ((getTotalConnectionsToHost(hst) < getMinConnectionsPerHost() + waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) <= getMaxConnectionsPerHost())) {
+                            while ((connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                                log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
+                                log.info("Creating connection to {}", hst);
                                 var con = new SingleMongoConnection();
                                 con.connect(this, getHost(hst), getPortFromHost(hst));
                                 HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
@@ -289,6 +291,8 @@ public class PooledDriver extends DriverBase {
                                     handleHello(result);
                                 }
                             }
+
+                            log.info("Finished connection creation");
                         } catch (Exception e) {
                             log.error("Could not create connection to host " + hst);
                             getHostSeed().remove(hst);
