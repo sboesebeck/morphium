@@ -35,7 +35,7 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
-@Disabled
+// @Disabled
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
     private int amount = 1000;
@@ -59,7 +59,7 @@ public class PooledDriverTest {
     }
 
     @Test
-    @Disabled
+    // @Disabled
     public void comparePooledDriverMongoDriver() throws Exception {
         testCRUDPooledDriver();
         crudTestMongoDriver();
@@ -141,11 +141,11 @@ public class PooledDriverTest {
         o.credential(MongoCredential.createCredential("test", "admin", "test".toCharArray()));
         o.retryReads(true);
         o.retryWrites(true);
-        o.applyToSocketSettings(socketSettings->{
+        o.applyToSocketSettings(socketSettings-> {
             socketSettings.connectTimeout(1000, TimeUnit.MILLISECONDS);
             socketSettings.readTimeout(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToConnectionPoolSettings(connectionPoolSettings->{
+        o.applyToConnectionPoolSettings(connectionPoolSettings-> {
             connectionPoolSettings.maxConnectionIdleTime(500, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maxConnectionLifeTime(1000, TimeUnit.MILLISECONDS);
             connectionPoolSettings.maintenanceFrequency(2000, TimeUnit.MILLISECONDS);
@@ -153,7 +153,7 @@ public class PooledDriverTest {
             connectionPoolSettings.minSize(2);
             connectionPoolSettings.maxWaitTime(10000, TimeUnit.MILLISECONDS);
         });
-        o.applyToClusterSettings(clusterSettings->{
+        o.applyToClusterSettings(clusterSettings-> {
             clusterSettings.serverSelectionTimeout(1000, TimeUnit.MILLISECONDS);
             clusterSettings.mode(ClusterConnectionMode.MULTIPLE);
             List<ServerAddress> hosts = new ArrayList<>();
@@ -178,7 +178,7 @@ public class PooledDriverTest {
 
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret =
-             col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+                col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
             assertEquals(2, ret.getInsertedIds().size(), "should insert 2 elements");
         }
 
@@ -206,11 +206,13 @@ public class PooledDriverTest {
         String hostSeed = System.getenv("HOST_SEED");
         var drv = new PooledDriver();
         drv.setCredentials("admin", "test", "test");
-        if(hostSeed == null) {
+
+        if (hostSeed == null) {
             drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
         } else {
             drv.setHostSeed(hostSeed.split(","));
         }
+
         drv.setMaxConnectionsPerHost(105);
         drv.setMinConnectionsPerHost(2);
         drv.setConnectionTimeout(5000);
@@ -309,7 +311,7 @@ public class PooledDriverTest {
         }
 
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
-         driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
+            driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
     }
 
@@ -317,7 +319,9 @@ public class PooledDriverTest {
     @Disabled
     public void testPrimaryFailover() throws Exception {
         log.info("Not testing failover!!!!");
+
         if (true)return;
+
         var drv = getDriver();
         drv.setHeartbeatFrequency(500);
         drv.connect();
@@ -403,7 +407,6 @@ public class PooledDriverTest {
             if (cnt == 3) {
                 log.info("got 3 - retrying...");
                 Thread.sleep(5000);
-
                 cnt = 0;
 
                 for (var e : drv.getNumConnectionsByHost().entrySet()) {
@@ -411,7 +414,8 @@ public class PooledDriverTest {
                         cnt++;
                     }
                 }
-                if (cnt==3) break;
+
+                if (cnt == 3) break;
             }
 
             Thread.sleep(1000);
@@ -420,9 +424,8 @@ public class PooledDriverTest {
         }
 
         log.info("Waiting for master...");
-
-
         log.info("Got all connections...");
+
         for (int i = 2000; i < 2100; i++) {
             InsertMongoCommand insert = null;
 
@@ -445,6 +448,7 @@ public class PooledDriverTest {
                 insert.releaseConnection();
             }
         }
+
         assertTrue(errors < 10);
         drv.close();
     }
@@ -582,7 +586,7 @@ public class PooledDriverTest {
     public void dropCmdTest() throws Exception {
         var drv = getDriver();
         drv.connect();
-        new Thread(()->{
+        new Thread(()-> {
             try {
                 synchronized (sync) {
                     sync.wait();
@@ -596,7 +600,7 @@ public class PooledDriverTest {
                 e.printStackTrace();
             }
         }).start();
-        new Thread(()->{
+        new Thread(()-> {
             try {
                 synchronized (sync) {
                     sync.wait();
@@ -621,7 +625,7 @@ public class PooledDriverTest {
                 e.printStackTrace();
             }
         }).start();
-        new Thread(()->{
+        new Thread(()-> {
             try {
                 synchronized (sync) {
                     sync.wait();

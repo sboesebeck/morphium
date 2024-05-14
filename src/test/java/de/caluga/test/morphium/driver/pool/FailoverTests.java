@@ -18,13 +18,14 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 
 
-@Disabled
+// @Disabled
 public class FailoverTests {
-    private Logger log=LoggerFactory.getLogger(FailoverTests.class);
+    private Logger log = LoggerFactory.getLogger(FailoverTests.class);
     @Test
     public void testPrimaryFailover() throws Exception {
-        log.info("Not testing failover!!!!");
-        if (true)return;
+        // log.info("Not testing failover!!!!");
+        //
+        // if (true)return;
         var drv = getDriver();
         drv.setHeartbeatFrequency(500);
         drv.connect();
@@ -110,7 +111,6 @@ public class FailoverTests {
             if (cnt == 3) {
                 log.info("got 3 - retrying...");
                 Thread.sleep(5000);
-
                 cnt = 0;
 
                 for (var e : drv.getNumConnectionsByHost().entrySet()) {
@@ -118,7 +118,8 @@ public class FailoverTests {
                         cnt++;
                     }
                 }
-                if (cnt==3) break;
+
+                if (cnt == 3) break;
             }
 
             Thread.sleep(1000);
@@ -127,9 +128,8 @@ public class FailoverTests {
         }
 
         log.info("Waiting for master...");
-
-
         log.info("Got all connections...");
+
         for (int i = 2000; i < 2100; i++) {
             InsertMongoCommand insert = null;
 
@@ -152,6 +152,7 @@ public class FailoverTests {
                 insert.releaseConnection();
             }
         }
+
         assertTrue(errors < 10);
         drv.close();
     }
@@ -245,7 +246,7 @@ public class FailoverTests {
     //
     //
     //     drv.close();
-   // }
+    // }
 
 
 
