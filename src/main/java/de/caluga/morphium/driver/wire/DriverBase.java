@@ -185,7 +185,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public int getMinConnections() {
-        return 1;
+        return getMinConnectionsPerHost();
     }
 
     @Override
