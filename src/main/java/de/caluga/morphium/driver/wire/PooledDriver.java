@@ -252,7 +252,9 @@ public class PooledDriver extends DriverBase {
                 public void run() {
                     while (heartbeat != null) {
                         try {
-                            waitCounter.wait();
+                            synchronized (waitCounter) {
+                                waitCounter.wait();
+                            }
 
                             for (String hst : getHostSeed()) {
                                 try {
@@ -483,10 +485,13 @@ public class PooledDriver extends DriverBase {
                 queue = connectionPool.get(host);
 
                 if (queue.size() == 0) {
-                    waitCounter.putIfAbsent(host, new AtomicInteger());
-                    waitCounter.get(host).incrementAndGet();
-                    needToDecrement = true;
-                    waitCounter.notifyAll();
+                    synchronized (waitCounter) {
+                        waitCounter.putIfAbsent(host, new AtomicInteger());
+                        waitCounter.get(host).incrementAndGet();
+                        needToDecrement = true;
+                        waitCounter.notifyAll();
+                    }
+
                     // log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
                 }
             }
