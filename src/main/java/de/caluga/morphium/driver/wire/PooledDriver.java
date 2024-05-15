@@ -199,7 +199,7 @@ public class PooledDriver extends DriverBase {
             for (String hst : hello.getHosts()) {
                 synchronized (connectionPool) {
                     if (!connectionPool.containsKey(hst)) {
-                        log.debug("new host needs to be added: " + hst);
+                        // log.debug("new host needs to be added: " + hst);
                         connectionPool.put(hst, new LinkedBlockingQueue<>());
                     }
                 }
@@ -294,7 +294,7 @@ public class PooledDriver extends DriverBase {
 
                             do {
                                 // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
-                                log.debug("Creating connection to {}", hst);
+                                // log.debug("Creating connection to {}", hst);
                                 var con = new SingleMongoConnection();
 
                                 if (getAuthDb() != null) {
@@ -366,7 +366,7 @@ public class PooledDriver extends DriverBase {
                 }
             }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
-            log.debug("Heartbeat already scheduled...");
+            // log.debug("Heartbeat already scheduled...");
         }
     }
 
@@ -680,7 +680,7 @@ public class PooledDriver extends DriverBase {
 
         KillCursorsCommand k = new KillCursorsCommand(null).setCursors(cursorIds).setDb(db).setColl(coll);
         var ret = k.execute();
-        log.debug("killed cursor");
+        // log.debug("killed cursor");
     }
 
     @Override
