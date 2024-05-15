@@ -248,6 +248,35 @@ public class PooledDriver extends DriverBase {
 
     protected synchronized void startHeartbeat() {
         if (heartbeat == null) {
+            new Thread() {
+                public void run() {
+                    while (heartbeat != null) {
+                        try {
+                            waitCounter.wait();
+
+                            for (String hst : getHostSeed()) {
+                                try {
+                                    BlockingQueue<ConnectionContainer> queue = null;
+
+                                    synchronized (connectionPool) {
+                                        connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
+                                        queue = connectionPool.get(hst);
+                                    }
+
+                                    while ((queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                        createNewConnection(hst);
+                                    }
+                                } catch (Exception e) {
+                                    log.error("Could not create connection to {}", hst, e);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.error("error", e);
+                        }
+                    }
+                }
+            } .start();
+
             heartbeat = executor.scheduleWithFixedDelay(()-> {
                 Map<String, Thread> hostThreads = new HashMap<>();
                 //check every host in hostSeeed if available
@@ -328,44 +357,7 @@ public class PooledDriver extends DriverBase {
                             }
 
                             while ((queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
-                                // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
-                                // log.debug("Creating connection to {}", hst);
-                                var con = new SingleMongoConnection();
-
-                                if (getAuthDb() != null) {
-                                    con.setCredentials(getAuthDb(), getUser(), getPassword());
-                                }
-
-                                long start = System.currentTimeMillis();
-                                HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
-                                stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
-
-                                synchronized (connectionPool) {
-                                    connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
-                                    waitCounter.putIfAbsent(hst, new AtomicInteger());
-
-                                    if (connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
-                                        var cont = new ConnectionContainer(con);
-                                        connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
-                                        connectionPool.get(hst).add(cont);
-                                        // waitCounter.putIfAbsent(hst, new AtomicInteger());
-                                        // if (waitCounter.get(hst).get() > 0)
-                                        //     waitCounter.get(hst).decrementAndGet();
-                                    } else {
-                                        con.close();
-                                    }
-                                }
-
-                                long dur = System.currentTimeMillis() - start;
-
-                                if (dur < fastestTime) {
-                                    fastestTime = dur;
-                                    fastestHost = hst;
-                                }
-
-                                if (result != null && result.getWritablePrimary()) {
-                                    handleHello(result);
-                                }
+                                createNewConnection(hst);
                             }
 
                             // log.info("Finished connection creation");
@@ -398,6 +390,47 @@ public class PooledDriver extends DriverBase {
             }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
             // log.debug("Heartbeat already scheduled...");
+        }
+    }
+
+    private void createNewConnection(String hst) throws Exception {
+        // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
+        // log.debug("Creating connection to {}", hst);
+        var con = new SingleMongoConnection();
+
+        if (getAuthDb() != null) {
+            con.setCredentials(getAuthDb(), getUser(), getPassword());
+        }
+
+        long start = System.currentTimeMillis();
+        HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
+        stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
+
+        synchronized (connectionPool) {
+            connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
+            waitCounter.putIfAbsent(hst, new AtomicInteger());
+
+            if (connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                var cont = new ConnectionContainer(con);
+                connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
+                connectionPool.get(hst).add(cont);
+                // waitCounter.putIfAbsent(hst, new AtomicInteger());
+                // if (waitCounter.get(hst).get() > 0)
+                //     waitCounter.get(hst).decrementAndGet();
+            } else {
+                con.close();
+            }
+        }
+
+        long dur = System.currentTimeMillis() - start;
+
+        if (dur < fastestTime) {
+            fastestTime = dur;
+            fastestHost = hst;
+        }
+
+        if (result != null && result.getWritablePrimary()) {
+            handleHello(result);
         }
     }
 
@@ -453,6 +486,7 @@ public class PooledDriver extends DriverBase {
                     waitCounter.putIfAbsent(host, new AtomicInteger());
                     waitCounter.get(host).incrementAndGet();
                     needToDecrement = true;
+                    waitCounter.notifyAll();
                     // log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
                 }
             }
