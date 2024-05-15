@@ -216,6 +216,8 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
+            List<ConnectionContainer> toClose = new ArrayList<>();
+
             synchronized (connectionPool) {
                 for (String k : new ArrayList<>(connectionPool.keySet())) {
                     if (!hello.getHosts().contains(k)) {
@@ -229,14 +231,16 @@ public class PooledDriver extends DriverBase {
                             fastestTime = 10000;
                         }
 
-                        for (ConnectionContainer con : lst) {
-                            try {
-                                con.getCon().close();
-                                stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
-                            } catch (Exception ex) {
-                            }
-                        }
+                        toClose.addAll(lst);
                     }
+                }
+            }
+
+            for (ConnectionContainer con : toClose) {
+                try {
+                    con.getCon().close();
+                    stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
+                } catch (Exception ex) {
                 }
             }
         }
