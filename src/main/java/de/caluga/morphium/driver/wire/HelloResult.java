@@ -3,7 +3,6 @@ package de.caluga.morphium.driver.wire;
 import de.caluga.morphium.AnnotationAndReflectionHelper;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -48,9 +47,11 @@ public class HelloResult {
     private Long operationTime;
 
     public static HelloResult fromMsg(Map<String, Object> msg) {
-        if (msg==null) return null;
+        if (msg == null) return null;
+
         var fields = an.getAllFields(HelloResult.class);
         var ret = new HelloResult();
+
         for (Field f : fields) {
             try {
                 if (msg.containsKey(f.getName())) {
@@ -60,28 +61,32 @@ public class HelloResult {
             } catch (Exception e) {
                 //something went wrong...
                 //e.printStackTrace();
-                LoggerFactory.getLogger(HelloResult.class).error("Exception parsing answer",e);
+                LoggerFactory.getLogger(HelloResult.class).error("Exception parsing answer", e);
             }
         }
+
         return ret;
     }
 
     public Map<String, Object> toMsg() {
-
         var fields = an.getAllFields(HelloResult.class);
         var ret = Doc.of();
+
         for (Field f : fields) {
             if (Modifier.isStatic(f.getModifiers())) continue;
+
             try {
                 f.setAccessible(true);
+
                 if (f.get(this) != null) {
                     ret.add(f.getName(), f.get(this));
                 }
             } catch (Exception e) {
                 //e.printStackTrace();
-                LoggerFactory.getLogger(this.getClass()).error("Exception parsing answer",e);
+                LoggerFactory.getLogger(this.getClass()).error("Exception parsing answer", e);
             }
         }
+
         return ret;
     }
 
@@ -354,33 +359,33 @@ public class HelloResult {
     @Override
     public String toString() {
         return "HelloResult{" +
-                "helloOk=" + helloOk +
-                ", isWritablePrimary=" + isWritablePrimary +
-                ", maxBsonObjectSize=" + maxBsonObjectSize +
-                ", maxMessageSizeBytes=" + maxMessageSizeBytes +
-                ", maxWriteBatchSize=" + maxWriteBatchSize +
-                ", localTime=" + localTime +
-                ", logicalSessionTimeoutMinutes=" + logicalSessionTimeoutMinutes +
-                ", connectionId=" + connectionId +
-                ", minWireVersion=" + minWireVersion +
-                ", maxWireVersion=" + maxWireVersion +
-                ", readOnly=" + readOnly +
-                ", compression='" + compression + '\'' +
-                ", saslSupportedMechs=" + saslSupportedMechs +
-                ", msg='" + msg + '\'' +
-                ", hosts=" + hosts +
-                ", me='" + me + '\'' +
-                ", primary='" + primary + '\'' +
-                ", setName='" + setName + '\'' +
-                ", setVersion=" + setVersion +
-                ", arbiterOnly=" + arbiterOnly +
-                ", secondary=" + secondary +
-                ", passive=" + passive +
-                ", hidden=" + hidden +
-                ", tags=" + tags +
-                ", electionId=" + electionId +
-                ", lastWrite=" + lastWrite +
-                ", ok=" + ok +
-                '}';
+            "helloOk=" + helloOk +
+            ", isWritablePrimary=" + isWritablePrimary +
+            ", maxBsonObjectSize=" + maxBsonObjectSize +
+            ", maxMessageSizeBytes=" + maxMessageSizeBytes +
+            ", maxWriteBatchSize=" + maxWriteBatchSize +
+            ", localTime=" + localTime +
+            ", logicalSessionTimeoutMinutes=" + logicalSessionTimeoutMinutes +
+            ", connectionId=" + connectionId +
+            ", minWireVersion=" + minWireVersion +
+            ", maxWireVersion=" + maxWireVersion +
+            ", readOnly=" + readOnly +
+            ", compression='" + compression + '\'' +
+            ", saslSupportedMechs=" + saslSupportedMechs +
+            ", msg='" + msg + '\'' +
+            ", hosts=" + hosts +
+            ", me='" + me + '\'' +
+            ", primary='" + primary + '\'' +
+            ", setName='" + setName + '\'' +
+            ", setVersion=" + setVersion +
+            ", arbiterOnly=" + arbiterOnly +
+            ", secondary=" + secondary +
+            ", passive=" + passive +
+            ", hidden=" + hidden +
+            ", tags=" + tags +
+            ", electionId=" + electionId +
+            ", lastWrite=" + lastWrite +
+            ", ok=" + ok +
+            '}';
     }
 }
