@@ -312,10 +312,9 @@ public class PooledDriver extends DriverBase {
                                         var cont = new ConnectionContainer(con);
                                         connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
                                         connectionPool.get(hst).add(cont);
-                                        waitCounter.putIfAbsent(hst, new AtomicInteger());
-
-                                        if (waitCounter.get(hst).get() > 0)
-                                            waitCounter.get(hst).decrementAndGet();
+                                        // waitCounter.putIfAbsent(hst, new AtomicInteger());
+                                        // if (waitCounter.get(hst).get() > 0)
+                                        //     waitCounter.get(hst).decrementAndGet();
                                     } else {
                                         con.close();
                                     }
@@ -408,10 +407,11 @@ public class PooledDriver extends DriverBase {
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
         ConnectionContainer c = null;
-
         // if pool is empty  -> wait increaseWaitCounter
         //
         // if connection available in pool -> put in borrowedConnections -> return That
+        boolean needToDecrement = false;
+
         try {
             ConnectionContainer bc = null;
             BlockingQueue<ConnectionContainer> queue = null;
@@ -423,6 +423,7 @@ public class PooledDriver extends DriverBase {
                 if (queue.size() == 0) {
                     waitCounter.putIfAbsent(host, new AtomicInteger());
                     waitCounter.get(host).incrementAndGet();
+                    needToDecrement = true;
                     // log.info("Waitcounter for {} is {}", host, waitCounter.get(host).get());
                 }
             }
@@ -430,10 +431,7 @@ public class PooledDriver extends DriverBase {
             bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
 
             if (bc == null) {
-                if (waitCounter.get(host).get() > 0) {
-                    waitCounter.get(host).decrementAndGet();
-                    throw new MorphiumDriverException("Could not get connection in time");
-                }
+                throw new MorphiumDriverException("Could not get connection in time");
             }
 
             bc.touch();
@@ -441,8 +439,11 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
-            waitCounter.get(host).decrementAndGet();
             throw new MorphiumDriverException("Could not get connection in time");
+        } finally {
+            if (needToDecrement && waitCounter.get(host).get() > 0) {
+                waitCounter.get(host).decrementAndGet();
+            }
         }
     }
 
@@ -833,7 +834,6 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-
     public Map<String, Integer> getNumConnectionsByHost() {
         Map<String, Integer> ret = new HashMap<>();
 
