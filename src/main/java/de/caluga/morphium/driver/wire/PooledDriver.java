@@ -106,7 +106,7 @@ public class PooledDriver extends DriverBase {
                             } catch (InterruptedException e1) {
                             }
                         } else {
-                            log.error("Could not connect to " + host);
+                            log.error("Could not connect to " + host, e);
                             getHostSeed().remove(host);
                             //throw(e);
                             break;

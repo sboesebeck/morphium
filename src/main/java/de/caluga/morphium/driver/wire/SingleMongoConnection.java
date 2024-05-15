@@ -81,6 +81,7 @@ public class SingleMongoConnection implements MongoConnection {
 
         if (authDb != null) {
             cmd.setUser(user);
+            cmd.setSaslSupportedMechs(authDb + "." + user);
         }
 
         cmd.setLoadBalanced(true);
