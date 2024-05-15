@@ -430,7 +430,10 @@ public class PooledDriver extends DriverBase {
             bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
 
             if (bc == null) {
-                throw new MorphiumDriverException("Could not get connection in time");
+                if (waitCounter.get(host).get() > 0) {
+                    waitCounter.get(host).decrementAndGet();
+                    throw new MorphiumDriverException("Could not get connection in time");
+                }
             }
 
             bc.touch();
@@ -438,6 +441,7 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
+            waitCounter.get(host).decrementAndGet();
             throw new MorphiumDriverException("Could not get connection in time");
         }
     }
