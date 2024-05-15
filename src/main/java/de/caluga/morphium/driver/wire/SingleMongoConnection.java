@@ -302,25 +302,6 @@ public class SingleMongoConnection implements MongoConnection {
     @Override
     public void close() {
         running = false;
-        // try {
-        //     readerThread.join(getDriver().getMaxWaitTime());
-        // } catch (InterruptedException e) {
-        // }
-        // synchronized (incoming) {
-        //     incoming.notifyAll();
-        // }
-        // while (readerThread.isAlive()) {
-        //     try {
-        //         Thread.sleep(20);
-        //     } catch (InterruptedException e) {
-        //     }
-        //
-        //     try {
-        //         in.close();
-        //         readerThread.interrupt();
-        //     } catch (IOException e) {
-        //     }
-        // }
         connected = false;
 
         if (in != null) {
