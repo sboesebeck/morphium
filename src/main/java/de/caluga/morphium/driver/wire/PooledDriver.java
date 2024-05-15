@@ -288,7 +288,7 @@ public class PooledDriver extends DriverBase {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
                             // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
 
-                            while ((connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                            do {
                                 // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
                                 log.debug("Creating connection to {}", hst);
                                 var con = new SingleMongoConnection();
@@ -297,10 +297,8 @@ public class PooledDriver extends DriverBase {
                                     con.setCredentials(getAuthDb(), getUser(), getPassword());
                                 }
 
-                                con.connect(this, getHost(hst), getPortFromHost(hst));
-                                HelloCommand h = new HelloCommand(con).setHelloOk(true).setIncludeClient(false);
                                 long start = System.currentTimeMillis();
-                                HelloResult result = h.execute();
+                                HelloResult result = con.connect(this, getHost(hst), getPortFromHost(hst));
 
                                 synchronized (connectionPool) {
                                     if (getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
@@ -311,8 +309,6 @@ public class PooledDriver extends DriverBase {
 
                                         if (waitCounter.get(hst).get() > 0)
                                             waitCounter.get(hst).decrementAndGet();
-
-                                        h = null;
                                     } else {
                                         con.close();
                                     }
@@ -335,7 +331,7 @@ public class PooledDriver extends DriverBase {
                                 } catch (Exception e) {
                                     //swallow
                                 }
-                            }
+                            } while ((connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost());
 
                             // log.info("Finished connection creation");
                         } catch (Exception e) {
