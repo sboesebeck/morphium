@@ -76,7 +76,7 @@ public class PooledDriverConnectionsTests {
                 var c = drv.getPrimaryConnection(null);
                 lst.add(c);
             } catch (Exception e) {
-                log.info("could not get connection: {}", lst.size());
+                log.info("could not get connection #{} - got {}", i, lst.size());
             }
         }
 
@@ -102,6 +102,12 @@ public class PooledDriverConnectionsTests {
 
         for (var e : m.entrySet()) {
             assertEquals(2, e.getValue(), "num connections to " + e.getKey() + " wrong!");
+        }
+
+        log.info("Statistics: ");
+
+        for (var k : drv.getDriverStats().keySet()) {
+            log.info("{} -> {}", k, drv.getDriverStats().get(k));
         }
 
         drv.close();
