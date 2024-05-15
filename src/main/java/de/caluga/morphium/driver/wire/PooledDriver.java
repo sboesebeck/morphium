@@ -366,13 +366,6 @@ public class PooledDriver extends DriverBase {
                                 if (result != null && result.getWritablePrimary()) {
                                     handleHello(result);
                                 }
-
-                                try {
-                                    //throttel a bit, reduce load
-                                    Thread.sleep(getIdleSleepTime());
-                                } catch (Exception e) {
-                                    //swallow
-                                }
                             }
 
                             // log.info("Finished connection creation");
