@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Properties;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
@@ -31,7 +32,6 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         cfg.setMongoAuthDb(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoAuthDb().getBytes(StandardCharsets.UTF_8))));
         cfg.setMongoPassword(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoPassword().getBytes(StandardCharsets.UTF_8))));
         cfg.setMongoLogin(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getMongoLogin().getBytes(StandardCharsets.UTF_8))));
-
         var m = new Morphium(cfg);
         assertNotNull(m);
         m.close();
@@ -41,33 +41,32 @@ public class MorphiumConfigTest extends MorphiumTestBase {
     public void testToString() throws Exception {
         String cfg = morphium.getConfig().toString();
         log.info("Config: " + cfg);
-
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
-        assert (c.getHostSeed().size() >= 1);
+        assert(c.getHostSeed().size() >= 1);
     }
 
     @Test
     public void testDefaultProps() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
         Properties p = cfg.asProperties();
+
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
         }
-        p.store(System.out, "testproperties");
 
+        p.store(System.out, "testproperties");
         String cfgStr = cfg.toString();
         log.info("Got: " + cfgStr);
-
     }
 
     @Test
     public void partialJsonTest() throws Exception {
         String json = "{ \"hosts\":\"localhost:27018, localhost:27099\", \"database\" : \"testdb\", \"safe_mode\" : true , \"global_fsync\" : false , \"globalJ\" : false , \"write_timeout\" : 9990 }";
         MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
-        assert (cfg.getDatabase().equals("testdb"));
-        assert (cfg.getHostSeed().size() == 2);
-        assert (cfg.getHostSeed().get(0).endsWith(":27018"));
-        assert (cfg.getHostSeed().get(1).endsWith(":27099"));
+        assert(cfg.getDatabase().equals("testdb"));
+        assert(cfg.getHostSeed().size() == 2);
+        assert(cfg.getHostSeed().get(0).endsWith(":27018"));
+        assert(cfg.getHostSeed().get(1).endsWith(":27099"));
     }
 
 
@@ -76,9 +75,9 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         Properties p = new Properties();
         p.setProperty("morphium.indexCheck", "WARN_ON_STARTUP");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
-        assert (cfg.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP));
-        assert (cfg.isAutoValuesEnabled());
-        assert (cfg.getHostSeed().size() == 0);
+        assert(cfg.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP));
+        assert(cfg.isAutoValuesEnabled());
+        assert(cfg.getHostSeed().size() == 0);
     }
 
     @Test
@@ -86,14 +85,11 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.addHostToSeed("localhost:9999");
         cfg.addHostToSeed("localhost", 1000);
-        assert (cfg.getHostSeed().size() == 2);
-
+        assert(cfg.getHostSeed().size() == 2);
         cfg.setHostSeed("localhost:9999,localhost:2222,localhost:2344");
-        assert (cfg.getHostSeed().size() == 3);
-
+        assert(cfg.getHostSeed().size() == 3);
         cfg.setHostSeed("localhost,localhost,localhost,localhost", "1, 2,   3,4");
-        assert (cfg.getHostSeed().size() == 4);
-
+        assert(cfg.getHostSeed().size() == 4);
     }
 
 
@@ -104,23 +100,27 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         p.put("socketTimeout", "1000");
         p.put("database", "thingy");
         p.put("hosts", "localhost:27017");
-
+        p.put("maxConnections", "120");
+        p.put("minConnections", "11");
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert (cfg.getHostSeed().size() == 1);
-        assert (cfg.getDatabase().equals("thingy"));
+        assertEquals(1, cfg.getHostSeed().size());
+        assertEquals("thingy", cfg.getDatabase());
+        assertEquals(11, cfg.getMinConnections());
+        assertEquals(120, cfg.getMaxConnections());
     }
 
     @Test
     public void testToProperties() throws Exception {
         Properties p = morphium.getConfig().asProperties();
+
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
         }
-        p.store(System.out, "testproperties");
 
+        p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
-        assert (cfg.getHostSeed().size() != 0);
+        assert(cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assert(cfg.getHostSeed().size() != 0);
     }
 
     @Test
@@ -129,13 +129,13 @@ public class MorphiumConfigTest extends MorphiumTestBase {
 
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
-            assert (k.toString().startsWith("prefix."));
+            assert(k.toString().startsWith("prefix."));
         }
-        p.store(System.out, "testproperties");
 
+        p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
-        assert (cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
-        assert (cfg.getHostSeed().size() != 0);
+        assert(cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assert(cfg.getHostSeed().size() != 0);
     }
 
     @Test
@@ -147,9 +147,9 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         p.put("prefix.database", "thingy");
         p.put("prefix.retryReads", "true");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
-        assert (cfg.getHostSeed().size() == 1);
-        assert (cfg.getDatabase().equals("thingy"));
-        assert (cfg.isRetryReads());
+        assert(cfg.getHostSeed().size() == 1);
+        assert(cfg.getDatabase().equals("thingy"));
+        assert(cfg.isRetryReads());
     }
 
 
