@@ -107,6 +107,7 @@ public class PooledDriver extends DriverBase {
                             }
                         } else {
                             log.error("Could not connect to " + host, e);
+                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             getHostSeed().remove(host);
                             //throw(e);
                             break;
@@ -270,10 +271,12 @@ public class PooledDriver extends DriverBase {
                                     }
                                 } catch (Exception e) {
                                     log.error("Could not create connection to {}", hst, e);
+                                    stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                                 }
                             }
                         } catch (Exception e) {
                             log.error("error", e);
+                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                         }
                     }
                 }
@@ -544,6 +547,7 @@ public class PooledDriver extends DriverBase {
                         try {
                             return borrowConnection(fastestHost);
                         } catch (MorphiumDriverException e) {
+                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             log.warn("Could not get connection to fastest host, trying primary", e);
                         }
                     }
@@ -554,6 +558,7 @@ public class PooledDriver extends DriverBase {
                             try {
                                 return borrowConnection(primaryNode);
                             } catch (MorphiumDriverException e) {
+                                stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                                 log.warn("Could not get connection to " + primaryNode + " trying secondary");
                             }
                         }
@@ -586,6 +591,7 @@ public class PooledDriver extends DriverBase {
                         } catch (MorphiumDriverException e) {
                             if (retry > getRetriesOnNetworkError()) {
                                 log.error("Could not get Connection - abort");
+                                stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                                 throw(e);
                             }
 
@@ -605,6 +611,7 @@ public class PooledDriver extends DriverBase {
                     throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
             }
         } catch (MorphiumDriverException e) {
+            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
             throw new RuntimeException(e);
         }
     }
@@ -930,6 +937,7 @@ public class PooledDriver extends DriverBase {
             }
         } catch (Exception e) {
             log.error("Error", e);
+            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
         }
 
         return false;
@@ -1008,6 +1016,7 @@ public class PooledDriver extends DriverBase {
                     }
                 } catch (MorphiumDriverException e) {
                     log.error("Got exception: ", e);
+                    stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                 }
 
                 return new Doc();
