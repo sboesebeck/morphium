@@ -221,14 +221,25 @@ public class PooledDriver extends DriverBase {
             List<ConnectionContainer> toClose = new ArrayList<>();
 
             synchronized (connectionPool) {
-                for (String k : new ArrayList<>(connectionPool.keySet())) {
-                    if (!hello.getHosts().contains(k)) {
-                        log.warn("Host " + k + " is not part of the replicaset anymore!");
-                        getHostSeed().remove(k);
-                        waitCounter.remove(k);
-                        BlockingQueue<ConnectionContainer> lst = connectionPool.remove(k);
+                for (String host : new ArrayList<>(connectionPool.keySet())) {
+                    if (!hello.getHosts().contains(host)) {
+                        log.warn("Host " + host + " is not part of the replicaset anymore!");
+                        getHostSeed().remove(host);
+                        waitCounter.remove(host);
+                        BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
+                        ArrayList<Integer> toDelete = new ArrayList<>();
 
-                        if (fastestHost.equals(k)) {
+                        for (var e : borrowedConnections.entrySet()) {
+                            if (e.getValue().getCon().getConnectedToHost().equals(host)) {
+                                toDelete.add(e.getKey());
+                            }
+                        }
+
+                        for (Integer i : toDelete) {
+                            borrowedConnections.remove(i);
+                        }
+
+                        if (fastestHost.equals(host)) {
                             fastestHost = null;
                             fastestTime = 10000;
                         }
