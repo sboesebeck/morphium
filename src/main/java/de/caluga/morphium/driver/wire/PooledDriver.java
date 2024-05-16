@@ -510,11 +510,18 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
-            bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+            do {
+                bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
 
-            if (bc == null) {
-                throw new MorphiumDriverException("Could not get connection in time");
-            }
+                if (bc == null) {
+                    throw new MorphiumDriverException("Could not get connection in time");
+                }
+
+                if (bc.getCon().getSourcePort() == 0) {
+                    //broken
+                    stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                }
+            } while (bc.getCon().getSourcePort() == 0);
 
             bc.touch();
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
@@ -695,6 +702,18 @@ public class PooledDriver extends DriverBase {
                 }
             }
         } else {
+            List<Integer> sourcePortsToDelete = new ArrayList<>();
+
+            for (int port : borrowedConnections.keySet()) {
+                if (borrowedConnections.get(port).getCon().getSourcePort() == 0) {
+                    sourcePortsToDelete.add(port);
+                }
+            }
+
+            for (int port : sourcePortsToDelete) {
+                borrowedConnections.remove(port);
+            }
+
             stats.get(DriverStatsKey.CONNECTIONS_CLOSED).incrementAndGet();
         }
     }
