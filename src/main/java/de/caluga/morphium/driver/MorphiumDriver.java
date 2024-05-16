@@ -89,11 +89,11 @@ public interface MorphiumDriver extends Closeable {
     void setReplicaSetName(String replicaSetName);
 
     @SuppressWarnings("unused")
-//    Map<String, String[]> getCredentials();
+    //    Map<String, String[]> getCredentials();
 
-//    void setCredentials(Map<String, String[]> credentials);
+    //    void setCredentials(Map<String, String[]> credentials);
 
-//    void setCredentialsFor(String db, String user, String password);
+    //    void setCredentialsFor(String db, String user, String password);
 
     int getRetriesOnNetworkError();
 
@@ -167,11 +167,11 @@ public interface MorphiumDriver extends Closeable {
     //|  |\  \----.|  `--'  | |  |\   |    |  `----.|  `--'  | |  |  |  | |  |  |  |  /  _____  \  |  |\   | |  '--'  |
     //| _| `._____| \______/  |__| \__|     \______| \______/  |__|  |__| |__|  |__| /__/     \__\ |__| \__| |_______/
 
-//    SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException;
-//
-//    CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException;
-//
-//    ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException;
+    //    SingleElementResult runCommandSingleResult(SingleResultCommand cmd) throws MorphiumDriverException;
+    //
+    //    CursorResult runCommand(MultiResultCommand cmd) throws MorphiumDriverException;
+    //
+    //    ListResult runCommandList(MultiResultCommand cmd) throws MorphiumDriverException;
 
     //Map<String, Object> runCommand(String db, Map<String, Object> cmd) throws MorphiumDriverException;
 
@@ -264,5 +264,6 @@ public interface MorphiumDriver extends Closeable {
         ERRORS, FAILOVERS,
         MSG_SENT, REPLY_PROCESSED, REPLY_IN_MEM, REPLY_RECEIVED,
         THREADS_CREATED, CONNECTIONS_IN_USE,
+        THREADS_WAITING_FOR_CONNECTION,
     }
 }

@@ -1064,6 +1064,13 @@ public class PooledDriver extends DriverBase {
         }
 
         m.put(DriverStatsKey.CONNECTIONS_IN_USE, Double.valueOf(borrowedConnections.size()));
+        int waiting = 0;
+
+        for (String hst : waitCounter.keySet()) {
+            waiting += waitCounter.get(hst).get();
+        }
+
+        m.put(DriverStatsKey.THREADS_WAITING_FOR_CONNECTION, Double.valueOf(waiting));
         return m;
     }
 }
