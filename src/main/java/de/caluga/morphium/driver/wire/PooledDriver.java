@@ -507,6 +507,7 @@ public class PooledDriver extends DriverBase {
 
             bc.touch();
             borrowedConnections.put(bc.getCon().getSourcePort(), bc);
+            stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
