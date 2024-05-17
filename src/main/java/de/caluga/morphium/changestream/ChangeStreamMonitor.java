@@ -193,7 +193,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
-                        if (!ChangeStreamMonitor.this.running) {
+                        if (!running) {
                             return;
                         }
 
