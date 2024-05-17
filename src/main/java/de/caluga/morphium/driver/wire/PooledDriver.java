@@ -203,6 +203,12 @@ public class PooledDriver extends DriverBase {
     }
 
     private void handleHello(HelloResult hello) {
+        if (hello == null) return;
+
+        if (!hello.getWritablePrimary()) {
+            return;
+        }
+
         if (hello.getWritablePrimary() && hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
             if (log.isDebugEnabled()) {
                 log.warn(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
@@ -234,35 +240,33 @@ public class PooledDriver extends DriverBase {
             }
 
             //only closing connections when info comes from primary
-            if (hello.getWritablePrimary()) {
-                List<ConnectionContainer> toClose = new ArrayList<>();
+            List<ConnectionContainer> toClose = new ArrayList<>();
 
-                synchronized (connectionPool) {
-                    for (String host : new ArrayList<>(connectionPool.keySet())) {
-                        if (!hello.getHosts().contains(host)) {
-                            log.warn("Host " + host + " is not part of the replicaset anymore!");
-                            removeFromHostSeed(host);
-                            waitCounter.remove(host);
-                            BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
-                            ArrayList<Integer> toDelete = new ArrayList<>();
+            synchronized (connectionPool) {
+                for (String host : new ArrayList<>(connectionPool.keySet())) {
+                    if (!hello.getHosts().contains(host)) {
+                        log.warn("Host " + host + " is not part of the replicaset anymore!");
+                        removeFromHostSeed(host);
+                        waitCounter.remove(host);
+                        BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
+                        ArrayList<Integer> toDelete = new ArrayList<>();
 
-                            for (var e : borrowedConnections.entrySet()) {
-                                if (e.getValue().getCon().getConnectedToHost().equals(host)) {
-                                    toDelete.add(e.getKey());
-                                }
+                        for (var e : borrowedConnections.entrySet()) {
+                            if (e.getValue().getCon().getConnectedToHost().equals(host)) {
+                                toDelete.add(e.getKey());
                             }
-
-                            for (Integer i : toDelete) {
-                                borrowedConnections.remove(i);
-                            }
-
-                            if (fastestHost.equals(host)) {
-                                fastestHost = null;
-                                fastestTime = 10000;
-                            }
-
-                            toClose.addAll(lst);
                         }
+
+                        for (Integer i : toDelete) {
+                            borrowedConnections.remove(i);
+                        }
+
+                        if (fastestHost.equals(host)) {
+                            fastestHost = null;
+                            fastestTime = 10000;
+                        }
+
+                        toClose.addAll(lst);
                     }
                 }
 
@@ -373,9 +377,7 @@ public class PooledDriver extends DriverBase {
                                     fastestHost = hst;
                                 }
 
-                                if (result != null) {
-                                    handleHello(result);
-                                }
+                                handleHello(result);
 
                                 synchronized (connectionPool) {
                                     connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
@@ -463,9 +465,7 @@ public class PooledDriver extends DriverBase {
             fastestHost = hst;
         }
 
-        if (result != null) {
-            handleHello(result);
-        }
+        handleHello(result);
     }
 
     @Override
