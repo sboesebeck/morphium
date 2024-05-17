@@ -2568,6 +2568,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public boolean isAutoValuesEnabledForThread() {
+        if (enableAutoValues == null) return getConfig().isAutoValuesEnabled();
+
         return ((enableAutoValues.get() == null || enableAutoValues.get()) && getConfig().isAutoValuesEnabled());
     }
 
@@ -2582,6 +2584,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public boolean isReadCacheEnabledForThread() {
+        if (enableReadCache == null) return getConfig().isReadCacheEnabled();
+
         return (enableReadCache.get() == null || enableReadCache.get()) && getConfig().isReadCacheEnabled();
     }
 
