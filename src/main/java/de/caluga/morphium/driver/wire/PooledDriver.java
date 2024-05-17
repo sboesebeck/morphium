@@ -108,7 +108,7 @@ public class PooledDriver extends DriverBase {
                         } else {
                             log.error("Could not connect to " + host, e);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                            getHostSeed().remove(host);
+                            removeFromHostSeed(host);
                             //throw(e);
                             break;
                         }
@@ -206,14 +206,12 @@ public class PooledDriver extends DriverBase {
                     }
                 }
 
-                if (!getHostSeed().contains(hst)) {
-                    getHostSeed().add(hst);
-                }
+                addHostSeed(hst);
             }
 
             for (String hst : new ArrayList<String>(getHostSeed())) {
                 if (!hello.getHosts().contains(hst)) {
-                    getHostSeed().remove(hst);
+                    removeFromHostSeed(hst);
                     waitCounter.remove(hst);
                 }
             }
@@ -226,7 +224,7 @@ public class PooledDriver extends DriverBase {
                     for (String host : new ArrayList<>(connectionPool.keySet())) {
                         if (!hello.getHosts().contains(host)) {
                             log.warn("Host " + host + " is not part of the replicaset anymore!");
-                            getHostSeed().remove(host);
+                            removeFromHostSeed(host);
                             waitCounter.remove(host);
                             BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
                             ArrayList<Integer> toDelete = new ArrayList<>();
@@ -382,7 +380,7 @@ public class PooledDriver extends DriverBase {
                             // log.info("Finished connection creation");
                         } catch (Exception e) {
                             log.error("Could not create connection to host " + hst, e);
-                            getHostSeed().remove(hst);
+                            removeFromHostSeed(hst);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             BlockingQueue<ConnectionContainer> connectionsList = null;
 
@@ -618,8 +616,8 @@ public class PooledDriver extends DriverBase {
                             }
 
                             log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
-                            getHostSeed().remove(lastSecondaryNode -
-                                1);                                                                                                                                                //removing node - heartbeat should add it again...
+                            removeFromHostSeed(
+                                host);                                                                                                                                                 //removing node - heartbeat should add it again...
 
                             try {
                                 Thread.sleep(getSleepBetweenErrorRetries());

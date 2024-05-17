@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
@@ -38,7 +39,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int retriesOnNetworkError = 5;
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
-    private List<String> hostSeed;
+    private Set<String> hostSeed;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
     private int defaultW = 1;
@@ -107,9 +108,17 @@ public abstract class DriverBase implements MorphiumDriver {
         }
     }
 
+    public void removeFromHostSeed(String host) {
+        hostSeed.remove(host);
+    }
+
+    public void addHostSeed(String host) {
+        hostSeed.add(host);
+    }
+
     @Override
     public void setHostSeed(String... hosts) {
-        hostSeed = new ArrayList<>();
+        hostSeed = ConcurrentHashMap.newKeySet();
 
         for (String h : hosts) {
             hostSeed.add(h);
@@ -306,13 +315,17 @@ public abstract class DriverBase implements MorphiumDriver {
         return false;
     }
 
+
     @Override
+    /**
+     * @return unmodifiable copy
+     */
     public List<String> getHostSeed() {
         if (hostSeed == null) {
             return null;
         }
 
-        return hostSeed;
+        return Collections.unmodifiableList(new ArrayList<>(hostSeed));
     }
 
     @Override
@@ -405,7 +418,8 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setHostSeed(List<String> hosts) {
-        hostSeed = hosts;
+        hostSeed = ConcurrentHashMap.newKeySet();
+        hostSeed.addAll(hosts);
     }
 
     @Override
