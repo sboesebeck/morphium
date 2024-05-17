@@ -124,6 +124,10 @@ public class SingleMongoConnectDriver extends DriverBase {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
             }//waiting for heartbeat
+
+            if (System.currentTimeMillis() > waitUntil) {
+                throw new MorphiumDriverException("could not get connection - not connected after " + getMaxWaitTime());
+            }
         }
 
         incStat(DriverStatsKey.CONNECTIONS_BORROWED);
