@@ -98,8 +98,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private ValueEncryptionProvider valueEncryptionProvider;
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
 
+    private static Vector<Morphium> instances = new Vector<>();
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
+        instances.add(this);
     }
 
     public Morphium(String host, String db) {
@@ -116,6 +118,18 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         // cfg.setReplicasetMonitoring(false);
         cfg.addHostToSeed(host, port);
         setConfig(cfg);
+    }
+
+    public List<Morphium> getRegisteredMorphiums() {
+        List<Morphium> alternativeInstances = new ArrayList<>();
+
+        for (Morphium m : instances) {
+            if (m == this) continue;
+
+            alternativeInstances.add(m);
+        }
+
+        return alternativeInstances;
     }
 
     /**
