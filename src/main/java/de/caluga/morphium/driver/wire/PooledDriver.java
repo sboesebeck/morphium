@@ -108,9 +108,15 @@ public class PooledDriver extends DriverBase {
                         } else {
                             log.error("Could not connect to " + host, e);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                            removeFromHostSeed(host);
 
-                            if (!host.equals(primaryNode)) {
-                                removeFromHostSeed(host);
+                            if (getNumHostsInSeed() == 0) {
+                                if (lastHostsFromHello == null) {
+                                    log.warn("Wanted to remove last host in hostseed, but last hosts is null");
+                                    addToHostSeed(host);
+                                } else {
+                                    setHostSeed(lastHostsFromHello);
+                                }
                             }
 
                             //throw(e);
@@ -166,6 +172,7 @@ public class PooledDriver extends DriverBase {
 
     private ScheduledFuture<?> heartbeat;
     private Map<String, AtomicInteger> waitCounter = new ConcurrentHashMap<>();
+    private List<String> lastHostsFromHello = null;
 
     private String getHost(String hostPort) {
         if (hostPort == null) {
@@ -202,6 +209,8 @@ public class PooledDriver extends DriverBase {
         }
 
         if (hello.getHosts() != null) {
+            lastHostsFromHello = hello.getHosts();
+
             for (String hst : hello.getHosts()) {
                 synchronized (connectionPool) {
                     if (!connectionPool.containsKey(hst)) {
@@ -210,7 +219,7 @@ public class PooledDriver extends DriverBase {
                     }
                 }
 
-                addHostSeed(hst);
+                addToHostSeed(hst);
             }
 
             for (String hst : new ArrayList<String>(getHostSeed())) {
@@ -384,12 +393,18 @@ public class PooledDriver extends DriverBase {
                             // log.info("Finished connection creation");
                         } catch (Exception e) {
                             log.error("Could not create connection to host " + hst, e);
+                            removeFromHostSeed(hst);
+                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
 
-                            if (!hst.equals(primaryNode)) {
-                                removeFromHostSeed(hst);
+                            if (getNumHostsInSeed() == 0) {
+                                if (lastHostsFromHello == null) {
+                                    log.warn("Want to remove last host, but lastHostsFromHello is null");
+                                    addToHostSeed(hst);
+                                } else {
+                                    setHostSeed(lastHostsFromHello);
+                                }
                             }
 
-                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             BlockingQueue<ConnectionContainer> connectionsList = null;
 
                             synchronized (connectionPool) {
@@ -624,10 +639,17 @@ public class PooledDriver extends DriverBase {
                             }
 
                             log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
+                            removeFromHostSeed(
+                                host);
 
-                            if (!host.equals(primaryNode)) {
-                                removeFromHostSeed(host);
-                            }//removing node - heartbeat should add it again...
+                            if (getHostSeed().size() == 0) {
+                                if (lastHostsFromHello == null) {
+                                    log.warn("Last hosts is null and want to delete last entry");
+                                    addToHostSeed(host);
+                                } else {
+                                    setHostSeed(lastHostsFromHello);
+                                }
+                            }
 
                             try {
                                 Thread.sleep(getSleepBetweenErrorRetries());
