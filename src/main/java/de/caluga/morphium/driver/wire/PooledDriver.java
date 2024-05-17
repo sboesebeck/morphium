@@ -218,41 +218,44 @@ public class PooledDriver extends DriverBase {
                 }
             }
 
-            List<ConnectionContainer> toClose = new ArrayList<>();
+            //only closing connections when info comes from primary
+            if (hello.getWritablePrimary()) {
+                List<ConnectionContainer> toClose = new ArrayList<>();
 
-            synchronized (connectionPool) {
-                for (String host : new ArrayList<>(connectionPool.keySet())) {
-                    if (!hello.getHosts().contains(host)) {
-                        log.warn("Host " + host + " is not part of the replicaset anymore!");
-                        getHostSeed().remove(host);
-                        waitCounter.remove(host);
-                        BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
-                        ArrayList<Integer> toDelete = new ArrayList<>();
+                synchronized (connectionPool) {
+                    for (String host : new ArrayList<>(connectionPool.keySet())) {
+                        if (!hello.getHosts().contains(host)) {
+                            log.warn("Host " + host + " is not part of the replicaset anymore!");
+                            getHostSeed().remove(host);
+                            waitCounter.remove(host);
+                            BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
+                            ArrayList<Integer> toDelete = new ArrayList<>();
 
-                        for (var e : borrowedConnections.entrySet()) {
-                            if (e.getValue().getCon().getConnectedToHost().equals(host)) {
-                                toDelete.add(e.getKey());
+                            for (var e : borrowedConnections.entrySet()) {
+                                if (e.getValue().getCon().getConnectedToHost().equals(host)) {
+                                    toDelete.add(e.getKey());
+                                }
                             }
-                        }
 
-                        for (Integer i : toDelete) {
-                            borrowedConnections.remove(i);
-                        }
+                            for (Integer i : toDelete) {
+                                borrowedConnections.remove(i);
+                            }
 
-                        if (fastestHost.equals(host)) {
-                            fastestHost = null;
-                            fastestTime = 10000;
-                        }
+                            if (fastestHost.equals(host)) {
+                                fastestHost = null;
+                                fastestTime = 10000;
+                            }
 
-                        toClose.addAll(lst);
+                            toClose.addAll(lst);
+                        }
                     }
                 }
-            }
 
-            for (ConnectionContainer con : toClose) {
-                try {
-                    con.getCon().close();
-                } catch (Exception ex) {
+                for (ConnectionContainer con : toClose) {
+                    try {
+                        con.getCon().close();
+                    } catch (Exception ex) {
+                    }
                 }
             }
         }
@@ -355,7 +358,7 @@ public class PooledDriver extends DriverBase {
                                     fastestHost = hst;
                                 }
 
-                                if (result != null && result.getWritablePrimary()) {
+                                if (result != null) {
                                     handleHello(result);
                                 }
 
@@ -445,7 +448,7 @@ public class PooledDriver extends DriverBase {
             fastestHost = hst;
         }
 
-        if (result != null && result.getWritablePrimary()) {
+        if (result != null) {
             handleHello(result);
         }
     }
@@ -704,7 +707,7 @@ public class PooledDriver extends DriverBase {
         } else {
             List<Integer> sourcePortsToDelete = new ArrayList<>();
 
-            for (int port : borrowedConnections.keySet()) {
+            for (int port : new ArrayList<Integer>(borrowedConnections.keySet())) {
                 if (borrowedConnections.get(port).getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
                 }
@@ -1096,7 +1099,7 @@ public class PooledDriver extends DriverBase {
         m.put(DriverStatsKey.CONNECTIONS_IN_USE, Double.valueOf(borrowedConnections.size()));
         int waiting = 0;
 
-        for (String hst : waitCounter.keySet()) {
+        for (String hst : new ArrayList<String>(waitCounter.keySet())) {
             waiting += waitCounter.get(hst).get();
         }
 
