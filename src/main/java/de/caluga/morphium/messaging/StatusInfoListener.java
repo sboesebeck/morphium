@@ -16,60 +16,60 @@ public class StatusInfoListener implements MessageListener<Msg> {
     public final static String globalListenersKey = "global_listeners";
     public final static String morphiumCachestatsKey = "morphium.cachestats";
     public final static String morphiumConfigKey = "morphium.config";
-    public final static String morphiumDriverStatsKey= "morphium.driver.stats";
-    public final static String morphiumDriverConnections= "morphium.driver.connections";
-    public final static String morphiumDriverReplstatKey= "morphium.driver.replicaset_status";
+    public final static String morphiumDriverStatsKey = "morphium.driver.stats";
+    public final static String morphiumDriverConnections = "morphium.driver.connections";
+    public final static String morphiumDriverReplstatKey = "morphium.driver.replicaset_status";
 
-//    private Map<String, InternalCommand> commands = new HashMap<>();
+    //    private Map<String, InternalCommand> commands = new HashMap<>();
 
     public StatusInfoListener() {
-//        commands.put("unpause", new InternalCommand("pause") {
-//            public void exec(Messaging msg, Msg answer, Object params) {
-//                if (params != null) {
-//                    if (params instanceof List) {
-//                        var lst = (List<String>)params;
-//
-//                        for (String n : lst) {
-//                            msg.unpauseProcessingOfMessagesNamed(n);
-//                        }
-//                    } else {
-//                        var n=params.toString();
-//                        msg.unpauseProcessingOfMessagesNamed(n);
-//
-//                    }
-//                } else {
-//                    //pause ALL
-//                    var lst=msg.getPausedMessageNames();
-//                    for (String n:lst){
-//                        msg.unpauseProcessingOfMessagesNamed(n);
-//                    }
-//                }
-//            }
-//        });
-//        commands.put("pause", new InternalCommand("pause") {
-//            public void exec(Messaging msg, Msg answer, Object params) {
-//                if (params != null) {
-//                    if (params instanceof List) {
-//                        var lst = (List<String>)params;
-//
-//                        for (String n : lst) {
-//                            msg.pauseProcessingOfMessagesNamed(n);
-//                        }
-//                    } else {
-//                        var n=params.toString();
-//                        msg.pauseProcessingOfMessagesNamed(n);
-//
-//                    }
-//                } else {
-//                    //pause ALL
-//                    var lst=new ArrayList<String>(msg.getListenerNames().keySet());
-//                    lst.addAll(msg.getGlobalListeners());
-//                    for (String n:lst){
-//                        msg.pauseProcessingOfMessagesNamed(n);
-//                    }
-//                }
-//            }
-//        });
+        //        commands.put("unpause", new InternalCommand("pause") {
+        //            public void exec(Messaging msg, Msg answer, Object params) {
+        //                if (params != null) {
+        //                    if (params instanceof List) {
+        //                        var lst = (List<String>)params;
+        //
+        //                        for (String n : lst) {
+        //                            msg.unpauseProcessingOfMessagesNamed(n);
+        //                        }
+        //                    } else {
+        //                        var n=params.toString();
+        //                        msg.unpauseProcessingOfMessagesNamed(n);
+        //
+        //                    }
+        //                } else {
+        //                    //pause ALL
+        //                    var lst=msg.getPausedMessageNames();
+        //                    for (String n:lst){
+        //                        msg.unpauseProcessingOfMessagesNamed(n);
+        //                    }
+        //                }
+        //            }
+        //        });
+        //        commands.put("pause", new InternalCommand("pause") {
+        //            public void exec(Messaging msg, Msg answer, Object params) {
+        //                if (params != null) {
+        //                    if (params instanceof List) {
+        //                        var lst = (List<String>)params;
+        //
+        //                        for (String n : lst) {
+        //                            msg.pauseProcessingOfMessagesNamed(n);
+        //                        }
+        //                    } else {
+        //                        var n=params.toString();
+        //                        msg.pauseProcessingOfMessagesNamed(n);
+        //
+        //                    }
+        //                } else {
+        //                    //pause ALL
+        //                    var lst=new ArrayList<String>(msg.getListenerNames().keySet());
+        //                    lst.addAll(msg.getGlobalListeners());
+        //                    for (String n:lst){
+        //                        msg.pauseProcessingOfMessagesNamed(n);
+        //                    }
+        //                }
+        //            }
+        //        });
     }
 
     @Override
@@ -77,7 +77,8 @@ public class StatusInfoListener implements MessageListener<Msg> {
         if (m.isAnswer()) {
             return null;
         }
-        log.info("Preparing status info... " + m.getMsgId());
+
+        log.debug("Preparing status info... " + m.getMsgId());
         long tripDur = System.currentTimeMillis() - m.getTimestamp();
         Msg answer = m.createAnswerMsg();
         answer.setMapValue(new HashMap<>());
@@ -109,12 +110,35 @@ public class StatusInfoListener implements MessageListener<Msg> {
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
             answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
             answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
-            answer.getMapValue().put(morphiumDriverStatsKey,msg.getMorphium().getDriver().getDriverStats());
-            answer.getMapValue().put(morphiumDriverConnections,msg.getMorphium().getDriver().getNumConnectionsByHost());
+            answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
+            answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
+
             try {
-                answer.getMapValue().put(morphiumDriverReplstatKey,msg.getMorphium().getDriver().getReplsetStatus());
+                answer.getMapValue().put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
             } catch (MorphiumDriverException e) {
-                answer.getMapValue().put(morphiumDriverReplstatKey,"could not get replicaset status: "+e.getMessage());
+                answer.getMapValue().put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+            }
+        }
+
+        if (level.equals(StatusInfoLevel.ALL)) {
+            //alternative morphium stats
+            int i = 0;
+
+            for (var alternativeMorphium : msg.getMorphium().getAlternativeMorphiums()) {
+                i++;
+                Map<String, Object> stats = new HashMap<>();
+                stats.put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
+                stats.put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+                stats.put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
+                stats.put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
+
+                try {
+                    stats.put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
+                } catch (MorphiumDriverException e) {
+                    stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                }
+
+                answer.getMapValue().put("alternativeMorphium" + i, stats);
             }
         }
 
