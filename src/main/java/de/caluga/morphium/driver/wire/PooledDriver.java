@@ -261,7 +261,7 @@ public class PooledDriver extends DriverBase {
                             borrowedConnections.remove(i);
                         }
 
-                        if (fastestHost.equals(host)) {
+                        if (fastestHost != null && fastestHost.equals(host)) {
                             fastestHost = null;
                             fastestTime = 10000;
                         }
