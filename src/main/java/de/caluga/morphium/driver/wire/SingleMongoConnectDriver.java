@@ -216,7 +216,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 if (hello.getHosts() != null) {
                     for (String s : hello.getHosts()) {
                         if (!getHostSeed().contains(s)) {
-                            addHostSeed(s);
+                            addToHostSeed(s);
                             log.info("Adding " + s);
                         }
                     }
@@ -230,7 +230,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
 
                 if (hello.getPrimary() != null && !getHostSeed().contains(hello.getPrimary())) {
-                    addHostSeed(hello.getPrimary());
+                    addToHostSeed(hello.getPrimary());
                 }
 
                 if (!getHostSeed().contains(connection.getConnectedTo())) {

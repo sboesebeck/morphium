@@ -109,16 +109,6 @@ public class PooledDriver extends DriverBase {
                             log.error("Could not connect to " + host, e);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                             removeFromHostSeed(host);
-
-                            if (getNumHostsInSeed() == 0) {
-                                if (lastHostsFromHello == null) {
-                                    log.warn("Wanted to remove last host in hostseed, but last hosts is null");
-                                    addToHostSeed(host);
-                                } else {
-                                    setHostSeed(lastHostsFromHello);
-                                }
-                            }
-
                             //throw(e);
                             break;
                         }
@@ -133,6 +123,20 @@ public class PooledDriver extends DriverBase {
 
         setReplicaSet(getHostSeed().size() > 1);
         startHeartbeat();
+    }
+
+    @Override
+    public void removeFromHostSeed(String host) {
+        super.removeFromHostSeed(host);
+
+        if (getNumHostsInSeed() == 0) {
+            if (lastHostsFromHello == null) {
+                log.warn("Wanted to remove last host in hostseed, but last hosts is null");
+                addToHostSeed(host);
+            } else {
+                setHostSeed(lastHostsFromHello);
+            }
+        }
     }
 
     private void connectToHost(String host) throws MorphiumDriverException {
@@ -395,16 +399,6 @@ public class PooledDriver extends DriverBase {
                             log.error("Could not create connection to host " + hst, e);
                             removeFromHostSeed(hst);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-
-                            if (getNumHostsInSeed() == 0) {
-                                if (lastHostsFromHello == null) {
-                                    log.warn("Want to remove last host, but lastHostsFromHello is null");
-                                    addToHostSeed(hst);
-                                } else {
-                                    setHostSeed(lastHostsFromHello);
-                                }
-                            }
-
                             BlockingQueue<ConnectionContainer> connectionsList = null;
 
                             synchronized (connectionPool) {
@@ -641,15 +635,6 @@ public class PooledDriver extends DriverBase {
                             log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
                             removeFromHostSeed(
                                 host);
-
-                            if (getHostSeed().size() == 0) {
-                                if (lastHostsFromHello == null) {
-                                    log.warn("Last hosts is null and want to delete last entry");
-                                    addToHostSeed(host);
-                                } else {
-                                    setHostSeed(lastHostsFromHello);
-                                }
-                            }
 
                             try {
                                 Thread.sleep(getSleepBetweenErrorRetries());
