@@ -120,7 +120,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         setConfig(cfg);
     }
 
-    public List<Morphium> getRegisteredMorphiums() {
+    public List<Morphium> getAlternativeMorphiums() {
         List<Morphium> alternativeInstances = new ArrayList<>();
 
         for (Morphium m : instances) {

@@ -230,7 +230,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
 
                 if (hello.getPrimary() != null && !getHostSeed().contains(hello.getPrimary())) {
-                    getHostSeed().add(hello.getPrimary());
+                    addHostSeed(hello.getPrimary());
                 }
 
                 if (!getHostSeed().contains(connection.getConnectedTo())) {
