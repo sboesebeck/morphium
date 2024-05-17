@@ -212,6 +212,10 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {
+        if (s == null) {
+            throw new MorphiumDriverException("Connection closed");
+        }
+
         try {
             s.setSoTimeout(timeout);
         } catch (SocketException e) {
