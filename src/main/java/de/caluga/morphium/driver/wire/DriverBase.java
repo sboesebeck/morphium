@@ -108,11 +108,15 @@ public abstract class DriverBase implements MorphiumDriver {
         }
     }
 
+    public int getNumHostsInSeed() {
+        return hostSeed.size();
+    }
+
     public void removeFromHostSeed(String host) {
         hostSeed.remove(host);
     }
 
-    public void addHostSeed(String host) {
+    public void addToHostSeed(String host) {
         hostSeed.add(host);
     }
 
