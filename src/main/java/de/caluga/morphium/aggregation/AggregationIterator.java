@@ -33,6 +33,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         try {
             getMongoCursor().ahead(jump);
         } catch (MorphiumDriverException e) {
+            getMongoCursor().close();
             throw new RuntimeException(e);
         }
     }
@@ -42,6 +43,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         try {
             getMongoCursor().back(jump);
         } catch (MorphiumDriverException e) {
+            getMongoCursor().close();
             throw new RuntimeException(e);
         }
     }
@@ -70,12 +72,14 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         if (Map.class.isAssignableFrom(aggregator.getResultType())) {
             return (R) getMongoCursor().next();
         }
+
         return aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), getMongoCursor().next());
     }
 
     @Override
     public List<R> getCurrentBuffer() {
         List<R> ret = new ArrayList<>();
+
         for (Map<String, Object> o : getMongoCursor().getBatch()) {
             if (Map.class.isAssignableFrom(aggregator.getResultType())) {
                 ret.add((R) o);
@@ -83,6 +87,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
                 ret.add(aggregator.getMorphium().getMapper().deserialize(aggregator.getResultType(), o));
             }
         }
+
         return ret;
     }
 
@@ -96,22 +101,22 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
         return getMongoCursor().getCursor();
     }
 
-    private AggregateMongoCommand getAggregateCmd() {
-        MongoConnection readConnection = aggregator.getMorphium().getDriver().getReadConnection(null);
-        AggregateMongoCommand settings = new AggregateMongoCommand(readConnection);
-        settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
-                .setColl(aggregator.getCollectionName())
-                .setPipeline(aggregator.getPipeline())
-                .setExplain(aggregator.isExplain())
-                .setReadPreference(aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()))
-                .setAllowDiskUse(aggregator.isUseDisk());
-        if (aggregator.getCollation() != null) settings.setCollation(Doc.of(aggregator.getCollation().toQueryObject()));
-        //TODO .setReadConcern(morphium.getReadPreferenceForC)
-        aggregator.getMorphium().getDriver().releaseConnection(readConnection);
-        return settings;
-    }
-
-
+    //private AggregateMongoCommand getAggregateCmd() {
+    //    MongoConnection readConnection = aggregator.getMorphium().getDriver().getReadConnection(null);
+    //    AggregateMongoCommand settings = new AggregateMongoCommand(readConnection);
+    //    settings.setDb(aggregator.getMorphium().getConfig().getDatabase())
+    //            .setColl(aggregator.getCollectionName())
+    //            .setPipeline(aggregator.getPipeline())
+    //            .setExplain(aggregator.isExplain())
+    //            .setReadPreference(aggregator.getMorphium().getReadPreferenceForClass(aggregator.getSearchType()))
+    //            .setAllowDiskUse(aggregator.isUseDisk());
+    //    if (aggregator.getCollation() != null) settings.setCollation(Doc.of(aggregator.getCollation().toQueryObject()));
+    //    //TODO .setReadConcern(morphium.getReadPreferenceForC)
+    //    aggregator.getMorphium().getDriver().releaseConnection(readConnection);
+    //    return settings;
+    //}
+    //
+    //
     @Override
     public Aggregator<T, R> getAggregator() {
         return aggregator;
@@ -130,6 +135,7 @@ public class AggregationIterator<T, R> implements MorphiumAggregationIterator<T,
                 throw new RuntimeException(e);
             }
         }
+
         return cursor;
     }
 }

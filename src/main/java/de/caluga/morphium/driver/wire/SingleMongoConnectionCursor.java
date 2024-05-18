@@ -92,6 +92,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
                 connection.getDriver().releaseConnection(connection);
                 connection = null;
             }
+
             return false;
         }
 
@@ -169,13 +170,13 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
         try {
             getConnection().closeIteration(this);
-
+        } catch (MorphiumDriverException e) {
+            throw new RuntimeException(e);
+        } finally {
             if (connection != null) {
                 connection.getDriver().releaseConnection(connection);
                 connection = null;
             }
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -196,21 +197,20 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
         MorphiumCursor reply;
         GetMoreMongoCommand more = new GetMoreMongoCommand(connection).setCursorId(getCursorId()).setDb(getDb()).setColl(getCollection()).setBatchSize(getBatchSize());
-        // try {
-        reply = more.execute();
-        setCursorId(reply.getCursorId()); //setting 0 if end of iteration
 
-        if (getCursorId() == 0L) {
-            if (connection != null) {
-                connection.getDriver().releaseConnection(connection);
-                connection = null;
+        try {
+            reply = more.execute();
+            setCursorId(reply.getCursorId()); //setting 0 if end of iteration
+            return reply.getBatch();
+        } finally {
+            if (getCursorId() == 0L) {
+                if (connection != null) {
+                    connection.getDriver().releaseConnection(connection);
+                    connection = null;
+                }
             }
         }
 
-        return reply.getBatch();
-        // } catch (MorphiumDriverException e) {
-        //     log.error("Error ", e);
-        // }
         // return null;
     }
 

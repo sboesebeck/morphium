@@ -53,6 +53,9 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
         try {
             getMongoCursor().ahead(jump);
         } catch (MorphiumDriverException e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
             throw new RuntimeException(e);
         }
     }
@@ -61,13 +64,23 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
         try {
             getMongoCursor().back(jump);
         } catch (MorphiumDriverException e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
             throw new RuntimeException(e);
         }
     }
 
     @Override
     public int available() {
-        return getMongoCursor().available();
+        try {
+            return getMongoCursor().available();
+        } catch (Exception e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
+            throw new RuntimeException(e);
+        }
     }
 
     public Iterator<T> iterator() {
@@ -76,27 +89,55 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
 
     @Override
     public boolean hasNext() {
-        return getMongoCursor().hasNext();
+        try {
+            var ret = getMongoCursor().hasNext();
+
+            if (!ret) {
+                if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                    getMongoCursor().getConnection().close();
+            }
+
+            return ret;
+        } catch (Exception e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public Map<String, Object> nextMap() {
-        return getMongoCursor().next();
+        try {
+            return getMongoCursor().next();
+        } catch (Exception e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public T next() {
-        if (query.getType() == null) {
-            return (T) getMongoCursor().next();
+        try {
+            if (query.getType() == null) {
+                return (T) getMongoCursor().next();
+            }
+
+            var ret = query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
+
+            if (query.getMorphium().getARHelper().isAnnotationPresentInHierarchy(query.getType(), Lifecycle.class)) {
+                query.getMorphium().getARHelper().callLifecycleMethod(PostLoad.class, ret);
+            }
+
+            return ret;
+        } catch (Exception e) {
+            if (getMongoCursor() != null && getMongoCursor().getConnection() != null)
+                getMongoCursor().getConnection().close();
+
+            throw new RuntimeException(e);
         }
-
-        var ret = query.getMorphium().getMapper().deserialize(query.getType(), getMongoCursor().next());
-
-        if (query.getMorphium().getARHelper().isAnnotationPresentInHierarchy(query.getType(), Lifecycle.class)) {
-            query.getMorphium().getARHelper().callLifecycleMethod(PostLoad.class, ret);
-        }
-
-        return ret;
     }
 
     @Override
@@ -122,16 +163,16 @@ public class QueryIterator<T> implements MorphiumIterator<T>, Iterator<T> {
 
     public MorphiumCursor getMongoCursor() {
         if (cursor == null) {
-            try {
-                var cmd = query.getFindCmd();
+            var cmd = query.getFindCmd();
 
+            try {
                 if (windowSize != 0) {
                     cmd.setBatchSize(windowSize);
                 }
 
                 cursor = cmd.executeIterable(windowSize);
-                //cmd.getConnection().release();
             } catch (MorphiumDriverException e) {
+                cmd.releaseConnection();
                 throw new RuntimeException(e);
             }
         }
