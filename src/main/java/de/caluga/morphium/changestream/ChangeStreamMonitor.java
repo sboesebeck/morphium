@@ -221,12 +221,15 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         listeners.removeAll(toRemove);
                     }
+
                     @Override
                     public boolean isContinued() {
                         return ChangeStreamMonitor.this.running;
                     }
                 };
-                if (dedicatedConnection==null) break;
+
+                if (dedicatedConnection == null) break;
+
                 var con = dedicatedConnection.getPrimaryConnection(null);
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxConnectionIdleTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
@@ -254,7 +257,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     //     }
                     //
                 } else if (e.getMessage().contains("closed")) {
-                    log.warn("connection closed!");
+                    log.warn("connection closed!", e);
                     break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
@@ -267,7 +270,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         }
 
         try {
-            if (dedicatedConnection!=null && !(dedicatedConnection instanceof InMemoryDriver)) {
+            if (dedicatedConnection != null && !(dedicatedConnection instanceof InMemoryDriver)) {
                 dedicatedConnection.close();
             }
         } catch (IOException e) {
