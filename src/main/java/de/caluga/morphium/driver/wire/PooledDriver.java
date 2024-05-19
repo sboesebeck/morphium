@@ -547,7 +547,7 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
-            throw new MorphiumDriverException("Could not get connection in time");
+            //throw new MorphiumDriverException("Could not get connection in time");
         } finally {
             if (needToDecrement && waitCounter.get(host).get() > 0) {
                 waitCounter.get(host).decrementAndGet();
@@ -626,21 +626,9 @@ public class PooledDriver extends DriverBase {
                         try {
                             return borrowConnection(host);
                         } catch (MorphiumDriverException e) {
-                            if (retry > getRetriesOnNetworkError()) {
-                                log.error("Could not get Connection - abort");
-                                stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                                throw(e);
-                            }
-
-                            log.warn(String.format("could not get connection to secondary node '%s'- trying other replicaset node", host));
-                            removeFromHostSeed(
-                                host);
-
-                            try {
-                                Thread.sleep(getSleepBetweenErrorRetries());
-                            } catch (InterruptedException e1) {
-                                // Swallow
-                            }
+                            log.error("Could not get Connection - abort");
+                            stats.get(DriverStatsKey.ERRORS).incrementAndGet();
+                            throw(e);
                         }
                     }
 
