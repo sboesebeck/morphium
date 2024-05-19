@@ -127,13 +127,13 @@ public class StatusInfoListener implements MessageListener<Msg> {
             for (var alternativeMorphium : msg.getMorphium().getAlternativeMorphiums()) {
                 i++;
                 Map<String, Object> stats = new HashMap<>();
-                stats.put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
-                stats.put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
-                stats.put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
-                stats.put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
+                stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
+                stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+                stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
+                stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
 
                 try {
-                    stats.put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
+                    stats.put(morphiumDriverReplstatKey, alternativeMorphium.getDriver().getReplsetStatus());
                 } catch (MorphiumDriverException e) {
                     stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
                 }
