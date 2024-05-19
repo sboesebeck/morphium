@@ -103,6 +103,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> project(Map<String, Object> m) {
         Map<String, Object> p = new LinkedHashMap<>();
+
         for (Map.Entry<String, Object> e : m.entrySet()) {
             if (e.getValue() instanceof Expr) {
                 p.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
@@ -110,8 +111,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 p.put(e.getKey(), e.getValue());
             }
         }
-        Map<String, Object> map = UtilsMap.of("$project", p);
 
+        Map<String, Object> map = UtilsMap.of("$project", p);
         params.add(map);
         return this;
     }
@@ -126,22 +127,26 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> project(String... m) {
         Map<String, Object> map = new LinkedHashMap<>();
+
         for (String sm : m) {
             map.put(sm, 1);
         }
+
         return project(map);
     }
-//
-//    @Override
-//    public Aggregator<T, R> project(Map<String, Object> m) {
-//        Map<String, Object> o = UtilsMap.of("$project", m);
-//        params.add(o);
-//        return this;
-//    }
+
+    //
+    //    @Override
+    //    public Aggregator<T, R> project(Map<String, Object> m) {
+    //        Map<String, Object> o = UtilsMap.of("$project", m);
+    //        params.add(o);
+    //        return this;
+    //    }
 
     @Override
     public Aggregator<T, R> addFields(Map<String, Object> m) {
         Map<String, Object> ret = new LinkedHashMap<>();
+
         for (Map.Entry<String, Object> e : m.entrySet()) {
             if (e.getValue() instanceof Expr) {
                 ret.put(e.getKey(), ((Expr) e.getValue()).toQueryObject());
@@ -154,13 +159,15 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         params.add(o);
         return this;
     }
-    public Map<String,Object> explain() throws MorphiumDriverException{
+
+    public Map<String, Object> explain() throws MorphiumDriverException {
         return explain(null);
     }
 
     @Override
     public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
-        var cmd=getAggregateCmd();
+        var cmd = getAggregateCmd();
+
         try {
             return cmd.explain(verbosity);
         } finally {
@@ -171,8 +178,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> match(Query<T> q) {
         Map<String, Object> o = UtilsMap.of("$match", q.toQueryObject());
+
         if (collectionName == null)
             collectionName = q.getCollectionName();
+
         params.add(o);
         return this;
     }
@@ -222,9 +231,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> sort(String... prefixed) {
         Map<String, Integer> m = new LinkedHashMap<>();
+
         for (String i : prefixed) {
             String fld = i;
             int val = 1;
+
             if (i.startsWith("-")) {
                 fld = i.substring(1);
                 val = -1;
@@ -232,14 +243,18 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 fld = i.substring(1);
                 val = 1;
             }
+
             if (i.startsWith("$")) {
                 fld = fld.substring(1);
+
                 if (!fld.contains(".")) {
                     fld = morphium.getARHelper().getMongoFieldName(type, fld);
                 }
             }
+
             m.put(fld, val);
         }
+
         sort(m);
         return this;
     }
@@ -256,11 +271,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (collectionName == null) {
             collectionName = morphium.getMapper().getCollectionName(type);
         }
+
         return collectionName;
     }
 
     @Override
-    public Aggregator<T,R> setCollectionName(String cn) {
+    public Aggregator<T, R> setCollectionName(String cn) {
         collectionName = cn;
         return this;
     }
@@ -273,7 +289,6 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Group<T, R> group(Expr id) {
         return new Group<>(this, id);
-
     }
 
     @Override
@@ -303,18 +318,22 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         pipeline.add(Doc.of("$count", "num"));
         List<Map<String, Object>> res = null;
         AggregateMongoCommand cmd = getAggregateCmd();
+
         try {
             cmd.setPipeline(pipeline);
             res = cmd.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            getMorphium().getDriver().releaseConnection(cmd.getConnection());
+            cmd.releaseConnection();
         }
+
         if (res.size() == 0) return 0;
+
         if (res.get(0).get("num") instanceof Integer) {
             return ((Integer) res.get(0).get("num")).longValue();
         }
+
         return (Long) res.get(0).get("num");
     }
 
@@ -329,23 +348,23 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public void aggregate(final AsyncOperationCallback<R> callback) {
         if (callback == null) {
             AggregateMongoCommand cmd = getAggregateCmd();
+
             try {
                 log.warn("Async operation but callback is null!");
                 cmd.executeAsync();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             } finally {
-                getMorphium().getDriver().releaseConnection(cmd.getConnection());
+                cmd.releaseConnection();
             }
         } else {
-
             morphium.queueTask(() -> {
                 try {
                     long start = System.currentTimeMillis();
                     List<R> result = deserializeList();
                     callback.onOperationSucceeded(AsyncOperationType.READ, null, System.currentTimeMillis() - start, result, null, AggregatorImpl.this);
                 } catch (MorphiumDriverException e) {
-                    log.error("error in queued task",e);
+                    log.error("error in queued task", e);
                 }
             });
         }
@@ -353,32 +372,41 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     private List<R> deserializeList() throws MorphiumDriverException {
         AggregateMongoCommand cmd = getAggregateCmd();
-        List<Map<String, Object>> r = cmd.execute();
-        getMorphium().getDriver().releaseConnection(cmd.getConnection());
-        List<R> result = new ArrayList<>();
-        if (getResultType().equals(Map.class)) {
-            //noinspection unchecked
-            result = (List<R>) r;
-        } else {
-            for (Map<String, Object> dbObj : r) {
-                result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
-            }
-        }
-        return result;
 
+        try {
+            List<Map<String, Object>> r = cmd.execute();
+            cmd.releaseConnection();
+            List<R> result = new ArrayList<>();
+
+            if (getResultType().equals(Map.class)) {
+                //noinspection unchecked
+                result = (List<R>) r;
+            } else {
+                for (Map<String, Object> dbObj : r) {
+                    result.add(morphium.getMapper().deserialize(getResultType(), dbObj));
+                }
+            }
+
+            return result;
+        } finally {
+            cmd.releaseConnection();
+        }
     }
 
     @Override
     public List<Map<String, Object>> aggregateMap() {
         AggregateMongoCommand cmd = getAggregateCmd();
+
         try {
             var rc = Entity.ReadConcernLevel.majority;
+
             if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
+
             return cmd.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
         } finally {
-            getMorphium().getDriver().releaseConnection(cmd.getConnection());
+            cmd.releaseConnection();
         }
     }
 
@@ -386,18 +414,18 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     public void aggregateMap(AsyncOperationCallback<Map<String, Object>> callback) {
         if (callback == null) {
             AggregateMongoCommand cmd = getAggregateCmd();
+
             try {
                 cmd.execute();
             } catch (MorphiumDriverException e) {
                 throw new RuntimeException(e);
             } finally {
-                getMorphium().getDriver().releaseConnection(cmd.getConnection());
+                cmd.releaseConnection();
             }
-
         } else {
-
             morphium.queueTask(() -> {
                 AggregateMongoCommand cmd = getAggregateCmd();
+
                 try {
                     long start = System.currentTimeMillis();
                     List<Map<String, Object>> ret = cmd.execute();
@@ -405,7 +433,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
                 } catch (MorphiumDriverException e) {
                     LoggerFactory.getLogger(AggregatorImpl.class).error("error", e);
                 } finally {
-                    getMorphium().getDriver().releaseConnection(cmd.getConnection());
+                    cmd.releaseConnection();
                 }
             });
         }
@@ -415,13 +443,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         MongoConnection readConnection = morphium.getDriver().getReadConnection(null);
         AggregateMongoCommand cmd = new AggregateMongoCommand(readConnection);
         cmd.setDb(morphium.getDatabase())
-                .setColl(getCollectionName())
-                .setPipeline(getPipeline())
-                .setExplain(isExplain())
-                .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
-                .setAllowDiskUse(isUseDisk());
+        .setColl(getCollectionName())
+        .setPipeline(getPipeline())
+        .setExplain(isExplain())
+        .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
+        .setAllowDiskUse(isUseDisk());
 
         if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
+
         return cmd;
     }
 
@@ -430,6 +459,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         for (Group<T, R> g : groups) {
             g.end();
         }
+
         groups.clear();
         return params;
     }
@@ -467,16 +497,18 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> bucket(Expr groupBy, List<Expr> boundaries, Expr preset, Map<String, Expr> output) {
         Map<String, Object> out = new LinkedHashMap<>();
+
         for (Map.Entry<String, Expr> e : output.entrySet()) {
             out.put(e.getKey(), e.getValue().toQueryObject());
         }
+
         List<Object> bn = new ArrayList<>();
         boundaries.forEach(x -> bn.add(x.toQueryObject()));
         Map<String, Object> m = UtilsMap.of("$bucket", (Object) UtilsMap.of("groupBy", groupBy.toQueryObject(),
-                "boundaries", bn,
-                "default", preset.toQueryObject(),
-                "output", Utils.getQueryObjectMap(output))
-        );
+            "boundaries", bn,
+            "default", preset.toQueryObject(),
+            "output", Utils.getQueryObjectMap(output))
+            );
         params.add(m);
         return this;
     }
@@ -487,19 +519,22 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
         if (output != null) {
             out = new LinkedHashMap<>();
+
             for (Map.Entry<String, Expr> e : output.entrySet()) {
                 out.put(e.getKey(), e.getValue().toQueryObject());
             }
         }
+
         var bucketAuto = UtilsMap.of("groupBy", groupBy.toQueryObject(), "buckets", numBuckets);
         var map = UtilsMap.of("$bucketAuto", (Object) bucketAuto);
 
         if (out != null)
             bucketAuto.put("output", out);
+
         if (granularity != null)
             bucketAuto.put("granularity", granularity.getValue());
-        params.add(map);
 
+        params.add(map);
         return this;
     }
 
@@ -513,21 +548,24 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> collStats(Boolean latencyHistograms, Double scale, boolean count, boolean queryExecStats) {
         @SuppressWarnings({"unchecked", "rawtypes"}) Map<String, Object> m = new LinkedHashMap();
+
         if (latencyHistograms != null) {
             m.put("latencyStats", UtilsMap.of("histograms", latencyHistograms));
         }
+
         if (scale != null) {
             m.put("storageStats", UtilsMap.of("scale", scale));
         }
+
         if (count) {
             m.put("count", new HashMap<>());
         }
+
         if (queryExecStats) {
             m.put("queryExecStats", new HashMap<>());
         }
 
         params.add(UtilsMap.of("$collStats", m));
-
         return this;
     }
 
@@ -536,9 +574,9 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> currentOp(boolean allUsers, boolean idleConnections, boolean idleCursors, boolean idleSessions, boolean localOps) {
         params.add(UtilsMap.of("$currentOp", UtilsMap.of("allUsers", allUsers, "idleConnections", idleConnections, "idleCursors", idleCursors,
-                "idleSessions", idleSessions,
-                "localOps", localOps)
-        ));
+            "idleSessions", idleSessions,
+            "localOps", localOps)
+            ));
         return this;
     }
 
@@ -551,12 +589,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     @Override
     public Aggregator<T, R> facet(Map<String, Aggregator> facets) {
-
         Map<String, Object> map = new HashMap<>();
 
         for (Map.Entry<String, Aggregator> e : facets.entrySet()) {
             map.put(e.getKey(), e.getValue().getPipeline());
         }
+
         params.add(UtilsMap.of("$facet", map));
         return this;
     }
@@ -564,9 +602,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> geoNear(Map<GeoNearFields, Object> param) {
         Map<String, Object> map = new LinkedHashMap<>();
+
         for (Map.Entry<GeoNearFields, Object> e : param.entrySet()) {
             map.put(e.getKey().name(), ((ObjectMapperImpl) morphium.getMapper()).marshallIfNecessary(e.getValue()));
         }
+
         params.add(UtilsMap.of("$geoNear", map));
         return this;
     }
@@ -574,35 +614,39 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, Enum connectFromField, Enum connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
-                startWith,
-                connectFromField.name(),
-                connectToField.name(),
-                as,
-                maxDepth, depthField, restrictSearchWithMatch);
+            startWith,
+            connectFromField.name(),
+            connectToField.name(),
+            as,
+            maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
     public Aggregator<T, R> graphLookup(Class<?> type, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
         return graphLookup(morphium.getMapper().getCollectionName(type),
-                startWith,
-                connectFromField,
-                connectToField,
-                as,
-                maxDepth, depthField, restrictSearchWithMatch);
+            startWith,
+            connectFromField,
+            connectToField,
+            as,
+            maxDepth, depthField, restrictSearchWithMatch);
     }
 
     @Override
-    public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField, Query restrictSearchWithMatch) {
+    public Aggregator<T, R> graphLookup(String fromCollection, Expr startWith, String connectFromField, String connectToField, String as, Integer maxDepth, String depthField,
+        Query restrictSearchWithMatch) {
         Map<String, Object> add = UtilsMap.of("from", (Object) fromCollection,
-                "startWith", startWith.toQueryObject(),
-                "connectFromField", connectFromField,
-                "connectToField", connectToField,
-                "as", as);
+            "startWith", startWith.toQueryObject(),
+            "connectFromField", connectFromField,
+            "connectToField", connectToField,
+            "as", as);
         params.add(UtilsMap.of("$graphLookup", add));
+
         if (maxDepth != null)
             add.put("maxDepth", maxDepth);
+
         if (depthField != null)
             add.put("depthField", depthField);
+
         if (restrictSearchWithMatch != null)
             add.put("restrictSearchWithMatch", restrictSearchWithMatch.toQueryObject());
 
@@ -630,13 +674,17 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> listLocalSessions(List<String> users, List<String> dbs) {
         List<Map<String, Object>> usersList = new ArrayList<>();
+
         for (int i = 0; i < users.size(); i++) {
             int j = i;
+
             if (j > dbs.size()) {
                 j = dbs.size() - 1;
             }
+
             usersList.add(UtilsMap.of(users.get(i), dbs.get(j)));
         }
+
         params.add(UtilsMap.of("$listLocalSessions", UtilsMap.of("users", usersList)));
         return this;
     }
@@ -656,13 +704,17 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> listSessions(List<String> users, List<String> dbs) {
         List<Map<String, Object>> usersList = new ArrayList<>();
+
         for (int i = 0; i < users.size(); i++) {
             int j = i;
+
             if (j > dbs.size()) {
                 j = dbs.size() - 1;
             }
+
             usersList.add(UtilsMap.of(users.get(i), dbs.get(j)));
         }
+
         params.add(UtilsMap.of("$listSessions", UtilsMap.of("users", usersList)));
         return this;
     }
@@ -683,35 +735,44 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
 
     public Aggregator<T, R> lookup(Class fromType, Enum localField, Enum foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
         return lookup(getMorphium().getMapper().getCollectionName(fromType),
-                localField.name(), foreignField.name(), outputArray, pipeline, let
-        );
-
+            localField.name(), foreignField.name(), outputArray, pipeline, let
+            );
     }
 
     @Override
     public Aggregator<T, R> lookup(String fromCollection, String localField, String foreignField, String outputArray, List<Expr> pipeline, Map<String, Expr> let) {
         Map<String, Object> m = UtilsMap.of("from", fromCollection);
+
         if (localField != null)
             m.put("localField", localField);
+
         if (foreignField != null)
             m.put("foreignField", foreignField);
+
         if (outputArray != null)
             m.put("as", outputArray);
+
         if (pipeline != null && pipeline.size() > 0) {
             List lst = new ArrayList();
+
             for (Expr e : pipeline) {
                 //noinspection unchecked
                 lst.add(e.toQueryObject());
             }
+
             m.put("pipeline", lst);
         }
+
         if (let != null) {
             Map<String, Object> map = new HashMap<>();
+
             for (Map.Entry<String, Expr> e : let.entrySet()) {
                 map.put(e.getKey(), e.getValue().toQueryObject());
             }
+
             m.put("let", map);
         }
+
         params.add(UtilsMap.of("$lookup", m));
         return this;
     }
@@ -724,11 +785,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> merge(String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         return merge(morphium.getConfig().getDatabase(), intoCollection, let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
-
     }
 
     @Override
-    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+    public Aggregator<T, R> merge(Class<?> intoCollection, Map<String, Expr> let, List<Map<String, Expr>> machedPipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction,
+        String... onFields) {
         return merge(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(intoCollection), let, machedPipeline, MergeActionWhenMatched.merge, notMatchedAction, onFields);
     }
 
@@ -750,13 +811,14 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> merge(String intoCollection, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         return merge(morphium.getConfig().getDatabase(), intoCollection, null, null, matchAction, notMatchedAction, onFields);
-
     }
 
     @SuppressWarnings("ConstantConditions")
-    private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction, MergeActionWhenNotMatched notMatchedAction, String... onFields) {
+    private Aggregator<T, R> merge(String intoDb, String intoCollection, Map<String, Expr> let, List<Map<String, Expr>> pipeline, MergeActionWhenMatched matchAction,
+        MergeActionWhenNotMatched notMatchedAction, String... onFields) {
         Class entity = morphium.getMapper().getClassForCollectionName(intoCollection);
         List<String> flds = new ArrayList<>();
+
         if (entity != null) {
             for (String f : onFields) {
                 flds.add(morphium.getARHelper().getMongoFieldName(entity, f));
@@ -766,23 +828,29 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
             log.warn("cannot check field names / properties");
             flds.addAll(Arrays.asList(onFields));
         }
+
         Map doc = UtilsMap.of("into", UtilsMap.of("db", intoDb, "coll", intoCollection));
+
         if (let != null) {
             //noinspection unchecked
             doc.put("let", Utils.getNoExprMap((Map) let));
         }
+
         if (matchAction != null) {
             //noinspection unchecked
             doc.put("whenMatched", matchAction.name());
         }
+
         if (notMatchedAction != null) {
             //noinspection unchecked
             doc.put("whenNotMatched", notMatchedAction.name());
         }
+
         if (onFields != null && onFields.length != 0) {
             //noinspection unchecked
             doc.put("on", flds);
         }
+
         if (pipeline != null) {
             //noinspection unchecked
             doc.put("whenMatched", pipeline);
@@ -801,7 +869,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> out(String db, String collectionName) {
         params.add(UtilsMap.of("$out", UtilsMap.of("coll", collectionName, "db", db)
-        ));
+            ));
         return this;
     }
 
@@ -815,10 +883,10 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     /**
      * redact needs to resolve to $$DESCEND, $$PRUNE, or $$KEEP
      * <p>
-     * System Variable	Description
-     * $$DESCEND	$redact returns the fields at the current document level, excluding embedded documents. To include embedded documents and embedded documents within arrays, apply the $cond expression to the embedded documents to determine access for these embedded documents.
-     * $$PRUNE	$redact excludes all fields at this current document/embedded document level, without further inspection of any of the excluded fields. This applies even if the excluded field contains embedded documents that may have different access levels.
-     * $$KEEP	$redact returns or keeps all fields at this current document/embedded document level, without further inspection of the fields at this level. This applies even if the included field contains embedded documents that may have different access levels.
+     * System Variable  Description
+     * $$DESCEND    $redact returns the fields at the current document level, excluding embedded documents. To include embedded documents and embedded documents within arrays, apply the $cond expression to the embedded documents to determine access for these embedded documents.
+     * $$PRUNE  $redact excludes all fields at this current document/embedded document level, without further inspection of any of the excluded fields. This applies even if the excluded field contains embedded documents that may have different access levels.
+     * $$KEEP   $redact returns or keeps all fields at this current document/embedded document level, without further inspection of the fields at this level. This applies even if the included field contains embedded documents that may have different access levels.
      */
     @Override
     public Aggregator<T, R> redact(Expr redact) {
@@ -885,8 +953,8 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     @Override
     public Aggregator<T, R> unionWith(Aggregator agg) {
         params.add(UtilsMap.of("$unionWith", UtilsMap.of("coll", (Object) collectionName,
-                "pipeline", agg.getPipeline())
-        ));
+            "pipeline", agg.getPipeline())
+            ));
         return this;
     }
 
@@ -914,9 +982,11 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         if (param instanceof Expr) {
             param = ((Expr) param).toQueryObject();
         }
+
         if (!stageName.startsWith("$")) {
             stageName = "$" + stageName;
         }
+
         params.add(UtilsMap.of(stageName, param));
         return this;
     }
