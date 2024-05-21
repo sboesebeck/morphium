@@ -40,7 +40,7 @@ public class SingleMongoConnection implements MongoConnection {
     private Map<MorphiumDriver.DriverStatsKey, AtomicDecimal> stats;
     private String connectedTo;
     private int connectedToPort;
-    private boolean connected;
+    private boolean connected = false;
     private MorphiumDriver driver;
 
     private String authDb = null;

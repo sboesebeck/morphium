@@ -507,7 +507,9 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
-            throw new MorphiumDriverException("Waiting for connection was aborted");
+            //throw new MorphiumDriverException("Waiting for connection was aborted");
+            var sc = new SingleMongoConnection();
+            return sc;
         } finally {
             if (needToDecrement && waitCounter.get(host).get() > 0) {
                 waitCounter.get(host).decrementAndGet();
