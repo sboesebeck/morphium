@@ -185,7 +185,7 @@ public class PooledDriver extends DriverBase {
                         BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
                         ArrayList<Integer> toDelete = new ArrayList<>();
 
-                        for (var e : borrowedConnections.entrySet()) {
+                        for (var e : new ArrayList<>(borrowedConnections.entrySet())) {
                             if (e.getValue().getCon().getConnectedToHost().equals(host)) {
                                 toDelete.add(e.getKey());
                             }
@@ -298,6 +298,11 @@ public class PooledDriver extends DriverBase {
                             ConnectionContainer container = null;
 
                             synchronized (connectionPool) {
+                                if (connectionPool.get(hst) == null) {
+                                    log.info("No connectionPool for host {}", hst);
+                                    return;
+                                }
+
                                 container = connectionPool.get(hst).poll(1, TimeUnit.MILLISECONDS);
                             }
 
@@ -330,7 +335,13 @@ public class PooledDriver extends DriverBase {
                                 queue = connectionPool.get(hst);
                             }
 
-                            while (queue != null && (queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                            int wait = 0;
+
+                            if (waitCounter.containsKey(hst)) {
+                                wait = waitCounter.get(hst).get();
+                            }
+
+                            while (queue != null && (queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
                                 createNewConnection(hst);
                             }
 
@@ -478,7 +489,10 @@ public class PooledDriver extends DriverBase {
                 bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
 
                 if (bc == null) {
-                    throw new MorphiumDriverException("Could not get connection in time");
+                    log.error("Connection timeout");
+                    log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
+                    log.error("WaitingThreads for {}: {}", host, waitCounter.get(host) == null ? 0 : waitCounter.get(host).get());
+                    throw new MorphiumDriverException("Could not get connection to " + host + " in time");
                 }
 
                 if (bc.getCon().getSourcePort() == 0) {
@@ -493,7 +507,7 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             //swallow - might happen when closing
-            throw new MorphiumDriverException("Could not get connection in time");
+            throw new MorphiumDriverException("Waiting for connection was aborted");
         } finally {
             if (needToDecrement && waitCounter.get(host).get() > 0) {
                 waitCounter.get(host).decrementAndGet();
