@@ -470,7 +470,11 @@ public class PooledDriver extends DriverBase {
             BlockingQueue<ConnectionContainer> queue = null;
 
             synchronized (connectionPool) {
-                connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
+                //connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
+                if (!connectionPool.containsKey(host)) {
+                    throw new MorphiumDriverException("No connectionpool for " + host + " available");
+                }
+
                 queue = connectionPool.get(host);
 
                 if (queue.size() == 0) {
