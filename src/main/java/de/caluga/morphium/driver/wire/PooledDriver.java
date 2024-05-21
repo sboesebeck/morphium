@@ -152,7 +152,7 @@ public class PooledDriver extends DriverBase {
             primaryNode = hello.getMe();
         }
 
-        if (hello.getHosts() != null) {
+        if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
             lastHostsFromHello = hello.getHosts();
 
             for (String hst : hello.getHosts()) {
