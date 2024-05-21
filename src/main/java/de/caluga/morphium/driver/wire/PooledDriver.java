@@ -385,6 +385,12 @@ public class PooledDriver extends DriverBase {
     private void createNewConnection(String hst) throws Exception {
         // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
         // log.debug("Creating connection to {}", hst);
+        synchronized (connectionPool) {
+            if (!connectionPool.containsKey(hst)) {
+                return;
+            }
+        }
+
         var con = new SingleMongoConnection();
 
         if (getAuthDb() != null) {
@@ -396,12 +402,10 @@ public class PooledDriver extends DriverBase {
         stats.get(DriverStatsKey.CONNECTIONS_OPENED).incrementAndGet();
 
         synchronized (connectionPool) {
-            connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
             waitCounter.putIfAbsent(hst, new AtomicInteger());
 
             if (connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
                 var cont = new ConnectionContainer(con);
-                connectionPool.putIfAbsent(hst, new LinkedBlockingQueue<>());
                 connectionPool.get(hst).add(cont);
                 // waitCounter.putIfAbsent(hst, new AtomicInteger());
                 // if (waitCounter.get(hst).get() > 0)
