@@ -96,10 +96,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
         //initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
-                //                     .verbose()             // Enable verbose logging
-                .enableAnnotationInfo()
-                //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-                .scan()) {
+            //                     .verbose()             // Enable verbose logging
+            .enableAnnotationInfo()
+            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Entity.class.getName());
             //entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             log.debug("Found " + entities.size() + " entities in classpath");
@@ -380,11 +380,13 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                 if (fld.isAnnotationPresent(Encrypted.class)) {
                     if (value == null) continue;
+
                     try {
                         Encrypted enc = fld.getAnnotation(Encrypted.class);
                         ValueEncryptionProvider encP = enc.provider().getDeclaredConstructor().newInstance();
                         byte[] encKey = morphium.getEncryptionKeyProvider().getEncryptionKey(enc.keyName());
                         encP.setEncryptionKey(encKey);
+
                         if (value instanceof String) {
                             byte[] encrypted = encP.encrypt(((String) value).getBytes());
                             dbo.put(fName, encrypted);
@@ -392,6 +394,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                             byte[] encrypted = encP.encrypt(Utils.toJsonString(marshallIfNecessary(value)).getBytes());
                             dbo.put(fName, encrypted);
                         }
+
                         continue;
                     } catch (Exception exc) {
                         throw new RuntimeException("Ecryption failed. Field: " + fName + " class: " + cls.getName(), exc);
@@ -791,7 +794,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 HashMap<String, Object> obj = (HashMap<String, Object>) jacksonOM.readValue(jsonString.getBytes(), Map.class); //jsonParser.parse(jsonString, containerFactory);
                 return deserialize(cls, obj);
             } else {
-                return (T) (jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
+                return (T)(jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
             }
         } catch (
                 Exception e) {
@@ -833,12 +836,16 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     if (cN == null) {
                         cN = (String) objectMap.get("className");
                     }
+
                     if (cN.equals("msg")) {
                         cN = Msg.class.getName();
                     }
+
                     cls = annotationHelper.getClassForTypeId(cN);
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException(e);
+                } catch (ClassNotFoundException cnf) {
+                    cnf.printStackTrace();
+                    log.warn("Class not found exception", cnf);
+                    return null;
                 }
             }
 
@@ -953,6 +960,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                 if (fld.isAnnotationPresent(Encrypted.class)) {
                     if (valueFromDb == null) continue;
+
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
                     Class<? extends ValueEncryptionProvider> encCls = enc.provider();
@@ -977,8 +985,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     try {
                         if (((String) valueFromDb).trim().startsWith("{") || ((String) valueFromDb).trim().startsWith("[")) {
                             valueFromDb = deserialize(fldType, (String) valueFromDb);
-
-
                         } else if (valueFromDb instanceof Map) {
                             valueFromDb = deserialize(Map.class, (String) valueFromDb).get("value");
                         }
@@ -1481,10 +1487,10 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 //Override type if className is specified - needed for polymoprh lists etc.
                 if (((Map<String, Object>) val).containsKey("class_name") || ((Map<String, Object>) val).containsKey("className")) {
                     //Entity to map!
-                    String cn = (String) ((Map<String, Object>) val).get("class_name");
+                    String cn = (String)((Map<String, Object>) val).get("class_name");
 
                     if (cn == null) {
-                        cn = (String) ((Map<String, Object>) val).get("className");
+                        cn = (String)((Map<String, Object>) val).get("className");
                     }
 
                     try {
