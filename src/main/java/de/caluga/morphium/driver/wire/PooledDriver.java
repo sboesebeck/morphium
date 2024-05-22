@@ -234,7 +234,11 @@ public class PooledDriver extends DriverBase {
                                         queue = connectionPool.get(hst);
                                     }
 
-                                    while (getHostSeed().contains(hst) && queue != null && (queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                    int loopCounter = 0;
+
+                                    while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
+                                        (queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                        loopCounter++;
                                         log.debug("Creating connection to {} - WaitCounter is {}", hst, waitCounter.get(hst).get());
                                         // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
                                         createNewConnection(hst);
@@ -343,10 +347,13 @@ public class PooledDriver extends DriverBase {
                                 wait = waitCounter.get(hst).get();
                             }
 
-                            while (getHostSeed().contains(hst) && queue != null && (queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) ||
-                                getHostSeed().contains(hst) && queue != null && getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                            int loopCounter = 0;
+
+                            while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
+                                ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                                 // log.info("Creating new connection to {}", hst);
                                 // System.out.println("Creating new connection to " + hst);
+                                loopCounter++;
                                 createNewConnection(hst);
                             }
 
