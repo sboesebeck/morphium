@@ -416,8 +416,8 @@ public class PooledDriver extends DriverBase {
         synchronized (connectionPool) {
             waitCounter.putIfAbsent(hst, new AtomicInteger());
 
-            if (connectionPool.containsKey(hst) && connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+            if (connectionPool.containsKey(hst) && (connectionPool.get(hst).size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
+                getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                 var cont = new ConnectionContainer(con);
                 connectionPool.get(hst).add(cont);
                 // waitCounter.putIfAbsent(hst, new AtomicInteger());
