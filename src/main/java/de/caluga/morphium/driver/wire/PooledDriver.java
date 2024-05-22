@@ -234,7 +234,9 @@ public class PooledDriver extends DriverBase {
                                         queue = connectionPool.get(hst);
                                     }
 
-                                    while (queue != null && (queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                    while (getHostSeed().contains(hst) && queue != null && (queue.size() < waitCounter.get(hst).get() && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                        log.debug("Creating connection to {} - WaitCounter is {}", hst, waitCounter.get(hst).get());
+                                        // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
                                         createNewConnection(hst);
                                     }
                                 } catch (Exception e) {
@@ -299,7 +301,7 @@ public class PooledDriver extends DriverBase {
 
                             synchronized (connectionPool) {
                                 if (connectionPool.get(hst) == null) {
-                                    log.info("No connectionPool for host {}", hst);
+                                    log.error("No connectionPool for host {}", hst);
                                     return;
                                 }
 
@@ -341,7 +343,10 @@ public class PooledDriver extends DriverBase {
                                 wait = waitCounter.get(hst).get();
                             }
 
-                            while (queue != null && (queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                            while (getHostSeed().contains(hst) && queue != null && (queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) ||
+                                getHostSeed().contains(hst) && queue != null && getTotalConnectionsToHost(hst) < getMinConnectionsPerHost()) {
+                                // log.info("Creating new connection to {}", hst);
+                                // System.out.println("Creating new connection to " + hst);
                                 createNewConnection(hst);
                             }
 
