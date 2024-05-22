@@ -112,7 +112,13 @@ public class StatusInfoListener implements MessageListener<Msg> {
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
             try {
                 answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
-                answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+
+                if (msg.getMorphium().getConfig() == null) {
+                    answer.getMapValue().put(morphiumConfigKey, "NULL!");
+                } else {
+                    answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+                }
+
                 answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
                 answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
 
@@ -136,7 +142,13 @@ public class StatusInfoListener implements MessageListener<Msg> {
                 try {
                     Map<String, Object> stats = new HashMap<>();
                     stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
-                    stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+
+                    if (alternativeMorphium.getConfig() == null) {
+                        stats.put(morphiumConfigKey, "NULL!");
+                    } else {
+                        stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+                    }
+
                     stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
                     stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
 
