@@ -92,29 +92,37 @@ public class StatusInfoListener implements MessageListener<Msg> {
         }
 
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
-            if (msg.isMultithreadded()) {
-                answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
-            }
+            try {
+                if (msg.isMultithreadded()) {
+                    answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
+                }
 
-            answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
-            answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
-            answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
-            answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
-            answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
-            answer.getMapValue().put("messaging.pause", msg.getPause());
-            answer.getMapValue().put("messaging.time_till_recieved", tripDur);
+                answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
+                answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
+                answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
+                answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
+                answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
+                answer.getMapValue().put("messaging.pause", msg.getPause());
+                answer.getMapValue().put("messaging.time_till_recieved", tripDur);
+            } catch (Exception e) {
+                answer.getMapValue().put("messaging.stats.error", e.getMessage());
+            }
         }
 
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
-            answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
-            answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
-            answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
-            answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
-
             try {
-                answer.getMapValue().put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
-            } catch (MorphiumDriverException e) {
-                answer.getMapValue().put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
+                answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+                answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
+                answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
+
+                try {
+                    answer.getMapValue().put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
+                } catch (MorphiumDriverException e) {
+                    answer.getMapValue().put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                answer.getMapValue().put(morphiumDriverStatsKey + ".stats.error", e.getMessage());
             }
         }
 
@@ -124,19 +132,24 @@ public class StatusInfoListener implements MessageListener<Msg> {
 
             for (var alternativeMorphium : msg.getMorphium().getAlternativeMorphiums()) {
                 i++;
-                Map<String, Object> stats = new HashMap<>();
-                stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
-                stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
-                stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
-                stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
 
                 try {
-                    stats.put(morphiumDriverReplstatKey, alternativeMorphium.getDriver().getReplsetStatus());
-                } catch (MorphiumDriverException e) {
-                    stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
-                }
+                    Map<String, Object> stats = new HashMap<>();
+                    stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
+                    stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+                    stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
+                    stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
 
-                answer.getMapValue().put("alternativeMorphium" + i, stats);
+                    try {
+                        stats.put(morphiumDriverReplstatKey, alternativeMorphium.getDriver().getReplsetStatus());
+                    } catch (MorphiumDriverException e) {
+                        stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                    }
+
+                    answer.getMapValue().put("alternativeMorphium" + i, stats);
+                } catch (Exception e) {
+                    answer.getMapValue().put("alternativeMorphium" + i + ".stats.error", e.getMessage());
+                }
             }
         }
 

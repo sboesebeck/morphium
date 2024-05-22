@@ -496,6 +496,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public MorphiumCache getCache() {
+        if (getConfig() == null) return null;
+
         return getConfig().getCache();
     }
 
