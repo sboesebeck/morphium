@@ -96,8 +96,10 @@ public abstract class DriverBase implements MorphiumDriver {
             List<String> colNames = new ArrayList<>();
 
             for (Map<String, Object> doc : lst) {
-                String name = doc.get("name").toString();
-                colNames.add(name);
+                if (doc.containsKey("name")) {
+                    String name = doc.get("name").toString();
+                    colNames.add(name);
+                }
             }
 
             return colNames;

@@ -656,10 +656,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var cursorData = new ArrayList<Map<String, Object>>();
 
         if (!database.containsKey(cmd.getDb())) {
-            m.put("ok", 0.0);
-            m.put("errmsg", "no such database");
-            commandResults.add(m);
-            return ret;
+//            m.put("ok", 0.0);
+//            m.put("errmsg", "no such database");
+//            commandResults.add(m);
+//            return ret;
+            database.putIfAbsent(cmd.getDb(),new HashMap<>());
         }
 
         for (String coll : database.get(cmd.getDb()).keySet()) {
@@ -1025,7 +1026,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private Map<String, Object> addCursor(String db, String coll, Map<String, Object> result, List<Map<String, Object>> data) {
-        result.put("cursor", Doc.of("firstBatch", data, "ns", db + "." + coll, "id", 0));
+        result.put("cursor", Doc.of("firstBatch", data, "ns", db + "." + coll, "id", 0L));
         return result;
     }
 

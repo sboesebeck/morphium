@@ -964,7 +964,7 @@ public class PooledDriver extends DriverBase {
         List<Map<String, Object>> lst = getCollectionInfo(db, coll);
 
         try {
-            if (!lst.isEmpty() && lst.get(0).get("name").equals(coll)) {
+            if (!lst.isEmpty() && lst.get(0).get("name")!=null && lst.get(0).get("name").equals(coll)) {
                 Object capped = ((Map) lst.get(0).get("options")).get("capped");
                 return capped != null && capped.equals(true);
             }
