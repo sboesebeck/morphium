@@ -57,7 +57,9 @@ public class GenericCommand extends MongoCommand<GenericCommand> {
         if (cmdData.get(commandName) instanceof String) {
             setColl((String) cmdData.remove(commandName));
         } else {
-            setColl(cmdData.remove(commandName).toString());
+            Object removed = cmdData.remove(commandName);
+            if (removed != null)
+                setColl(removed.toString());
         }
 
         return this;
