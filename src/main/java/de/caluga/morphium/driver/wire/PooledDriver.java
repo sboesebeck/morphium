@@ -99,6 +99,11 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
+    public ReadPreference getDefaultReadPreference() {
+        return ReadPreference.nearest();
+    }
+
+    @Override
     public void removeFromHostSeed(String host) {
         super.removeFromHostSeed(host);
 
@@ -147,12 +152,15 @@ public class PooledDriver extends DriverBase {
         if (hello.getWritablePrimary()!=null &&
                 hello.getWritablePrimary() &&
                 hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
-            if (log.isDebugEnabled()) {
-                log.warn(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
-            }
+                log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
 
             stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
             primaryNode = hello.getMe();
+        } else if (!hello.getWritablePrimary()) {
+            if (hello.getMe().equals(primaryNode)){
+                log.error("Primary node is not me {}",hello.getMe());
+                primaryNode=null;
+            }
         }
 
         if (hello.getHosts() != null && !hello.getHosts().isEmpty()) {
@@ -563,6 +571,9 @@ public class PooledDriver extends DriverBase {
 
             switch (type) {
                 case PRIMARY:
+                    if (primaryNode==null) {
+                        throw new MorphiumDriverException("No primary node defined - not connected yet?");
+                    }
                     return borrowConnection(primaryNode);
 
                 case NEAREST:

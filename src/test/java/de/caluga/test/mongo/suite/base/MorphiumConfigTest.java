@@ -45,9 +45,12 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         assert(c.getHostSeed().size() >= 1);
     }
 
+
     @Test
     public void testDefaultProps() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
+
+        log.info("ReadPreference: "+cfg.getDefaultReadPreference().toString());
         Properties p = cfg.asProperties();
 
         for (Object k : p.keySet()) {
