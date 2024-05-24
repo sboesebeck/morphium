@@ -484,6 +484,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
+        if (host==null) throw new MorphiumDriverException("Cannot connect to host null!");
         ConnectionContainer c = null;
         // if pool is empty  -> wait increaseWaitCounter
         //
@@ -556,6 +557,9 @@ public class PooledDriver extends DriverBase {
         try {
             if (getHostSeed().size() == 1 || !isReplicaSet()) {
                 // no replicaset
+                if (primaryNode == null) {
+                    return borrowConnection(getHostSeed().get(0));
+                }
                 return borrowConnection(primaryNode);
             }
 
@@ -951,7 +955,7 @@ public class PooledDriver extends DriverBase {
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
-            var con = getReadConnection(null);
+            var con = getReadConnection(ReadPreference.primary());
             ListCollectionsCommand cmd = new ListCollectionsCommand(con);
             cmd.setDb(db);
             cmd.setFilter(Doc.of("name", collection));

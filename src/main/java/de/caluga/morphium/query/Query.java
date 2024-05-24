@@ -2343,13 +2343,17 @@ public class Query<T> implements Cloneable {
         try {
             FindCommand cmd = new FindCommand(con).setTailable(true).setFilter(toQueryObject()).setSort(getSort()).setHint(hint).setLimit(getLimit()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
             .setDb(morphium.getDatabase()).setColl(getCollectionName());
-
+            var rc=morphium.getReadConcernForClass(getType());
+            if (rc!=null){
+                cmd.setReadConcernLevel(rc);
+            }
             if (collation != null) {
                 cmd.setCollation(collation.toQueryObject());
             }
 
             long start = System.currentTimeMillis();
             var msgId = cmd.executeAsync();
+
             long cursorId = 0;
 
             while (running) {
@@ -2461,7 +2465,7 @@ public class Query<T> implements Cloneable {
     public FindCommand getFindCmd() {
         MongoConnection con = getMorphium().getDriver().getReadConnection(getRP());
         FindCommand settings = new FindCommand(con).setDb(getMorphium().getConfig().getDatabase()).setColl(getCollectionName()).setFilter(toQueryObject()).setSort(getSort())
-        .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint).setReadPreference(getMorphium().getReadPreferenceForClass(getType()));
+        .setProjection(getFieldListForQuery()).setSkip(getSkip()).setLimit(getLimit()).setHint(hint);
         settings.setBatchSize(getBatchSize());
         int ms = getMaxTimeMS();
 

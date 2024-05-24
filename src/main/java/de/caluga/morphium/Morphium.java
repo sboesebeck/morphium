@@ -923,7 +923,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * This method sets a map of properties (defined by enums in the map) with their associated values
      *
      * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity()} instead.
+     * Please use {@link Morphium setInEntity()} instead.
      */
     @Deprecated
     public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
@@ -1327,6 +1327,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return getConfig().isReplicaset();
     }
 
+    public Entity.ReadConcernLevel getReadConcernForClass(Class<?> cls){
+       if (cls==null ) return null;
+       var entity=annotationHelper.getAnnotationFromHierarchy(cls,Entity.class);
+       if (entity==null) {
+           return null;
+       }
+       return entity.readConcernLevel();
+    }
     public ReadPreference getReadPreferenceForClass(Class<?> cls) {
         if (cls == null) {
             return getConfig().getDefaultReadPreference();

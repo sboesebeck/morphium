@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.commands;
 
+import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.NetworkCallHelper;
@@ -10,20 +11,21 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand, Iterable<Map<String, Object>> {
-    private ReadPreference readPreference;
+    private Entity.ReadConcernLevel readConcernLevel;
 
     public ReadMongoCommand(MongoConnection d) {
         super(d);
     }
 
-    public ReadPreference getReadPreference() {
-        return readPreference;
+    public Entity.ReadConcernLevel getReadConcernLevel() {
+        return readConcernLevel;
     }
 
-    public T setReadPreference(ReadPreference readPreference) {
-        this.readPreference = readPreference;
-        return (T) this;
+    public void setReadConcernLevel(Entity.ReadConcernLevel readConcernLevel) {
+        this.readConcernLevel = readConcernLevel;
     }
+
+
 
     @Override
     public Iterator<Map<String, Object>> iterator() {
