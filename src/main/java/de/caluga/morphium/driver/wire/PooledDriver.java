@@ -630,6 +630,7 @@ public class PooledDriver extends DriverBase {
                     throw new IllegalArgumentException("Unhandeled Readpreferencetype " + rp.getType());
             }
         } catch (MorphiumDriverException e) {
+            log.error("Error getting connection",e);
             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
             throw new RuntimeException(e);
         }
