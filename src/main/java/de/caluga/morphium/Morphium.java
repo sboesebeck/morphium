@@ -1077,10 +1077,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         Map<String, Object> srch = new HashMap<>();
         srch.put("_id", id);
-
+        FindCommand settings=null;
         try {
             MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
-            FindCommand settings = new FindCommand(con).setDb(getConfig().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
+            settings = new FindCommand(con).setDb(getConfig().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
             List<Map<String, Object>> found = settings.execute();
             settings.releaseConnection();
             // log.info("Reread took: "+settings.getMetaData().get("duration"));
@@ -1116,8 +1116,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         } catch (Throwable e) {
             throw new RuntimeException(e);
+        } finally {
+            if (settings != null) {
+                settings.releaseConnection();
+            }
         }
-
         return o;
     }
 
