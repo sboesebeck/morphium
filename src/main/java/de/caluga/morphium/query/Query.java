@@ -1059,14 +1059,16 @@ public class Query<T> implements Cloneable {
 
     private CountMongoCommand getCountCommand(MongoConnection con) {
         if (andExpr.isEmpty() && orQueries.isEmpty() && norQueries.isEmpty() && rawQuery == null) {
-            CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB()).setColl(getCollectionName())
+            CountMongoCommand settings = new CountMongoCommand(con).setDb(getDB()).setColl(getCollectionName());
             // .setQuery(Doc.of(this.toQueryObject()))
-            ;
 
             if (getCollation() != null) {
                 settings.setCollation(getCollation().toQueryObject());
             }
 
+            if (morphium.getReadConcernForClass(getType())!=null){
+                settings.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getType()).name()));
+            }
             return settings;
             // .setReadConcern(getRP().);
         } else {
@@ -1074,6 +1076,9 @@ public class Query<T> implements Cloneable {
 
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
+            }
+            if (morphium.getReadConcernForClass(getType())!=null){
+                cmd.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getType()).name()));
             }
 
             return cmd;
@@ -2343,10 +2348,6 @@ public class Query<T> implements Cloneable {
         try {
             FindCommand cmd = new FindCommand(con).setTailable(true).setFilter(toQueryObject()).setSort(getSort()).setHint(hint).setLimit(getLimit()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
             .setDb(morphium.getDatabase()).setColl(getCollectionName());
-            var rc=morphium.getReadConcernForClass(getType());
-            if (rc!=null){
-                cmd.setReadConcernLevel(rc);
-            }
             if (collation != null) {
                 cmd.setCollation(collation.toQueryObject());
             }

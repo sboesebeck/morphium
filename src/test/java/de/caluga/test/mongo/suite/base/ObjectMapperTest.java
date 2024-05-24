@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigInteger;
 import java.util.*;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * User: Stpehan Bösebeck
@@ -59,7 +59,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
     @Test
-    public void customTypeMapperTest() {
+    public void customTypeMapperTest() throws InterruptedException {
         morphium.dropCollection(BIObject.class);
         MorphiumObjectMapper om = morphium.getMapper();
         BigInteger tst = new BigInteger("affedeadbeefaffedeadbeef42", 16);
@@ -68,18 +68,17 @@ public class ObjectMapperTest extends MorphiumTestBase {
         BigInteger bi = om.deserialize(BigInteger.class, d);
         assertNotNull(bi);
         ;
-        assert (tst.equals(bi));
+        assertEquals(tst, bi);
 
         BIObject bio = new BIObject();
         bio.biValue = tst;
         morphium.store(bio);
+        Thread.sleep(100);
 
         BIObject bio2 = morphium.createQueryFor(BIObject.class).get();
         assertNotNull(bio2);
-        ;
         assertNotNull(bio2.biValue);
-        ;
-        assert (bio2.biValue.equals(tst));
+        assertEquals(bio2.biValue, tst);
     }
 
     @Test
@@ -87,7 +86,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         UncachedObject o = new UncachedObject("test", 1234);
         o.setMorphiumId(new MorphiumId());
         Map<String, Object> m = morphium.getMapper().serialize(o);
-        assert (m.get("_id") instanceof ObjectId);
+        assertTrue(m.get("_id") instanceof ObjectId);
         UncachedObject uc = morphium.getMapper().deserialize(UncachedObject.class, m);
         assertNotNull(uc.getMorphiumId());
         ;
@@ -99,7 +98,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         String json = "{ \"value\":\"test\",\"counter\":123}";
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject uc = om.deserialize(UncachedObject.class, json);
-        assert (uc.getCounter() == 123);
+        assertEquals (123,uc.getCounter());
     }
 
     @Test
@@ -111,8 +110,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o.setCounter(1234);
         Map<String, Object> dbo = om.serialize(o);
         UncachedObject uc = om.deserialize(UncachedObject.class, dbo);
-        assert (uc.getCounter() == 1234);
-        assert (uc.getLongData()[0] == 1);
+        assertEquals (1234,uc.getCounter());
+        assertEquals (1,uc.getLongData()[0] );
     }
 
 
@@ -127,16 +126,16 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o.addString("string4");
         Map<String, Object> dbo = om.serialize(o);
         ListContainer uc = om.deserialize(ListContainer.class, dbo);
-        assert (uc.getStringList().size() == 4);
-        assert (uc.getStringList().get(0).equals("string1"));
-        assert (uc.getLongList().size() == 1);
+        assertEquals (4,uc.getStringList().size());
+        assertEquals("string1",uc.getStringList().get(0));
+        assertEquals(1,uc.getLongList().size());
     }
 
     @Test
     public void testCreateCamelCase() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.createCamelCase("this_is_a_test", false).equals("thisIsATest")) : "Error camil case translation not working";
-        assert (om.createCamelCase("a_test_this_is", true).equals("ATestThisIs")) : "Error - capitalized String wrong";
+        assertEquals("thisIsATest", om.createCamelCase("this_is_a_test", false));
+        assertEquals("ATestThisIs", om.createCamelCase("a_test_this_is", true));
 
 
     }
@@ -152,12 +151,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(false);
         String fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
-        assert (fn.equals("intData")) : "Conversion failed! " + fn;
+        assertEquals("intData", fn);
 
         om = new AnnotationAndReflectionHelper(true);
         fn = om.getMongoFieldName(UncachedObject.class, "intData");
 
-        assert (fn.equals("int_data")) : "Conversion failed! " + fn;
+        assertEquals("int_data", fn);
     }
 
     @Test
@@ -175,11 +174,11 @@ public class ObjectMapperTest extends MorphiumTestBase {
         for (int i = 0; i < 100; i++) {
             new Thread(() -> {
                 MorphiumObjectMapper om = morphium.getMapper();
-                assert (om.getCollectionName(CachedObject.class).equals("cached_object")) : "Cached object test failed";
+                assertEquals("cached_object", om.getCollectionName(CachedObject.class));
                 Thread.yield();
-                assert (om.getCollectionName(UncachedObject.class).equals("uncached_object")) : "Uncached object test failed";
+                assertEquals("uncached_object", om.getCollectionName(UncachedObject.class));
                 Thread.yield();
-                assert (om.getCollectionName(ComplexObject.class).equals("ComplexObject")) : "complex object test failed";
+                assertEquals("ComplexObject", om.getCollectionName(ComplexObject.class));
             }).start();
         }
     }
@@ -194,9 +193,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         String s = Utils.toJsonString(dbo);
         System.out.println("Marshalling was: " + s);
-        assert (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"str_value\" : \"This \" is $ test\" } ")) : "String creation failed?" + s;
+        assertTrue (stringWordCompare(s, "{ \"dval\" : 0.0, \"counter\" : 12345, \"str_value\" : \"This \" is $ test\" } "));
         o = om.deserialize(UncachedObject.class, dbo);
-        log.info("Text is: " + o.getStrValue());
+        log.info("Text is: {}", o.getStrValue());
     }
 
     @Test
@@ -217,16 +216,16 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o.setStrValue("This \" is $ test");
         o.setMorphiumId(new MorphiumId());
         Object id = an.getId(o);
-        assert (id.equals(o.getMorphiumId())) : "IDs not equal!";
+        assertEquals(id, o.getMorphiumId());
     }
 
 
     @Test
     public void testIsEntity() {
         AnnotationAndReflectionHelper om = new AnnotationAndReflectionHelper(true);
-        assert (om.isEntity(UncachedObject.class)) : "Uncached Object no Entity?=!?=!?";
-        assert (om.isEntity(new UncachedObject())) : "Uncached Object no Entity?=!?=!?";
-        assert (!om.isEntity("")) : "String is an Entity?";
+        assertTrue (om.isEntity(UncachedObject.class));
+        assertTrue (om.isEntity(new UncachedObject()));
+        assertTrue (!om.isEntity("")) ;
     }
 
     @Test
@@ -235,7 +234,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         o.setStrValue("This \" is $ test");
-        assert (an.getValue(o, "counter").equals(12345)) : "Value not ok!";
+        assertEquals(12345, an.getValue(o, "counter"));
 
     }
 
@@ -245,13 +244,13 @@ public class ObjectMapperTest extends MorphiumTestBase {
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
         om.setValue(o, "A test", "strValue");
-        assert ("A test".equals(o.getStrValue())) : "Value not set";
+        assertEquals("A test", o.getStrValue());
 
     }
 
 
     @Test
-    public void complexObjectTest()  {
+    public void complexObjectTest() {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setCounter(12345);
@@ -290,14 +289,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         //Unmarshalling stuff
         co = om.deserialize(ComplexObject.class, marshall);
-        assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
+        assertNull(co.getEntityEmbeded().getMorphiumId());
         assertNotNull(co.getRef());
         ;
         co.getEntityEmbeded().setMorphiumId(embedId);  //need to set ID manually, as it won't be stored!
         co.getRef().setMorphiumId(o.getMorphiumId());
         //co.getcRef().setId(new MorphiumId());
         String st2 = Utils.toJsonString(co);
-        assert (stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
+        assertTrue (stringWordCompare(st, st2));
         assertNotNull(co.getEmbed(), "Embedded value not found!");
 
     }
@@ -321,8 +320,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> map = morphium.getMapper().serialize(uc);
         assertNotNull(map.get("_id"));
         ;
-        assert (map.get("str_value").equals("value"));
-        assert (map.get("counter").equals(1234));
+        assertEquals("value", map.get("str_value"));
+        assertEquals(1234, map.get("counter"));
 
         morphium.store(uc);
 
@@ -343,7 +342,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         }
         o.setEinText("Ein Text");
         obj = om.serialize(o);
-        assert (!obj.containsKey("trans")) : "Transient field used?!?!?";
+        assertFalse(obj.containsKey("trans"));
     }
 
     @Test
@@ -362,7 +361,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         String m = marshall.toString();
 
 //        assert (m.equals("{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=de.caluga.test.mongo.suite.data.UncachedObject}], name=Simple List}")) : "Marshall not ok: " + m;
-        assert (stringWordCompare(m, "{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=uc}], name=Simple List}"));
+        assertTrue (stringWordCompare(m, "{list_value=[A Value, 27.0, {dval=0.0, counter=0, class_name=uc}], name=Simple List}"));
 
         MapListObject mo = om.deserialize(MapListObject.class, marshall);
         System.out.println("Mo: " + mo.getName());
@@ -371,8 +370,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         for (int i = 0; i < lst.size(); i++) {
             Object listValueNew = mo.getListValue().get(i);
             Object listValueOrig = o.getListValue().get(i);
-            assert (listValueNew.getClass().equals(listValueOrig.getClass())) : "Classes differ: " + listValueNew.getClass() + " - " + listValueOrig.getClass();
-            assert (listValueNew.equals(listValueOrig)) : "Value not equals in list: " + listValueNew + " vs. " + listValueOrig;
+            assertEquals(listValueNew.getClass(), listValueOrig.getClass());
+            assertEquals(listValueNew, listValueOrig);
         }
         System.out.println("test Passed!");
 
@@ -396,18 +395,18 @@ public class ObjectMapperTest extends MorphiumTestBase {
         String m = Utils.toJsonString(marshall);
         System.out.println("Marshalled object: " + m);
 //        assert (m.equals("{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"de.caluga.test.mongo.suite.data.UncachedObject\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled corectly";
-        assert (stringWordCompare(m, "{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"uc\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } ")) : "Value not marshalled corectly";
+        assertTrue (stringWordCompare(m, "{ \"map_value\" : { \"Entity\" : { \"dval\" : 0.0, \"counter\" : 0, \"class_name\" : \"uc\" } , \"a primitive value\" : 42, \"null\" :  null, \"double\" : 42.0, \"a_string\" : \"This is a string\" } , \"name\" : \"A map-value\" } "));
 
         MapListObject mo = om.deserialize(MapListObject.class, marshall);
-        assert (mo.getName().equals("A map-value")) : "Name error";
+        assertEquals("A map-value", mo.getName());
         assertNotNull(mo.getMapValue(), "map value is null????");
         for (String k : mo.getMapValue().keySet()) {
             Object v = mo.getMapValue().get(k);
             if (v == null) {
-                assert (o.getMapValue().get(k) == null) : "v==null but original not?";
+                assertNull(o.getMapValue().get(k));
             } else {
-                assert (o.getMapValue().get(k).getClass().equals(v.getClass())) : "Classes differ: " + o.getMapValue().get(k).getClass().getName() + " != " + v.getClass().getName();
-                assert (o.getMapValue().get(k).equals(v)) : "Value not equal, key: " + k;
+                assertEquals(o.getMapValue().get(k).getClass(), v.getClass());
+                assertEquals(o.getMapValue().get(k), v);
             }
         }
 
@@ -434,14 +433,14 @@ public class ObjectMapperTest extends MorphiumTestBase {
             long dur = System.currentTimeMillis() - start;
 
             log.info("Mapping of UncachedObject 25000 times took " + dur + "ms");
-            assert (dur < 5000);
+            assertTrue (dur < 5000);
             start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
                 UncachedObject uc = om.deserialize(UncachedObject.class, marshall);
             }
             dur = System.currentTimeMillis() - start;
             log.info("De-Marshalling of UncachedObject 25000 times took " + dur + "ms");
-            assert (dur < 5000);
+            assertTrue (dur < 5000);
         }
 
     }
@@ -453,7 +452,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         ReplicaSetConf c = morphium.getMapper().deserialize(ReplicaSetConf.class, json);
         assertNotNull(c);
         ;
-        assert (c.getMembers().size() == 3);
+        assertEquals(3, c.getMembers().size());
     }
 
     @Test
@@ -465,9 +464,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> obj = morphium.getMapper().serialize(co);
         assertNotNull(obj.get("embeddedObjectList"));
         ;
-        assert (((List) obj.get("embeddedObjectList")).size() == 2);
+        assertEquals(2, ((List) obj.get("embeddedObjectList")).size());
         ComplexObject co2 = morphium.getMapper().deserialize(ComplexObject.class, obj);
-        assert (co2.getEmbeddedObjectList().size() == 2);
+        assertEquals(2, co2.getEmbeddedObjectList().size());
         assertNotNull(co2.getEmbeddedObjectList().get(0).getName());
         ;
 
@@ -482,10 +481,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> obj = morphium.getMapper().serialize(o);
         assertNotNull(obj.get("binary_data"));
         ;
-        assert (obj.get("binary_data").getClass().isArray());
-        assert (obj.get("binary_data").getClass().getComponentType().equals(byte.class));
+        assertTrue (obj.get("binary_data").getClass().isArray());
+        assertEquals(obj.get("binary_data").getClass().getComponentType(), byte.class);
     }
-
 
 
     @Test
@@ -497,8 +495,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o = morphium.getMapper().deserialize(NoDefaultConstructorUncachedObject.class, serialized);
         assertNotNull(o);
         ;
-        assert (o.getCounter() == 15);
-        assert (o.getStrValue().equals("test"));
+        assertEquals(15, o.getCounter());
+        assertEquals("test", o.getStrValue());
     }
 
     @Test
@@ -528,9 +526,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         assertNotNull(obj.get("str_value"));
         ;
-        assert (obj.get("str_value") instanceof String);
-        assert (obj.get("counter") instanceof Integer);
-        assert (obj.get("long_data") instanceof ArrayList);
+        assertTrue (obj.get("str_value") instanceof String);
+        assertTrue (obj.get("counter") instanceof Integer);
+        assertTrue (obj.get("long_data") instanceof ArrayList);
 
         MappedObject mo = new MappedObject();
         mo.id = "test";
@@ -541,7 +539,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         obj = map.serialize(mo);
         assertNotNull(obj.get("uc"));
         ;
-        assert (((Map) obj.get("uc")).get("_id") == null);
+        assertTrue (((Map) obj.get("uc")).get("_id") == null);
 
         BIObject bo = new BIObject();
         bo.id = new MorphiumId();
@@ -549,8 +547,8 @@ public class ObjectMapperTest extends MorphiumTestBase {
         bo.biValue = new BigInteger("123afd33", 16);
 
         obj = map.serialize(bo);
-        assert (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
-        assert (obj.get("bi_value") instanceof Map);
+        assertTrue (obj.get("_id") instanceof ObjectId || obj.get("_id") instanceof String || obj.get("_id") instanceof MorphiumId);
+        assertInstanceOf(Map.class, obj.get("bi_value"));
 
 
     }
@@ -584,9 +582,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> m = morphium.getMapper().serialize(so);
         assertNotNull(m.get("set_of_strings"));
         ;
-        assert (m.get("set_of_strings") instanceof List);
-        assert (((List) m.get("set_of_strings")).size() == 3);
-        assert (((List) m.get("set_of_u_c")).size() == 1);
+        assertInstanceOf(List.class, m.get("set_of_strings"));
+        assertEquals(3, ((List) m.get("set_of_strings")).size());
+        assertEquals(1, ((List) m.get("set_of_u_c")).size());
 
         SetObject so2 = morphium.getMapper().deserialize(SetObject.class, m);
         assertNotNull(so2);
@@ -594,30 +592,30 @@ public class ObjectMapperTest extends MorphiumTestBase {
         so2.setOfStrings.contains("test");
         so2.setOfStrings.contains("test2");
         so2.setOfStrings.contains("test3");
-        assert (so2.setOfUC.iterator().next() instanceof UncachedObject);
+        assertInstanceOf(UncachedObject.class, so2.setOfUC.iterator().next());
 
-        assert (so2.listOfSetOfStrings.size() == 2);
+        assertEquals(2, so2.listOfSetOfStrings.size());
         Set<String> firstSetOfStrings = so2.listOfSetOfStrings.get(0);
-        assert (firstSetOfStrings.size() == 2);
-        assert (firstSetOfStrings.contains("Test1"));
-        assert (firstSetOfStrings.contains("Test2"));
+        assertEquals(2, firstSetOfStrings.size());
+        assertTrue(firstSetOfStrings.contains("Test1"));
+        assertTrue(firstSetOfStrings.contains("Test2"));
         Set<String> secondSetOfStrings = so2.listOfSetOfStrings.get(1);
-        assert (secondSetOfStrings.size() == 2);
-        assert (secondSetOfStrings.contains("Test3"));
-        assert (secondSetOfStrings.contains("Test4"));
+        assertEquals(2, secondSetOfStrings.size());
+        assertTrue(secondSetOfStrings.contains("Test3"));
+        assertTrue(secondSetOfStrings.contains("Test4"));
 
         Set<String> t1 = so2.mapOfSetOfStrings.get("t1");
-        assert (t1.contains("test1"));
-        assert (t1.contains("test11"));
+        assertTrue(t1.contains("test1"));
+        assertTrue(t1.contains("test11"));
         Set<String> t2 = so2.mapOfSetOfStrings.get("t2");
-        assert (t2.contains("test2"));
-        assert (t2.contains("test21"));
+        assertTrue(t2.contains("test2"));
+        assertTrue(t2.contains("test21"));
     }
 
     @Test
     public void convertCamelCaseTest() {
         String n = morphium.getARHelper().convertCamelCase("thisIsATestTT");
-        assert (n.equals("this_is_a_test_t_t"));
+        assertEquals("this_is_a_test_t_t", n);
 
     }
 
@@ -636,19 +634,19 @@ public class ObjectMapperTest extends MorphiumTestBase {
         Map<String, Object> obj = map.serialize(lst);
         assertNotNull(obj.get("list"));
         ;
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof Map);
+        assertInstanceOf(List.class, obj.get("list"));
+        assertInstanceOf(Map.class, ((List) obj.get("list")).get(0));
 
         ListOfEmbedded lst2 = map.deserialize(ListOfEmbedded.class, obj);
         assertNotNull(lst2.list);
         ;
-        assert (lst2.list.size() == 4);
-        assert (lst2.list.get(0).getName().equals("nam"));
+        assertEquals(4, lst2.list.size());
+        assertEquals("nam", lst2.list.get(0).getName());
 
         ((Map) ((List) obj.get("list")).get(0)).remove("class_name");
 
         lst2 = map.deserialize(ListOfEmbedded.class, obj);
-        assert (lst2.list.get(0) instanceof EmbeddedObject);
+        assertInstanceOf(EmbeddedObject.class, lst2.list.get(0));
 
     }
 
@@ -663,16 +661,16 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst3.list.get(0).get(0).add(new UncachedObject("test", 123));
 
         Map<String, Object> obj = map.serialize(lst3);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof List);
-        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof Map);
+        assertInstanceOf(List.class, obj.get("list"));
+        assertInstanceOf(List.class, ((List) obj.get("list")).get(0));
+        assertInstanceOf(List.class, ((List) ((List) obj.get("list")).get(0)).get(0));
+        assertInstanceOf(Map.class, ((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0));
 
         ListOfListOfListOfUncached lst4 = map.deserialize(ListOfListOfListOfUncached.class, obj);
-        assert (lst4.list.size() == 2);
-        assert (lst4.list.get(0).size() == 1);
-        assert (lst4.list.get(0).get(0).size() == 1);
-        assert (lst4.list.get(0).get(0).get(0).getStrValue().equals("test"));
+        assertEquals(2, lst4.list.size());
+        assertEquals(1, lst4.list.get(0).size());
+        assertEquals(1, lst4.list.get(0).get(0).size());
+        assertEquals("test", lst4.list.get(0).get(0).get(0).getStrValue());
     }
 
     public static class NoDefaultConstructorUncachedObject extends UncachedObject {
@@ -693,10 +691,10 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst5.list.get(0).put("tst1", new ArrayList<>());
         lst5.list.get(0).get("tst1").add("test");
         Map<String, Object> obj = map.serialize(lst5);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof Map);
-        assert (((Map) ((List) obj.get("list")).get(0)).get("tst1") instanceof List);
-        assert (((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0) instanceof String);
+        assertInstanceOf(List.class, obj.get("list"));
+        assertInstanceOf(Map.class, ((List) obj.get("list")).get(0));
+        assertInstanceOf(List.class, ((Map) ((List) obj.get("list")).get(0)).get("tst1"));
+        assertInstanceOf(String.class, ((List) ((Map) ((List) obj.get("list")).get(0)).get("tst1")).get(0));
 
         ListOfMapOfListOfString lst6 = map.deserialize(ListOfMapOfListOfString.class, obj);
         assert (lst6.list.size() == 2);
@@ -717,16 +715,16 @@ public class ObjectMapperTest extends MorphiumTestBase {
         lst.list.get(0).get(0).add("TEst1");
 
         Map<String, Object> obj = map.serialize(lst);
-        assert (obj.get("list") instanceof List);
-        assert (((List) obj.get("list")).get(0) instanceof List);
-        assert (((List) ((List) obj.get("list")).get(0)).get(0) instanceof List);
-        assert (((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0) instanceof String);
+        assertInstanceOf(List.class, obj.get("list"));
+        assertInstanceOf(List.class, ((List) obj.get("list")).get(0));
+        assertInstanceOf(List.class, ((List) ((List) obj.get("list")).get(0)).get(0));
+        assertInstanceOf(String.class, ((List) ((List) ((List) obj.get("list")).get(0)).get(0)).get(0));
 
         ListOfListOfListOfString lst2 = map.deserialize(ListOfListOfListOfString.class, obj);
-        assert (lst2.list.size() == 2);
-        assert (lst2.list.get(0).size() == 1);
-        assert (lst2.list.get(0).get(0).size() == 1);
-        assert (lst2.list.get(0).get(0).get(0).equals("TEst1"));
+        assertEquals(2, lst2.list.size());
+        assertEquals(1, lst2.list.get(0).size());
+        assertEquals(1, lst2.list.get(0).get(0).size());
+        assertEquals("TEst1", lst2.list.get(0).get(0).get(0));
 
     }
 
@@ -759,7 +757,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
 
         assertNotNull(e2);
         ;
-        assert (e2.equals(e));
+        assertEquals(e2, e);
     }
 
     @Test
@@ -799,11 +797,11 @@ public class ObjectMapperTest extends MorphiumTestBase {
         MyClass mc = new MyClass();
         mc.theValue = "a little Test";
         Map<String, Object> map = morphium.getMapper().serialize(mc);
-        assert (map.get("class").equals(mc.getClass().getName()));
-        assert (map.get("value").equals("AMMENDED+" + mc.theValue));
+        assertEquals(map.get("class"), mc.getClass().getName());
+        assertEquals(map.get("value"), "AMMENDED+" + mc.theValue);
 
         MyClass mc2 = morphium.getMapper().deserialize(MyClass.class, map);
-        assert (mc2.theValue.equals(mc.theValue));
+        assertEquals(mc2.theValue, mc.theValue);
 
     }
 
@@ -833,18 +831,18 @@ public class ObjectMapperTest extends MorphiumTestBase {
         log.info("Deserialized!");
         assertNotNull(c2);
         ;
-        assert (c2.id.equals(c.id));
-        assert (c2.structureK.size() == c.structureK.size());
-        assert (c2.structureK.get(0).get("String") instanceof String);
-        assert (c2.structureK.get(0).get("Integer") instanceof Integer);
-        assert (c2.structureK.get(0).get("List") instanceof List);
-        assert (c2.structureK.get(0).get("Map") == null);
-        assert (c2.structureK.get(1).get("String") instanceof String);
-        assert (c2.structureK.get(1).get("Integer") instanceof Integer);
-        assert (c2.structureK.get(1).get("List") instanceof List);
+        assertEquals(c2.id, c.id);
+        assertEquals(c2.structureK.size(), c.structureK.size());
+        assertInstanceOf(String.class, c2.structureK.get(0).get("String"));
+        assertInstanceOf(Integer.class, c2.structureK.get(0).get("Integer"));
+        assertInstanceOf(List.class, c2.structureK.get(0).get("List"));
+        assertNull(c2.structureK.get(0).get("Map"));
+        assertInstanceOf(String.class, c2.structureK.get(1).get("String"));
+        assertInstanceOf(Integer.class, c2.structureK.get(1).get("Integer"));
+        assertInstanceOf(List.class, c2.structureK.get(1).get("List"));
         assertNotNull(c2.structureK.get(1).get("Map"));
         ;
-        assert (((Map) c2.structureK.get(1).get("Map")).get("key").equals(123));
+        assertEquals(123, ((Map) c2.structureK.get(1).get("Map")).get("key"));
 
         log.info("All fine!");
     }

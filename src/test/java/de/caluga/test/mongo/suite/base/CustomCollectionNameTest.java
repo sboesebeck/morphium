@@ -21,7 +21,7 @@ public class CustomCollectionNameTest extends MorphiumTestBase {
 
 
     @Test
-    public void testUpdateInOtherCollection() {
+    public void testUpdateInOtherCollection() throws Exception {
         Morphium m = morphium;
         String collectionName = "entity_collection_name_update";
         m.clearCollection(EntityCollectionName.class, collectionName);
@@ -29,6 +29,7 @@ public class CustomCollectionNameTest extends MorphiumTestBase {
         EntityCollectionName e = new EntityCollectionName(1);
 
         m.storeNoCache(e, collectionName);
+        Thread.sleep(100);
         Query<EntityCollectionName> q = m.createQueryFor(EntityCollectionName.class).f("value").eq(1);
         q.setCollectionName(collectionName);
         EntityCollectionName eFetched = q.get();

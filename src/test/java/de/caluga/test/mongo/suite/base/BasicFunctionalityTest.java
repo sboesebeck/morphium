@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import de.caluga.morphium.annotations.*;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
@@ -26,9 +27,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.annotations.Embedded;
-import de.caluga.morphium.annotations.Entity;
-import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
@@ -69,7 +67,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
                 if (i % 10 == 0) {
                     log.info("Stored..." + i);
-               }
+                }
             }
 
             log.info("Stored...");
@@ -94,7 +92,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         if (morphium.getDriver() instanceof InMemoryDriver) {
             return;
         }
-        Morphium m=null;
+        Morphium m = null;
         try (morphium) {
             log.info("----> Running with: " + morphium.getDriver().getName());
             //trying to connect with the sepcified driver to non existent mongo
@@ -107,7 +105,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         } catch (Exception e) {
             log.info("Got exception!", e);
         }
-        assertFalse(m.getDriver().isConnected(), "Connection status wrong");
+        assertFalse(m != null && m.getDriver().isConnected(), "Connection status wrong");
     }
 
     @ParameterizedTest
@@ -177,7 +175,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void subObjectQueryTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -185,11 +183,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
             String queryString = q.toQueryObject().toString();
             log.info(queryString);
-            assert(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+            assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
             q = q.f("embed.test_value_long").eq(null).f("entity_embeded.binary_data").eq(null);
             queryString = q.toQueryObject().toString();
             log.info(queryString);
-            assert(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+            assert (queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
         }
     }
 
@@ -198,7 +196,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void subObjectQueryTestUnknownField(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -214,7 +212,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void sortTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -229,17 +227,17 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "strValue");
             List<UncachedObject> lst = q.asList();
-            assert(!lst.get(0).getStrValue().equals(lst.get(1).getStrValue()));
+            assert (!lst.get(0).getStrValue().equals(lst.get(1).getStrValue()));
             q = q.q().f("counter").gt(0).sort("str_value", "-counter");
             List<UncachedObject> lst2 = q.asList();
-            assert(lst2.get(0).getStrValue().equals(lst2.get(1).getStrValue()));
+            assert (lst2.get(0).getStrValue().equals(lst2.get(1).getStrValue()));
             log.info("Sorted");
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(0).limit(5).sort("-counter");
             int st = q.asList().size();
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(0).sort("-counter").limit(5);
-            assert(st == q.asList().size()) : "List length differ?";
+            assert (st == q.asList().size()) : "List length differ?";
         }
     }
 
@@ -248,7 +246,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void arrayOfPrimitivesTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -270,14 +268,14 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             float[] floatData = new float[100];
 
             for (int i = 0; i < floatData.length; i++) {
-                floatData[i] = (float)(i / 100.0);
+                floatData[i] = (float) (i / 100.0);
             }
 
             o.setFloatData(floatData);
             double[] doubleData = new double[100];
 
             for (int i = 0; i < doubleData.length; i++) {
-                doubleData[i] = (float)(i / 100.0);
+                doubleData[i] = (float) (i / 100.0);
             }
 
             o.setDoubleData(doubleData);
@@ -292,23 +290,23 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.reread(o);
 
             for (int i = 0; i < o.getIntData().length; i++) {
-                assert(o.getIntData()[i] == binaryData[i]);
+                assert (o.getIntData()[i] == binaryData[i]);
             }
 
             for (int i = 0; i < o.getLongData().length; i++) {
-                assert(o.getLongData()[i] == longData[i]);
+                assert (o.getLongData()[i] == longData[i]);
             }
 
             for (int i = 0; i < o.getFloatData().length; i++) {
-                assert(o.getFloatData()[i] == floatData[i]);
+                assert (o.getFloatData()[i] == floatData[i]);
             }
 
             for (int i = 0; i < o.getDoubleData().length; i++) {
-                assert(o.getDoubleData()[i] == doubleData[i]);
+                assert (o.getDoubleData()[i] == doubleData[i]);
             }
 
             for (int i = 0; i < o.getBoolData().length; i++) {
-                assert(o.getBoolData()[i] == bd[i]);
+                assert (o.getBoolData()[i] == bd[i]);
             }
         }
     }
@@ -318,7 +316,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void updateBinaryDataTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -336,7 +334,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.reread(o);
 
             for (int i = 0; i < binaryData.length; i++) {
-                binaryData[i] = (byte)(i + 2);
+                binaryData[i] = (byte) (i + 2);
             }
 
             o.setBinaryData(binaryData);
@@ -345,7 +343,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {
-                assert(o.getBinaryData()[i] == binaryData[i]);
+                assert (o.getBinaryData()[i] == binaryData[i]);
             }
         }
     }
@@ -355,7 +353,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void binaryDataTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -373,7 +371,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.reread(o);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {
-                assert(o.getBinaryData()[i] == binaryData[i]);
+                assert (o.getBinaryData()[i] == binaryData[i]);
             }
         }
     }
@@ -384,7 +382,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         try (morphium) {
             String tstName = new Object() {
             }
-            .getClass().getEnclosingMethod().getName();
+                    .getClass().getEnclosingMethod().getName();
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             createUncachedObjects(morphium, 100);
             var q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(15).f(UncachedObject.Fields.strValue).eq("nothing");
@@ -397,7 +395,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void idTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -420,11 +418,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             while (uc == null) {
                 Thread.sleep(100);
                 uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
             assertNotNull(uc, "Not found?!?");
-            assert(uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
+            assert (uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
         }
     }
 
@@ -433,7 +431,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void orTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -453,7 +451,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             List<UncachedObject> lst = q.asList();
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 10 || o.getStrValue().equals("Uncached 50")) : "Value did not match: " + o;
+                assert (o.getCounter() < 10 || o.getStrValue().equals("Uncached 50")) : "Value did not match: " + o;
                 log.info(o.toString());
             }
 
@@ -467,7 +465,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 morphium.store(uc);
             }
 
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
         }
     }
 
@@ -476,7 +474,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void uncachedSingeTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -496,7 +494,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Thread.sleep(500);
             log.info("Searching for objects");
             checkUncached(morphium);
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
         }
     }
 
@@ -504,9 +502,10 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void testAnnotationCache() {
         Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
         Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
-        assert(e == null);
+        assert (e == null);
         Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
-        assertNotNull(em);;
+        assertNotNull(em);
+        ;
     }
 
     @ParameterizedTest
@@ -514,7 +513,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void uncachedListTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -534,7 +533,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Storing a list  took " + dur + " ms");
             Thread.sleep(1000);
             checkUncached(morphium);
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assert (morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
         }
     }
 
@@ -547,11 +546,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").eq(i);
             List<UncachedObject> l = q.asList();
-            assert(l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
+            assert (l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
             UncachedObject fnd = l.get(0);
             assertNotNull(fnd, "Error finding element with id " + i);
-            assert(fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
-            assert(fnd.getStrValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i;
+            assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
+            assert (fnd.getStrValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i;
         }
 
         dur = System.currentTimeMillis() - start;
@@ -565,7 +564,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         start = System.currentTimeMillis();
 
         for (int idx = 1; idx <= NO_OBJECTS * 3.5; idx++) {
-            int i = (int)(Math.random() * (double) NO_OBJECTS);
+            int i = (int) (Math.random() * (double) NO_OBJECTS);
 
             if (i == 0) {
                 i = 1;
@@ -578,8 +577,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertFalse(l.isEmpty());
             CachedObject fnd = l.get(0);
             assertNotNull(fnd, "Error finding element with id " + i);
-            assert(fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
-            assert(fnd.getValue().equals("Cached " + i)) : "value not equal: " + fnd.getCounter() + " vs. " + i;
+            assert (fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
+            assert (fnd.getValue().equals("Cached " + i)) : "value not equal: " + fnd.getCounter() + " vs. " + i;
         }
 
         dur = System.currentTimeMillis() - start;
@@ -592,7 +591,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void cachedWritingTest(Morphium m) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + m.getDriver().getName());
 
         try (m) {
@@ -623,8 +622,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             randomCheck(m);
             Map<String, Double> statistics = m.getStatistics();
             Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
-            assert(uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
-            assert(statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+            assert (uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
+            assert (statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
         }
     }
 
@@ -633,7 +632,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void checkListWriting(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -648,7 +647,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             //noinspection ConstantConditions
-            assert(false) : "Exception missing!";
+            assert (false) : "Exception missing!";
         }
     }
 
@@ -657,7 +656,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void checkToStringUniqueness(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -679,7 +678,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             q = morphium.createQueryFor(CachedObject.class);
             q = q.f(CachedObject.Fields.counter).gt(5);
             s = q.toString();
-            assert(!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
+            assert (!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
         }
     }
 
@@ -688,7 +687,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void cachedObjectWriting(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -724,7 +723,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void mixedListWritingTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -771,12 +770,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void listOfIdsTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
             morphium.dropCollection(ListOfIdsContainer.class);
-            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(ListOfIdsContainer.class));
+            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", () -> !morphium.exists(ListOfIdsContainer.class));
             List<MorphiumId> lst = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
@@ -812,12 +811,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void insertTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
-            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(UncachedObject.class));
+            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", () -> !morphium.exists(UncachedObject.class));
             UncachedObject uc = new UncachedObject();
             uc.setCounter(1);
             uc.setStrValue("A value");
@@ -852,12 +851,12 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void insertListTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
-            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", ()->!morphium.exists(UncachedObject.class));
+            TestUtils.waitForConditionToBecomeTrue(1500, "Collection not dropped", () -> !morphium.exists(UncachedObject.class));
             List<UncachedObject> lst = new ArrayList<>();
 
             for (int i = 0; i < 100; i++) {
@@ -868,7 +867,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             morphium.insert(lst);
-            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", ()->TestUtils.countUC(morphium) == 100);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write?", () -> TestUtils.countUC(morphium) == 100);
             List<UncachedObject> lst2 = new ArrayList<>();
 
             for (int i = 0; i < 10; i++) {
@@ -898,7 +897,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void customMapperObjectIdTest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -910,12 +909,13 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                     serialized.put("_id", o.id);
                     return serialized;
                 }
+
                 @Override
                 public ObjectIdTest unmarshall(Object d) {
                     Map obj = ((Map) d);
                     ObjectIdTest o = new ObjectIdTest();
                     o.id = new ObjectId(obj.get("_id").toString());
-                    o.value = (String)(obj.get("value"));
+                    o.value = (String) (obj.get("value"));
                     return o;
                 }
             };
@@ -944,7 +944,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void objectIdIdstest(Morphium morphium) {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -964,7 +964,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void testFindOneAndDelete(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -982,7 +982,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void testFindOneAndUpdate(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-        .getClass().getEnclosingMethod().getName();
+                .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -1019,7 +1019,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @Entity
+    @Entity()
+    @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
+    @WriteSafety(level = SafetyLevel.MAJORITY)
     public static class ListOfIdsContainer {
         @Id
         public MorphiumId id;

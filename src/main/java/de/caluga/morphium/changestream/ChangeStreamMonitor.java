@@ -207,6 +207,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
+                        evt.setDbName(((Map<String,String>)data.get("ns")).get("db"));
+                        evt.setCollectionName(((Map<String,String>)data.get("ns")).get("coll"));
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
 
                         for (ChangeStreamListener lst : listeners) {
