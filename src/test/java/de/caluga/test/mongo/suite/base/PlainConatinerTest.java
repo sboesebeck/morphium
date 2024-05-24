@@ -39,7 +39,8 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             pc.setPlainMap(UtilsMap.of("$in", (Object) "value", "$test2", UtilsMap.of("$str1", "stre2")));
 
             morphium.store(pc);
-
+            //sleep to be sure all slaves are updated
+            Thread.sleep(100);
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
             assertEquals(pc.getId(), pc2.getId());
             assertEquals(2, pc2.getPlainMap().size());

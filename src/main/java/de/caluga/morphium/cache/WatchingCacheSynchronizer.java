@@ -45,6 +45,8 @@ public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<Watchin
         for (Class<?> t : types) {
             String s = morphium.getMapper().getCollectionName(t);
             if (s.equals(evt.getCollectionName())) {
+//                log.info("Incoming changestream event");
+
                 Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(t, Cache.class);
                 if (cache != null) {
                     Object id = evt.getDocumentKey();
@@ -73,6 +75,8 @@ public class WatchingCacheSynchronizer extends AbstractCacheSynchronizer<Watchin
                 }
                 firePostClearEvent(t);
                 break;
+            } else {
+               log.info("Changestream event wrong name {} != {}",s,evt.getCollectionName());
             }
         }
         return running;

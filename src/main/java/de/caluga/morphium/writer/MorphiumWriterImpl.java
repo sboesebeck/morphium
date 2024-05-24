@@ -351,11 +351,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             createCappedCollection(type, coll);
+            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) ){
+                morphium.ensureIndicesFor(type, coll, callback);
+            }
         }
-
-        if (morphium.getConfig().getCappedCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
+        if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             morphium.ensureIndicesFor(type, coll, callback);
         }
+
     }
 
     /**
@@ -717,7 +720,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      * collection only works
      * if @Capped annotation is given for type
      *
-     * @param c - type
      */
     // @SuppressWarnings("unused")
     // public <T> void convertToCapped(final Class<T> c) {

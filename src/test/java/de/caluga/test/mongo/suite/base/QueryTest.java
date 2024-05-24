@@ -759,6 +759,7 @@ public class QueryTest extends MorphiumTestBase {
     public void testSubDocs() throws Exception {
         SubDocTest sd = new SubDocTest();
         morphium.store(sd);
+        Thread.sleep(100);
         Query<SubDocTest> q = morphium.createQueryFor(SubDocTest.class).f(SubDocTest.Fields.id).eq(sd.getId());
         q.push("sub_docs.test.subtest", "this value added");
         q.push("sub_docs.test.subtest", "this value added2");
