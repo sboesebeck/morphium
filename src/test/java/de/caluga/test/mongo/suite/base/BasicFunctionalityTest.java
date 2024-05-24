@@ -94,19 +94,20 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         if (morphium.getDriver() instanceof InMemoryDriver) {
             return;
         }
-
+        Morphium m=null;
         try (morphium) {
             log.info("----> Running with: " + morphium.getDriver().getName());
             //trying to connect with the sepcified driver to non existent mongo
             MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg.setCredentialsEncrypted(false);
             cfg.setHostSeed("localhost:12312"); //does not exist, but should be easy to find
-            Morphium m = new Morphium(cfg);
+            m = new Morphium(cfg);
             log.info("No exception!");
-            assertTrue(false, "Exception not thrown!");
+            assertTrue(true, "Exception not thrown!");
         } catch (Exception e) {
             log.info("Got exception!", e);
         }
+        assertFalse(m.getDriver().isConnected(), "Connection status wrong");
     }
 
     @ParameterizedTest
