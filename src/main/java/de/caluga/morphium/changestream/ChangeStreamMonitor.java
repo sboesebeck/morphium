@@ -261,6 +261,10 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
+                    try {
+                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                    } catch (InterruptedException ex) {
+                    }
                 }
             } finally {
                 if (watch != null) {

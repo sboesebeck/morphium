@@ -144,7 +144,9 @@ public class PooledDriver extends DriverBase {
     private void handleHelloResult(HelloResult hello) {
         if (hello == null) return;
 
-        if (hello.getWritablePrimary() && hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
+        if (hello.getWritablePrimary()!=null &&
+                hello.getWritablePrimary() &&
+                hello.getMe() != null && !hello.getMe().equals(primaryNode)) {
             if (log.isDebugEnabled()) {
                 log.warn(String.format("Primary failover? %s -> %s", primaryNode, hello.getMe()));
             }
@@ -487,6 +489,7 @@ public class PooledDriver extends DriverBase {
             synchronized (connectionPool) {
                 //connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
                 if (!connectionPool.containsKey(host)) {
+                    log.error("No connectionpool for host {}");
                     throw new MorphiumDriverException("No connectionpool for " + host + " available");
                 }
 
