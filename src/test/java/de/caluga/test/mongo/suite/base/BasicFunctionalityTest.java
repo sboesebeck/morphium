@@ -80,9 +80,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertNotNull(ae.getAdditionals());
             assertNotNull(ae.getAdditionals().get("additional"));
             assertEquals("was set", ((Map) ae.getAdditionals().get("additional")).get("value"));
-            morphium.set(ae, "str_value", (Object) null, false, null);
+            morphium.setInEntity(ae, "str_value", (Object) null, false, null);
             assertNull(ae.getStrValue());
-            morphium.set(ae, "add.value", "the value");
+            morphium.setInEntity(ae, "add.value", "the value");
             assertNotNull(ae.getAdditionals().get("add"));
             log.info("finish");
         }
