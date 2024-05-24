@@ -6,6 +6,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.AggregateMongoCommand;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.wire.MongoConnection;
@@ -398,10 +399,7 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
         AggregateMongoCommand cmd = getAggregateCmd();
 
         try {
-            var rc = Entity.ReadConcernLevel.majority;
-
             if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
-
             return cmd.execute();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
@@ -440,13 +438,12 @@ public class AggregatorImpl<T, R> implements Aggregator<T, R> {
     }
 
     public AggregateMongoCommand getAggregateCmd() {
-        MongoConnection readConnection = morphium.getDriver().getReadConnection(null);
+        MongoConnection readConnection = morphium.getDriver().getReadConnection(morphium.getReadPreferenceForClass(getSearchType()));
         AggregateMongoCommand cmd = new AggregateMongoCommand(readConnection);
         cmd.setDb(morphium.getDatabase())
         .setColl(getCollectionName())
         .setPipeline(getPipeline())
         .setExplain(isExplain())
-        .setReadPreference(morphium.getReadPreferenceForClass(getSearchType()))
         .setAllowDiskUse(isUseDisk());
 
         if (collation != null) cmd.setCollation(Doc.of(getCollation().toQueryObject()));
