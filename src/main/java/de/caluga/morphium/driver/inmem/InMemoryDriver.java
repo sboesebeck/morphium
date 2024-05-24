@@ -2298,11 +2298,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     for (Map.Entry<String, Object> entry : cmd.entrySet()) {
                         Object value = obj.get(entry.getKey());
 
-                        if (value == null) {
-                            value = new Integer(0);
-                        }
+                            if (value == null) value = 0;
 
-                        if (value instanceof Integer) {
+                            if (value instanceof Integer) {
                             if (entry.getValue() instanceof Integer) {
                                 value = (Integer) value + ((Integer) entry.getValue());
                             } else if (entry.getValue() instanceof Float) {
