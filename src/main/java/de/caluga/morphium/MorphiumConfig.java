@@ -109,7 +109,7 @@ public class MorphiumConfig {
     private boolean warnOnNoEntitySerialization = false;
 
     @Transient
-    private ReadPreference defaultReadPreference;
+    private ReadPreference defaultReadPreference=ReadPreference.nearest();
     @Transient
     private String defaultReadPreferenceType;
     @Transient
