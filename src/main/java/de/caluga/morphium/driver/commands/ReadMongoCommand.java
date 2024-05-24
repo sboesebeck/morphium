@@ -11,18 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class ReadMongoCommand<T extends MongoCommand> extends MongoCommand<T> implements MultiResultCommand, Iterable<Map<String, Object>> {
-    private Entity.ReadConcernLevel readConcernLevel;
 
     public ReadMongoCommand(MongoConnection d) {
         super(d);
-    }
-
-    public Entity.ReadConcernLevel getReadConcernLevel() {
-        return readConcernLevel;
-    }
-
-    public void setReadConcernLevel(Entity.ReadConcernLevel readConcernLevel) {
-        this.readConcernLevel = readConcernLevel;
     }
 
 
