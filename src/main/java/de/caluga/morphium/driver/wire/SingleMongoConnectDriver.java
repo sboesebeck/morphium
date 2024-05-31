@@ -117,7 +117,7 @@ public class SingleMongoConnectDriver extends DriverBase {
             }
         }
 
-        while (!connection.isConnected()) {
+        while (connection != null && !connection.isConnected()) {
             try {
                 log.info("Waiting for heartbeat to fix connection...");
                 int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
