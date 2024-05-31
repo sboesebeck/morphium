@@ -519,7 +519,9 @@ public class PooledDriver extends DriverBase {
 
                         //although we probably won't get a connection, notify anyways
                         //
-                        waitCounterSignal.notifyAll();
+                        synchronized (waitCounterSignal) {
+                            waitCounterSignal.notifyAll();
+                        }
                     }
                 }
             }
