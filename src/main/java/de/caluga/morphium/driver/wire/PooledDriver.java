@@ -61,7 +61,6 @@ public class PooledDriver extends DriverBase {
     private String primaryNode;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
         private AtomicLong l = new AtomicLong(0);
-
         @Override
         public Thread newThread(Runnable r) {
             Thread ret = new Thread(r);
@@ -266,7 +265,7 @@ public class PooledDriver extends DriverBase {
                         }
                     }
                 }
-            }.start();
+            } .start();
 
             heartbeat = executor.scheduleWithFixedDelay(() -> {
                 //check every host in pool if available
@@ -361,7 +360,7 @@ public class PooledDriver extends DriverBase {
                             int loopCounter = 0;
 
                             while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                    ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                                 // log.info("Creating new connection to {}", hst);
                                 // System.out.println("Creating new connection to " + hst);
                                 loopCounter++;
@@ -568,6 +567,7 @@ public class PooledDriver extends DriverBase {
                 if (primaryNode == null) {
                     return borrowConnection(getHostSeed().get(0));
                 }
+
                 return borrowConnection(primaryNode);
             }
 
@@ -583,9 +583,10 @@ public class PooledDriver extends DriverBase {
 
             switch (type) {
                 case PRIMARY:
-                    if (primaryNode==null) {
+                    if (primaryNode == null) {
                         throw new MorphiumDriverException("No primary node defined - not connected yet?");
                     }
+
                     return borrowConnection(primaryNode);
 
                 case NEAREST:
@@ -615,9 +616,11 @@ public class PooledDriver extends DriverBase {
                 case SECONDARY_PREFERRED:
                 case SECONDARY:
                     int retry = 0;
+
                     while (true) {
                         // round-robin
-                        String host=null;
+                        String host = null;
+
                         synchronized (lastSecondaryNode) {
                             if (lastSecondaryNode.get() >= getHostSeed().size()) {
                                 lastSecondaryNode.set(0);
@@ -635,13 +638,14 @@ public class PooledDriver extends DriverBase {
 
                             host = getHostSeed().get(lastSecondaryNode.incrementAndGet());
                         }
+
                         try {
                             return borrowConnection(host);
                         } catch (MorphiumDriverException e) {
                             if (retry > getRetriesOnNetworkError()) {
                                 log.error("Could not get Connection - abort");
                                 stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                                throw (e);
+                                throw(e);
                             }
 
                             log.warn("could not get connection to secondary node '{}'- trying other replicaset node", host, e);
@@ -653,7 +657,6 @@ public class PooledDriver extends DriverBase {
                                 // Swallow
                             }
                         }
-
                     }
 
                 default:
@@ -1053,7 +1056,6 @@ public class PooledDriver extends DriverBase {
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
             private final List<BulkRequest> requests = new ArrayList<>();
-
             public Doc execute() {
                 try {
                     for (BulkRequest r : requests) {
