@@ -8,8 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Morphium;
@@ -54,23 +55,21 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 public class SingleMongoConnectDriver extends DriverBase {
 
     private ScheduledFuture<?> heartbeat;
-    public final static String driverName = "SingleMongoConnectDriver";
+    public static final String driverName = "SingleMongoConnectDriver";
 
     private final Logger log = LoggerFactory.getLogger(SingleMongoConnectDriver.class);
     private SingleMongoConnection connection;
     private ConnectionType connectionType = ConnectionType.PRIMARY;
     private int idleSleepTime = 20;
     private boolean connectionInUse = false;
+    private AtomicInteger waitingForHeartbeatCounter = new AtomicInteger(0);
 
     private Map<DriverStatsKey, AtomicDecimal> stats = new HashMap<>();
-    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread ret = new Thread(r);
-            ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
-            ret.setDaemon(true);
-            return ret;
-        }
+    private ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, r -> {
+        Thread ret = new Thread(r);
+        ret.setName("SCCon_" + (stats.get(DriverStatsKey.THREADS_CREATED).incrementAndGet()));
+        ret.setDaemon(true);
+        return ret;
     });
 
     public SingleMongoConnectDriver() {
@@ -88,7 +87,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     public Map<DriverStatsKey, Double> getDriverStats() {
         Map<DriverStatsKey, Double> ret = new HashMap<>();
         //copy to avoid concurrent modification
-        Map<DriverStatsKey, AtomicDecimal> hashMap = new HashMap(stats);
+        Map<DriverStatsKey, AtomicDecimal> hashMap = new HashMap<>(stats);
 
         for (var e : hashMap.entrySet()) {
             ret.put(e.getKey(), e.getValue().get());
@@ -121,6 +120,15 @@ public class SingleMongoConnectDriver extends DriverBase {
         while (!connection.isConnected()) {
             try {
                 log.info("Waiting for heartbeat to fix connection...");
+                int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
+                if (waitingCount > 20) {
+                    if (heartbeat != null) {
+                        heartbeat.cancel(true);
+                    }
+                    heartbeat = null;
+                    waitingForHeartbeatCounter.set(0);
+                    startHeartbeat();
+                }
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
             }//waiting for heartbeat
@@ -149,7 +157,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     private String getHost(String hostPort) {
-        String h[] = hostPort.split(":");
+        String[] h = hostPort.split(":");
         return h[0];
     }
 
@@ -158,7 +166,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     private int getPortFromHost(String host) {
-        String h[] = host.split(":");
+        String[] h = host.split(":");
 
         if (h.length == 1) {
             return 27017;
@@ -194,20 +202,20 @@ public class SingleMongoConnectDriver extends DriverBase {
                     connectToIdx = 0;
                 }
 
-                if (getHostSeed().size() == 0) {
+                if (getHostSeed().isEmpty()) {
                     log.error("All hosts unavailable...");
                     throw new MorphiumDriverException("Could not connect!");
                 }
 
                 String host = getHostSeed().get(connectToIdx);
-                String h[] = host.split(":");
+                String[] h = host.split(":");
                 int port = 27017;
 
                 if (h.length > 1) {
                     port = Integer.parseInt(h[1]);
                 }
 
-                log.debug("Connecting to " + h[0] + ":" + port);
+                log.debug("Connecting to {}:{}", h[0], port);
                 connection = new SingleMongoConnection();
 
                 if (getAuthDb() != null) {
@@ -221,14 +229,14 @@ public class SingleMongoConnectDriver extends DriverBase {
                     for (String s : hello.getHosts()) {
                         if (!getHostSeed().contains(s)) {
                             addToHostSeed(s);
-                            log.info("Adding " + s);
+                            log.info("Adding {}", s);
                         }
                     }
                 }
 
                 for (String hst : new ArrayList<String>(getHostSeed())) {
                     if (!hst.equals(hello.getPrimary()) && !hello.getHosts().contains(hst)) {
-                        log.debug(String.format("Host %s from hostseed is not part of replicaset anymore", hst));
+                        log.debug("Host {} from hostseed is not part of replicaset anymore", hst);
                         removeFromHostSeed(hst);
                     }
                 }
@@ -295,7 +303,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 retries++;
 
                 if (retries > getRetriesOnNetworkError()) {
-                    throw(new RuntimeException(e));
+                    throw(new MorphiumDriverException("max retries exceeded", e));
                 }
 
                 try {
@@ -315,62 +323,66 @@ public class SingleMongoConnectDriver extends DriverBase {
         if (heartbeat == null) {
             // log.debug("Starting heartbeat ");
             heartbeat = executor.scheduleWithFixedDelay(()-> {
-                if (connectionInUse) {
-                    return;
-                }
-                // log.info("checking connection");
-                if (connection == null)
-                    return;
-                connectionInUse = true;
                 try {
-                    HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
-                    var hello = cmd.execute();
-
-                    if (hello == null) {
-                        log.warn("Could not run heartbeat!");
+                    if (connectionInUse) {
                         return;
                     }
-
-                    if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())
-                        || (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary()))) {
-                        log.warn("state change -> wanted " + connectionType.name() + ", but changed, retrying");
-                        connection.close();
-                        connection = null;
-                        incStat(DriverStatsKey.FAILOVERS);
-                        decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
-                        incStat(DriverStatsKey.CONNECTIONS_CLOSED);
-                        Thread.sleep(1000);
-                        connect(getReplicaSetName());
-                    }
-                } catch (MorphiumDriverException e) {
-                    incStat(DriverStatsKey.ERRORS);
-                    log.error("Connection error", e);
-                    log.warn("Trying reconnect");
-
+                    // log.info("checking connection");
+                    if (connection == null)
+                        return;
+                    connectionInUse = true;
                     try {
-                        close();
-                    } catch (Exception ex) {
-                        //swallow - maybe error because connection died
-                    }
+                        HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
+                        var hello = cmd.execute();
 
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ex) {
-                        //really?
-                    }
+                        if (hello == null) {
+                            log.warn("Could not run heartbeat!");
+                            return;
+                        }
 
-                    try {
-                        connect();
-                    } catch (MorphiumDriverException ex) {
-                        log.error("Could not reconnect", ex);
+                        if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())
+                            || (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary()))) {
+                            log.warn("state change -> wanted {}, but changed, retrying", connectionType.name());
+                            connection.close();
+                            connection = null;
+                            incStat(DriverStatsKey.FAILOVERS);
+                            decStat(DriverStatsKey.CONNECTIONS_IN_POOL);
+                            incStat(DriverStatsKey.CONNECTIONS_CLOSED);
+                            Thread.sleep(1000);
+                            connect(getReplicaSetName());
+                        }
+                    } catch (MorphiumDriverException e) {
+                        incStat(DriverStatsKey.ERRORS);
+                        log.error("Connection error", e);
+                        log.warn("Trying reconnect");
+
+                        try {
+                            close();
+                        } catch (Exception ex) {
+                            //swallow - maybe error because connection died
+                        }
+
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {
+                            //really?
+                        }
+
+                        try {
+                            connect();
+                        } catch (MorphiumDriverException ex) {
+                            log.error("Could not reconnect", ex);
+                        }
+                    } catch (InterruptedException e) {
+                        //e.printStackTrace();
+                    } catch (Exception e) {
+                        incStat(DriverStatsKey.ERRORS);
+                        log.error("Error during heartbeat", e);
+                    } finally {
+                        connectionInUse = false;
                     }
-                } catch (InterruptedException e) {
-                    //e.printStackTrace();
-                } catch (Exception e) {
-                    incStat(DriverStatsKey.ERRORS);
-                    log.error("Error during heartbeat", e);
-                } finally {
-                    connectionInUse = false;
+                } catch (Throwable e) {
+                    log.error("Heartbeat caught error",e);
                 }
             }, 10, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
@@ -514,7 +526,9 @@ public class SingleMongoConnectDriver extends DriverBase {
             cmd = new DbStatsCommand(getPrimaryConnection(null)).setDb(db);
             return cmd.execute();
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
@@ -525,7 +539,9 @@ public class SingleMongoConnectDriver extends DriverBase {
             cmd = new CurrentOpCommand(connection).setColl("admin").setSecsRunning(threshold);
             return cmd.execute();
         } finally {
-            cmd.releaseConnection();
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
         }
     }
 
@@ -615,7 +631,6 @@ public class SingleMongoConnectDriver extends DriverBase {
 
     private List<Map<String, Object>> readBatches(int waitingfor, int batchSize) throws MorphiumDriverException {
         List<Map<String, Object>> ret = new ArrayList<>();
-        Map<String, Object> doc;
         String db = null;
         String coll = null;
 
@@ -623,8 +638,8 @@ public class SingleMongoConnectDriver extends DriverBase {
             OpMsg reply = connection.readNextMessage(getMaxWaitTime());//connection.getReplyFor(waitingfor, getMaxWaitTime());
 
             if (reply.getResponseTo() != waitingfor) {
-                log.error("Wrong answer - waiting for " + waitingfor + " but got " + reply.getResponseTo());
-                log.error("Document: " + Utils.toJsonString(reply.getFirstDoc()));
+                log.error("Wrong answer - waiting for {} but got {}", waitingfor, reply.getResponseTo());
+                log.error("Document: {}", Utils.toJsonString(reply.getFirstDoc()));
                 continue;
             }
 
