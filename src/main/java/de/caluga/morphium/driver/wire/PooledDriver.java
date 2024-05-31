@@ -117,6 +117,7 @@ public class PooledDriver extends DriverBase {
 
 
     private ScheduledFuture<?> heartbeat;
+    private final Integer waitCounterSignal = 0;
     private final Map<String, AtomicInteger> waitCounter = new ConcurrentHashMap<>();
     private List<String> lastHostsFromHello = null;
 
@@ -232,7 +233,9 @@ public class PooledDriver extends DriverBase {
                 public void run() {
                     while (heartbeat != null) {
                         try {
-                            waitCounter.wait();
+                            synchronized (waitCounterSignal) {
+                                waitCounterSignal.wait();
+                            }
 
                             for (String hst : getHostSeed()) {
                                 try {
@@ -516,7 +519,7 @@ public class PooledDriver extends DriverBase {
 
                         //although we probably won't get a connection, notify anyways
                         //
-                        waitCounter.notifyAll();
+                        waitCounterSignal.notifyAll();
                     }
                 }
             }
