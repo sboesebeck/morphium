@@ -17,7 +17,6 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey.*;
@@ -77,6 +76,16 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         // startReaderThread();
+        var hello = getHelloResult();
+
+        connectedTo = host;
+        connectedToPort = port;
+        //log.info("Connected to "+connectedTo+":"+port);
+        connected = true;
+        return hello;
+    }
+
+    public HelloResult getHelloResult() throws MorphiumDriverException {
         HelloCommand cmd = new HelloCommand(null);
 
         if (authDb != null) {
@@ -115,11 +124,6 @@ public class SingleMongoConnection implements MongoConnection {
 
             //            log.info("No error up to here - we should be authenticated!");
         }
-
-        connectedTo = host;
-        connectedToPort = port;
-        //log.info("Connected to "+connectedTo+":"+port);
-        connected = true;
         return hello;
     }
 
@@ -495,7 +499,7 @@ public class SingleMongoConnection implements MongoConnection {
         command.setMetaData("server", getConnectedTo());
         long docsProcessed = 0;
 
-        while (true) {
+        while (System.currentTimeMillis() - start < maxWait) {
             OpMsg reply = null;
 
             try {
@@ -516,7 +520,7 @@ public class SingleMongoConnection implements MongoConnection {
 
             if (reply == null) {
                 log.debug("Got null as reply");
-                continue;
+                throw new MorphiumDriverException("Could not watch - reply is null");
             }
 
             Map<String, Object> cursor = (Map<String, Object>) reply.getFirstDoc().get("cursor");
@@ -639,7 +643,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         if (!(msg.getFirstDoc().get("cursor") instanceof Map)) {
-            log.error("Cursor has wrong type: " + msg.getFirstDoc().get("cursor").toString());
+            log.error("Cursor has wrong type: {}", msg.getFirstDoc().get("cursor").toString());
             return null;
         }
 
