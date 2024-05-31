@@ -729,8 +729,9 @@ public class PooledDriver extends DriverBase {
             if (con.getConnectedTo() != null) {
                 synchronized (connectionPool) {
                     //connectionPool.putIfAbsent(con.getConnectedTo(), new LinkedBlockingQueue<>());
-                    if (connectionPool.containsKey(con.getConnectedTo())) {
-                        connectionPool.get(con.getConnectedTo()).add(c);
+                    var connectionContainer = connectionPool.get(con.getConnectedTo());
+                    if (null != connectionContainer) {
+                        connectionContainer.add(c);
                     }
                 }
             }

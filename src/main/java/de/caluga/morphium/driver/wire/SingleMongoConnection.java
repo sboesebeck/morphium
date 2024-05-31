@@ -98,6 +98,9 @@ public class SingleMongoConnection implements MongoConnection {
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(cmd.asMap());
         var result = sendAndWaitForReply(msg);
+        if(null == result) {
+            throw new MorphiumDriverException("Hello result is null");
+        }
         Map<String, Object> firstDoc = result.getFirstDoc();
         var hello = HelloResult.fromMsg(firstDoc);
 
@@ -499,7 +502,7 @@ public class SingleMongoConnection implements MongoConnection {
         command.setMetaData("server", getConnectedTo());
         long docsProcessed = 0;
 
-        while (System.currentTimeMillis() - start < maxWait) {
+        while (true) {
             OpMsg reply = null;
 
             try {
