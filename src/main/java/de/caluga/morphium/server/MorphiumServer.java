@@ -134,70 +134,72 @@ public class MorphiumServer {
         try {
             var in = s.getInputStream();
             var out = s.getOutputStream();
-
             int id = 0;
-//            OpMsg r = new OpMsg();
-//            r.setFlags(2);
-//            r.setMessageId(msgId.incrementAndGet());
-//            r.setResponseTo(id);
+            //            OpMsg r = new OpMsg();
+            //            r.setFlags(2);
+            //            r.setMessageId(msgId.incrementAndGet());
+            //            r.setResponseTo(id);
             var answer = getHelloResult().toMsg();
-//            r.setFirstDoc(answer);
-//            log.info("flush...");
-//            out.write(r.bytes());
-//            out.flush();
-//            log.info("Sent hello result");
+
+            //            r.setFirstDoc(answer);
+            //            log.info("flush...");
+            //            out.write(r.bytes());
+            //            out.flush();
+            //            log.info("Sent hello result");
             while (true) {
                 var msg = WireProtocolMessage.parseFromStream(in);
-                if (msg==null) continue;
+
+                if (msg == null) continue;
+
                 log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
 
-//                if (msg instanceof OpQuery) {
-//                    var q = (OpQuery) msg;
-//                    id = q.getMessageId();
-//                    doc = q.getDoc();
-//
-//                    if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
-//                        // ismaster
-//                        log.info("OpMsg->isMaster");
-//                         r = new OpReply();
-//                        r.setFlags(2);
-//                        r.setMessageId(msgId.incrementAndGet());
-//                        r.setResponseTo(id);
-//                        r.setNumReturned(1);
-//                         res = getHelloResult();
-//                        //                                OpMsg reply=new OpMsg();
-//                        //                                reply.setFirstDoc(res.toMsg());
-//                        //
-//                        // reply.setMessageId(msgId.incrementAndGet());
-//                        //                                reply.setResponseTo(id);
-//                        //                                out.write(reply.bytes());
-//                        r.setDocuments(Arrays.asList(res.toMsg()));
-//                        out.write(r.bytes());
-//                        out.flush();
-//                        log.info("Sent hello result");
-//                        continue;
-//                    }
+                if (msg instanceof OpQuery) {
+                    var q = (OpQuery) msg;
+                    id = q.getMessageId();
+                    doc = q.getDoc();
 
-//                     r = new OpReply();
-//                    Doc d = Doc.of("$err", "OP_QUERY is no longer supported. The client driver may require an upgrade.", "code", 5739101, "ok", 0.0);
-//                    r.setFlags(2);
-//                    r.setMessageId(msgId.incrementAndGet());
-//                    r.setResponseTo(id);
-//                    r.setNumReturned(1);
-//                    r.setDocuments(Arrays.asList(d));
-//                    out.write(r.bytes());
-//                    out.flush();
-//                    log.info("Sent out error because OPQuery not allowed anymore!");
-//                    log.info(Utils.toJsonString(doc));
+                    if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
+                        // ismaster
+                        log.info("OpMsg->isMaster");
+                        var r = new OpReply();
+                        r.setFlags(2);
+                        r.setMessageId(msgId.incrementAndGet());
+                        r.setResponseTo(id);
+                        r.setNumReturned(1);
+                        var res = getHelloResult();
+                        OpMsg reply = new OpMsg();
+                        reply.setFirstDoc(res.toMsg());
+                        //
+                        // reply.setMessageId(msgId.incrementAndGet());
+                        // reply.setResponseTo(id);
+                        // out.write(reply.bytes());
+                        r.setDocuments(Arrays.asList(res.toMsg()));
+                        out.write(r.bytes());
+                        out.flush();
+                        log.info("Sent hello result");
+                        continue;
+                    }
+
+                    var r = new OpReply();
+                    Doc d = Doc.of("$err", "OP_QUERY is no longer supported. The client driver may require an upgrade.", "code", 5739101, "ok", 0.0);
+                    r.setFlags(2);
+                    r.setMessageId(msgId.incrementAndGet());
+                    r.setResponseTo(id);
+                    r.setNumReturned(1);
+                    r.setDocuments(Arrays.asList(d));
+                    out.write(r.bytes());
+                    out.flush();
+                    log.info("Sent out error because OPQuery not allowed anymore!");
+                    log.info(Utils.toJsonString(doc));
                     // Thread.sleep(1000);
-//                    continue;
-//                } else if (msg instanceof OpMsg) {
+                    continue;
+                } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
                     log.info("Message flags: " + m.getFlags());
                     id = m.getMessageId();
-//                }
+                }
 
                 log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
@@ -251,6 +253,7 @@ public class MorphiumServer {
                         }
 
                         break;
+
                     default:
                         try {
                             int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
