@@ -144,7 +144,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();// db->coll->Settings
     // size/max
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
-    private List<Runnable> eventQueue = new CopyOnWriteArrayList<>();
+    private List<Runnable> eventQueue = new Vector();
     private final List<Map<String, Object>> commandResults = new Vector<>();
     private final Map<String, Class<? extends MongoCommand>> commandsCache = new HashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
@@ -316,7 +316,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
-        log.info("Reading answer for id " + queryId);
+        // log.info("Reading answer for id " + queryId);
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         var data = commandResults.remove(0);
 
@@ -1185,22 +1185,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Runnable r = ()-> {
             // Notification of watchers.
             try {
+                if (eventQueue.isEmpty()) return;
+
                 List<Runnable> current = eventQueue;
-                eventQueue = new CopyOnWriteArrayList<>();
-                Collections.shuffle(current);
+                eventQueue = new Vector<>();
+                // Collections.shuffle(current);
 
                 for (Runnable r1 : current) {
+                    //new Thread(r1).start();
                     try {
+                        // log.info("Event processing");
                         r1.run();
-                    } catch (Exception e) {
-                        log.error("Error", e);
-                    }
+                    } catch (Exception e) {}
                 }
             } catch (Exception e) {
                 log.error("Error", e);
             }
         };
-        exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); // check for events every 500ms
+        exec.scheduleWithFixedDelay(r, 100, 10, TimeUnit.MILLISECONDS); // check for events every 500ms
         scheduleExpire();
     }
 
@@ -2632,6 +2634,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
         Runnable r = ()-> {
+            // log.info("Notifying watchers for {} / {} operation {}", db, collection, op);
             List<DriverTailableIterationCallback> w = null;
 
             if (watchersByDb.containsKey(db)) {
@@ -2683,6 +2686,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
         };
+        // log.info("Notify watchers -adding event #{}", eventQueue.size());
         eventQueue.add(r);
     }
 
