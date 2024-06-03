@@ -1,5 +1,21 @@
 package de.caluga.morphium.server;
 
+import static java.lang.Thread.sleep;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
@@ -10,25 +26,6 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static java.lang.Thread.sleep;
 
 public class MorphiumServer {
 
@@ -47,56 +44,58 @@ public class MorphiumServer {
         this.port = port;
         this.host = host;
         drv.connect();
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-            @SuppressWarnings("CommentedOutCode")
-            @Override
-            public boolean offer(Runnable e) {
-                /*
-                 * Offer it to the queue if there is 0 items already queued, else
-                 * return false so the TPE will add another thread. If we return false
-                 * and max threads have been reached then the RejectedExecutionHandler
-                 * will be called which will do the put into the queue.
-                 */
-                int poolSize = executor.getPoolSize();
-                int maximumPoolSize = executor.getMaximumPoolSize();
-
-                if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
-                    return super.offer(e);
-                } else {
-                    return false;
-                }
-            }
-        };
-
-        executor =
-            new ThreadPoolExecutor(
-            maxThreads,
-            maxThreads,
-            10000,
-            TimeUnit.MILLISECONDS,
-            queue);
-        executor.setRejectedExecutionHandler((r, executor) -> {
-            try {
-                /*
-                 * This does the actual put into the queue. Once the max threads
-                 * have been reached, the tasks will then queue up.
-                 */
-                executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        // noinspection unused,unused
-        executor.setThreadFactory(new ThreadFactory() {
-            private final AtomicInteger num = new AtomicInteger(1);
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "server_" + num);
-                num.set(num.get() + 1);
-                ret.setDaemon(true);
-                return ret;
-            }
-        });
+        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+        //     @SuppressWarnings("CommentedOutCode")
+        //     @Override
+        //     public boolean offer(Runnable e) {
+        //         /*
+        //          * Offer it to the queue if there is 0 items already queued, else
+        //          * return false so the TPE will add another thread. If we return false
+        //          * and max threads have been reached then the RejectedExecutionHandler
+        //          * will be called which will do the put into the queue.
+        //          */
+        //         int poolSize = executor.getPoolSize();
+        //         int maximumPoolSize = executor.getMaximumPoolSize();
+        //
+        //         if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
+        //             return super.offer(e);
+        //         } else {
+        //             return false;
+        //         }
+        //     }
+        // };
+        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
+        // executor = new ThreadPoolExecutor(
+        //     minThreads,
+        //     maxThreads,
+        //     10000,
+        //     TimeUnit.MILLISECONDS,
+        //     new LinkedBlockingQueue<>());
+        // executor.setRejectedExecutionHandler((r, executor) -> {
+        //     try {
+        //         /*
+        //          * This does the actual put into the queue. Once the max threads
+        //          * have been reached, the tasks will then queue up.
+        //          */
+        //         executor.getQueue().put(r);
+        //     } catch (InterruptedException e) {
+        //         Thread.currentThread().interrupt();
+        //     }
+        // });
+        // // // noinspection unused,unused
+        // executor.setThreadFactory(new ThreadFactory() {
+        //     private final AtomicInteger num = new AtomicInteger(1);
+        //     @Override
+        //     public Thread newThread(Runnable r) {
+        //         Thread ret = new Thread(r, "server_" + num);
+        //         num.set(num.get() + 1);
+        //         ret.setDaemon(true);
+        //         return ret;
+        //     }
+        // });
+        executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+        executor.setMaximumPoolSize(maxThreads);
+        executor.setCorePoolSize(minThreads);
     }
 
     public MorphiumServer() {
@@ -196,6 +195,7 @@ public class MorphiumServer {
 
                 log.info("Incoming connection: " + executor.getQueue().size());
                 Socket finalS = s;
+                //new Thread(() -> incoming(finalS)).start();
                 executor.execute(() -> incoming(finalS));
             }
 
@@ -203,8 +203,7 @@ public class MorphiumServer {
     }
 
     public void incoming(Socket s) {
-        log.info("handling incoming connection...");
-
+        // log.info("handling incoming connection...");
         try {
             s.setSoTimeout(0);
             var in = s.getInputStream();
