@@ -71,19 +71,19 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
         //dedicated connection
         try {
-            if (m.getDriver() instanceof InMemoryDriver) {
-                dedicatedConnection = m.getDriver();
-            } else {
-                dedicatedConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
-                dedicatedConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
-                dedicatedConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
-                dedicatedConnection.setHostSeed(morphium.getConfig().getHostSeed());
-                dedicatedConnection.setMinConnections(1);
-                dedicatedConnection.setMaxConnections(3);
-                dedicatedConnection.setCredentials(morphium.getConfig().decryptAuthDb(), morphium.getConfig().decryptMongoLogin(), morphium.getConfig().decryptMongoPassword());
-                dedicatedConnection.connect();
-                Thread.sleep(1000);
-            }
+            // if (m.getDriver() instanceof InMemoryDriver) {
+            dedicatedConnection = m.getDriver();
+            // } else {
+            //     dedicatedConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
+            //     dedicatedConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
+            //     dedicatedConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
+            //     dedicatedConnection.setHostSeed(morphium.getConfig().getHostSeed());
+            //     dedicatedConnection.setMinConnections(1);
+            //     dedicatedConnection.setMaxConnections(3);
+            //     dedicatedConnection.setCredentials(morphium.getConfig().decryptAuthDb(), morphium.getConfig().decryptMongoLogin(), morphium.getConfig().decryptMongoPassword());
+            //     dedicatedConnection.connect();
+            //     Thread.sleep(1000);
+            // }
         } catch (Exception e) {
             if (!e.getMessage().contains("sleep interrupted")) {
                 throw new RuntimeException(e);
@@ -207,8 +207,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
-                        evt.setDbName(((Map<String,String>)data.get("ns")).get("db"));
-                        evt.setCollectionName(((Map<String,String>)data.get("ns")).get("coll"));
+                        evt.setDbName(((Map<String, String>)data.get("ns")).get("db"));
+                        evt.setCollectionName(((Map<String, String>)data.get("ns")).get("coll"));
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
 
                         for (ChangeStreamListener lst : listeners) {
@@ -263,6 +263,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     break;
                 } else {
                     log.warn("Error in changestream monitor - restarting", e);
+
                     try {
                         Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
                     } catch (InterruptedException ex) {
