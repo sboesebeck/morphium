@@ -224,17 +224,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private MorphiumTypeMapper<ObjectId> getObjectIdTypeMapper() {
         return new MorphiumTypeMapper<ObjectId>() {
-                   @Override
-                   public Object marshall(ObjectId o) {
-                       Map<String, String> m = new ConcurrentHashMap<>();
-                       m.put("value", o.toHexString());
-                       m.put("class_name", o.getClass().getName());
-                       return m;
-                   }
-                   @Override
-                   public ObjectId unmarshall(Object d) {
-                       return new ObjectId(((Map<?, ?>) d).get("value").toString());
-                   }
+            @Override
+            public Object marshall(ObjectId o) {
+                Map<String, String> m = new ConcurrentHashMap<>();
+                m.put("value", o.toHexString());
+                m.put("class_name", o.getClass().getName());
+                return m;
+            }
+
+            @Override
+            public ObjectId unmarshall(Object d) {
+                return new ObjectId(((Map<?, ?>) d).get("value").toString());
+            }
         };
     }
 
@@ -406,7 +407,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(GenericCommand cmd) {
-        log.info("Trying to handle generic Command");
+        // log.info("Trying to handle generic Command");
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
         Class<? extends MongoCommand> commandClass = commandsCache.get(commandName);
@@ -656,16 +657,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var cursorData = new ArrayList<Map<String, Object>>();
 
         if (!database.containsKey(cmd.getDb())) {
-//            m.put("ok", 0.0);
-//            m.put("errmsg", "no such database");
-//            commandResults.add(m);
-//            return ret;
-            database.putIfAbsent(cmd.getDb(),new HashMap<>());
+            //            m.put("ok", 0.0);
+            //            m.put("errmsg", "no such database");
+            //            commandResults.add(m);
+            //            return ret;
+            database.putIfAbsent(cmd.getDb(), new HashMap<>());
         }
 
         for (String coll : database.get(cmd.getDb()).keySet()) {
             cursorData.add(Doc.of("name", coll, "type", "collection", "options", new Doc(), "info", Doc.of("readonly", false, "UUID", UUID.randomUUID())).add("idIndex",
-             Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns", cmd.getDb() + "." + coll)));
+                Doc.of("v", 2.0, "key", Doc.of("_id", 1), "name", "_id_1", "ns", cmd.getDb() + "." + coll)));
         }
 
         addCursor(cmd.getDb(), "$cmd.listCollections", m, cursorData);
@@ -722,6 +723,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     public void incomingData(Map<String, Object> data, long dur) {
                         result.add(data);
                     }
+
                     @Override
                     public boolean isContinued() {
                         return false;
@@ -782,6 +784,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     public void incomingData(Map<String, Object> data, long dur) {
                         result.add((Map<String, Object>) data.get("fullDocument"));
                     }
+
                     @Override
                     public boolean isContinued() {
                         return false;
@@ -1020,7 +1023,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // "signature" : { "hash" : [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // 0, 0, 0], "keyId" : 0 } } , "operationTime" : 7129872915129958401 }
         var m = addCursor(cmd.getDb(), cmd.getColl(), prepareResult(),
-          Arrays.asList(Doc.of("helloOk", true, "isWritablePrimary", true, "maxBsonObjectSize", 128 * 1024 * 1024, "msg", driverName + " - ok")));
+            Arrays.asList(Doc.of("helloOk", true, "isWritablePrimary", true, "maxBsonObjectSize", 128 * 1024 * 1024, "msg", driverName + " - ok")));
         commandResults.add(m);
         return ret;
     }
@@ -1129,10 +1132,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public void connect() {
         try (ScanResult scanResult = new ClassGraph()
-         // .verbose() // Enable verbose logging
-         .enableAnnotationInfo()
-         // .enableAllInfo() // Scan classes, methods, fields, annotations
-         .scan()) {
+            // .verbose() // Enable verbose logging
+            .enableAnnotationInfo()
+            // .enableAllInfo() // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities = scanResult.getSubclasses(MongoCommand.class.getName());
 
             for (ClassInfo info : entities) {
@@ -1179,7 +1182,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             exec = new ScheduledThreadPoolExecutor(2);
         }
 
-        Runnable r = ()->{
+        Runnable r = ()-> {
             // Notification of watchers.
             try {
                 List<Runnable> current = eventQueue;
@@ -1190,11 +1193,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     try {
                         r1.run();
                     } catch (Exception e) {
-                        log.error("Error",e);
+                        log.error("Error", e);
                     }
                 }
             } catch (Exception e) {
-                log.error("Error",e);
+                log.error("Error", e);
             }
         };
         exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); // check for events every 500ms
@@ -1202,7 +1205,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private void scheduleExpire() {
-        expire = exec.scheduleWithFixedDelay(()->{
+        expire = exec.scheduleWithFixedDelay(()-> {
             // checking indexes for expire options
             try {
                 for (String db : database.keySet()) {
@@ -1223,7 +1226,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 } else {
                                     try {
                                         var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null,
-                                        null, null, 0, 0, true);
+                                            null, null, 0, 0, true);
 
                                         for (Map<String, Object> o : candidates) {
                                             if (!o.containsKey(keys[0])) {
@@ -1233,7 +1236,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                             getCollection(db, coll).remove(o);
                                         }
                                     } catch (Exception e) {
-                                        log.error("Error",e);
+                                        log.error("Error", e);
                                     }
                                 }
                             }
@@ -1241,7 +1244,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 }
             } catch (Exception e) {
-                log.error("Error",e);
+                log.error("Error", e);
             }
         }, 100, expireCheck, TimeUnit.MILLISECONDS);
     }
@@ -1380,7 +1383,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             ObjectInputStream ois = new ObjectInputStream(bais);
             return (T) ois.readObject();
         } catch (Exception e) {
-            log.error("Error",e);
+            log.error("Error", e);
             return null;
         }
     }
@@ -1439,6 +1442,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public boolean isReplicaset() {
         return false;
     }
+
     //
 
     public Map<String, Object> getReplsetStatus() {
@@ -1477,46 +1481,56 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize,
-     ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
+        ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
         MorphiumCursor crs = new MorphiumCursor() {
             @Override
             public Iterator<Map<String, Object>> iterator() {
                 return this;
             }
+
             @Override
             public boolean hasNext() {
                 return false;
             }
+
             @Override
             public Map<String, Object> next() {
                 return null;
             }
+
             @Override
             public void close() {
             }
+
             @Override
             public int available() {
                 return 0;
             }
+
             @Override
             public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                 return null;
             }
+
             @Override
             public void ahead(int skip) throws MorphiumDriverException {
             }
+
             @Override
             public void back(int jump) throws MorphiumDriverException {
             }
+
             @Override
             public int getCursor() {
                 return 0;
             }
+
             @Override
             public MongoConnection getConnection() {
                 return null;
             }
         };
+
         crs.setBatchSize(batchSize);
         crs.setCursorId(System.currentTimeMillis());
         InMemoryCursor inCrs = new InMemoryCursor();
@@ -1575,14 +1589,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     }
                 }
 
-                cb.incomingData(data, dur);
+                if (cb != null) {
+                    cb.incomingData(data, dur);
 
-                if (!cb.isContinued()) {
-                    synchronized (monitor) {
-                        monitor.notifyAll();
+                    if (!cb.isContinued()) {
+                        synchronized (monitor) {
+                            monitor.notifyAll();
+                        }
                     }
                 }
             }
+
             public boolean isContinued() {
                 return cb.isContinued();
             }
@@ -1614,40 +1631,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             public Iterator<Map<String, Object>> iterator() {
                 return this;
             }
+
             @Override
             public boolean hasNext() {
                 return false;
             }
+
             @Override
             public Map<String, Object> next() {
                 return null;
             }
+
             @Override
             public void close() {
             }
+
             @Override
             public int available() {
                 return 0;
             }
+
             @Override
             public List<Map<String, Object>> getAll() throws MorphiumDriverException {
                 return null;
             }
+
             @Override
             public void ahead(int skip) throws MorphiumDriverException {
             }
+
             @Override
             public void back(int jump) throws MorphiumDriverException {
             }
+
             @Override
             public int getCursor() {
                 return 0;
             }
+
             @Override
             public MongoConnection getConnection() {
                 return null;
             }
         };
+
         next.setCursorId(crs.getCursorId());
         // InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
         // if (oldCrs == null) {
@@ -1699,7 +1726,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
     private List<Map<String, Object>> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
-     int limit, boolean internal) throws MorphiumDriverException {
+        int limit, boolean internal) throws MorphiumDriverException {
         List<Map<String, Object>> partialHitData = new ArrayList<>();
 
         if (query == null) {
@@ -1750,7 +1777,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (sort != null) {
             Collator coll = QueryHelper.getCollator(collation);
-            data.sort((o1, o2)->{
+            data.sort((o1, o2)-> {
                 for (String f : sort.keySet()) {
                     if (o1.get(f) == null && o2.get(f) == null) {
                         continue;
@@ -1993,7 +2020,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 List<Map<String, Object>> and = new ArrayList();
 
                                 for (var e : q.entrySet()) {
-                                    and.add(Doc.of(e.getKey(), e.getValue()));
+                                    and .add(Doc.of(e.getKey(), e.getValue()));
                                 }
 
                                 q = Doc.of("$and", and);
@@ -2033,7 +2060,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         if (cappedCollections.containsKey(db) && cappedCollections.get(db).containsKey(collection)) {
             while (!collectionData.isEmpty() && cappedCollections.get(db).get(collection).containsKey("max")
-             && cappedCollections.get(db).get(collection).get("max") < collectionData.size() + objs.size()) {
+                && cappedCollections.get(db).get(collection).get("max") < collectionData.size() + objs.size()) {
                 collectionData.remove(0);
             }
 
@@ -2046,7 +2073,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             while (objs.size() > 0 && cappedCollections.get(db).get(collection).containsKey("size")
-             && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) > cappedCollections.get(db).get(collection).get("size")) {
+                && VM.current().sizeOf(collectionData) + VM.current().sizeOf(objs.size()) > cappedCollections.get(db).get(collection).get("size")) {
                 objs.remove(0);
             }
         }
@@ -2175,13 +2202,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+        if (commandResults.isEmpty()) return null;
+
         return commandResults.remove(0);
     }
 
     @SuppressWarnings("ConstantConditions")
 
     public synchronized Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
-     Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
+        Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
         List<Map<String, Object>> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
         boolean insert = false;
         int count = 0;
@@ -2216,304 +2245,316 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
 
                 switch (operand) {
-                case "$set":
+                    case "$set":
 
-                    // $set:{"field":"value", "other_field": 123}
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        if (entry.getValue() != null) {
-                            var v = entry.getValue();
+                        // $set:{"field":"value", "other_field": 123}
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            if (entry.getValue() != null) {
+                                var v = entry.getValue();
 
-                            if (v instanceof Map) {
-                                try {
-                                    v = Expr.parse(v).evaluate(obj);
-                                } catch (Exception e) {
-                                    // swallow
+                                if (v instanceof Map) {
+                                    try {
+                                        v = Expr.parse(v).evaluate(obj);
+                                    } catch (Exception e) {
+                                        // swallow
+                                    }
                                 }
-                            }
 
-                            if (entry.getKey().contains(".")) {
-                                String[] path = entry.getKey().split("\\.");
-                                var current = obj;
-                                Map lastEl = null;
+                                if (entry.getKey().contains(".")) {
+                                    String[] path = entry.getKey().split("\\.");
+                                    var current = obj;
+                                    Map lastEl = null;
 
-                                for (String p : path) {
-                                    if (current.get(p) != null) {
-                                        if (current.get(p) instanceof Map) {
-                                            ((Map) current.get(p)).put(p, Doc.of());
+                                    for (String p : path) {
+                                        if (current.get(p) != null) {
+                                            if (current.get(p) instanceof Map) {
+                                                ((Map) current.get(p)).put(p, Doc.of());
+                                            } else {
+                                                log.error("could not set value! " + p);
+                                                break;
+                                            }
                                         } else {
-                                            log.error("could not set value! " + p);
+                                            current.put(p, Doc.of());
+                                        }
+
+                                        lastEl = current;
+                                        current = (Map) current.get(p);
+                                    }
+
+                                    lastEl.put(path[path.length - 1], v);
+                                } else {
+                                    obj.put(entry.getKey(), v);
+                                }
+                            } else {
+                                if (entry.getKey().contains(".")) {
+                                    String[] path = entry.getKey().split("\\.");
+                                    var current = obj;
+                                    Map lastEl = null;
+
+                                    for (String p : path) {
+                                        lastEl = current;
+
+                                        if (current.get(p) != null) {
+                                            current = (Map) current.get(p);
+                                        } else {
                                             break;
                                         }
-                                    } else {
-                                        current.put(p, Doc.of());
                                     }
 
-                                    lastEl = current;
-                                    current = (Map) current.get(p);
-                                }
-
-                                lastEl.put(path[path.length - 1], v);
-                            } else {
-                                obj.put(entry.getKey(), v);
-                            }
-                        } else {
-                            if (entry.getKey().contains(".")) {
-                                String[] path = entry.getKey().split("\\.");
-                                var current = obj;
-                                Map lastEl = null;
-
-                                for (String p : path) {
-                                    lastEl = current;
-
-                                    if (current.get(p) != null) {
-                                        current = (Map) current.get(p);
-                                    } else {
-                                        break;
+                                    if (lastEl != null) {
+                                        lastEl.remove(path[path.length - 1]);
                                     }
+                                } else {
+                                    obj.remove(entry.getKey());
                                 }
-
-                                if (lastEl != null) {
-                                    lastEl.remove(path[path.length - 1]);
-                                }
-                            } else {
-                                obj.remove(entry.getKey());
                             }
                         }
-                    }
 
-                    break;
+                        break;
 
-                case "$unset":
+                    case "$unset":
 
-                    // $unset: { <field1>: "", ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        obj.remove(entry.getKey());
-                    }
+                        // $unset: { <field1>: "", ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            obj.remove(entry.getKey());
+                        }
 
-                    break;
+                        break;
 
-                case "$inc":
+                    case "$inc":
 
-                    // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        Object value = obj.get(entry.getKey());
+                        // $inc: { <field1>: <amount1>, <field2>: <amount2>, ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Object value = obj.get(entry.getKey());
 
                             if (value == null) value = 0;
 
                             if (value instanceof Integer) {
-                            if (entry.getValue() instanceof Integer) {
-                                value = (Integer) value + ((Integer) entry.getValue());
-                            } else if (entry.getValue() instanceof Float) {
-                                value = (Integer) value + ((Float) entry.getValue());
-                            } else if (entry.getValue() instanceof Double) {
-                                value = (Integer) value + ((Double) entry.getValue());
-                            } else if (entry.getValue() instanceof Long) {
-                                value = (Integer) value + ((Long) entry.getValue());
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Integer) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Integer) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Integer) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Integer) value + ((Long) entry.getValue());
+                                }
+                            } else if (value instanceof Double) {
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Double) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Double) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Double) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Double) value + ((Long) entry.getValue());
+                                }
+                            } else if (value instanceof Float) {
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Float) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Float) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Float) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Float) value + ((Long) entry.getValue());
+                                }
+                            } else if (value instanceof Long) {
+                                if (entry.getValue() instanceof Integer) {
+                                    value = (Long) value + ((Integer) entry.getValue());
+                                } else if (entry.getValue() instanceof Float) {
+                                    value = (Long) value + ((Float) entry.getValue());
+                                } else if (entry.getValue() instanceof Double) {
+                                    value = (Long) value + ((Double) entry.getValue());
+                                } else if (entry.getValue() instanceof Long) {
+                                    value = (Long) value + ((Long) entry.getValue());
+                                }
                             }
-                        } else if (value instanceof Double) {
-                            if (entry.getValue() instanceof Integer) {
-                                value = (Double) value + ((Integer) entry.getValue());
-                            } else if (entry.getValue() instanceof Float) {
-                                value = (Double) value + ((Float) entry.getValue());
-                            } else if (entry.getValue() instanceof Double) {
-                                value = (Double) value + ((Double) entry.getValue());
-                            } else if (entry.getValue() instanceof Long) {
-                                value = (Double) value + ((Long) entry.getValue());
+
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
                             }
-                        } else if (value instanceof Float) {
-                            if (entry.getValue() instanceof Integer) {
-                                value = (Float) value + ((Integer) entry.getValue());
-                            } else if (entry.getValue() instanceof Float) {
-                                value = (Float) value + ((Float) entry.getValue());
-                            } else if (entry.getValue() instanceof Double) {
-                                value = (Float) value + ((Double) entry.getValue());
-                            } else if (entry.getValue() instanceof Long) {
-                                value = (Float) value + ((Long) entry.getValue());
-                            }
-                        } else if (value instanceof Long) {
-                            if (entry.getValue() instanceof Integer) {
-                                value = (Long) value + ((Integer) entry.getValue());
-                            } else if (entry.getValue() instanceof Float) {
-                                value = (Long) value + ((Float) entry.getValue());
-                            } else if (entry.getValue() instanceof Double) {
-                                value = (Long) value + ((Double) entry.getValue());
-                            } else if (entry.getValue() instanceof Long) {
-                                value = (Long) value + ((Long) entry.getValue());
+
+                            if (value != null) {
+                                obj.put(entry.getKey(), value);
+                            } else {
+                                obj.remove(entry.getKey());
                             }
                         }
 
-                        if (!obj.get(entry.getKey()).equals(value)) {
-                            modified.add(obj.get("_id"));
+                        break;
+
+                    case "$currentDate":
+                        // TODO: Fix it
+                        // $currentDate: { <field1>: <typeSpecification1>, ... }
+                        // log.info("current date");
+                        obj.put((String) cmd.keySet().toArray()[0], new Date());
+                        break;
+
+                    case "$mul":
+
+                        // $mul: { <field1>: <number1>, ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Object value = obj.get(entry.getKey());
+
+                            if (value instanceof Integer) {
+                                value = (Integer) value * ((Integer) entry.getValue());
+                            } else if (value instanceof Double) {
+                                value = (Double) value * ((Double) entry.getValue());
+                            } else if (value instanceof Float) {
+                                value = (Float) value * ((Float) entry.getValue());
+                            } else if (value instanceof Long) {
+                                value = (Long) value * ((Long) entry.getValue());
+                            }
+
+                            if (!obj.get(entry.getKey()).equals(value)) {
+                                modified.add(obj.get("_id"));
+                            }
+
+                            if (value != null) {
+                                obj.put(entry.getKey(), value);
+                            } else {
+                                obj.remove(entry.getKey());
+                            }
                         }
 
-                        if (value != null) {
-                            obj.put(entry.getKey(), value);
-                        } else {
+                        break;
+
+                    case "$rename":
+
+                        // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            if (obj.get(entry.getKey()) != null) {
+                                obj.put((String) entry.getValue(), obj.get(entry.getKey()));
+                            } else {
+                                obj.remove(entry.getValue());
+                            }
+
                             obj.remove(entry.getKey());
-                        }
-                    }
-
-                    break;
-
-                case "$currentDate":
-                    // TODO: Fix it
-                    // $currentDate: { <field1>: <typeSpecification1>, ... }
-                    // log.info("current date");
-                    obj.put((String) cmd.keySet().toArray()[0], new Date());
-                    break;
-
-                case "$mul":
-
-                    // $mul: { <field1>: <number1>, ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        Object value = obj.get(entry.getKey());
-
-                        if (value instanceof Integer) {
-                            value = (Integer) value * ((Integer) entry.getValue());
-                        } else if (value instanceof Double) {
-                            value = (Double) value * ((Double) entry.getValue());
-                        } else if (value instanceof Float) {
-                            value = (Float) value * ((Float) entry.getValue());
-                        } else if (value instanceof Long) {
-                            value = (Long) value * ((Long) entry.getValue());
-                        }
-
-                        if (!obj.get(entry.getKey()).equals(value)) {
                             modified.add(obj.get("_id"));
                         }
 
-                        if (value != null) {
-                            obj.put(entry.getKey(), value);
-                        } else {
-                            obj.remove(entry.getKey());
-                        }
-                    }
+                        break;
 
-                    break;
+                    case "$min":
 
-                case "$rename":
+                        // $min: { <field1>: <value1>, ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Comparable value = (Comparable) obj.get(entry.getKey());
 
-                    // $rename: { <field1>: <newName1>, <field2>: <newName2>, ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        if (obj.get(entry.getKey()) != null) {
-                            obj.put((String) entry.getValue(), obj.get(entry.getKey()));
-                        } else {
-                            obj.remove(entry.getValue());
-                        }
-
-                        obj.remove(entry.getKey());
-                        modified.add(obj.get("_id"));
-                    }
-
-                    break;
-
-                case "$min":
-
-                    // $min: { <field1>: <value1>, ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        Comparable value = (Comparable) obj.get(entry.getKey());
-
-                        // noinspection unchecked
-                        if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
-                            modified.add(obj.get("_id"));
-                            obj.put(entry.getKey(), entry.getValue());
-                        }
-                    }
-
-                    break;
-
-                case "$max":
-
-                    // $max: { <field1>: <value1>, ... }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        Comparable value = (Comparable) obj.get(entry.getKey());
-
-                        // noinspection unchecked
-                        if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
-                            obj.put(entry.getKey(), entry.getValue());
-                            modified.add(obj.get("_id"));
-                        }
-                    }
-
-                    break;
-
-                case "$pull":
-
-                    // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
-                    // Examples:
-                    // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
-                    // $pull: { votes: { $gte: 6 } }
-                    // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
-                    // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        List values = new ArrayList((List) obj.get(entry.getKey()));
-                        Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
-                        List filteredValues = new ArrayList();
-
-                        for (Object value : values) {
-                            if (!QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
-                                filteredValues.add(value);
+                            // noinspection unchecked
+                            if (value.compareTo(entry.getValue()) > 0 && entry.getValue() != null) {
+                                modified.add(obj.get("_id"));
+                                obj.put(entry.getKey(), entry.getValue());
                             }
                         }
 
-                        boolean valueIsChanged = !filteredValues.containsAll(values) || !values.containsAll(filteredValues);
+                        break;
 
-                        if (valueIsChanged) {
-                            modified.add(obj.get("_id"));
+                    case "$max":
+
+                        // $max: { <field1>: <value1>, ... }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            Comparable value = (Comparable) obj.get(entry.getKey());
+
+                            // noinspection unchecked
+                            if (value.compareTo(entry.getValue()) < 0 && entry.getValue() != null) {
+                                obj.put(entry.getKey(), entry.getValue());
+                                modified.add(obj.get("_id"));
+                            }
                         }
 
-                        obj.put(entry.getKey(), filteredValues);
-                    }
+                        break;
 
-                    break;
+                    case "$pull":
 
-                case "$pullAll":
+                        // $pull: { <field1>: <value|condition>, <field2>: <value|condition>, ... }
+                        // Examples:
+                        // $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" }
+                        // $pull: { votes: { $gte: 6 } }
+                        // $pull: { results: {$elemMatch: { score: 8 , item: "B" } }}
+                        // $pull: { results: { answers: { $elemMatch: { q: 2, a: { $gte: 8 } } } } }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            List values = new ArrayList((List) obj.get(entry.getKey()));
+                            Map<String, Object> subquery = Doc.of(entry.getKey(), entry.getValue());
+                            List filteredValues = new ArrayList();
 
-                    // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
-                    // Examples:
-                    // $pullAll: { scores: [ 0, 5 ] }
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        List v = new ArrayList((List) obj.get(entry.getKey()));
-                        List objectsToBeDeleted = (List) entry.getValue();
-                        boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object->v.contains(object));
+                            for (Object value : values) {
+                                if (!QueryHelper.matchesQuery(subquery, Doc.of(entry.getKey(), value), null)) {
+                                    filteredValues.add(value);
+                                }
+                            }
 
-                        if (valueIsChanged) {
-                            modified.add(obj.get("_id"));
+                            boolean valueIsChanged = !filteredValues.containsAll(values) || !values.containsAll(filteredValues);
+
+                            if (valueIsChanged) {
+                                modified.add(obj.get("_id"));
+                            }
+
+                            obj.put(entry.getKey(), filteredValues);
                         }
 
-                        v.removeAll(objectsToBeDeleted);
-                        obj.put(entry.getKey(), v);
-                    }
+                        break;
 
-                    break;
+                    case "$pullAll":
 
-                case "$addToSet":
-                case "$push":
-                case "$pushAll":
+                        // $pullAll: { <field1>: [ <value1>, <value2> ... ], ... }
+                        // Examples:
+                        // $pullAll: { scores: [ 0, 5 ] }
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            List v = new ArrayList((List) obj.get(entry.getKey()));
+                            List objectsToBeDeleted = (List) entry.getValue();
+                            boolean valueIsChanged = objectsToBeDeleted.stream().anyMatch(object->v.contains(object));
 
-                    // $addToSet: { <field1>: <value1>, ... }
-                    //$push:{"field":"value"}
-                    //$pushAll:{"field":["value","value",...]}
-                    for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                        List v = (List) obj.get(entry.getKey());
+                            if (valueIsChanged) {
+                                modified.add(obj.get("_id"));
+                            }
 
-                        if (v == null) {
-                            v = new ArrayList();
+                            v.removeAll(objectsToBeDeleted);
                             obj.put(entry.getKey(), v);
-                            modified.add(obj.get("_id"));
                         }
 
-                        if (entry.getValue() instanceof Map) {
-                            if (((Map) entry.getValue()).get("$each") != null) {
-                                // noinspection unchecked
-                                if (operand.equals("$addToSet")) {
-                                    for (Object elem : (List)((Map) entry.getValue()).get("$each")) {
-                                        if (!v.contains(elem)) {
-                                            v.add(elem);
+                        break;
+
+                    case "$addToSet":
+                    case "$push":
+                    case "$pushAll":
+
+                        // $addToSet: { <field1>: <value1>, ... }
+                        //$push:{"field":"value"}
+                        //$pushAll:{"field":["value","value",...]}
+                        for (Map.Entry<String, Object> entry : cmd.entrySet()) {
+                            List v = (List) obj.get(entry.getKey());
+
+                            if (v == null) {
+                                v = new ArrayList();
+                                obj.put(entry.getKey(), v);
+                                modified.add(obj.get("_id"));
+                            }
+
+                            if (entry.getValue() instanceof Map) {
+                                if (((Map) entry.getValue()).get("$each") != null) {
+                                    // noinspection unchecked
+                                    if (operand.equals("$addToSet")) {
+                                        for (Object elem : (List)((Map) entry.getValue()).get("$each")) {
+                                            if (!v.contains(elem)) {
+                                                v.add(elem);
+                                            }
                                         }
+                                    } else {
+                                        v.addAll((List)((Map) entry.getValue()).get("$each"));
                                     }
                                 } else {
-                                    v.addAll((List)((Map) entry.getValue()).get("$each"));
+                                    // noinspection unchecked
+                                    if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
+                                        break;
+                                    }
+
+                                    if (operand.equals("$pushAll") && entry.getValue() instanceof List) {
+                                        v.addAll(((List) entry.getValue()));
+                                    } else {
+                                        v.add(entry.getValue());
+                                    }
                                 }
                             } else {
                                 // noinspection unchecked
@@ -2527,24 +2568,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                     v.add(entry.getValue());
                                 }
                             }
-                        } else {
-                            // noinspection unchecked
-                            if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
-                                break;
-                            }
-
-                            if (operand.equals("$pushAll") && entry.getValue() instanceof List) {
-                                v.addAll(((List) entry.getValue()));
-                            } else {
-                                v.add(entry.getValue());
-                            }
                         }
-                    }
 
-                    break;
+                        break;
 
-                default:
-                    throw new RuntimeException("unknown operand " + operand);
+                    default:
+                        throw new RuntimeException("unknown operand " + operand);
                 }
             }
 
@@ -2602,7 +2631,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
-        Runnable r = ()->{
+        Runnable r = ()-> {
             List<DriverTailableIterationCallback> w = null;
 
             if (watchersByDb.containsKey(db)) {
@@ -2638,8 +2667,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                 if (doc != null) {
                     if (doc.get("_id") != null) {
-                        if (doc.get("_id") instanceof ObjectId){
-                            data.put("documentKey",new MorphiumId((ObjectId)doc.get("_id")));
+                        if (doc.get("_id") instanceof ObjectId) {
+                            data.put("documentKey", new MorphiumId((ObjectId)doc.get("_id")));
                         } else {
                             data.put("documentKey", doc.get("_id"));
                         }
@@ -2898,7 +2927,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public synchronized Map<String, Object> findAndOneAndReplace(String db, String col, Map<String, Object> query, Map<String, Object> replacement, Map<String, Object> sort,
-     Map<String, Object> collation) throws MorphiumDriverException {
+        Map<String, Object> collation) throws MorphiumDriverException {
         List<Map<String, Object>> ret = find(db, col, query, sort, null, 0, 1);
 
         if (ret.get(0).get("_id") != null) {
@@ -2912,7 +2941,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void tailableIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize,
-     ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
+        ReadPreference readPreference, int timeout, DriverTailableIterationCallback cb) throws MorphiumDriverException {
         throw new FunctionNotSupportedException("not possible in Mem yet");
     }
 
@@ -2955,45 +2984,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
-                   private final List<BulkRequest> requests = new ArrayList<>();
-                   @Override
-                   public Map<String, Object> execute() {
-                       try {
-                           for (BulkRequest r : requests) {
-                               if (r instanceof InsertBulkRequest) {
-                                   insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
-                               } else if (r instanceof UpdateBulkRequest) {
-                                   UpdateBulkRequest up = (UpdateBulkRequest) r;
-                                   update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
-                               } else if (r instanceof DeleteBulkRequest) {
-                                   delete (db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
-                               } else {
-                                   throw new RuntimeException("Unknown operation " + r.getClass().getName());
-                               }
-                           }
-                       } catch (MorphiumDriverException e) {
-                           log.error("Got exception: ", e);
-                       }
+            private final List<BulkRequest> requests = new ArrayList<>();
+            @Override
+            public Map<String, Object> execute() {
+                try {
+                    for (BulkRequest r : requests) {
+                        if (r instanceof InsertBulkRequest) {
+                            insert(db, collection, ((InsertBulkRequest) r).getToInsert(), null);
+                        } else if (r instanceof UpdateBulkRequest) {
+                            UpdateBulkRequest up = (UpdateBulkRequest) r;
+                            update(db, collection, up.getQuery(), null, up.getCmd(), up.isMultiple(), up.isUpsert(), null, null);
+                        } else if (r instanceof DeleteBulkRequest) {
+                            delete (db, collection, ((DeleteBulkRequest) r).getQuery(), null, ((DeleteBulkRequest) r).isMultiple(), null, null);
+                        } else {
+                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        }
+                    }
+                } catch (MorphiumDriverException e) {
+                    log.error("Got exception: ", e);
+                }
 
-                       return new Doc();
-                   }
-                   @Override
-                   public UpdateBulkRequest addUpdateBulkRequest() {
-                       UpdateBulkRequest up = new UpdateBulkRequest();
-                       requests.add(up);
-                       return up;
-                   }
-                   public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
-                       InsertBulkRequest in = new InsertBulkRequest(toInsert);
-                       requests.add(in);
-                       return in;
-                   }
-                   @Override
-                   public DeleteBulkRequest addDeleteBulkRequest() {
-                       DeleteBulkRequest del = new DeleteBulkRequest();
-                       requests.add(del);
-                       return del;
-                   }
+                return new Doc();
+            }
+
+            @Override
+            public UpdateBulkRequest addUpdateBulkRequest() {
+                UpdateBulkRequest up = new UpdateBulkRequest();
+                requests.add(up);
+                return up;
+            }
+
+            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+                InsertBulkRequest in = new InsertBulkRequest(toInsert);
+                requests.add(in);
+                return in;
+            }
+
+            @Override
+            public DeleteBulkRequest addDeleteBulkRequest() {
+                DeleteBulkRequest del = new DeleteBulkRequest();
+                requests.add(del);
+                return del;
+            }
         };
     }
 

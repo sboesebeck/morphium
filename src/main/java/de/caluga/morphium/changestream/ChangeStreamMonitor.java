@@ -233,6 +233,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 if (dedicatedConnection == null) break;
 
                 var con = dedicatedConnection.getPrimaryConnection(null);
+
+                if (!con.isConnected()) {
+                    log.error("Could not connect!");
+                    return;
+                }
+
                 watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxConnectionIdleTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
@@ -241,10 +247,14 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 }
 
-                watch.watch();
+                if (watch.getConnection().isConnected()) watch.watch();
             } catch (Exception e) {
                 if (e.getMessage() == null) {
                     log.warn("Restarting changestream", e);
+                } else if (e.getMessage().contains("reply is null")) {
+                    log.warn("Reply is null - cannot watch - retrying");
+                } else if (e.getMessage().contains("cursor is null")) {
+                    log.warn("Cursor is null - cannot watch - retrying");
                 } else if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
@@ -258,7 +268,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     //         e1.printStackTrace();
                     //     }
                     //
-                } else if (e.getMessage().contains("closed")) {
+                } else if (e.getMessage().contains("closed") || morphium.getConfig() == null) {
                     log.warn("connection closed!", e);
                     break;
                 } else {
