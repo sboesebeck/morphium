@@ -147,7 +147,9 @@ public class PooledDriver extends DriverBase {
         if (hello == null) return;
 
         if (hello.getWritablePrimary() != null && hello.getMe() != null) {
-            if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
+            if (primaryNode == null) {
+                primaryNode = hello.getMe();
+            } else if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
                 log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
                 stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
                 primaryNode = hello.getMe();
@@ -495,8 +497,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
-        log.debug("borrowConnection {}", host);
-
+        // log.debug("borrowConnection {}", host);
         if (host == null) throw new MorphiumDriverException("Cannot connect to host null!");
 
         // if pool is empty  -> wait increaseWaitCounter
