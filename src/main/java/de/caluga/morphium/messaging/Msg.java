@@ -25,7 +25,7 @@ import java.util.*;
 //timeout <0 - setting relative to replication lag
 //timeout == 0 - wait forever
 @WriteSafety(level = SafetyLevel.MAJORITY)
-@DefaultReadPreference(ReadPreferenceLevel.PRIMARY)
+@DefaultReadPreference(ReadPreferenceLevel.NEAREST)
 @Lifecycle
 @Index({
     "sender,processed_by,in_answer_to",
@@ -88,6 +88,7 @@ public class Msg {
         this.ttl = ttl;
         setExclusive(exclusive);
     }
+
     public boolean isTimingOut() {
         return timingOut;
     }
@@ -125,7 +126,8 @@ public class Msg {
     }
 
     public boolean isExclusive() {
-        if (exclusive==null) return false;
+        if (exclusive == null) return false;
+
         return exclusive.booleanValue();
     }
 
@@ -359,22 +361,22 @@ public class Msg {
     @Override
     public String toString() {
         return "Msg{" +
-               " msgId='" + msgId + '\'' +
-               ", inAnswerTo='" + inAnswerTo + '\'' +
-               ", exclusive='"+exclusive+"'"+
-               // ", lockedBy='" + lockedBy + '\'' +
-               // ", locked=" + locked +
-               ", ttl=" + ttl +
-               ", sender='" + sender + '\'' +
-               ", name='" + name + '\'' +
-               ", msg='" + msg + '\'' +
-               ", value='" + value + '\'' +
-               ", timestamp=" + timestamp +
-               ", additional='" + additional + '\'' +
-               ", mapValue='" + mapValue + '\'' +
-               ", recipient='" + recipients + '\'' +
-               ", processedBy=" + processedBy +
-               '}';
+            " msgId='" + msgId + '\'' +
+            ", inAnswerTo='" + inAnswerTo + '\'' +
+            ", exclusive='" + exclusive + "'" +
+            // ", lockedBy='" + lockedBy + '\'' +
+            // ", locked=" + locked +
+            ", ttl=" + ttl +
+            ", sender='" + sender + '\'' +
+            ", name='" + name + '\'' +
+            ", msg='" + msg + '\'' +
+            ", value='" + value + '\'' +
+            ", timestamp=" + timestamp +
+            ", additional='" + additional + '\'' +
+            ", mapValue='" + mapValue + '\'' +
+            ", recipient='" + recipients + '\'' +
+            ", processedBy=" + processedBy +
+            '}';
     }
 
     @PreStore
@@ -408,7 +410,6 @@ public class Msg {
         // if (getProcessedBy().size() == 0) {
         //     processedBy = null;
         // }
-
         timestamp = System.currentTimeMillis();
     }
 
@@ -420,7 +421,7 @@ public class Msg {
         Msg ret = new Msg(name, msg, value, ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
-        ret.setPriority(priority-10);
+        ret.setPriority(priority - 10);
         ret.setTimingOut(isTimingOut());
         ret.setDeleteAfterProcessingTime(deleteAfterProcessingTime);
         ret.setDeleteAfterProcessing(deleteAfterProcessing);
@@ -467,5 +468,5 @@ public class Msg {
         return Objects.hash(getMsgId());
     }
 
-    public enum Fields {msgId, exclusive,ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
+    public enum Fields {msgId, exclusive, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }
