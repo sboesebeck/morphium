@@ -121,14 +121,17 @@ public class SingleMongoConnectDriver extends DriverBase {
             try {
                 log.info("Waiting for heartbeat to fix connection...");
                 int waitingCount = waitingForHeartbeatCounter.incrementAndGet();
+
                 if (waitingCount > 20) {
                     if (heartbeat != null) {
                         heartbeat.cancel(true);
                     }
+
                     heartbeat = null;
                     waitingForHeartbeatCounter.set(0);
                     startHeartbeat();
                 }
+
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
             }//waiting for heartbeat
@@ -327,10 +330,13 @@ public class SingleMongoConnectDriver extends DriverBase {
                     if (connectionInUse) {
                         return;
                     }
+
                     // log.info("checking connection");
                     if (connection == null)
                         return;
+
                     connectionInUse = true;
+
                     try {
                         HelloCommand cmd = new HelloCommand(connection).setHelloOk(true).setIncludeClient(false);
                         var hello = cmd.execute();
@@ -382,7 +388,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                         connectionInUse = false;
                     }
                 } catch (Throwable e) {
-                    log.error("Heartbeat caught error",e);
+                    log.error("Heartbeat caught error", e);
                 }
             }, 10, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
         } else {
@@ -798,7 +804,7 @@ public class SingleMongoConnectDriver extends DriverBase {
 
         public MongoConnection getDelegate() {
             if (delegate == null) {
-                throw new RuntimeException("Connection released!");
+                throw new RuntimeException("Cannot get delegate - Connection released!");
             }
 
             return delegate;
