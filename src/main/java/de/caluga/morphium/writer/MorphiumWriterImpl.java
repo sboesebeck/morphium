@@ -11,20 +11,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.bson.types.ObjectId;
-import org.json.simple.parser.ContainerFactory;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
@@ -97,25 +95,25 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
         morphium = m;
 
         if (m != null) {
-            BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-                @Override
-                public boolean offer(Runnable e) {
-                    /*
-                     * Offer it to the queue if there is 0 items already queued, else
-                     * return false so the TPE will add another thread. If we return false
-                     * and max threads have been reached then the RejectedExecutionHandler
-                     * will be called which will do the put into the queue.
-                     */
-                    int poolSize = executor.getPoolSize();
-                    int maximumPoolSize = executor.getMaximumPoolSize();
-
-                    if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
-                        return super.offer(e);
-                    } else {
-                        return false;
-                    }
-                }
-            };
+            // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            //     @Override
+            //     public boolean offer(Runnable e) {
+            //         /*
+            //          * Offer it to the queue if there is 0 items already queued, else
+            //          * return false so the TPE will add another thread. If we return false
+            //          * and max threads have been reached then the RejectedExecutionHandler
+            //          * will be called which will do the put into the queue.
+            //          */
+            //         int poolSize = executor.getPoolSize();
+            //         int maximumPoolSize = executor.getMaximumPoolSize();
+            //
+            //         if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
+            //             return super.offer(e);
+            //         } else {
+            //             return false;
+            //         }
+            //     }
+            // };
             int core = m.getConfig().getMaxConnections() / 2;
 
             if (core <= 1) {
@@ -128,18 +126,22 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 max = 2 * core;
             }
 
-            executor = new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
-            executor.setRejectedExecutionHandler((r, executor)-> {
-                try {
-                    /*
-                     * This does the actual put into the queue. Once the max threads
-                     * have been reached, the tasks will then queue up.
-                     */
-                    executor.getQueue().put(r);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            });
+            executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+            executor.setMaximumPoolSize(max);
+            executor.setCorePoolSize(core);
+            executor.setKeepAliveTime(60, TimeUnit.SECONDS);
+            // new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
+            // executor.setRejectedExecutionHandler((r, executor)-> {
+            //     try {
+            //         /*
+            //          * This does the actual put into the queue. Once the max threads
+            //          * have been reached, the tasks will then queue up.
+            //          */
+            //         executor.getQueue().put(r);
+            //     } catch (InterruptedException e) {
+            //         Thread.currentThread().interrupt();
+            //     }
+            // });
             // executor.setRejectedExecutionHandler(new RejectedExecutionHandler() {
             // @Override
             // public void rejectedExecution(Runnable r, ThreadPoolExecutor executor)
@@ -147,16 +149,16 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             // logger.warn("Could not schedule...");
             // }
             // });
-            executor.setThreadFactory(new ThreadFactory() {
-                private final AtomicInteger num = new AtomicInteger(1);
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread ret = new Thread(r, "writer " + num);
-                    num.set(num.get() + 1);
-                    ret.setDaemon(true);
-                    return ret;
-                }
-            });
+            // executor.setThreadFactory(new ThreadFactory() {
+            //     private final AtomicInteger num = new AtomicInteger(1);
+            //     @Override
+            //     public Thread newThread(Runnable r) {
+            //         Thread ret = new Thread(r, "writer " + num);
+            //         num.set(num.get() + 1);
+            //         ret.setDaemon(true);
+            //         return ret;
+            //     }
+            // });
             m.addShutdownListener(this);
         }
     }
@@ -201,6 +203,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 public void setCallback(AsyncOperationCallback cb) {
                     callback = cb;
                 }
+
                 @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
@@ -326,6 +329,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 }
             };
+
             submitAndBlockIfNecessary(callback, r);
         }
     }
@@ -351,14 +355,15 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
         if (morphium.getConfig().getCappedCheck().equals(CappedCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             createCappedCollection(type, coll);
-            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) ){
+
+            if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL)) {
                 morphium.ensureIndicesFor(type, coll, callback);
             }
         }
+
         if (morphium.getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL) && !morphium.getDriver().isTransactionInProgress() && !morphium.getDriver().exists(getDbName(), coll)) {
             morphium.ensureIndicesFor(type, coll, callback);
         }
-
     }
 
     /**
@@ -420,6 +425,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 public void setCallback(AsyncOperationCallback cb) {
                     callback = cb;
                 }
+
                 @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
@@ -601,6 +607,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     // finish" );
                 }
             };
+
             submitAndBlockIfNecessary(callback, r);
         }
     }
@@ -938,6 +945,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1078,6 +1086,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1090,6 +1099,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public void run() {
                 HashMap<Class<T>, List<Query<T>>> sortedMap = new HashMap<>();
@@ -1131,6 +1141,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1175,10 +1186,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public void run() {
                 morphium.firePreRemoveEvent(q);
@@ -1236,6 +1249,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1279,6 +1293,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public void run() {
                 Object id = morphium.getARHelper().getId(o);
@@ -1332,6 +1347,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1354,6 +1370,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1468,6 +1485,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1504,10 +1522,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public Map getReturnObject() {
                 return ret;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1585,6 +1605,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1632,10 +1653,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1736,6 +1759,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1826,10 +1850,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1934,10 +1960,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -2014,6 +2042,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2064,6 +2093,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 doUpdate(cls, toSet, coll, field, query, f, update, wc);
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2103,6 +2133,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 doUpdate(cls, obj, coll, field, query, f, update, wc);
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2121,10 +2152,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -2192,6 +2225,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2308,10 +2342,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
+
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
+
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -2438,6 +2474,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
+
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2448,6 +2485,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void setCallback(AsyncOperationCallback cb) {
                 }
+
                 public void run() {
                     morphium.firePreDrop(cls);
                     long start = System.currentTimeMillis();
@@ -2482,6 +2520,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePostDropEvent(cls);
                 }
             };
+
             submitAndBlockIfNecessary(callback, r);
         } else {
             throw new RuntimeException("No entity class: " + cls.getName());
@@ -2494,6 +2533,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             @Override
             public void setCallback(AsyncOperationCallback cb) {
             }
+
             @Override
             public void run() {
                 List<String> fields = morphium.getARHelper().getFields(cls);
@@ -2551,6 +2591,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 // cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
         };
+
         submitAndBlockIfNecessary(callback, r);
     }
 
