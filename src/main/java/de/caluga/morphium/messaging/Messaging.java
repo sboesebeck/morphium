@@ -261,30 +261,33 @@ public class Messaging extends Thread implements ShutdownListener {
             }
         };
 
-        threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
-            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
-        threadPool.setRejectedExecutionHandler((r, executor) -> {
-            try {
-                /*
-                 * This does the actual put into the queue. Once the max threads
-                 * have been reached, the tasks will then queue up.
-                 */
-                executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        // noinspection unused,unused
-        threadPool.setThreadFactory(new ThreadFactory() {
-            private final AtomicInteger num = new AtomicInteger(1);
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "messaging " + num);
-                num.set(num.get() + 1);
-                ret.setDaemon(true);
-                return ret;
-            }
-        });
+        threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+        threadPool.setCorePoolSize(morphium.getConfig().getThreadPoolMessagingCoreSize());
+        threadPool.setMaximumPoolSize(morphium.getConfig().getThreadPoolMessagingMaxSize());
+        // threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
+        //     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
+        // threadPool.setRejectedExecutionHandler((r, executor) -> {
+        //     try {
+        //         /*
+        //          * This does the actual put into the queue. Once the max threads
+        //          * have been reached, the tasks will then queue up.
+        //          */
+        //         executor.getQueue().put(r);
+        //     } catch (InterruptedException e) {
+        //         Thread.currentThread().interrupt();
+        //     }
+        // });
+        // // noinspection unused,unused
+        // threadPool.setThreadFactory(new ThreadFactory() {
+        //     private final AtomicInteger num = new AtomicInteger(1);
+        //     @Override
+        //     public Thread newThread(Runnable r) {
+        //         Thread ret = new Thread(r, "messaging " + num);
+        //         num.set(num.get() + 1);
+        //         ret.setDaemon(true);
+        //         return ret;
+        //     }
+        // });
     }
 
     public long getPendingMessagesCount() {
