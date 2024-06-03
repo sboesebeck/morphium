@@ -85,7 +85,6 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
-
         //creating min connections for each host
         for (String host : getHostSeed()) {
             connectionPool.put(host, new LinkedBlockingQueue<>());
@@ -175,6 +174,7 @@ public class PooledDriver extends DriverBase {
             for (String hst : getHostSeed()) {
                 if (!hello.getHosts().contains(hst)) {
                     removeFromHostSeed(hst);
+
                     synchronized (waitCounter) {
                         waitCounter.remove(hst);
                     }
@@ -189,9 +189,11 @@ public class PooledDriver extends DriverBase {
                     if (!hello.getHosts().contains(host)) {
                         log.warn("Host {} is not part of the replicaset anymore!", host);
                         removeFromHostSeed(host);
+
                         synchronized (waitCounter) {
                             waitCounter.remove(host);
                         }
+
                         BlockingQueue<ConnectionContainer> lst = connectionPool.remove(host);
                         ArrayList<Integer> toDelete = new ArrayList<>();
 
@@ -247,7 +249,7 @@ public class PooledDriver extends DriverBase {
                                     int loopCounter = 0;
 
                                     while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                            (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                        (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
                                         loopCounter++;
                                         log.debug("Creating connection to {} - WaitCounter is {}", hst, getWaitCounterForHost(hst));
                                         // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
@@ -283,7 +285,9 @@ public class PooledDriver extends DriverBase {
                     if (connectionPoolForHost != null) {
                         try {
                             //checking for lifetime of connections
-                            for (int i = 0; i < getMinConnectionsPerHost(); i++) {
+                            var len = connectionPoolForHost.size();
+
+                            for (int i = 0; i < len; i++) {
                                 var connection = connectionPoolForHost.poll(1, TimeUnit.MILLISECONDS);
 
                                 if (connection == null) break;
@@ -292,6 +296,7 @@ public class PooledDriver extends DriverBase {
 
                                 if ((connection.getLastUsed() < now - getMaxConnectionIdleTime()) || connection.getCreated() < now - getMaxConnectionLifetime()) {
                                     log.debug("connection to host:{} too long idle or just too old -> remove", connection.getCon().getConnectedToHost());
+
                                     try {
                                         connection.getCon().close();
                                     } catch (Exception e) {
@@ -325,19 +330,21 @@ public class PooledDriver extends DriverBase {
                             if (container != null) {
                                 long start = System.currentTimeMillis();
                                 HelloResult result;
+
                                 if (container.getCon().isConnected()) {
                                     result = container.getCon().getHelloResult();
                                 } else {
                                     result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
                                 }
+
                                 long dur = System.currentTimeMillis() - start;
 
                                 if (dur < fastestTime) {
                                     fastestTime = dur;
                                     fastestHost = hst;
                                 }
-                                container.touch();
 
+                                // container.touch();
                                 handleHelloResult(result);
 
                                 synchronized (connectionPool) {
@@ -356,7 +363,6 @@ public class PooledDriver extends DriverBase {
                             }
 
                             int wait = getWaitCounterForHost(hst);
-
                             int loopCounter = 0;
 
                             while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
@@ -400,6 +406,7 @@ public class PooledDriver extends DriverBase {
         synchronized (connectionPool) {
             connectionsList = connectionPool.remove(host);
         }
+
         if (host.equals(primaryNode)) {
             primaryNode = null;
         }
@@ -436,7 +443,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             if (connectionPool.containsKey(hst) && (connectionPool.get(hst).size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                    getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                 var cont = new ConnectionContainer(con);
                 connectionPool.get(hst).add(cont);
             } else {
@@ -489,7 +496,9 @@ public class PooledDriver extends DriverBase {
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
         log.debug("borrowConnection {}", host);
-        if (host==null) throw new MorphiumDriverException("Cannot connect to host null!");
+
+        if (host == null) throw new MorphiumDriverException("Cannot connect to host null!");
+
         // if pool is empty  -> wait increaseWaitCounter
         //
         // if connection available in pool -> put in borrowedConnections -> return That
@@ -511,6 +520,7 @@ public class PooledDriver extends DriverBase {
                 if (queue.isEmpty()) {
                     synchronized (waitCounter) {
                         waitCounter.putIfAbsent(host, new AtomicInteger());
+
                         if (getWaitCounterForHost(host) < getMaxConnectionsPerHost()) {
                             waitCounter.get(host).incrementAndGet();
                             needToDecrement = true;
@@ -552,6 +562,7 @@ public class PooledDriver extends DriverBase {
         } finally {
             if (needToDecrement && getWaitCounterForHost(host) > 0) {
                 AtomicInteger atomicInteger = waitCounter.get(host);
+
                 if (atomicInteger != null) {
                     atomicInteger.decrementAndGet();
                 }
@@ -733,6 +744,7 @@ public class PooledDriver extends DriverBase {
                 synchronized (connectionPool) {
                     //connectionPool.putIfAbsent(con.getConnectedTo(), new LinkedBlockingQueue<>());
                     var connectionContainer = connectionPool.get(con.getConnectedTo());
+
                     if (null != connectionContainer) {
                         connectionContainer.add(c);
                     }
