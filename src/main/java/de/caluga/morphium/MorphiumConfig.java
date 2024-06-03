@@ -109,7 +109,7 @@ public class MorphiumConfig {
     private boolean warnOnNoEntitySerialization = false;
 
     @Transient
-    private ReadPreference defaultReadPreference=ReadPreference.nearest();
+    private ReadPreference defaultReadPreference = ReadPreference.nearest();
     @Transient
     private String defaultReadPreferenceType;
     @Transient
@@ -128,8 +128,8 @@ public class MorphiumConfig {
     private boolean objectSerializationEnabled = true;
     private int heartbeatFrequency = 1000;
     private int localThreshold = 15;
-    private int maxConnectionIdleTime = 10000;
-    private int maxConnectionLifeTime = 60000;
+    private int maxConnectionIdleTime = 30000;
+    private int maxConnectionLifeTime = 600000;
 
     private List<String> hostSeed = new ArrayList<>();
 
