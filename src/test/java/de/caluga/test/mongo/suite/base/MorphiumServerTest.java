@@ -84,6 +84,51 @@ public class MorphiumServerTest {
     }
 
     @Test
+    public void testServerMessagingMoreThanOne() throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 100, 1);
+        srv.start();
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:17017");
+        cfg.setDatabase("srvtst");
+        cfg.setMaxConnections(10);
+        Morphium morphium = new Morphium(cfg);
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed("localhost:17017");
+        cfg2.setDatabase("srvtst");
+        cfg2.setMaxConnections(10);
+        Morphium morphium2 = new Morphium(cfg2);
+        final AtomicLong recTime = new AtomicLong(0l);
+
+        try(morphium) {
+            //Messaging test
+            var msg1 = new Messaging(morphium);
+            msg1.start();
+            var msg2 = new Messaging(morphium2);
+            msg2.start();
+            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+                @Override
+                public Msg onMessage(Messaging msg, Msg m) {
+                    recTime.set(System.currentTimeMillis());
+                    log.info("incoming mssage");
+                    return null;
+                }
+            });
+
+            long start = System.currentTimeMillis();
+            msg1.sendMessage(new Msg("tstmsg", "hello", "value"));
+
+            while (recTime.get() == 0L) {
+                Thread.yield();
+            }
+
+            long dur = recTime.get() - start;
+            log.info("Got message after {}ms", dur);
+        }
+
+        srv.terminate();
+    }
+
+    @Test
     public void testServer() throws Exception {
         var srv = new MorphiumServer(17017, "localhost", 100, 1);
         srv.start();
