@@ -26,6 +26,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.lang.Thread.sleep;
+
 public class MorphiumServer {
 
     private static Logger log = LoggerFactory.getLogger(MorphiumServer.class);
@@ -35,6 +37,8 @@ public class MorphiumServer {
     private AtomicInteger msgId = new AtomicInteger(1000);
 
     private ThreadPoolExecutor executor;
+    private boolean running = true;
+    private ServerSocket serverSocket;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
         this.drv = new InMemoryDriver();
@@ -97,6 +101,11 @@ public class MorphiumServer {
         log.info("Starting server...");
         var srv = new MorphiumServer(port, host, maxThreads, minThreads);
         srv.start();
+
+        while (srv.running) {
+            log.info("Alive and kickin'");
+            sleep(10000);
+        }
     }
 
     private HelloResult getHelloResult() {
@@ -113,21 +122,34 @@ public class MorphiumServer {
         res.setWritablePrimary(true);
         res.setMe(host + ":" + port);
         res.setMsg("ok");
+        res.setMsg("MorphiumServer V0.1");
         return res;
     }
 
     public void start() throws IOException, InterruptedException {
         log.info("Opening port " + port);
-        ServerSocket ssoc = new ServerSocket(port);
+        serverSocket = new ServerSocket(port);
         drv.setHostSeed(host + ":" + port);
         executor.prestartAllCoreThreads();
         log.info("Port opened, waiting for incoming connections");
+        new Thread(()-> {
+            while (running) {
+                Socket s = null;
 
-        while (true) {
-            var s = ssoc.accept();
-            log.info("Incoming connection");
-            executor.execute(() -> incoming(s));
-        }
+                try {
+                    s = serverSocket.accept();
+                } catch (IOException e) {
+                    log.error("Serversocket error", e);
+                    terminate();
+                    break;
+                }
+
+                log.info("Incoming connection: " + executor.getQueue().size());
+                Socket finalS = s;
+                executor.execute(() -> incoming(finalS));
+            }
+
+        }).start();
     }
 
     public void incoming(Socket s) {
@@ -280,5 +302,21 @@ public class MorphiumServer {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void terminate() {
+        running = false;
+
+        if (serverSocket != null) {
+            try {
+                serverSocket.close();
+                serverSocket = null;
+            } catch (IOException e) {
+                //swallow
+            }
+        }
+
+        executor.shutdownNow();
+        executor = null;
     }
 }
