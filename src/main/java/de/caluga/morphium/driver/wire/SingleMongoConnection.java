@@ -509,7 +509,7 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg reply = null;
 
             try {
-                reply = readNextMessage(0);//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
+                reply = readNextMessage(maxWait);//getReplyFor(msg.getMessageId(), command.getMaxTimeMS());
             } catch (MorphiumDriverException e) {
                 if (e.getMessage().contains("server did not answer in time: ")) {
                     log.debug("timeout in watch - restarting");
