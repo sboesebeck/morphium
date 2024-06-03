@@ -239,7 +239,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     return;
                 }
 
-                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxConnectionIdleTime())
+                watch = new WatchCommand(con).setCb(callback).setDb(morphium.getDatabase()).setBatchSize(1).setMaxTimeMS(morphium.getConfig().getMaxWaitTime())
                 .setFullDocument(fullDocument ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setPipeline(pipeline);
 
                 if (!dbOnly) {
@@ -257,7 +257,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Cursor is null - cannot watch - retrying");
                 } else if (e.getMessage().contains("Network error error: state should be: open")) {
                     log.warn("Changstream connection broke - restarting");
-                } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time")) {
+                } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
                     log.debug("changestream iteration");
                     // } else if (e.getMessage().equals("error")){
                     //     //probably timeout
