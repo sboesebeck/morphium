@@ -21,7 +21,9 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,13 +47,56 @@ public class MorphiumServer {
         this.port = port;
         this.host = host;
         drv.connect();
+        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+            @SuppressWarnings("CommentedOutCode")
+            @Override
+            public boolean offer(Runnable e) {
+                /*
+                 * Offer it to the queue if there is 0 items already queued, else
+                 * return false so the TPE will add another thread. If we return false
+                 * and max threads have been reached then the RejectedExecutionHandler
+                 * will be called which will do the put into the queue.
+                 */
+                int poolSize = executor.getPoolSize();
+                int maximumPoolSize = executor.getMaximumPoolSize();
+
+                if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
+                    return super.offer(e);
+                } else {
+                    return false;
+                }
+            }
+        };
+
         executor =
             new ThreadPoolExecutor(
-            minThreads,
+            maxThreads,
             maxThreads,
             10000,
             TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>(maxThreads));
+            queue);
+        executor.setRejectedExecutionHandler((r, executor) -> {
+            try {
+                /*
+                 * This does the actual put into the queue. Once the max threads
+                 * have been reached, the tasks will then queue up.
+                 */
+                executor.getQueue().put(r);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        // noinspection unused,unused
+        executor.setThreadFactory(new ThreadFactory() {
+            private final AtomicInteger num = new AtomicInteger(1);
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread ret = new Thread(r, "server_" + num);
+                num.set(num.get() + 1);
+                ret.setDaemon(true);
+                return ret;
+            }
+        });
     }
 
     public MorphiumServer() {
@@ -139,6 +184,11 @@ public class MorphiumServer {
                 try {
                     s = serverSocket.accept();
                 } catch (IOException e) {
+                    if (e.getMessage().contains("Socket closed")) {
+                        log.info("Server socket closed");
+                        break;
+                    }
+
                     log.error("Serversocket error", e);
                     terminate();
                     break;
@@ -153,6 +203,8 @@ public class MorphiumServer {
     }
 
     public void incoming(Socket s) {
+        log.info("handling incoming connection...");
+
         try {
             var in = s.getInputStream();
             var out = s.getOutputStream();
@@ -173,7 +225,7 @@ public class MorphiumServer {
 
                 if (msg == null) continue;
 
-                log.info("got incoming msg: " + msg.getClass().getSimpleName());
+                // log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
 
                 if (msg instanceof OpQuery) {
@@ -183,7 +235,7 @@ public class MorphiumServer {
 
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
                         // ismaster
-                        log.info("OpMsg->isMaster");
+                        // log.info("OpMsg->isMaster");
                         var r = new OpReply();
                         r.setFlags(2);
                         r.setMessageId(msgId.incrementAndGet());
@@ -199,7 +251,7 @@ public class MorphiumServer {
                         r.setDocuments(Arrays.asList(res.toMsg()));
                         out.write(r.bytes());
                         out.flush();
-                        log.info("Sent hello result");
+                        // log.info("Sent hello result");
                         continue;
                     }
 
@@ -219,13 +271,13 @@ public class MorphiumServer {
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
-                    log.info("Message flags: " + m.getFlags());
+                    // log.info("Message flags: " + m.getFlags());
                     id = m.getMessageId();
                 }
 
-                log.info("Incoming " + Utils.toJsonString(doc));
+                // log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
-                log.info("Handling command " + cmd);
+                // log.info("Handling command " + cmd);
                 OpMsg reply = new OpMsg();
                 reply.setResponseTo(msg.getMessageId());
                 reply.setMessageId(msgId.incrementAndGet());
@@ -281,7 +333,8 @@ public class MorphiumServer {
                             int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
                             var crs = drv.readSingleAnswer(msgid);
                             answer = Doc.of("ok", 1.0);
-                            answer.putAll(crs);
+
+                            if (crs != null) answer.putAll(crs);
                         } catch (Exception e) {
                             answer = Doc.of("ok", 0, "errmsg", "no such command: '" + cmd + "'");
                             log.warn("errror running command " + cmd, e);
@@ -295,7 +348,7 @@ public class MorphiumServer {
                 reply.setFirstDoc(answer);
                 out.write(reply.bytes());
                 out.flush();
-                log.info("Sent answer!");
+                // log.info("Sent answer!");
             }
 
             //            log.info("Thread finished!");
