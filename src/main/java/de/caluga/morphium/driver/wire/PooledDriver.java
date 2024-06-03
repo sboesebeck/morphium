@@ -412,6 +412,7 @@ public class PooledDriver extends DriverBase {
         if (host.equals(primaryNode)) {
             primaryNode = null;
         }
+
         if (host.equals(fastestHost)) {
             fastestHost = null;
             fastestTime = 10000;
@@ -431,6 +432,7 @@ public class PooledDriver extends DriverBase {
     private void createNewConnection(String hst) throws Exception {
         // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
         log.debug("Creating connection to {}", hst);
+
         synchronized (connectionPool) {
             if (!connectionPool.containsKey(hst)) {
                 return;
@@ -502,6 +504,7 @@ public class PooledDriver extends DriverBase {
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
         log.debug("borrowConnection {}", host);
+
         if (host == null) throw new MorphiumDriverException("Cannot connect to host null!");
 
         // if pool is empty  -> wait increaseWaitCounter
@@ -547,7 +550,7 @@ public class PooledDriver extends DriverBase {
                     log.error("Connection timeout");
                     log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
                     log.error("WaitingThreads for {}: {}", host, getWaitCounterForHost(host));
-                    throw new MorphiumDriverException("Could not get connection to " + host + " in time");
+                    throw new MorphiumDriverException("Could not get connection to " + host + " in time " + getMaxWaitTime() + "ms");
                 }
 
                 if (bc.getCon().getSourcePort() == 0) {
