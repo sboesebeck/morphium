@@ -166,7 +166,7 @@ public class MorphiumServer {
         res.setMaxBsonObjectSize(10000);
         res.setWritablePrimary(true);
         res.setMe(host + ":" + port);
-        res.setMsg("ok");
+        // res.setMsg("ok");
         res.setMsg("MorphiumServer V0.1");
         return res;
     }
@@ -206,6 +206,7 @@ public class MorphiumServer {
         log.info("handling incoming connection...");
 
         try {
+            s.setSoTimeout(0);
             var in = s.getInputStream();
             var out = s.getOutputStream();
             int id = 0;
@@ -277,7 +278,7 @@ public class MorphiumServer {
 
                 // log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
-                // log.info("Handling command " + cmd);
+                log.info("Handling command " + cmd);
                 OpMsg reply = new OpMsg();
                 reply.setResponseTo(msg.getMessageId());
                 reply.setMessageId(msgId.incrementAndGet());
@@ -348,7 +349,7 @@ public class MorphiumServer {
                 reply.setFirstDoc(answer);
                 out.write(reply.bytes());
                 out.flush();
-                // log.info("Sent answer!");
+                log.info("Sent answer!");
             }
 
             //            log.info("Thread finished!");
