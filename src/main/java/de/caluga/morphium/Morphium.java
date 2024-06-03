@@ -157,45 +157,46 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         config = cfg;
         annotationHelper = new AnnotationAndReflectionHelper(cfg.isCamelCaseConversionEnabled());
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-            private static final long serialVersionUID = -6903933921423432194L;
-            @Override
-            public boolean offer(Runnable e) {
-                int poolSize = asyncOperationsThreadPool.getPoolSize();
-                int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
-
-                if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
-                    return super.offer(e);
-                } else {
-                    return false;
-                }
-            }
-        };
-
-        asyncOperationsThreadPool = new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-            TimeUnit.MILLISECONDS, queue);
-        asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
-            try {
-                /*
-                 * This does the actual put into the queue. Once the max threads
-                 * have been reached, the tasks will then queue up.
-                 */
-                executor.getQueue().put(r);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
-            private final AtomicInteger num = new AtomicInteger(1);
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "asyncOp " + num);
-                num.set(num.get() + 1);
-                ret.setDaemon(true);
-                return ret;
-            }
-        });
-
+        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+        //     private static final long serialVersionUID = -6903933921423432194L;
+        //     @Override
+        //     public boolean offer(Runnable e) {
+        //         int poolSize = asyncOperationsThreadPool.getPoolSize();
+        //         int maximumPoolSize = asyncOperationsThreadPool.getMaximumPoolSize();
+        //
+        //         if (poolSize >= maximumPoolSize || poolSize > asyncOperationsThreadPool.getActiveCount()) {
+        //             return super.offer(e);
+        //         } else {
+        //             return false;
+        //         }
+        //     }
+        // };
+        asyncOperationsThreadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+        asyncOperationsThreadPool.setCorePoolSize(getConfig().getThreadPoolAsyncOpCoreSize());
+        asyncOperationsThreadPool.setMaximumPoolSize(getConfig().getThreadPoolAsyncOpMaxSize());
+        // new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
+        //     TimeUnit.MILLISECONDS, queue);
+        // asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
+        //     try {
+        //         /*
+        //          * This does the actual put into the queue. Once the max threads
+        //          * have been reached, the tasks will then queue up.
+        //          */
+        //         executor.getQueue().put(r);
+        //     } catch (InterruptedException e) {
+        //         Thread.currentThread().interrupt();
+        //     }
+        // });
+        // asyncOperationsThreadPool.setThreadFactory(new ThreadFactory() {
+        //     private final AtomicInteger num = new AtomicInteger(1);
+        //     @Override
+        //     public Thread newThread(Runnable r) {
+        //         Thread ret = new Thread(r, "asyncOp " + num);
+        //         num.set(num.get() + 1);
+        //         ret.setDaemon(true);
+        //         return ret;
+        //     }
+        // });
         initializeAndConnect();
     }
 
@@ -1077,7 +1078,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         Map<String, Object> srch = new HashMap<>();
         srch.put("_id", id);
-        FindCommand settings=null;
+        FindCommand settings = null;
+
         try {
             MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
             settings = new FindCommand(con).setDb(getConfig().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
@@ -1121,6 +1123,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 settings.releaseConnection();
             }
         }
+
         return o;
     }
 
@@ -1327,14 +1330,18 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return getConfig().isReplicaset();
     }
 
-    public Entity.ReadConcernLevel getReadConcernForClass(Class<?> cls){
-       if (cls==null ) return null;
-       var entity=annotationHelper.getAnnotationFromHierarchy(cls,Entity.class);
-       if (entity==null) {
-           return null;
-       }
-       return entity.readConcernLevel();
+    public Entity.ReadConcernLevel getReadConcernForClass(Class<?> cls) {
+        if (cls == null) return null;
+
+        var entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
+
+        if (entity == null) {
+            return null;
+        }
+
+        return entity.readConcernLevel();
     }
+
     public ReadPreference getReadPreferenceForClass(Class<?> cls) {
         if (cls == null) {
             return getConfig().getDefaultReadPreference();
