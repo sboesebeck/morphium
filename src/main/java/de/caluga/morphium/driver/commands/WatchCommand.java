@@ -218,19 +218,22 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         ArrayList<Map<String, Object>> localPipeline = new ArrayList<>();
         Doc changeStream = Doc.of();
         localPipeline.add(Doc.of("$changeStream", changeStream));
+
         if (getPipeline() != null && !getPipeline().isEmpty())
             localPipeline.addAll(getPipeline());
 
-        Doc cmd = Doc.of("aggregate", getColl()==null?(int)1:getColl()).add("pipeline", localPipeline);
+        Doc cmd = Doc.of("aggregate", getColl() == null ? (int)1 : getColl()).add("pipeline", localPipeline);
 
         if (fullDocument != null) {
             m.remove("fullDocument");
             changeStream.put("fullDocument", fullDocument.n);
         }
+
         if (fullDocumentBeforeChange != null) {
             m.remove("fullDocumentBeforeChange");
             changeStream.add("fullDocumentBeforeChange", fullDocumentBeforeChange.name());
         }
+
         if (showExpandedEvents != null) {
             m.remove("showExpandedEvents");
             changeStream.put("showExpandedEvents", showExpandedEvents);
@@ -241,8 +244,6 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
         } //getDefaultBatchSize()
 
         m.remove("batchSize");
-
-
         m.putAll(cmd);
         return m;
     }
@@ -250,18 +251,30 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     @Override
     public WatchCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        pipeline= new ArrayList<>((List<Map<String, Object>>)(List)m.get("pipeline"));
-        var cstr=pipeline.remove(0);
-        cstr= (Map<String, Object>) cstr.get("$changeStream");
-        if (cstr.get("fullDocument")!=null) {
-            fullDocument = FullDocumentEnum.valueOf((String) cstr.get("fullDocument"));
+        pipeline = new ArrayList<>((List<Map<String, Object>>)(List)m.get("pipeline"));
+        var cstr = pipeline.remove(0);
+        cstr = (Map<String, Object>) cstr.get("$changeStream");
+
+        if (cstr.get("fullDocument") != null) {
+            for (var fde : FullDocumentEnum.values()) {
+                if (fde.n.equals(cstr.get("fullDocument"))) {
+                    fullDocument = fde;
+                }
+
+                // fullDocument = FullDocumentEnum.valueOf((String) cstr.get("fullDocument"));
+            }
         }
-        fullDocumentBeforeChange=FullDocumentBeforeChangeEnum.valueOf(((String)cstr.get("fullDocumentBeforeChange")));
+
+        if (cstr.containsKey("fullDocumentBeforeChange")) {
+            fullDocumentBeforeChange = FullDocumentBeforeChangeEnum.valueOf(((String)cstr.get("fullDocumentBeforeChange")));
+        }
+
         if (cstr.get("showExpandedEvents") instanceof Boolean) {
             showExpandedEvents = (Boolean) cstr.get("showExpandedEvents");
         } else {
             showExpandedEvents = "true".equals(cstr.get("showExpandedEvents"));
         }
+
         return this;
     }
 }
