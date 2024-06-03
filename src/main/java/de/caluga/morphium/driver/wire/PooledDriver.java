@@ -56,7 +56,7 @@ public class PooledDriver extends DriverBase {
     private final Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
     private int idleSleepTime = 5;
-    private String fastestHost = "";
+    private String fastestHost = null;
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private String primaryNode;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
@@ -332,7 +332,7 @@ public class PooledDriver extends DriverBase {
                                 HelloResult result;
 
                                 if (container.getCon().isConnected()) {
-                                    result = container.getCon().getHelloResult();
+                                    result = container.getCon().getHelloResult(false);
                                 } else {
                                     result = container.getCon().connect(this, getHost(hst), getPortFromHost(hst));
                                 }
@@ -409,6 +409,10 @@ public class PooledDriver extends DriverBase {
 
         if (host.equals(primaryNode)) {
             primaryNode = null;
+        }
+        if (host.equals(fastestHost)) {
+            fastestHost = null;
+            fastestTime = 10000;
         }
 
         if (connectionsList != null) {

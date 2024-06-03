@@ -76,7 +76,7 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         // startReaderThread();
-        var hello = getHelloResult();
+        var hello = getHelloResult(true);
 
         connectedTo = host;
         connectedToPort = port;
@@ -85,12 +85,15 @@ public class SingleMongoConnection implements MongoConnection {
         return hello;
     }
 
-    public HelloResult getHelloResult() throws MorphiumDriverException {
+    public HelloResult getHelloResult(boolean includeClient) throws MorphiumDriverException {
         HelloCommand cmd = new HelloCommand(null);
 
         if (authDb != null) {
             cmd.setUser(user);
             cmd.setSaslSupportedMechs(authDb + "." + user);
+        }
+        if(!includeClient) {
+            cmd.setIncludeClient(false);
         }
 
         cmd.setLoadBalanced(true);
