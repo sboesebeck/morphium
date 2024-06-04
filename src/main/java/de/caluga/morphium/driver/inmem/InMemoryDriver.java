@@ -562,7 +562,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, List<Map<String, Object>>> indexesForDB = indicesByDbCollection.get(cmd.getDb());
 
         if (indexesForDB == null) {
-            commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", List.of()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
+            commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", List.of(), "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
             return ret;
         }
 
@@ -621,7 +621,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indices.add(index);
             }
 
-        commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", indices), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
+        commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", indices, "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 1)));
         return ret;
     }
 
