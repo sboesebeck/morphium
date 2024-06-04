@@ -743,9 +743,8 @@ public class PooledDriver extends DriverBase {
                 if (con.isConnected()) {
                     // c = new Connection((SingleMongoConnection) con);
                     con.close();
-                } else {
-                    return;
                 }
+                return;
             }
 
             if (con.getConnectedTo() != null) {
@@ -762,7 +761,8 @@ public class PooledDriver extends DriverBase {
             List<Integer> sourcePortsToDelete = new ArrayList<>();
 
             for (int port : new ArrayList<Integer>(borrowedConnections.keySet())) {
-                if (borrowedConnections.get(port) == null || borrowedConnections.get(port).getCon() == null || borrowedConnections.get(port).getCon().getSourcePort() == 0) {
+                ConnectionContainer connectionContainer = borrowedConnections.get(port);
+                if (connectionContainer == null || connectionContainer.getCon() == null || connectionContainer.getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
                 }
             }
