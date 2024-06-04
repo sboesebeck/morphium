@@ -21,14 +21,14 @@ import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
-@Disabled
+// @Disabled
 public class BaseMessagingTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleMsgLockTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("----------------------> Running test simpleMsgLockTest with driver "+morphium.getDriver().getName());
+            log.info("----------------------> Running test simpleMsgLockTest with driver " + morphium.getDriver().getName());
             MorphiumId id = new MorphiumId();
             MsgLock l = new MsgLock(id);
             l.setLockId("someone");
@@ -36,7 +36,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             log.info("worksl");
             var l2 = new MsgLock(id);
             l2.setLockId("other");
-            var ex = assertThrows(RuntimeException.class, ()->{
+            var ex = assertThrows(RuntimeException.class, ()-> {
                 morphium.insert(l2);
             });
             log.info("Exception as expected!", ex);
@@ -47,7 +47,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleBroadcastTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("----------------------> Running simple broadcast test with driver "+morphium.getDriver().getName());
+            log.info("----------------------> Running simple broadcast test with driver " + morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             Messaging sender = new Messaging(morphium);
@@ -71,6 +71,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                     return null;
                 }
             };
+
             rec1.addMessageListener(ml);
             rec2.addMessageListener(ml);
             int amount = 25;
@@ -99,7 +100,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void nonExMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("---------> Running Tst nonExMessageTest with "+morphium.getDriver().getName());
+            log.info("---------> Running Tst nonExMessageTest with " + morphium.getDriver().getName());
             Messaging sender = new Messaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
@@ -112,7 +113,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             rec2.setUseChangeStream(true).start();
             AtomicInteger counts = new AtomicInteger(0);
             AtomicInteger errors = new AtomicInteger();
-            MessageListener ml = (m, msg)->{
+            MessageListener ml = (m, msg)-> {
                 // log.info(m.getSenderId()+": incoming");
                 try {
                     Thread.sleep(1500);
@@ -153,7 +154,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @Disabled
     public void exclusiveMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("---------> Running Tst  exclusiveMessageTest with "+morphium.getDriver().getName());
+            log.info("---------> Running Tst  exclusiveMessageTest with " + morphium.getDriver().getName());
             Messaging sender = new Messaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
@@ -167,7 +168,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             Map<MorphiumId, Long> counts = new HashMap<>();
             AtomicInteger errors = new AtomicInteger();
             Hashtable processing = new Hashtable();
-            MessageListener ml = (m, msg)->{
+            MessageListener ml = (m, msg)-> {
                 // log.info(m.getSenderId()+": incoming");
                 if (processing.containsKey(msg.getMsgId())) {
                     errors.incrementAndGet();
@@ -198,6 +199,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
 
                     processing.remove(msg.getMsgId());
                 }
+
                 // log.info(m.getSenderId()+": done processing");
                 return null;
             };
@@ -240,7 +242,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void exclusiveProcessedByTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("---------> Running simple processedBy test: "+morphium.getDriver().getName());
+            log.info("---------> Running simple processedBy test: " + morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             morphium.dropCollection(MsgLock.class, "msg_lck", null);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
@@ -271,6 +273,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                     return null;
                 }
             };
+
             rec1.addMessageListener(ml);
             rec2.addMessageListener(ml);
             int amount = 25;
@@ -294,7 +297,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void simpleExclusiveTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("---------------> Simple exclusive message test: "+morphium.getDriver().getName());
+            log.info("---------------> Simple exclusive message test: " + morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             Messaging sender = new Messaging(morphium);
@@ -328,6 +331,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                     return null;
                 }
             };
+
             rec1.addMessageListener(ml);
             rec2.addMessageListener(ml);
             int amount = 100;
