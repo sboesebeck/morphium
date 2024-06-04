@@ -335,13 +335,14 @@ public class MorphiumServer {
                         try {
                             AtomicInteger msgid = new AtomicInteger(0);
 
-                            if (doc.containsKey("pipeline") && ((Map)doc.get("pipeline")).containsKey("$changestream")) {
+                            if (doc.containsKey("pipeline") && ((List)doc.get("pipeline")).get(0).equals("$changestream")) {
                                 WatchCommand wcmd = new WatchCommand(drv).fromMap(doc);
                                 final int myCursorId = cursorId.incrementAndGet();
                                 wcmd.setCb(new DriverTailableIterationCallback() {
                                     @Override
                                     public void incomingData(Map<String, Object> data, long dur) {
                                         try {
+                                            log.info("Incoming data...");
                                             var crs =  Doc.of("nextBatch", data, "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
                                             var answer = Doc.of("ok", 1.0);
 
