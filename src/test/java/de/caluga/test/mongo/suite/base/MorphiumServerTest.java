@@ -13,6 +13,10 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumConfig.CappedCheck;
+import de.caluga.morphium.MorphiumConfig.IndexCheck;
+import de.caluga.morphium.changestream.ChangeStreamEvent;
+import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
@@ -142,8 +146,21 @@ public class MorphiumServerTest {
         cfg.setHostSeed("localhost:17017");
         cfg.setDatabase("srvtst");
         cfg.setMaxConnections(10);
+        cfg.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+        cfg.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
         Morphium morphium = new Morphium(cfg);
         final AtomicLong recTime = new AtomicLong(0l);
+        new Thread() {
+            public void run() {
+                morphium.watch(UncachedObject.class, true, new ChangeStreamListener() {
+                    @Override
+                    public boolean incomingData(ChangeStreamEvent evt) {
+                        log.info("Incoming....{} {} {}", evt.getCollectionName(), evt.getNs(), evt.getFullDocument());
+                        return true;
+                    }
+                });
+            }
+        } .start();
 
         try(morphium) {
             for (int i = 0; i < 100; i++) {
@@ -151,6 +168,8 @@ public class MorphiumServerTest {
                 uc.setCounter(i);
                 uc.setStrValue("Counter-" + i);
                 morphium.store(uc);
+                log.info("Stored {}", i);
+                Thread.sleep(250);
             }
 
             var lst = morphium.createQueryFor(UncachedObject.class).asList();
@@ -279,16 +298,14 @@ public class MorphiumServerTest {
                 }
             });
 
-            long start = System.currentTimeMillis();
-
             for (int i = 0; i < 100; i++) {
                 var msg = new Msg("tstmsg", "hello" + i, "value" + i);
                 msg1.sendMessage(msg);
                 log.info("Message sent...");
 
                 while (recAmount.get() != i + 1) {
-                    log.info("Waiting....{} != {}", i, recAmount.get());
-                    Thread.sleep(100);
+                    log.info("Waiting....{} != {}", i + 1, recAmount.get());
+                    Thread.sleep(1000);
                 }
 
                 log.info("Got it!");
