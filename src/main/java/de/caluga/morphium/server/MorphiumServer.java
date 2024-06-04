@@ -335,22 +335,30 @@ public class MorphiumServer {
                         try {
                             AtomicInteger msgid = new AtomicInteger(0);
 
-                            if (doc.containsKey("pipeline") && ((List)doc.get("pipeline")).get(0).equals("$changestream")) {
+                            if (doc.containsKey("pipeline") && ((Map)((List)doc.get("pipeline")).get(0)).containsKey("$changeStream")) {
                                 WatchCommand wcmd = new WatchCommand(drv).fromMap(doc);
                                 final int myCursorId = cursorId.incrementAndGet();
                                 wcmd.setCb(new DriverTailableIterationCallback() {
+                                    private boolean first = true;
+                                    private String batch = "firstBatch";
                                     @Override
                                     public void incomingData(Map<String, Object> data, long dur) {
                                         try {
                                             log.info("Incoming data...");
-                                            var crs =  Doc.of("nextBatch", data, "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
+                                            var crs =  Doc.of(batch, List.of(data), "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
                                             var answer = Doc.of("ok", 1.0);
 
-                                            if (crs != null) answer.putAll(crs);
+                                            if (crs != null) answer.put("cursor", crs);
 
                                             answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                                             answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                                             reply.setFirstDoc(answer);
+
+                                            if (first) {
+                                                first = false;
+                                                batch = "nextBatch";
+                                            }
+
                                             out.write(reply.bytes());
                                             out.flush();
                                         } catch (Exception e) {
