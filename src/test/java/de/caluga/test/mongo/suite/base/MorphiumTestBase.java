@@ -330,7 +330,7 @@ public class MorphiumTestBase {
                 }
             }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            log.info("Could not clean up: ", e);
         } finally {
             if (cmd != null) {
                 cmd.releaseConnection();
@@ -357,6 +357,7 @@ public class MorphiumTestBase {
 
         return true;
     }
+
     //
     //    public void createUncachedObjectsInMemory(int amount) {
     //        createUncachedObjects(morphiumInMemeory, amount);

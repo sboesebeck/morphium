@@ -1,22 +1,25 @@
 package de.caluga.test.mongo.suite.base;
 
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.server.MorphiumServer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import java.util.concurrent.atomic.AtomicLong;
 
 public class MorphiumServerTest {
     private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
@@ -98,12 +101,15 @@ public class MorphiumServerTest {
         cfg2.setMaxConnections(10);
         Morphium morphium2 = new Morphium(cfg2);
         final AtomicLong recTime = new AtomicLong(0l);
+        Thread.sleep(2500);
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium);
+            var msg1 = new Messaging(morphium, 100, true);
+            msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new Messaging(morphium2);
+            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            msg2.setUseChangeStream(true);
             msg2.start();
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
@@ -153,4 +159,215 @@ public class MorphiumServerTest {
 
         srv.terminate();
     }
+
+
+    @Test
+    public void multithreaddedMessagingTest() throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 100, 1);
+        srv.start();
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:17017");
+        cfg.setDatabase("srvtst");
+        cfg.setMaxConnections(10);
+        Morphium morphium = new Morphium(cfg);
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed("localhost:17017");
+        cfg2.setDatabase("srvtst");
+        cfg2.setMaxConnections(10);
+        Morphium morphium2 = new Morphium(cfg2);
+        final AtomicLong recAmount = new AtomicLong(0l);
+        final Map<MorphiumId, Long> sendTimes = new ConcurrentHashMap<>();
+        final Map<MorphiumId, Long> recTimes = new ConcurrentHashMap<>();
+        Thread.sleep(2500);
+
+        try(morphium) {
+            //Messaging test
+            var msg1 = new Messaging(morphium, 100, true);
+            msg1.setUseChangeStream(false);
+            msg1.start();
+            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            msg2.setUseChangeStream(false);
+            msg2.start();
+            // Thread.sleep(2500);
+            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+                @Override
+                public Msg onMessage(Messaging msg, Msg m) {
+                    recAmount.incrementAndGet();
+                    recTimes.put(m.getMsgId(), System.currentTimeMillis());
+                    log.info("incoming mssage after {}ms", System.currentTimeMillis() - m.getTimestamp());
+                    return null;
+                }
+            });
+
+            long start = System.currentTimeMillis();
+
+            for (int i = 0; i < 100; i++) {
+                var msg = new Msg("tstmsg", "hello" + i, "value" + i);
+                msg1.sendMessage(msg);
+                sendTimes.put(msg.getMsgId(), System.currentTimeMillis());
+            }
+
+            long dur = System.currentTimeMillis() - start;
+            log.info("Sending took {}ms", dur);
+
+            while (recAmount.get() != 100L) {
+                Thread.yield();
+            }
+
+            dur = System.currentTimeMillis() - start;
+            log.info("Got messages after {}ms", dur);
+            long minDur = 999999;
+            long maxDur = 0;
+            long first = System.currentTimeMillis();
+            long last = 0;
+
+            for (var id : sendTimes.keySet()) {
+                long d = recTimes.get(id) - sendTimes.get(id);
+
+                if (d < minDur) minDur = d;
+
+                if (d > maxDur) maxDur = d;
+
+                if (start - recTimes.get(id) < first) {
+                    first = start - recTimes.get(id);
+                }
+
+                if (start - recTimes.get(id) > last) {
+                    last = start - recTimes.get(id);
+                }
+            }
+
+            log.info("First Message after {}ms - last message after {}ms", first, last);
+            log.info("Longest roundtrip {}ms - quickest {}ms", maxDur, minDur);
+        }
+
+        srv.terminate();
+    }
+
+    @Test
+    public void multithreaddedMessaging() throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 100, 1);
+        srv.start();
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:17017");
+        cfg.setDatabase("srvtst");
+        cfg.setMaxConnections(10);
+        Morphium morphium = new Morphium(cfg);
+        MorphiumConfig cfg2 = new MorphiumConfig();
+        cfg2.setHostSeed("localhost:17017");
+        cfg2.setDatabase("srvtst");
+        cfg2.setMaxConnections(10);
+        Morphium morphium2 = new Morphium(cfg2);
+        final AtomicLong recAmount = new AtomicLong(0l);
+        Thread.sleep(2500);
+
+        try(morphium) {
+            //Messaging test
+            var msg1 = new Messaging(morphium, 100, true);
+            msg1.setUseChangeStream(true);
+            msg1.start();
+            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            msg2.setUseChangeStream(true);
+            msg2.start();
+            // Thread.sleep(2500);
+            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+                @Override
+                public Msg onMessage(Messaging msg, Msg m) {
+                    recAmount.incrementAndGet();
+                    log.info("incoming mssage after {}ms", System.currentTimeMillis() - m.getTimestamp());
+                    return null;
+                }
+            });
+
+            long start = System.currentTimeMillis();
+
+            for (int i = 0; i < 100; i++) {
+                var msg = new Msg("tstmsg", "hello" + i, "value" + i);
+                msg1.sendMessage(msg);
+                log.info("Message sent...");
+
+                while (recAmount.get() != i + 1) {
+                    log.info("Waiting....{} != {}", i, recAmount.get());
+                    Thread.sleep(100);
+                }
+
+                log.info("Got it!");
+            }
+        }
+
+        srv.terminate();
+    }
+
+    // @Test
+    // public void mutlithreaddedMessagingPerformanceTest() throws Exception {
+    //     var srv = new MorphiumServer(17017, "localhost", 100, 1);
+    //     srv.start();
+    //     MorphiumConfig cfg = new MorphiumConfig();
+    //     cfg.setHostSeed("localhost:17017");
+    //     cfg.setDatabase("srvtst");
+    //     cfg.setMaxConnections(10);
+    //     Morphium morphium = new Morphium(cfg);
+    //     Thread.sleep(2500);
+    //     morphium.clearCollection(Msg.class);
+    //     final Messaging producer = new Messaging(morphium, 100, true);
+    //     final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
+    //     producer.setUseChangeStream(true);
+    //     consumer.setUseChangeStream(true);
+    //     consumer.start();
+    //     producer.start();
+    //     Thread.sleep(2500);
+    //
+    //     try {
+    //         final AtomicInteger processed = new AtomicInteger();
+    //         final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
+    //         consumer.addListenerForMessageNamed("msg", (msg, m) -> {
+    //             log.info("Incoming message...");
+    //             processed.incrementAndGet();
+    //
+    //             if (processed.get() % 1000 == 0) {
+    //                 log.info("Consumed " + processed.get());
+    //             }
+    //             assert(!msgCountById.containsKey(m.getMsgId().toString()));
+    //             msgCountById.putIfAbsent(m.getMsgId().toString(), new AtomicInteger());
+    //             msgCountById.get(m.getMsgId().toString()).incrementAndGet();
+    //             //simulate processing
+    //             try {
+    //                 Thread.sleep((long)(10 * Math.random()));
+    //             } catch (InterruptedException e) {
+    //                 // e.printStackTrace();
+    //             }
+    //             return null;
+    //         });
+    //         int numberOfMessages = 1000;
+    //
+    //         for (int i = 0; i < numberOfMessages; i++) {
+    //             Msg m = new Msg("msg", "m", "v");
+    //             m.setTtl(5 * 60 * 1000);
+    //             // if (i % 1000 == 0) {
+    //             log.info("created msg " + i + " / " + numberOfMessages);
+    //             // }
+    //             producer.sendMessage(m);
+    //         }
+    //
+    //         long start = System.currentTimeMillis();
+    //
+    //         while (processed.get() < numberOfMessages) {
+    //             //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+    //             //            log.info("Running threads: " + thbean.getThreadCount());
+    //             log.info("Processed " + processed.get());
+    //             Thread.sleep(1500);
+    //         }
+    //
+    //         long dur = System.currentTimeMillis() - start;
+    //         log.info("Processing took " + dur + " ms");
+    //         assert(processed.get() == numberOfMessages);
+    //
+    //         for (String id : msgCountById.keySet()) {
+    //             assert(msgCountById.get(id).get() == 1);
+    //         }
+    //     } finally {
+    //         producer.terminate();
+    //         consumer.terminate();
+    //     }
+    // }
 }
