@@ -1192,7 +1192,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // Collections.shuffle(current);
 
                 for (Runnable r1 : current) {
-                    //new Thread(r1).start();
+                    // new Thread(r1).start();
                     try {
                         // log.info("Event processing");
                         r1.run();
@@ -1202,7 +1202,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 log.error("Error", e);
             }
         };
-        exec.scheduleWithFixedDelay(r, 100, 10, TimeUnit.MILLISECONDS); // check for events every 500ms
+        // exec.scheduleWithFixedDelay(r, 100, 100, TimeUnit.MILLISECONDS); // check for events every 500ms
         scheduleExpire();
     }
 
@@ -2687,7 +2687,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         };
         // log.info("Notify watchers -adding event #{}", eventQueue.size());
-        eventQueue.add(r);
+        // eventQueue.add(r);
+        r.run();
     }
 
     public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)

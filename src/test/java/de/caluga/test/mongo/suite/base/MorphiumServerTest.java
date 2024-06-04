@@ -201,11 +201,11 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium, 100, true);
-            msg1.setUseChangeStream(false);
+            var msg1 = new Messaging(morphium, 1000, true);
+            msg1.setUseChangeStream(true);
             msg1.start();
             var msg2 = new Messaging(morphium2, 10, true, true, 1000);
-            msg2.setUseChangeStream(false);
+            msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
