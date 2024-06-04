@@ -140,8 +140,8 @@ public class MorphiumConfig {
     private boolean retryReads = false;
     private boolean retryWrites = false;
     private String uuidRepresentation;
-    private IndexCheck indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
-    private CappedCheck cappedCheck = CappedCheck.CREATE_ON_WRITE_NEW_COL;
+    private IndexCheck indexCheck = IndexCheck.WARN_ON_STARTUP;
+    private CappedCheck cappedCheck = CappedCheck.WARN_ON_STARTUP;
 
     private String messagingStatusInfoListenerName = null;
     private boolean messagingStatusInfoListenerEnabled = true;
