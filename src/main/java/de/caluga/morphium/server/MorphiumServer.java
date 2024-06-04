@@ -18,8 +18,10 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
@@ -34,6 +36,7 @@ public class MorphiumServer {
     private int port;
     private String host;
     private AtomicInteger msgId = new AtomicInteger(1000);
+    private AtomicInteger cursorId = new AtomicInteger(1000);
 
     private ThreadPoolExecutor executor;
     private boolean running = true;
@@ -330,8 +333,43 @@ public class MorphiumServer {
 
                     default:
                         try {
-                            int msgid = drv.runCommand(new GenericCommand(drv).fromMap(doc));
-                            var crs = drv.readSingleAnswer(msgid);
+                            AtomicInteger msgid = new AtomicInteger(0);
+
+                            if (doc.containsKey("pipeline") && ((Map)doc.get("pipeline")).containsKey("$changestream")) {
+                                WatchCommand wcmd = new WatchCommand(drv).fromMap(doc);
+                                final int myCursorId = cursorId.incrementAndGet();
+                                wcmd.setCb(new DriverTailableIterationCallback() {
+                                    @Override
+                                    public void incomingData(Map<String, Object> data, long dur) {
+                                        try {
+                                            var crs =  Doc.of("nextBatch", data, "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
+                                            var answer = Doc.of("ok", 1.0);
+
+                                            if (crs != null) answer.putAll(crs);
+
+                                            answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
+                                            answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
+                                            reply.setFirstDoc(answer);
+                                            out.write(reply.bytes());
+                                            out.flush();
+                                        } catch (Exception e) {
+                                            log.error("Errror during watch", e);
+                                        }
+                                    }
+
+                                    @Override
+                                    public boolean isContinued() {
+                                        return true;
+                                    }
+                                });
+
+                                int mid = drv.runCommand(wcmd);
+                                msgid.set(mid);
+                            } else {
+                                msgid.set(drv.runCommand(new GenericCommand(drv).fromMap(doc)));
+                            }
+
+                            var crs = drv.readSingleAnswer(msgid.get());
                             answer = Doc.of("ok", 1.0);
 
                             if (crs != null) answer.putAll(crs);

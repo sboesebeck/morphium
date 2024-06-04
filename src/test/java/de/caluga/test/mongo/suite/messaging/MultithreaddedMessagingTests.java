@@ -17,39 +17,8 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 
 
 
-@Disabled
+// @Disabled
 public class MultithreaddedMessagingTests extends MorphiumTestBase {
-
-    @Test
-    public void messagingMultithreaddedWriteTest() throws Exception {
-        final Messaging sender = new Messaging(morphium);
-        final int numThreads = 30;
-        final List<Thread> threads = new ArrayList<>();
-        final AtomicInteger count=new AtomicInteger();
-        for (int t = 0; t < numThreads; t++) {
-            String id = "thr" + t;
-            var thr = new Thread() {
-                public void run() {
-                    for (int i = 0; i < 4000; i++) {
-                        UncachedObject uc = new UncachedObject();
-                        uc.setCounter(i);
-                        uc.setStrValue("{ name: " + id+ ", counter:" + i + "}");
-                        morphium.store(uc);
-                        count.incrementAndGet();
-                    }
-                    threads.remove(this);
-                }
-            };
-            threads.add(thr);
-            thr.start();
-        }
-        log.info("Waiting for writers....");
-        while (threads.size()!=0) {
-           log.info("Threads active: "+threads.size()+" Messages: "+count.get());
-            Thread.sleep(500);
-        }
-        log.info("done");
-    }
 
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
@@ -59,19 +28,20 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         producer.start();
         consumer.start();
         Thread.sleep(2000);
+
         try {
             Vector<String> processedIds = new Vector<>();
-            Hashtable<String,Long> processedAt=new Hashtable<>();
+            Hashtable<String, Long> processedAt = new Hashtable<>();
             procCounter.set(0);
             consumer.addMessageListener((msg, m) -> {
                 procCounter.incrementAndGet();
 
                 if (processedIds.contains(m.getMsgId().toString())) {
-                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId()+"  - "+(System.currentTimeMillis()-processedAt.get(m.getMsgId().toString()))+"ms ago");
+                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId() + "  - " + (System.currentTimeMillis() - processedAt.get(m.getMsgId().toString())) + "ms ago");
                     return null;
                 }
                 processedIds.add(m.getMsgId().toString());
-                processedAt.put(m.getMsgId().toString(),System.currentTimeMillis());
+                processedAt.put(m.getMsgId().toString(), System.currentTimeMillis());
                 //simulate processing
                 try {
                     Thread.sleep((long)(100 * Math.random()));
@@ -80,22 +50,27 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 return null;
             });
             Thread.sleep(2500);
-            int amount = 1000;
+            int amount = 3000;
             log.info("------------- sending messages");
 
             for (int i = 0; i < amount; i++) {
-                if (i%100==0){
-                    log.info("Sending message "+i);
+                if (i % 1000 == 0) {
+                    log.info("Sending message {} of {} / Processed: {}", i, amount, procCounter.get());
                 }
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i,30000,false));
+
+                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i, 30000, false));
             }
+
             log.info("--- sending finished");
+
             for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
                 Thread.sleep(1000);
                 log.info("Still processing: " + procCounter.get());
             }
+
             assert(procCounter.get() == amount) : "Did process " + procCounter.get();
         } finally {
+            log.info("All good, shutting down");
             producer.terminate();
             consumer.terminate();
         }
