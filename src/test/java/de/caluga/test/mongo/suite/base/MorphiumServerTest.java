@@ -303,7 +303,7 @@ public class MorphiumServerTest {
                 }
             });
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 200; i++) {
                 var msg = new Msg("tstmsg", "hello" + i, "value" + i);
                 long start = System.currentTimeMillis();
                 msg1.sendMessage(msg);
@@ -318,6 +318,7 @@ public class MorphiumServerTest {
                 }
 
                 log.info("Got it! {}", System.currentTimeMillis() - start);
+                Thread.sleep(250);
             }
         }
 
