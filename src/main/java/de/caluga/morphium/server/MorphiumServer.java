@@ -196,7 +196,7 @@ public class MorphiumServer {
                     break;
                 }
 
-                log.info("Incoming connection: " + executor.getQueue().size());
+                log.info("Incoming connection: " + executor.getPoolSize());
                 Socket finalS = s;
                 //new Thread(() -> incoming(finalS)).start();
                 executor.execute(() -> incoming(finalS));
@@ -206,9 +206,12 @@ public class MorphiumServer {
     }
 
     public void incoming(Socket s) {
-        // log.info("handling incoming connection...");
+        log.info("handling incoming connection...{}", executor.getPoolSize());
+
         try {
             s.setSoTimeout(0);
+            s.setTcpNoDelay(true);
+            s.setKeepAlive(true);
             var in = s.getInputStream();
             var out = s.getOutputStream();
             int id = 0;
@@ -223,10 +226,13 @@ public class MorphiumServer {
             //            out.write(r.bytes());
             //            out.flush();
             //            log.info("Sent hello result");
-            while (true) {
+            while (s.isConnected()) {
+                // log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
                 var msg = WireProtocolMessage.parseFromStream(in);
+                // log.info("---> Thread {} got message", Thread.currentThread().getId());
 
-                if (msg == null) continue;
+                //probably closed
+                if (msg == null) break;
 
                 // log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
@@ -400,10 +406,15 @@ public class MorphiumServer {
                 // log.info("Sent answer!");
             }
 
-            //            log.info("Thread finished!");
+            s.close();
+            in.close();
+            out.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        log.info("Thread finished!");
+        s = null;
     }
 
     public void terminate() {
