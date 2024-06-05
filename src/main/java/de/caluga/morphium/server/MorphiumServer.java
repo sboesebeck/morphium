@@ -344,9 +344,11 @@ public class MorphiumServer {
                                     @Override
                                     public void incomingData(Map<String, Object> data, long dur) {
                                         try {
-                                            log.info("Incoming data...");
+                                            // log.info("Incoming data...");
                                             var crs =  Doc.of(batch, List.of(data), "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
                                             var answer = Doc.of("ok", 1.0);
+
+                                            // log.info("Data: {}", data);
 
                                             if (crs != null) answer.put("cursor", crs);
 
