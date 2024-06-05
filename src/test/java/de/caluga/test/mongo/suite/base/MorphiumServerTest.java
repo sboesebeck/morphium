@@ -293,6 +293,11 @@ public class MorphiumServerTest {
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
                     recAmount.incrementAndGet();
+
+                    synchronized (recAmount) {
+                        recAmount.notifyAll();
+                    }
+
                     log.info("incoming mssage after {}ms", System.currentTimeMillis() - m.getTimestamp());
                     return null;
                 }
@@ -300,15 +305,19 @@ public class MorphiumServerTest {
 
             for (int i = 0; i < 100; i++) {
                 var msg = new Msg("tstmsg", "hello" + i, "value" + i);
+                long start = System.currentTimeMillis();
                 msg1.sendMessage(msg);
                 log.info("Message sent...");
 
                 while (recAmount.get() != i + 1) {
                     log.info("Waiting....{} != {}", i + 1, recAmount.get());
-                    Thread.sleep(1000);
+
+                    synchronized (recAmount) {
+                        recAmount.wait();
+                    }
                 }
 
-                log.info("Got it!");
+                log.info("Got it! {}", System.currentTimeMillis() - start);
             }
         }
 
