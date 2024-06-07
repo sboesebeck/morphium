@@ -3,6 +3,9 @@ package de.caluga.test.mongo.suite.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -31,7 +34,7 @@ public class MorphiumServerTest {
 
     @Test
     public void singleConnectToServerTest()throws Exception {
-        var srv = new MorphiumServer(17017, "localhost", 100, 1);
+        var srv = new MorphiumServer(17017, "localhost", 20, 1);
         srv.start();
         SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
         drv.setHostSeed("localhost:17017");
