@@ -503,8 +503,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
-        log.debug("borrowConnection {}", host);
-
+        // log.debug("borrowConnection {}", host);
         if (host == null) throw new MorphiumDriverException("Cannot connect to host null!");
 
         // if pool is empty  -> wait increaseWaitCounter
@@ -744,6 +743,7 @@ public class PooledDriver extends DriverBase {
                     // c = new Connection((SingleMongoConnection) con);
                     con.close();
                 }
+
                 return;
             }
 
@@ -762,6 +762,7 @@ public class PooledDriver extends DriverBase {
 
             for (int port : new ArrayList<Integer>(borrowedConnections.keySet())) {
                 ConnectionContainer connectionContainer = borrowedConnections.get(port);
+
                 if (connectionContainer == null || connectionContainer.getCon() == null || connectionContainer.getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
                 }
