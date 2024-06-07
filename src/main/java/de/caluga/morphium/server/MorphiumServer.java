@@ -173,6 +173,10 @@ public class MorphiumServer {
         return res;
     }
 
+    public int getConnectionCount() {
+        return executor.getActiveCount();
+    }
+
     public void start() throws IOException, InterruptedException {
         log.info("Opening port " + port);
         serverSocket = new ServerSocket(port);
