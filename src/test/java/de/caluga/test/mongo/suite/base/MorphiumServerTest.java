@@ -3,11 +3,9 @@ package de.caluga.test.mongo.suite.base;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.OutputStream;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -50,6 +48,60 @@ public class MorphiumServerTest {
         log.info("connection established");
         drv.close();
         drv2.close();
+        srv.terminate();
+    }
+
+
+    @Test
+    public void testConnectionPool() throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 10, 1);
+        srv.start();
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:17017");
+        cfg.setDatabase("srvtst");
+        cfg.setMaxConnections(5);
+        cfg.setMinConnections(2);
+        cfg.setMaxConnectionIdleTime(1000);
+        cfg.setMaxConnectionLifeTime(2000);
+        Morphium morphium = new Morphium(cfg);
+        // for (int i = 0; i < 15; i++) {
+        //     log.info("PoolSize: {}", srv.getConnectionCount());
+        //     morphium.store(new UncachedObject("Hello", i));
+        //     log.info("Server Connections: {}", srv.getConnectionCount());
+        //     assertEquals(i + 1, morphium.createQueryFor(UncachedObject.class).asList().size());
+        //     assertEquals(2, srv.getConnectionCount());
+        //     Thread.sleep(1230);
+        // }
+        // Messaging msg = new Messaging(morphium, 100, true);
+        // msg.setUseChangeStream(true);
+        // msg.start();
+        //
+        AtomicBoolean running = new AtomicBoolean(true);
+        new Thread(()-> {
+            while (running.get()) {
+                try {
+                    morphium.watch(UncachedObject.class, true, new ChangeStreamListener() {
+                        @Override
+                        public boolean incomingData(ChangeStreamEvent evt) {
+                            return running.get();
+                        }
+                    });
+                } catch (Exception e) {
+                }
+            }
+
+            log.info("Thread finished!");
+
+        }).start();
+
+        for (int i = 0; i < 15; i++) {
+            log.info("PoolSize: {}", srv.getConnectionCount());
+            // msg.sendMessage(new Msg("test", "Ignore", "no listener"));
+            Thread.sleep(1500);
+        }
+
+        running.set(false);
+        morphium.close();
         srv.terminate();
     }
 
