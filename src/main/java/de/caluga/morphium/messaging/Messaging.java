@@ -1,6 +1,7 @@
 package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
@@ -15,6 +16,7 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +25,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * User: Stephan Bösebeck
@@ -240,27 +243,27 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     private void initThreadPool() {
-        BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-            @SuppressWarnings("CommentedOutCode")
-            @Override
-            public boolean offer(Runnable e) {
-                /*
-                 * Offer it to the queue if there is 0 items already queued, else
-                 * return false so the TPE will add another thread. If we return false
-                 * and max threads have been reached then the RejectedExecutionHandler
-                 * will be called which will do the put into the queue.
-                 */
-                int poolSize = threadPool.getPoolSize();
-                int maximumPoolSize = threadPool.getMaximumPoolSize();
-
-                if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
-                    return super.offer(e);
-                } else {
-                    return false;
-                }
-            }
-        };
-
+        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
+        //     @SuppressWarnings("CommentedOutCode")
+        //     @Override
+        //     public boolean offer(Runnable e) {
+        //         /*
+        //          * Offer it to the queue if there is 0 items already queued, else
+        //          * return false so the TPE will add another thread. If we return false
+        //          * and max threads have been reached then the RejectedExecutionHandler
+        //          * will be called which will do the put into the queue.
+        //          */
+        //         int poolSize = threadPool.getPoolSize();
+        //         int maximumPoolSize = threadPool.getMaximumPoolSize();
+        //
+        //         if (poolSize >= maximumPoolSize || poolSize > threadPool.getActiveCount()) {
+        //             return super.offer(e);
+        //         } else {
+        //             return false;
+        //         }
+        //     }
+        // };
+        //
         threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
         threadPool.setCorePoolSize(morphium.getConfig().getThreadPoolMessagingCoreSize());
         threadPool.setMaximumPoolSize(morphium.getConfig().getThreadPoolMessagingMaxSize());
@@ -395,9 +398,12 @@ public class Messaging extends Thread implements ShutdownListener {
 
         // always run this find in addition to changestream
         try {
+            AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
+            final int pauseDings = getMorphium().getConfig().getMaxWaitTime() / 3;
             decouplePool.scheduleWithFixedDelay(() -> {
                 try {
-                    if (requestPoll.get() > 0 || !useChangeStream) {
+                    if (requestPoll.get() > 0 || !useChangeStream || System.currentTimeMillis() - lastRun.get() > pauseDings) {
+                        lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + requestPoll.get());
@@ -439,10 +445,19 @@ public class Messaging extends Thread implements ShutdownListener {
                 Runnable r = () -> {
                     try {
                         var msg = morphium.findById(Msg.class, prEl.getId(), getCollectionName());
+                        //message was deleted or dirty read
+                        //dirty read only possible, because  msg read ReadPreferenceLevel is NEAREST
 
-                        //message was deleted
                         if (msg == null) {
-                            return;
+                            var q = morphium.createQueryFor(Msg.class).setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(prEl.getId());
+                            q.setCollectionName(getCollectionName());
+                            msg = q.get();//morphium.findById(Msg.class, prEl.getId(), getCollectionName());
+
+                            if (msg == null) {
+                                return;
+                            }
+
+                            log.debug("Msg==null =>diry read");
                         }
 
                         //do not process if no listener registered for this message
