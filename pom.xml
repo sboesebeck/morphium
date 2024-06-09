@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -302,7 +302,7 @@
     <dependency>
       <groupId>io.github.classgraph</groupId>
       <artifactId>classgraph</artifactId>
-      <version>4.8.149</version>
+      <version>4.8.172</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
