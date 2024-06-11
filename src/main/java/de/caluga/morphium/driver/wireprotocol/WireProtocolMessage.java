@@ -28,10 +28,12 @@ public abstract class WireProtocolMessage {
             }
 
             numRead = in.read(inBuffer, 0, 16);
+
             if (numRead == -1) {
                 return null;
             }
-//            log.info("NumRead: {}",numRead);
+
+            //            log.info("NumRead: {}",numRead);
             while (numRead < 16) {
                 numRead += in.read(inBuffer, numRead, 16 - numRead);
             }
@@ -81,17 +83,16 @@ public abstract class WireProtocolMessage {
                     message.setMessageId(messageId);
                     message.setSize(compressed.getUncompressedSize());
                     message.setResponseTo(responseTo);
-                    if (compressed.getCompressorId()==OpCompressed.COMPRESSOR_SNAPPY){
-                        message.parsePayload(Snappy.uncompress(compressed.getCompressedMessage()), 0);
-                    } else if (compressed.getCompressorId()==OpCompressed.COMPRESSOR_ZLIB){
 
+                    if (compressed.getCompressorId() == OpCompressed.COMPRESSOR_SNAPPY) {
+                        message.parsePayload(Snappy.uncompress(compressed.getCompressedMessage()), 0);
+                    } else if (compressed.getCompressorId() == OpCompressed.COMPRESSOR_ZLIB) {
                         ByteArrayInputStream bais = new ByteArrayInputStream(compressed.getCompressedMessage());
                         InflaterInputStream iis = new InflaterInputStream(bais);
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         iis.transferTo(baos);
-                        message.parsePayload(baos.toByteArray(),0);
+                        message.parsePayload(baos.toByteArray(), 0);
                     }
-
                 } else {
                     message.parsePayload(buf, 0);
                 }
@@ -155,7 +156,7 @@ public abstract class WireProtocolMessage {
         byte[] payload = getPayload();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        if (getOpCode() == OpCode.OP_COMPRESSED.opCode) {
+        if (getOpCode() != OpCode.OP_COMPRESSED.opCode) {
             writeInt(payload.length + 16, out);
             writeInt(messageId, out);
             writeInt(responseTo, out);
@@ -167,7 +168,7 @@ public abstract class WireProtocolMessage {
             compressed.setOriginalOpCode(getOpCode());
             compressed.setMessageId(messageId);
             compressed.setCompressorId(OpCompressed.COMPRESSOR_SNAPPY);
-//            compressed.setCompressorId(OpCompressed.COMPRESSOR_ZLIB);
+            //            compressed.setCompressorId(OpCompressed.COMPRESSOR_ZLIB);
             compressed.setUncompressedSize(payload.length);
             compressed.setCompressedMessage(Snappy.compress(payload));
             compressed.setSize(compressed.getCompressedMessage().length + 9);
