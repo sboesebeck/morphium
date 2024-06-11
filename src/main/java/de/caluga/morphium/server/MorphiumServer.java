@@ -24,6 +24,7 @@ import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
+import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
@@ -41,61 +42,13 @@ public class MorphiumServer {
     private ThreadPoolExecutor executor;
     private boolean running = true;
     private ServerSocket serverSocket;
+    private static int compressorId = OpCompressed.COMPRESSOR_SNAPPY;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
         this.drv = new InMemoryDriver();
         this.port = port;
         this.host = host;
         drv.connect();
-        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-        //     @SuppressWarnings("CommentedOutCode")
-        //     @Override
-        //     public boolean offer(Runnable e) {
-        //         /*
-        //          * Offer it to the queue if there is 0 items already queued, else
-        //          * return false so the TPE will add another thread. If we return false
-        //          * and max threads have been reached then the RejectedExecutionHandler
-        //          * will be called which will do the put into the queue.
-        //          */
-        //         int poolSize = executor.getPoolSize();
-        //         int maximumPoolSize = executor.getMaximumPoolSize();
-        //
-        //         if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
-        //             return super.offer(e);
-        //         } else {
-        //             return false;
-        //         }
-        //     }
-        // };
-        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        // executor = new ThreadPoolExecutor(
-        //     minThreads,
-        //     maxThreads,
-        //     10000,
-        //     TimeUnit.MILLISECONDS,
-        //     new LinkedBlockingQueue<>());
-        // executor.setRejectedExecutionHandler((r, executor) -> {
-        //     try {
-        //         /*
-        //          * This does the actual put into the queue. Once the max threads
-        //          * have been reached, the tasks will then queue up.
-        //          */
-        //         executor.getQueue().put(r);
-        //     } catch (InterruptedException e) {
-        //         Thread.currentThread().interrupt();
-        //     }
-        // });
-        // // // noinspection unused,unused
-        // executor.setThreadFactory(new ThreadFactory() {
-        //     private final AtomicInteger num = new AtomicInteger(1);
-        //     @Override
-        //     public Thread newThread(Runnable r) {
-        //         Thread ret = new Thread(r, "server_" + num);
-        //         num.set(num.get() + 1);
-        //         ret.setDaemon(true);
-        //         return ret;
-        //     }
-        // });
         executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
         executor.setMaximumPoolSize(maxThreads);
         executor.setCorePoolSize(minThreads);
@@ -112,6 +65,7 @@ public class MorphiumServer {
         int port = 17017;
         int maxThreads = 1000;
         int minThreads = 10;
+        int maintenancePort = 6666;
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -136,6 +90,30 @@ public class MorphiumServer {
                 case "-h":
                 case "--host":
                     host = args[idx + 1];
+                    idx += 2;
+                    break;
+
+                case "-mp":
+                case "--maintenancePort":
+                    maintenancePort = Integer.parseInt(args[idx + 1]);
+                    idx += 2;
+                    break;
+
+                case "-c":
+                case "--compressor":
+                    if (args[idx + 1].equals("snappy")) {
+                        compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+                    } else if (args[idx + 1].equals("zstd")) {
+                        compressorId = OpCompressed.COMPRESSOR_ZSTD;
+                    } else if (args[idx + 1].equals("none")) {
+                        compressorId = OpCompressed.COMPRESSOR_NOOP;
+                    } else if (args[idx + 1].equals("zlib")) {
+                        compressorId = OpCompressed.COMPRESSOR_ZLIB;
+                    } else {
+                        log.error("Unknown parameter for compressor {}", args[idx + 1]);
+                        System.exit(1);
+                    }
+
                     idx += 2;
                     break;
 
@@ -262,7 +240,17 @@ public class MorphiumServer {
                         // reply.setResponseTo(id);
                         // out.write(reply.bytes());
                         r.setDocuments(Arrays.asList(res.toMsg()));
-                        out.write(r.bytes());
+
+                        if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                            OpCompressed cmp = new OpCompressed();
+                            cmp.setMessageId(r.getMessageId());
+                            cmp.setResponseTo(id);
+                            cmp.setCompressedMessage(r.bytes());
+                            out.write(cmp.bytes());
+                        } else {
+                            out.write(r.bytes());
+                        }
+
                         out.flush();
                         // log.info("Sent hello result");
                         continue;
@@ -371,7 +359,16 @@ public class MorphiumServer {
                                                 batch = "nextBatch";
                                             }
 
-                                            out.write(reply.bytes());
+                                            if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                                                OpCompressed cmp = new OpCompressed();
+                                                cmp.setMessageId(reply.getMessageId());
+                                                cmp.setResponseTo(reply.getResponseTo());
+                                                cmp.setCompressedMessage(reply.bytes());
+                                                out.write(cmp.bytes());
+                                            } else {
+                                                out.write(reply.bytes());
+                                            }
+
                                             out.flush();
                                         } catch (Exception e) {
                                             log.error("Errror during watch", e);
@@ -395,8 +392,9 @@ public class MorphiumServer {
 
                             if (crs != null) answer.putAll(crs);
                         } catch (Exception e) {
-                            answer = Doc.of("ok", 0, "errmsg", "no such command: '" + cmd + "'");
-                            log.warn("errror running command " + cmd, e);
+                            answer = Doc.of("ok", 0, "errmsg", "no such command: '{}" + cmd + "'");
+                            log.error("No such command {}", cmd, e);
+                            // log.warn("errror running command " + cmd, e);
                         }
 
                         break;
@@ -405,7 +403,18 @@ public class MorphiumServer {
                 answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                 answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                 reply.setFirstDoc(answer);
-                out.write(reply.bytes());
+
+                if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                    OpCompressed cmsg = new OpCompressed();
+                    cmsg.setCompressorId(compressorId);
+                    cmsg.setOriginalOpCode(reply.getOpCode());
+                    cmsg.setResponseTo(reply.getResponseTo());
+                    cmsg.setCompressedMessage(reply.bytes());
+                    out.write(cmsg.bytes());
+                } else {
+                    out.write(reply.bytes());
+                }
+
                 out.flush();
                 // log.info("Sent answer!");
             }

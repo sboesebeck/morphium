@@ -15,15 +15,17 @@ public class DbStatsCommand extends MongoCommand<DbStatsCommand> {
     @Override
     public Map<String, Object> asMap() {
         var ret = super.asMap();
+
         if (getColl().equals("ALL")) {
             ret.put(getCommandName(), 1);
         }
+
         return ret;
     }
 
     @Override
     public String getCommandName() {
-        return "dbstats";
+        return "dbStats";
     }
 
     public Map<String, Object> execute() throws MorphiumDriverException {

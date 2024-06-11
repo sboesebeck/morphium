@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
@@ -413,6 +414,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> cmdMap = cmd.asMap();
         var commandName = cmdMap.keySet().stream().findFirst().get();
         Class<? extends MongoCommand> commandClass = commandsCache.get(commandName);
+
+        if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline") && ((Map)((List)cmdMap.get("pipeline")).get(0)).containsKey("$changeStream")) {
+            commandClass = WatchCommand.class;
+        } else if (commandName.equals("aggregate")) {
+            commandClass = AggregateMongoCommand.class;
+        }
 
         if (commandClass == null) {
             throw new IllegalArgumentException("Unknown command " + commandName);
@@ -1011,7 +1018,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(AggregateMongoCommand cmd) {
-        throw new IllegalArgumentException("pleas use morphium for aggregation in Memory!");
+        if (cmd.getDb().equals("admin") && cmd.getColl().equals("atlascli")) {
+            int ret = commandNumber.incrementAndGet();
+            commandResults.add(prepareResult(Doc.of("ok", 0.0, "msg", "not found")));
+            return ret;
+        }
+
+        throw new IllegalArgumentException("please use morphium for aggregation in Memory!");
     }
 
     private int runCommand(MongoCommand cmd) {
