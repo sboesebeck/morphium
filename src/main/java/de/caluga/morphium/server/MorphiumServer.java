@@ -65,7 +65,6 @@ public class MorphiumServer {
         int port = 17017;
         int maxThreads = 1000;
         int minThreads = 10;
-        int maintenancePort = 6666;
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -90,12 +89,6 @@ public class MorphiumServer {
                 case "-h":
                 case "--host":
                     host = args[idx + 1];
-                    idx += 2;
-                    break;
-
-                case "-mp":
-                case "--maintenancePort":
-                    maintenancePort = Integer.parseInt(args[idx + 1]);
                     idx += 2;
                     break;
 
@@ -147,7 +140,7 @@ public class MorphiumServer {
         res.setWritablePrimary(true);
         res.setMe(host + ":" + port);
         // res.setMsg("ok");
-        res.setMsg("MorphiumServer V0.1");
+        res.setMsg("MorphiumServer V0.1ALPHA");
         return res;
     }
 
