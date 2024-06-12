@@ -3,6 +3,7 @@ package de.caluga.morphium.server;
 import static java.lang.Thread.sleep;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Arrays;
@@ -16,7 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
@@ -24,6 +28,8 @@ import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
@@ -41,6 +47,9 @@ public class MorphiumServer {
     private ThreadPoolExecutor executor;
     private boolean running = true;
     private ServerSocket serverSocket;
+    private static int compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+    private static String rsName;
+    private static String hostSeed;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
         this.drv = new InMemoryDriver();
@@ -112,6 +121,8 @@ public class MorphiumServer {
         int port = 17017;
         int maxThreads = 1000;
         int minThreads = 10;
+        rsName = "";
+        hostSeed = "";
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -139,6 +150,31 @@ public class MorphiumServer {
                     idx += 2;
                     break;
 
+                case "-rs":
+                case "--replicaset":
+                    rsName = args[idx + 1];
+                    hostSeed = args[idx + 2];
+                    idx += 3;
+                    break;
+
+                case "-c":
+                case "--compressor":
+                    if (args[idx + 1].equals("snappy")) {
+                        compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+                    } else if (args[idx + 1].equals("zstd")) {
+                        compressorId = OpCompressed.COMPRESSOR_ZSTD;
+                    } else if (args[idx + 1].equals("none")) {
+                        compressorId = OpCompressed.COMPRESSOR_NOOP;
+                    } else if (args[idx + 1].equals("zlib")) {
+                        compressorId = OpCompressed.COMPRESSOR_ZLIB;
+                    } else {
+                        log.error("Unknown parameter for compressor {}", args[idx + 1]);
+                        System.exit(1);
+                    }
+
+                    idx += 2;
+                    break;
+
                 default:
                     log.error("unknown parameter " + args[idx]);
                     System.exit(1);
@@ -149,10 +185,51 @@ public class MorphiumServer {
         var srv = new MorphiumServer(port, host, maxThreads, minThreads);
         srv.start();
 
+        if (!rsName.isEmpty()) {
+            log.info("Building replicaset with seed {}", hostSeed);
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            // Get the hostname
+            String hostname = inetAddress.getHostName();
+            // Get the IP address
+            String ipAddress = inetAddress.getHostAddress();
+            String[] hosts = hostSeed.split(",");
+
+            for (String h : hosts) {
+                int rsport = 17017;
+
+                if (h.contains(":")) {
+                    rsport = Integer.parseInt(h.split(":")[1]);
+                    h = h.split(":")[0];
+                }
+
+                if (h.equals(ipAddress) || h.equals(hostname)) {
+                    continue;
+                }
+
+                MorphiumConfig cfg = new MorphiumConfig("test", 10, 10000, 1000);
+                cfg.setDriverName(SingleMongoConnectDriver.driverName);
+                cfg.setHostSeed(h + ":" + rsport);
+                Morphium morphium = new Morphium(cfg);
+                ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium);
+                mtr.addListener((evt)-> {
+                    if (evt.getOperationType().equals("insert")) {
+                        srv.getDriver(); //.insert(db, collection, objs, wc);
+                        //need to insert without notifyWatchers!
+                    } //etc....
+                    return true;
+                });
+                mtr.start();
+            }
+        }
+
         while (srv.running) {
             log.info("Alive and kickin'");
             sleep(10000);
         }
+    }
+
+    private InMemoryDriver getDriver() {
+        return drv;
     }
 
     private HelloResult getHelloResult() {
