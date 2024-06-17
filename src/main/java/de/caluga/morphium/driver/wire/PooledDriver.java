@@ -654,7 +654,7 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
 
-                            host = getHostSeed().get(lastSecondaryNode.incrementAndGet());
+                            host = getHostSeed().get(lastSecondaryNode.get());
                         }
 
                         try {
