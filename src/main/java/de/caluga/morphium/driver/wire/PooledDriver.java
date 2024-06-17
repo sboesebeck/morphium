@@ -640,6 +640,8 @@ public class PooledDriver extends DriverBase {
                         String host = null;
 
                         synchronized (lastSecondaryNode) {
+                            lastSecondaryNode.incrementAndGet();
+
                             if (lastSecondaryNode.get() >= getHostSeed().size()) {
                                 lastSecondaryNode.set(0);
                                 retry++;
