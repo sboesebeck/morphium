@@ -73,7 +73,7 @@ public abstract class WireProtocolMessage {
                     compressed.setSize(compressed.getUncompressedSize());
                     compressed.setResponseTo(responseTo);
                     compressed.parsePayload(buf, 0);
-                    c = OpCode.findByCode(compressed.getOriginalOpCode());
+                    c = OpCode.OP_MSG;
 
                     if (c == null) {
                         throw new RuntimeException("Illegal opcode " + compressed.getOriginalOpCode());
@@ -176,7 +176,7 @@ public abstract class WireProtocolMessage {
             writeInt(messageId, out);
             writeInt(responseTo, out);
             writeInt(compressed.getOpCode(), out);
-            writeInt(getOpCode(), out);
+            // writeInt(getOpCode(), out);
             writeInt(compressed.getUncompressedSize(), out);
             out.write((byte) compressed.getCompressorId());
             out.write(compressed.getCompressedMessage());
