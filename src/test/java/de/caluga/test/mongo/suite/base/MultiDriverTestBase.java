@@ -69,9 +69,11 @@ public class MultiDriverTestBase {
 
     private static File getFile() {
         var configDir = new File(System.getProperty("user.home") + "/.config/");
+
         if (!configDir.exists()) {
             configDir.mkdirs();
         }
+
         return new File(System.getProperty("user.home") + "/.config/morphiumtest.cfg");
     }
 
@@ -137,25 +139,27 @@ public class MultiDriverTestBase {
     }
 
     public static Stream<Arguments> getMorphiumInstancesPooledOnly() {
-        return getMorphiumAllInstances(false,false,true);
+        return getMorphiumAllInstances(false, false, true);
     }
+
     public static Stream<Arguments> getMorphiumInstancesSingleOnly() {
-        return getMorphiumAllInstances(true,false,false);
+        return getMorphiumAllInstances(true, false, false);
     }
 
     public static Stream<Arguments> getMorphiumInstancesNoSingle() {
-        return getMorphiumAllInstances(false,true,true);
+        return getMorphiumAllInstances(false, true, true);
     }
+
     public static Stream<Arguments> getMorphiumInstancesNoInMem() {
-        return getMorphiumAllInstances(true,false,true);
+        return getMorphiumAllInstances(true, false, true);
     }
 
     public static Stream<Arguments> getMorphiumInstances() {
-        return getMorphiumAllInstances(true,true,true);
+        return getMorphiumAllInstances(true, true, true);
     }
 
-    public static Stream<Arguments> getInMemInstanceOnly(){
-        return getMorphiumAllInstances(false,true,false);
+    public static Stream<Arguments> getInMemInstanceOnly() {
+        return getMorphiumAllInstances(false, true, false);
     }
 
     public static Stream<Arguments> getMorphiumAllInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
@@ -226,9 +230,11 @@ public class MultiDriverTestBase {
         } else {
             Morphium m = (Morphium) morphiums.get(0).get()[0];
 
+            if (m == null) return morphiums.stream();
+
             for (String db : m.listDatabases()) {
                 if (db.startsWith("morphium")) {
-                    log.info(m.getDriver().getName()+": Dropping db " + db);
+                    log.info(m.getDriver().getName() + ": Dropping db " + db);
 
                     try {
                         DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(m.getDriver().getPrimaryConnection(null));
@@ -237,7 +243,7 @@ public class MultiDriverTestBase {
                         cmd.execute();
                         cmd.releaseConnection();
                     } catch (MorphiumDriverException e) {
-                        log.error(m.getDriver().getName()+" Dropping failed",e);
+                        log.error(m.getDriver().getName() + " Dropping failed", e);
                     }
                 }
             }
@@ -312,6 +318,7 @@ public class MultiDriverTestBase {
             log.info("created test-settings file");
         }
     }
+
     //
     //    public void createUncachedObjectsInMemory(int amount) {
     //        createUncachedObjects(morphiumInMemeory, amount);
