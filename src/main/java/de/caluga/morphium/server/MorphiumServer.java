@@ -23,6 +23,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
@@ -157,7 +158,6 @@ public class MorphiumServer {
             String hostname = inetAddress.getHostName();
             // Get the IP address
             String ipAddress = inetAddress.getHostAddress();
-            String[] hosts = hostSeed.split(",");
 
             for (String h : hosts) {
                 int rsport = 17017;
@@ -171,19 +171,49 @@ public class MorphiumServer {
                     continue;
                 }
 
-                MorphiumConfig cfg = new MorphiumConfig("test", 10, 10000, 1000);
+                MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 1000);
                 cfg.setDriverName(SingleMongoConnectDriver.driverName);
                 cfg.setHostSeed(h + ":" + rsport);
                 Morphium morphium = new Morphium(cfg);
-                ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium);
-                mtr.addListener((evt)-> {
-                    if (evt.getOperationType().equals("insert")) {
-                        srv.getDriver(); //.insert(db, collection, objs, wc);
-                        //need to insert without notifyWatchers!
-                    } //etc....
-                    return true;
-                });
-                mtr.start();
+
+                for (String db : morphium.listDatabases()) {
+                    MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
+                    cfg.setDriverName(SingleMongoConnectDriver.driverName);
+                    cfg.setHostSeed(h + ":" + rsport);
+                    Morphium morphium2 = new Morphium(cfg);
+                    ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
+                    mtr.addListener((evt)-> {
+                        if (evt.getOperationType().equals("insert")) {
+                            try {
+                                srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                            } catch (MorphiumDriverException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+
+                            //need to insert without notifyWatchers!
+                        } else if (evt.getOperationType().equals("delete")) {
+                            try {
+                                srv.getDriver().delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
+                            } catch (MorphiumDriverException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+                        } else if (evt.getOperationType().equals("update")) {
+                            try {
+                                srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                            } catch (MorphiumDriverException e) {
+                                // TODO Auto-generated catch block
+                                e.printStackTrace();
+                            }
+                        }
+                        return true;
+                    });
+                    mtr.start();
+                    //TODO heartbeat....
+                }
+
+                morphium.close();
             }
         }
 
