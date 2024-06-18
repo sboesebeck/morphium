@@ -321,12 +321,15 @@ public class MorphiumServer {
             //            out.flush();
             //            log.info("Sent hello result");
             while (s.isConnected()) {
-                // log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
+                log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
                 var msg = WireProtocolMessage.parseFromStream(in);
-                // log.info("---> Thread {} got message", Thread.currentThread().getId());
+                log.info("---> Thread {} got message", Thread.currentThread().getId());
 
                 //probably closed
-                if (msg == null) break;
+                if (msg == null) {
+                    log.info("Null");
+                    break;
+                }
 
                 // log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
@@ -338,7 +341,7 @@ public class MorphiumServer {
 
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
                         // ismaster
-                        // log.info("OpMsg->isMaster");
+                        log.info("OpMsg->isMaster");
                         var r = new OpReply();
                         r.setFlags(2);
                         r.setMessageId(msgId.incrementAndGet());
@@ -384,13 +387,13 @@ public class MorphiumServer {
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
-                    // log.info("Message flags: " + m.getFlags());
+                    log.info("Message flags: " + m.getFlags());
                     id = m.getMessageId();
                 }
 
-                // log.info("Incoming " + Utils.toJsonString(doc));
+                log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
-                // log.info("Handling command " + cmd);
+                log.info("Handling command " + cmd);
                 OpMsg reply = new OpMsg();
                 reply.setResponseTo(msg.getMessageId());
                 reply.setMessageId(msgId.incrementAndGet());
@@ -409,6 +412,7 @@ public class MorphiumServer {
                     case "ismaster":
                     case "isMaster":
                     case "hello":
+                        log.info("Master");
                         answer = getHelloResult().toMsg();
                         reply.setFirstDoc(answer);
                         break;
@@ -522,13 +526,17 @@ public class MorphiumServer {
                     cmsg.setOriginalOpCode(reply.getOpCode());
                     cmsg.setResponseTo(reply.getResponseTo());
                     cmsg.setCompressedMessage(reply.bytes());
-                    out.write(cmsg.bytes());
+                    var b = cmsg.bytes();
+                    log.info("Server sending {} bytes (compressed)", b.length);
+                    out.write(b);
                 } else {
-                    out.write(reply.bytes());
+                    var b = reply.bytes();
+                    log.info("Server sending {} bytes", b.length);
+                    out.write(b);
                 }
 
                 out.flush();
-                // log.info("Sent answer!");
+                log.info("Sent answer!");
             }
 
             s.close();

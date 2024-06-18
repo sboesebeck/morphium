@@ -1,7 +1,12 @@
 package de.caluga.morphium.driver.wireprotocol;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterInputStream;
+
+import org.xerial.snappy.Snappy;
 
 public class OpCompressed extends WireProtocolMessage {
     public final static int COMPRESSOR_NOOP = 0;
@@ -15,24 +20,37 @@ public class OpCompressed extends WireProtocolMessage {
 
     @Override
     public void parsePayload(byte[] bytes, int offset) throws IOException {
-        int idx=0;
-        originalOpCode=readInt(bytes, 0);
-        idx+=4;
-        uncompressedSize=readInt(bytes,idx);
-        idx+=4;
-        compressorId=(byte)bytes[idx];
+        int idx = 0;
+        originalOpCode = readInt(bytes, 0);
+        idx += 4;
+        uncompressedSize = readInt(bytes, idx);
+        idx += 4;
+        compressorId = (byte)bytes[idx];
         idx++;
-        compressedMessage=new byte[bytes.length-idx];
-        System.arraycopy(bytes, idx,compressedMessage ,0 , compressedMessage.length);
+        compressedMessage = new byte[bytes.length - idx];
+        System.arraycopy(bytes, idx, compressedMessage, 0, compressedMessage.length);
+        compressedMessage = Snappy.uncompress(compressedMessage);
     }
 
     @Override
     public byte[] getPayload() throws IOException {
-        ByteArrayOutputStream out=new ByteArrayOutputStream();
-        writeInt(originalOpCode,out);
-        writeInt(uncompressedSize,out);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeInt(originalOpCode, out);
+        writeInt(uncompressedSize, out);
         out.write((byte)compressorId);
-        out.write(compressedMessage);
+
+        if (compressorId == COMPRESSOR_SNAPPY) {
+            out.write(Snappy.compress(compressedMessage));
+        } else if (compressorId == COMPRESSOR_ZLIB) {
+            DeflaterOutputStream zlibOut = new DeflaterOutputStream(out);
+            zlibOut.write(compressedMessage);
+            zlibOut.flush();
+        } else if (compressorId == COMPRESSOR_ZSTD) {
+            throw new IllegalArgumentException("ZSTD compression not supported!");
+        } else {
+            throw new IllegalArgumentException("unsupported compression id: " + compressorId);
+        }
+
         return out.toByteArray();
     }
 

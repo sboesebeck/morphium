@@ -38,6 +38,7 @@ public abstract class WireProtocolMessage {
                 numRead += in.read(inBuffer, numRead, 16 - numRead);
             }
 
+            // log.info("Parsing... available: {}, read {}", in.available(), numRead);
             int size = WireProtocolMessage.readInt(inBuffer, 0);
             int offset = 4;
             int messageId = WireProtocolMessage.readInt(inBuffer, offset);
@@ -66,37 +67,7 @@ public abstract class WireProtocolMessage {
 
             try {
                 //LoggerFactory.getLogger(WireProtocolMessage.class).info("Parsing incoming data: \n"+ Utils.getHex(buf));
-                if (message.getOpCode() == OpCode.OP_COMPRESSED.opCode) {
-                    // unwrap
-                    OpCompressed compressed = new OpCompressed();
-                    compressed.setMessageId(messageId);
-                    compressed.setSize(compressed.getUncompressedSize());
-                    compressed.setResponseTo(responseTo);
-                    compressed.parsePayload(buf, 0);
-                    c = OpCode.OP_MSG;
-
-                    if (c == null) {
-                        throw new RuntimeException("Illegal opcode " + compressed.getOriginalOpCode());
-                    }
-
-                    message = c.handler.getDeclaredConstructor().newInstance();
-                    message.setMessageId(messageId);
-                    message.setSize(compressed.getUncompressedSize());
-                    message.setResponseTo(responseTo);
-
-                    if (compressed.getCompressorId() == OpCompressed.COMPRESSOR_SNAPPY) {
-                        message.parsePayload(Snappy.uncompress(compressed.getCompressedMessage()), 0);
-                    } else if (compressed.getCompressorId() == OpCompressed.COMPRESSOR_ZLIB) {
-                        ByteArrayInputStream bais = new ByteArrayInputStream(compressed.getCompressedMessage());
-                        InflaterInputStream iis = new InflaterInputStream(bais);
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        iis.transferTo(baos);
-                        message.parsePayload(baos.toByteArray(), 0);
-                    }
-                } else {
-                    message.parsePayload(buf, 0);
-                }
-
+                message.parsePayload(buf, 0);
                 return message;
             } catch (Exception e) {
                 //log.error("Could not read");
@@ -155,33 +126,11 @@ public abstract class WireProtocolMessage {
     public final byte[] bytes() throws IOException {
         byte[] payload = getPayload();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        if (getOpCode() != OpCode.OP_COMPRESSED.opCode) {
-            writeInt(payload.length + 16, out);
-            writeInt(messageId, out);
-            writeInt(responseTo, out);
-            writeInt(getOpCode(), out);
-            out.write(payload);
-        } else {
-            OpCompressed compressed = new OpCompressed();
-            compressed.setResponseTo(responseTo);
-            compressed.setOriginalOpCode(getOpCode());
-            compressed.setMessageId(messageId);
-            compressed.setCompressorId(OpCompressed.COMPRESSOR_SNAPPY);
-            //            compressed.setCompressorId(OpCompressed.COMPRESSOR_ZLIB);
-            compressed.setUncompressedSize(payload.length);
-            compressed.setCompressedMessage(Snappy.compress(payload));
-            compressed.setSize(compressed.getCompressedMessage().length + 9);
-            writeInt(compressed.getSize() + 16, out);
-            writeInt(messageId, out);
-            writeInt(responseTo, out);
-            writeInt(compressed.getOpCode(), out);
-            // writeInt(getOpCode(), out);
-            writeInt(compressed.getUncompressedSize(), out);
-            out.write((byte) compressed.getCompressorId());
-            out.write(compressed.getCompressedMessage());
-        }
-
+        writeInt(payload.length + 16, out);
+        writeInt(messageId, out);
+        writeInt(responseTo, out);
+        writeInt(getOpCode(), out);
+        out.write(payload);
         return out.toByteArray();
     }
 
