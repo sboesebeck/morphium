@@ -245,7 +245,7 @@ public class MorphiumServer {
         res.setLocalTime(new Date());
         res.setOk(1.0);
 
-        if (hosts.isEmpty()) {
+        if (hosts == null || hosts.isEmpty()) {
             res.setHosts(Arrays.asList(host + ":" + port));
         } else {
             res.setHosts(hosts);
@@ -536,6 +536,8 @@ public class MorphiumServer {
             out.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
+            // e.printStackTrace();
+            // System.exit(0);
         }
 
         log.info("Thread finished!");
