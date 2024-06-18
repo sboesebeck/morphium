@@ -76,10 +76,12 @@ public class MorphiumServerTest {
         drv.setHostSeed("localhost:17017");
         drv.setMaxConnections(10);
         drv.setHeartbeatFrequency(250);
+        drv.setMaxWaitTime(0);
         drv.connect();
         log.info("connection established");
         SingleMongoConnectDriver drv2 = new SingleMongoConnectDriver();
         drv2.setHostSeed("localhost:17017");
+        drv2.setMaxWaitTime(0);
         drv2.setMaxConnections(10);
         drv2.setHeartbeatFrequency(250);
         drv2.connect();

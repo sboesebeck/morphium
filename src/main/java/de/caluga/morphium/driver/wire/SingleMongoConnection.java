@@ -245,11 +245,7 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg msg = null;
 
             if (incoming instanceof OpCompressed) {
-                msg = new OpMsg();
-                var cmp = (OpCompressed)incoming;
-                msg.setMessageId(cmp.getMessageId());
-                msg.setResponseTo(cmp.getResponseTo());
-                msg.parsePayload(cmp.getCompressedMessage(), 0);
+                msg = (OpMsg)WireProtocolMessage.parseFromStream(new ByteArrayInputStream(((OpCompressed)incoming).getCompressedMessage()));
             } else {
                 msg = (OpMsg)incoming;
             }
