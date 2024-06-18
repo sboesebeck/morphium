@@ -182,9 +182,9 @@ public class MorphiumServer {
 
                         for (String db : morphium.listDatabases()) {
                             MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
-                            cfg.setDriverName(SingleMongoConnectDriver.driverName);
-                            cfg.setHostSeed(h + ":" + rsport);
-                            Morphium morphium2 = new Morphium(cfg);
+                            cfg2.setDriverName(SingleMongoConnectDriver.driverName);
+                            cfg2.setHostSeed(h + ":" + rsport);
+                            Morphium morphium2 = new Morphium(cfg2);
                             ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
                             mtr.addListener((evt)-> {
                                 if (evt.getOperationType().equals("insert")) {
