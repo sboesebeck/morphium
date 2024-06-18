@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,43 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 public class MorphiumServerTest {
     private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
 
+
+    @Test
+    public void messagingPerformanceTest()throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 20, 1);
+        srv.start();
+        Morphium morphium = new Morphium("localhost:17017", "test");
+        Messaging msg1 = new Messaging(morphium, 100, true);
+        msg1.setUseChangeStream(true);
+        AtomicInteger received = new AtomicInteger();
+        Messaging msg2 = new Messaging(morphium, 100, true);
+        msg2.setUseChangeStream(true);
+        msg2.addMessageListener((msg, m)-> {
+            received.incrementAndGet();
+            return null;
+        });
+        msg2.start();
+        msg1.start();
+        long start = System.currentTimeMillis();
+        int amount = 10000;
+
+        for (int i = 0; i < amount; i++) {
+            Msg m = new Msg("test", "msg", "value");
+            msg1.sendMessage(m);
+        }
+
+        log.info("Sent {} msgs, took {}ms - already got {}", amount, System.currentTimeMillis() - start, received.get());
+
+        while (received.get() < amount) {
+            log.info("not there {} yet: {}", amount, received.get());
+            Thread.sleep(1000);
+        }
+
+        msg1.terminate();
+        msg2.terminate();
+        morphium.close();
+        srv.terminate();
+    }
 
     @Test
     public void singleConnectToServerTest()throws Exception {

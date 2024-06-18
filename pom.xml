@@ -26,12 +26,12 @@
     <url>https://github.com/sboesebeck/morphium</url>
     <connection>scm:git:git://github.com/sboesebeck/morphium.git</connection>
     <developerConnection>scm:git:git@github.com:sboesebeck/morphium.git</developerConnection>
-    <tag>v5.1.17</tag>
+    <tag>v5.1.19</tag>
   </scm>
   <developers>
     <developer>
       <id>sBoesebeck</id>
-      <name>Stephan Bösebeck</name>
+      <name>Stephan B&#xF6;sebeck</name>
       <email>sb@caluga.de</email>
     </developer>
   </developers>
@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -228,7 +228,7 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
-      <version>6.0.12</version>
+      <version>5.3.37</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
