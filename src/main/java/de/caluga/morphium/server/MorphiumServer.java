@@ -50,6 +50,7 @@ public class MorphiumServer {
     private static int compressorId = OpCompressed.COMPRESSOR_SNAPPY;
     private static String rsName;
     private static String hostSeed;
+    private static List<String> hosts;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
         this.drv = new InMemoryDriver();
@@ -106,6 +107,19 @@ public class MorphiumServer {
                     rsName = args[idx + 1];
                     hostSeed = args[idx + 2];
                     idx += 3;
+
+                    for (var s : hostSeed.split(",")) {
+                        int rsport = 27017;
+                        String hst = s;
+
+                        if (s.contains(":")) {
+                            rsport = Integer.parseInt(s.split(":")[1]);
+                            hst = s.split(":")[0];
+                        }
+
+                        hosts.add(hst + ":" + rsport);
+                    }
+
                     break;
 
                 case "-c":
@@ -188,7 +202,13 @@ public class MorphiumServer {
         res.setHelloOk(true);
         res.setLocalTime(new Date());
         res.setOk(1.0);
-        res.setHosts(Arrays.asList(host + ":" + port));
+
+        if (hosts.isEmpty()) {
+            res.setHosts(Arrays.asList(host + ":" + port));
+        } else {
+            res.setHosts(hosts);
+        }
+
         res.setConnectionId(1);
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
