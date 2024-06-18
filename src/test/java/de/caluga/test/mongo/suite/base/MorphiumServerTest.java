@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,43 @@ public class MorphiumServerTest {
 
 
     @Test
+    public void messagingPerformanceTest()throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 20, 1);
+        srv.start();
+        Morphium morphium = new Morphium("localhost:17017", "test");
+        Messaging msg1 = new Messaging(morphium, 100, true);
+        msg1.setUseChangeStream(true);
+        AtomicInteger received = new AtomicInteger();
+        Messaging msg2 = new Messaging(morphium, 100, true);
+        msg2.setUseChangeStream(true);
+        msg2.addMessageListener((msg, m)-> {
+            received.incrementAndGet();
+            return null;
+        });
+        msg2.start();
+        msg1.start();
+        long start = System.currentTimeMillis();
+        int amount = 10000;
+
+        for (int i = 0; i < amount; i++) {
+            Msg m = new Msg("test", "msg", "value");
+            msg1.sendMessage(m);
+        }
+
+        log.info("Sent {} msgs, took {}ms - already got {}", amount, System.currentTimeMillis() - start, received.get());
+
+        while (received.get() < amount) {
+            log.info("not there {} yet: {}", amount, received.get());
+            Thread.sleep(1000);
+        }
+
+        msg1.terminate();
+        msg2.terminate();
+        morphium.close();
+        srv.terminate();
+    }
+
+    @Test
     public void singleConnectToServerTest()throws Exception {
         var srv = new MorphiumServer(17017, "localhost", 20, 1);
         srv.start();
@@ -38,10 +76,12 @@ public class MorphiumServerTest {
         drv.setHostSeed("localhost:17017");
         drv.setMaxConnections(10);
         drv.setHeartbeatFrequency(250);
+        drv.setMaxWaitTime(0);
         drv.connect();
         log.info("connection established");
         SingleMongoConnectDriver drv2 = new SingleMongoConnectDriver();
         drv2.setHostSeed("localhost:17017");
+        drv2.setMaxWaitTime(0);
         drv2.setMaxConnections(10);
         drv2.setHeartbeatFrequency(250);
         drv2.connect();

@@ -22,6 +22,7 @@ import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.MorphiumDriverNetworkException;
 import de.caluga.morphium.driver.MorphiumTransactionContext;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.WriteConcern;
@@ -226,6 +227,19 @@ public class SingleMongoConnectDriver extends DriverBase {
                 }
 
                 var hello = connection.connect(this, h[0], port);
+
+                if (hello == null) {
+                    log.error("did not get hello back...");
+                    retries++;
+
+                    if (retries > getRetriesOnNetworkError()) {
+                        log.error("Max retries reached - aborting");
+                        throw new MorphiumDriverNetworkException("Could not connect to " + h[0] + ":" + port);
+                    }
+
+                    Thread.sleep(getSleepBetweenErrorRetries() * 10000);
+                    continue;
+                }
 
                 //checking hosts
                 if (hello.getHosts() != null) {

@@ -3,8 +3,10 @@ package de.caluga.morphium.server;
 import static java.lang.Thread.sleep;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -16,14 +18,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.bson.MongoTimestamp;
 import de.caluga.morphium.driver.commands.GenericCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.HelloResult;
+import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.OpQuery;
@@ -43,6 +50,9 @@ public class MorphiumServer {
     private boolean running = true;
     private ServerSocket serverSocket;
     private static int compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+    private static String rsName;
+    private static String hostSeed;
+    private static List<String> hosts;
 
     public MorphiumServer(int port, String host, int maxThreads, int minThreads) {
         this.drv = new InMemoryDriver();
@@ -65,6 +75,8 @@ public class MorphiumServer {
         int port = 17017;
         int maxThreads = 1000;
         int minThreads = 10;
+        rsName = "";
+        hostSeed = "";
 
         while (idx < args.length) {
             switch (args[idx]) {
@@ -90,6 +102,27 @@ public class MorphiumServer {
                 case "--host":
                     host = args[idx + 1];
                     idx += 2;
+                    break;
+
+                case "-rs":
+                case "--replicaset":
+                    rsName = args[idx + 1];
+                    hostSeed = args[idx + 2];
+                    idx += 3;
+                    hosts = new ArrayList<>();
+
+                    for (var s : hostSeed.split(",")) {
+                        int rsport = 27017;
+                        String hst = s;
+
+                        if (s.contains(":")) {
+                            rsport = Integer.parseInt(s.split(":")[1]);
+                            hst = s.split(":")[0];
+                        }
+
+                        hosts.add(hst + ":" + rsport);
+                    }
+
                     break;
 
                 case "-c":
@@ -120,10 +153,90 @@ public class MorphiumServer {
         var srv = new MorphiumServer(port, host, maxThreads, minThreads);
         srv.start();
 
+        if (!rsName.isEmpty()) {
+            log.info("Building replicaset with seed {}", hostSeed);
+            InetAddress inetAddress = InetAddress.getLocalHost();
+            // Get the hostname
+            String hostname = inetAddress.getHostName();
+            // Get the IP address
+            String ipAddress = inetAddress.getHostAddress();
+
+            for (String h : hosts) {
+                int rsport = 17017;
+
+                if (h.contains(":")) {
+                    rsport = Integer.parseInt(h.split(":")[1]);
+                    h = h.split(":")[0];
+                }
+
+                if (h.equals(ipAddress) || h.equals(hostname)) {
+                    continue;
+                }
+
+                while (true) {
+                    try {
+                        MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 1000);
+                        cfg.setDriverName(SingleMongoConnectDriver.driverName);
+                        cfg.setHostSeed(h + ":" + rsport);
+                        Morphium morphium = new Morphium(cfg);
+
+                        for (String db : morphium.listDatabases()) {
+                            MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
+                            cfg2.setDriverName(SingleMongoConnectDriver.driverName);
+                            cfg2.setHostSeed(h + ":" + rsport);
+                            Morphium morphium2 = new Morphium(cfg2);
+                            ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
+                            mtr.addListener((evt)-> {
+                                if (evt.getOperationType().equals("insert")) {
+                                    try {
+                                        srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+
+                                    //need to insert without notifyWatchers!
+                                } else if (evt.getOperationType().equals("delete")) {
+                                    try {
+                                        srv.getDriver().delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                } else if (evt.getOperationType().equals("update")) {
+                                    try {
+                                        srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                } else {
+                                    log.error("Cannot process command {}", evt.getOperationType());
+                                }
+                                return true;
+                            });
+                            mtr.start();
+                            //TODO heartbeat....
+                        }
+
+                        morphium.close();
+                        break;
+                    } catch (Exception e) {
+                        log.error("Could not setup replicaset", e);
+                        Thread.sleep(5000);
+                    }
+                }
+            }
+        }
+
         while (srv.running) {
             log.info("Alive and kickin'");
             sleep(10000);
         }
+    }
+
+    private InMemoryDriver getDriver() {
+        return drv;
     }
 
     private HelloResult getHelloResult() {
@@ -131,7 +244,13 @@ public class MorphiumServer {
         res.setHelloOk(true);
         res.setLocalTime(new Date());
         res.setOk(1.0);
-        res.setHosts(Arrays.asList(host + ":" + port));
+
+        if (hosts == null || hosts.isEmpty()) {
+            res.setHosts(Arrays.asList(host + ":" + port));
+        } else {
+            res.setHosts(hosts);
+        }
+
         res.setConnectionId(1);
         res.setMaxWireVersion(17);
         res.setMinWireVersion(13);
@@ -202,12 +321,15 @@ public class MorphiumServer {
             //            out.flush();
             //            log.info("Sent hello result");
             while (s.isConnected()) {
-                // log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
+                log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
                 var msg = WireProtocolMessage.parseFromStream(in);
-                // log.info("---> Thread {} got message", Thread.currentThread().getId());
+                log.info("---> Thread {} got message", Thread.currentThread().getId());
 
                 //probably closed
-                if (msg == null) break;
+                if (msg == null) {
+                    log.info("Null");
+                    break;
+                }
 
                 // log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
@@ -219,7 +341,7 @@ public class MorphiumServer {
 
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
                         // ismaster
-                        // log.info("OpMsg->isMaster");
+                        log.info("OpMsg->isMaster");
                         var r = new OpReply();
                         r.setFlags(2);
                         r.setMessageId(msgId.incrementAndGet());
@@ -265,13 +387,13 @@ public class MorphiumServer {
                 } else if (msg instanceof OpMsg) {
                     var m = (OpMsg) msg;
                     doc = ((OpMsg) msg).getFirstDoc();
-                    // log.info("Message flags: " + m.getFlags());
+                    log.info("Message flags: " + m.getFlags());
                     id = m.getMessageId();
                 }
 
-                // log.info("Incoming " + Utils.toJsonString(doc));
+                log.info("Incoming " + Utils.toJsonString(doc));
                 String cmd = doc.keySet().stream().findFirst().get();
-                // log.info("Handling command " + cmd);
+                log.info("Handling command " + cmd);
                 OpMsg reply = new OpMsg();
                 reply.setResponseTo(msg.getMessageId());
                 reply.setMessageId(msgId.incrementAndGet());
@@ -290,6 +412,7 @@ public class MorphiumServer {
                     case "ismaster":
                     case "isMaster":
                     case "hello":
+                        log.info("Master");
                         answer = getHelloResult().toMsg();
                         reply.setFirstDoc(answer);
                         break;
@@ -403,13 +526,17 @@ public class MorphiumServer {
                     cmsg.setOriginalOpCode(reply.getOpCode());
                     cmsg.setResponseTo(reply.getResponseTo());
                     cmsg.setCompressedMessage(reply.bytes());
-                    out.write(cmsg.bytes());
+                    var b = cmsg.bytes();
+                    log.info("Server sending {} bytes (compressed)", b.length);
+                    out.write(b);
                 } else {
-                    out.write(reply.bytes());
+                    var b = reply.bytes();
+                    log.info("Server sending {} bytes", b.length);
+                    out.write(b);
                 }
 
                 out.flush();
-                // log.info("Sent answer!");
+                log.info("Sent answer!");
             }
 
             s.close();
@@ -417,6 +544,8 @@ public class MorphiumServer {
             out.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
+            // e.printStackTrace();
+            // System.exit(0);
         }
 
         log.info("Thread finished!");
