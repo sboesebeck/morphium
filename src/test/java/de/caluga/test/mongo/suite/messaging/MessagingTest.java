@@ -1,5 +1,24 @@
 package de.caluga.test.mongo.suite.messaging;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
@@ -9,16 +28,6 @@ import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * User: Stephan Bösebeck
@@ -266,7 +275,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 sender.sendMessage(m);
                 Thread.sleep(1000);
                 assertFalse(gotMessage1 || gotMessage2 || gotMessage3 || gotMessage4);
-                morphium.setInEntity(m, m1.getCollectionName(), Map.of(Msg.Fields.processedBy, new ArrayList<String>()));
+                morphium.setInEntity(m, m1.getCollectionName(), false, Map.of(Msg.Fields.processedBy, new ArrayList<String>()), null);
                 Thread.sleep(1000);
                 long s = System.currentTimeMillis();
 

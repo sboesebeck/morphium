@@ -23,24 +23,30 @@ public class ListIndexesCommand extends MongoCommand<ListIndexesCommand> {
     public List<IndexDescription> execute() throws MorphiumDriverException {
         var msg = getConnection().sendCommand(this);
         var crs = getConnection().getAnswerFor(msg, getConnection().getDriver().getDefaultBatchSize());
-
         List<IndexDescription> lst = new ArrayList<>();
+
         while (crs.hasNext()) {
             Map<String, Object> next = crs.next();
+
             if (next.get("ok") != null && next.get("ok").equals(Double.valueOf(0))) continue;
+
             var idx = IndexDescription.fromMap(next);
+
             if (idx.getKey().containsKey("_ftsx") && idx.getKey().get("_fts").equals("text")) {
                 //text index
                 Map<String, Object> weights = idx.getWeights();
                 var m = Doc.of();
+
                 for (var k : weights.keySet()) {
                     m.put(k, "text");
                 }
-                idx.setKey(m);
 
+                idx.setKey(m);
             }
+
             lst.add(idx);
         }
+
         setConnection(null); //cursor released connection already!!!!!
         return lst;
     }
