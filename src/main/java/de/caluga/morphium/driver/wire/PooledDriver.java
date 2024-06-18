@@ -641,22 +641,23 @@ public class PooledDriver extends DriverBase {
 
                         synchronized (lastSecondaryNode) {
                             lastSecondaryNode.incrementAndGet();
+                            List<String> hostSeed = getHostSeed();
 
-                            if (lastSecondaryNode.get() >= getHostSeed().size()) {
+                            if (lastSecondaryNode.get() >= hostSeed.size()) {
                                 lastSecondaryNode.set(0);
                                 retry++;
                             }
 
-                            if (getHostSeed().get(lastSecondaryNode.get()).equals(primaryNode)) {
+                            if (hostSeed.get(lastSecondaryNode.get()).equals(primaryNode)) {
                                 lastSecondaryNode.incrementAndGet();
 
-                                if (lastSecondaryNode.get() > getHostSeed().size()) {
+                                if (lastSecondaryNode.get() >= hostSeed.size()) {
                                     lastSecondaryNode.set(0);
                                     retry++;
                                 }
                             }
 
-                            host = getHostSeed().get(lastSecondaryNode.get());
+                            host = hostSeed.get(lastSecondaryNode.get());
                         }
 
                         try {
