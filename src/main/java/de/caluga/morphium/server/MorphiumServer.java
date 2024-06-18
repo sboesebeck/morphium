@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -108,6 +109,7 @@ public class MorphiumServer {
                     rsName = args[idx + 1];
                     hostSeed = args[idx + 2];
                     idx += 3;
+                    hosts = new ArrayList<>();
 
                     for (var s : hostSeed.split(",")) {
                         int rsport = 27017;
@@ -171,49 +173,59 @@ public class MorphiumServer {
                     continue;
                 }
 
-                MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 1000);
-                cfg.setDriverName(SingleMongoConnectDriver.driverName);
-                cfg.setHostSeed(h + ":" + rsport);
-                Morphium morphium = new Morphium(cfg);
+                while (true) {
+                    try {
+                        MorphiumConfig cfg = new MorphiumConfig("admin", 10, 10000, 1000);
+                        cfg.setDriverName(SingleMongoConnectDriver.driverName);
+                        cfg.setHostSeed(h + ":" + rsport);
+                        Morphium morphium = new Morphium(cfg);
 
-                for (String db : morphium.listDatabases()) {
-                    MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
-                    cfg.setDriverName(SingleMongoConnectDriver.driverName);
-                    cfg.setHostSeed(h + ":" + rsport);
-                    Morphium morphium2 = new Morphium(cfg);
-                    ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
-                    mtr.addListener((evt)-> {
-                        if (evt.getOperationType().equals("insert")) {
-                            try {
-                                srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
-                            } catch (MorphiumDriverException e) {
-                                // TODO Auto-generated catch block
-                                e.printStackTrace();
-                            }
+                        for (String db : morphium.listDatabases()) {
+                            MorphiumConfig cfg2 = new MorphiumConfig(db, 10, 10000, 1000);
+                            cfg.setDriverName(SingleMongoConnectDriver.driverName);
+                            cfg.setHostSeed(h + ":" + rsport);
+                            Morphium morphium2 = new Morphium(cfg);
+                            ChangeStreamMonitor mtr = new ChangeStreamMonitor(morphium2, null, true);
+                            mtr.addListener((evt)-> {
+                                if (evt.getOperationType().equals("insert")) {
+                                    try {
+                                        srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
 
-                            //need to insert without notifyWatchers!
-                        } else if (evt.getOperationType().equals("delete")) {
-                            try {
-                                srv.getDriver().delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
-                            } catch (MorphiumDriverException e) {
-                                // TODO Auto-generated catch block
-                                e.printStackTrace();
-                            }
-                        } else if (evt.getOperationType().equals("update")) {
-                            try {
-                                srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
-                            } catch (MorphiumDriverException e) {
-                                // TODO Auto-generated catch block
-                                e.printStackTrace();
-                            }
+                                    //need to insert without notifyWatchers!
+                                } else if (evt.getOperationType().equals("delete")) {
+                                    try {
+                                        srv.getDriver().delete(db, evt.getCollectionName(), Map.of("_id", evt.getDocumentKey()), null, false, null, null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                } else if (evt.getOperationType().equals("update")) {
+                                    try {
+                                        srv.getDriver().insert(db, evt.getCollectionName(), List.of(evt.getFullDocument()), null);
+                                    } catch (MorphiumDriverException e) {
+                                        // TODO Auto-generated catch block
+                                        e.printStackTrace();
+                                    }
+                                } else {
+                                    log.error("Cannot process command {}", evt.getOperationType());
+                                }
+                                return true;
+                            });
+                            mtr.start();
+                            //TODO heartbeat....
                         }
-                        return true;
-                    });
-                    mtr.start();
-                    //TODO heartbeat....
-                }
 
-                morphium.close();
+                        morphium.close();
+                        break;
+                    } catch (Exception e) {
+                        log.error("Could not setup replicaset", e);
+                        Thread.sleep(5000);
+                    }
+                }
             }
         }
 

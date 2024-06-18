@@ -6,11 +6,13 @@ import de.caluga.morphium.driver.commands.KillCursorsCommand;
 import de.caluga.morphium.driver.commands.MongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
+import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -77,7 +79,6 @@ public class SingleMongoConnection implements MongoConnection {
 
         // startReaderThread();
         var hello = getHelloResult(true);
-
         connectedTo = host;
         connectedToPort = port;
         //log.info("Connected to "+connectedTo+":"+port);
@@ -92,7 +93,8 @@ public class SingleMongoConnection implements MongoConnection {
             cmd.setUser(user);
             cmd.setSaslSupportedMechs(authDb + "." + user);
         }
-        if(!includeClient) {
+
+        if (!includeClient) {
             cmd.setIncludeClient(false);
         }
 
@@ -101,9 +103,11 @@ public class SingleMongoConnection implements MongoConnection {
         msg.setMessageId(msgId.incrementAndGet());
         msg.setFirstDoc(cmd.asMap());
         var result = sendAndWaitForReply(msg);
-        if(null == result) {
+
+        if (null == result) {
             throw new MorphiumDriverException("Hello result is null");
         }
+
         Map<String, Object> firstDoc = result.getFirstDoc();
         var hello = HelloResult.fromMsg(firstDoc);
 
@@ -130,6 +134,7 @@ public class SingleMongoConnection implements MongoConnection {
 
             //            log.info("No error up to here - we should be authenticated!");
         }
+
         return hello;
     }
 
@@ -236,7 +241,18 @@ public class SingleMongoConnection implements MongoConnection {
         }
 
         try {
-            OpMsg msg = (OpMsg) WireProtocolMessage.parseFromStream(in);
+            var incoming = WireProtocolMessage.parseFromStream(in);
+            OpMsg msg = null;
+
+            if (incoming instanceof OpCompressed) {
+                msg = new OpMsg();
+                var cmp = (OpCompressed)incoming;
+                msg.setMessageId(cmp.getMessageId());
+                msg.setResponseTo(cmp.getResponseTo());
+                msg.parsePayload(cmp.getCompressedMessage(), 0);
+            } else {
+                msg = (OpMsg)incoming;
+            }
 
             if (msg == null) {
                 return null;
