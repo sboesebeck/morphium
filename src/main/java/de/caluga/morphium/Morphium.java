@@ -703,7 +703,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             int crs = cmd.executeAsync();
             return cmd.getConnection().readAnswerFor(crs);
         } finally {
-            // cmd.releaseConnection();
+            cmd.releaseConnection();
         }
     }
 
@@ -2356,11 +2356,17 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public Map<String, Integer> saveMap(String collection, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
         StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(collection).setDocuments(Arrays.asList(Doc.of(m)));
-        Map<String, Integer> res = new HashMap<>();
-        Map<String, Object> result = settings.execute();
-        settings.releaseConnection();
-        res.put("stored", (Integer) result.get("stored"));
-        return res;
+
+        try {
+            Map<String, Integer> res = new HashMap<>();
+            Map<String, Object> result = settings.execute();
+            settings.releaseConnection();
+            res.put("stored", (Integer) result.get("stored"));
+            return res;
+        } finally {
+            if (settings != null)
+                settings.releaseConnection();
+        }
     }
 
     /**
@@ -2722,9 +2728,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+        WatchCommand settings = null;
+
         try {
             MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
-            WatchCommand settings = new WatchCommand(primaryConnection).setDb(getConfig().getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline)
+            settings = new WatchCommand(primaryConnection).setDb(getConfig().getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline)
             .setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue).setCb(new DriverTailableIterationCallback() {
                 boolean b = true;
                 @Override
@@ -2739,9 +2747,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             });
 
             getDriver().watch(settings);
-            settings.releaseConnection();
+            // settings.releaseConnection();
         } catch (MorphiumDriverException e) {
             throw new RuntimeException(e);
+        } finally {
+            if (settings != null) settings.releaseConnection();
         }
     }
 

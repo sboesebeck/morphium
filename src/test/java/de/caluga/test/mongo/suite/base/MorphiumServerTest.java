@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ public class MorphiumServerTest {
 
     @Test
     public void singleConnectToServerTest()throws Exception {
-        var srv = new MorphiumServer(17017, "localhost", 100, 1);
+        var srv = new MorphiumServer(17017, "localhost", 20, 1);
         srv.start();
         SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
         drv.setHostSeed("localhost:17017");
@@ -47,6 +48,60 @@ public class MorphiumServerTest {
         log.info("connection established");
         drv.close();
         drv2.close();
+        srv.terminate();
+    }
+
+
+    @Test
+    public void testConnectionPool() throws Exception {
+        var srv = new MorphiumServer(17017, "localhost", 10, 1);
+        srv.start();
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setHostSeed("localhost:17017");
+        cfg.setDatabase("srvtst");
+        cfg.setMaxConnections(5);
+        cfg.setMinConnections(2);
+        cfg.setMaxConnectionIdleTime(1000);
+        cfg.setMaxConnectionLifeTime(2000);
+        Morphium morphium = new Morphium(cfg);
+        // for (int i = 0; i < 15; i++) {
+        //     log.info("PoolSize: {}", srv.getConnectionCount());
+        //     morphium.store(new UncachedObject("Hello", i));
+        //     log.info("Server Connections: {}", srv.getConnectionCount());
+        //     assertEquals(i + 1, morphium.createQueryFor(UncachedObject.class).asList().size());
+        //     assertEquals(2, srv.getConnectionCount());
+        //     Thread.sleep(1230);
+        // }
+        // Messaging msg = new Messaging(morphium, 100, true);
+        // msg.setUseChangeStream(true);
+        // msg.start();
+        //
+        AtomicBoolean running = new AtomicBoolean(true);
+        new Thread(()-> {
+            while (running.get()) {
+                try {
+                    morphium.watch(UncachedObject.class, true, new ChangeStreamListener() {
+                        @Override
+                        public boolean incomingData(ChangeStreamEvent evt) {
+                            return running.get();
+                        }
+                    });
+                } catch (Exception e) {
+                }
+            }
+
+            log.info("Thread finished!");
+
+        }).start();
+
+        for (int i = 0; i < 15; i++) {
+            log.info("PoolSize: {}", srv.getConnectionCount());
+            // msg.sendMessage(new Msg("test", "Ignore", "no listener"));
+            Thread.sleep(1500);
+        }
+
+        running.set(false);
+        morphium.close();
         srv.terminate();
     }
 
@@ -201,11 +256,11 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium, 100, true);
-            msg1.setUseChangeStream(false);
+            var msg1 = new Messaging(morphium, 1000, true);
+            msg1.setUseChangeStream(true);
             msg1.start();
             var msg2 = new Messaging(morphium2, 10, true, true, 1000);
-            msg2.setUseChangeStream(false);
+            msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
@@ -293,22 +348,32 @@ public class MorphiumServerTest {
                 @Override
                 public Msg onMessage(Messaging msg, Msg m) {
                     recAmount.incrementAndGet();
+
+                    synchronized (recAmount) {
+                        recAmount.notifyAll();
+                    }
+
                     log.info("incoming mssage after {}ms", System.currentTimeMillis() - m.getTimestamp());
                     return null;
                 }
             });
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 200; i++) {
                 var msg = new Msg("tstmsg", "hello" + i, "value" + i);
+                long start = System.currentTimeMillis();
                 msg1.sendMessage(msg);
                 log.info("Message sent...");
 
                 while (recAmount.get() != i + 1) {
                     log.info("Waiting....{} != {}", i + 1, recAmount.get());
-                    Thread.sleep(1000);
+
+                    synchronized (recAmount) {
+                        recAmount.wait();
+                    }
                 }
 
-                log.info("Got it!");
+                log.info("Got it! {}", System.currentTimeMillis() - start);
+                Thread.sleep(250);
             }
         }
 

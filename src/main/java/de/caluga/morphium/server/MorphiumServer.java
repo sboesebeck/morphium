@@ -56,55 +56,6 @@ public class MorphiumServer {
         this.port = port;
         this.host = host;
         drv.connect();
-        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<Runnable>() {
-        //     @SuppressWarnings("CommentedOutCode")
-        //     @Override
-        //     public boolean offer(Runnable e) {
-        //         /*
-        //          * Offer it to the queue if there is 0 items already queued, else
-        //          * return false so the TPE will add another thread. If we return false
-        //          * and max threads have been reached then the RejectedExecutionHandler
-        //          * will be called which will do the put into the queue.
-        //          */
-        //         int poolSize = executor.getPoolSize();
-        //         int maximumPoolSize = executor.getMaximumPoolSize();
-        //
-        //         if (poolSize >= maximumPoolSize || poolSize > executor.getActiveCount()) {
-        //             return super.offer(e);
-        //         } else {
-        //             return false;
-        //         }
-        //     }
-        // };
-        // BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        // executor = new ThreadPoolExecutor(
-        //     minThreads,
-        //     maxThreads,
-        //     10000,
-        //     TimeUnit.MILLISECONDS,
-        //     new LinkedBlockingQueue<>());
-        // executor.setRejectedExecutionHandler((r, executor) -> {
-        //     try {
-        //         /*
-        //          * This does the actual put into the queue. Once the max threads
-        //          * have been reached, the tasks will then queue up.
-        //          */
-        //         executor.getQueue().put(r);
-        //     } catch (InterruptedException e) {
-        //         Thread.currentThread().interrupt();
-        //     }
-        // });
-        // // // noinspection unused,unused
-        // executor.setThreadFactory(new ThreadFactory() {
-        //     private final AtomicInteger num = new AtomicInteger(1);
-        //     @Override
-        //     public Thread newThread(Runnable r) {
-        //         Thread ret = new Thread(r, "server_" + num);
-        //         num.set(num.get() + 1);
-        //         ret.setDaemon(true);
-        //         return ret;
-        //     }
-        // });
         executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
         executor.setMaximumPoolSize(maxThreads);
         executor.setCorePoolSize(minThreads);
@@ -246,8 +197,12 @@ public class MorphiumServer {
         res.setWritablePrimary(true);
         res.setMe(host + ":" + port);
         // res.setMsg("ok");
-        res.setMsg("MorphiumServer V0.1");
+        res.setMsg("MorphiumServer V0.1ALPHA");
         return res;
+    }
+
+    public int getConnectionCount() {
+        return executor.getActiveCount();
     }
 
     public void start() throws IOException, InterruptedException {
@@ -273,7 +228,7 @@ public class MorphiumServer {
                     break;
                 }
 
-                log.info("Incoming connection: " + executor.getQueue().size());
+                log.info("Incoming connection: " + executor.getPoolSize());
                 Socket finalS = s;
                 //new Thread(() -> incoming(finalS)).start();
                 executor.execute(() -> incoming(finalS));
@@ -283,9 +238,12 @@ public class MorphiumServer {
     }
 
     public void incoming(Socket s) {
-        // log.info("handling incoming connection...");
+        log.info("handling incoming connection...{}", executor.getPoolSize());
+
         try {
             s.setSoTimeout(0);
+            s.setTcpNoDelay(true);
+            s.setKeepAlive(true);
             var in = s.getInputStream();
             var out = s.getOutputStream();
             int id = 0;
@@ -300,10 +258,13 @@ public class MorphiumServer {
             //            out.write(r.bytes());
             //            out.flush();
             //            log.info("Sent hello result");
-            while (true) {
+            while (s.isConnected()) {
+                // log.info("Thread {} waiting for incoming message", Thread.currentThread().getId());
                 var msg = WireProtocolMessage.parseFromStream(in);
+                // log.info("---> Thread {} got message", Thread.currentThread().getId());
 
-                if (msg == null) continue;
+                //probably closed
+                if (msg == null) break;
 
                 // log.info("got incoming msg: " + msg.getClass().getSimpleName());
                 Map<String, Object> doc = null;
@@ -329,7 +290,17 @@ public class MorphiumServer {
                         // reply.setResponseTo(id);
                         // out.write(reply.bytes());
                         r.setDocuments(Arrays.asList(res.toMsg()));
-                        out.write(r.bytes());
+
+                        if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                            OpCompressed cmp = new OpCompressed();
+                            cmp.setMessageId(r.getMessageId());
+                            cmp.setResponseTo(id);
+                            cmp.setCompressedMessage(r.bytes());
+                            out.write(cmp.bytes());
+                        } else {
+                            out.write(r.bytes());
+                        }
+
                         out.flush();
                         // log.info("Sent hello result");
                         continue;
@@ -421,9 +392,11 @@ public class MorphiumServer {
                                     @Override
                                     public void incomingData(Map<String, Object> data, long dur) {
                                         try {
-                                            log.info("Incoming data...");
+                                            // log.info("Incoming data...");
                                             var crs =  Doc.of(batch, List.of(data), "ns", wcmd.getDb() + "." + wcmd.getColl(), "id", myCursorId);
                                             var answer = Doc.of("ok", 1.0);
+
+                                            // log.info("Data: {}", data);
 
                                             if (crs != null) answer.put("cursor", crs);
 
@@ -436,7 +409,16 @@ public class MorphiumServer {
                                                 batch = "nextBatch";
                                             }
 
-                                            out.write(reply.bytes());
+                                            if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                                                OpCompressed cmp = new OpCompressed();
+                                                cmp.setMessageId(reply.getMessageId());
+                                                cmp.setResponseTo(reply.getResponseTo());
+                                                cmp.setCompressedMessage(reply.bytes());
+                                                out.write(cmp.bytes());
+                                            } else {
+                                                out.write(reply.bytes());
+                                            }
+
                                             out.flush();
                                         } catch (Exception e) {
                                             log.error("Errror during watch", e);
@@ -460,8 +442,9 @@ public class MorphiumServer {
 
                             if (crs != null) answer.putAll(crs);
                         } catch (Exception e) {
-                            answer = Doc.of("ok", 0, "errmsg", "no such command: '" + cmd + "'");
-                            log.warn("errror running command " + cmd, e);
+                            answer = Doc.of("ok", 0, "errmsg", "no such command: '{}" + cmd + "'");
+                            log.error("No such command {}", cmd, e);
+                            // log.warn("errror running command " + cmd, e);
                         }
 
                         break;
@@ -470,15 +453,31 @@ public class MorphiumServer {
                 answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                 answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                 reply.setFirstDoc(answer);
-                out.write(reply.bytes());
+
+                if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
+                    OpCompressed cmsg = new OpCompressed();
+                    cmsg.setCompressorId(compressorId);
+                    cmsg.setOriginalOpCode(reply.getOpCode());
+                    cmsg.setResponseTo(reply.getResponseTo());
+                    cmsg.setCompressedMessage(reply.bytes());
+                    out.write(cmsg.bytes());
+                } else {
+                    out.write(reply.bytes());
+                }
+
                 out.flush();
                 // log.info("Sent answer!");
             }
 
-            //            log.info("Thread finished!");
+            s.close();
+            in.close();
+            out.close();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        log.info("Thread finished!");
+        s = null;
     }
 
     public void terminate() {

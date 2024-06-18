@@ -6,6 +6,8 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 
 import java.util.Map;
 
+import org.slf4j.LoggerFactory;
+
 public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     private long cursorId;
     private Integer batchSize;
@@ -59,7 +61,18 @@ public class GetMoreMongoCommand extends MongoCommand<GetMoreMongoCommand> {
     @Override
     public GetMoreMongoCommand fromMap(Map<String, Object> m) {
         super.fromMap(m);
-        cursorId=(Long)m.get(getCommandName());
+
+        if (m.get(getCommandName()) instanceof String) {
+            try {
+                cursorId = Long.parseLong((String)m.get(getCommandName()));
+            } catch (Exception e) {
+                LoggerFactory.getLogger(GetMoreMongoCommand.class).error("Cursorid is wrong {}", m.get(getCommandName()));
+                cursorId = 0;
+            }
+        } else {
+            cursorId = (Long)m.get(getCommandName());
+        }
+
         setColl((String) m.get("collection"));
         return this;
     }

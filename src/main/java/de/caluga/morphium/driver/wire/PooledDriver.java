@@ -503,8 +503,7 @@ public class PooledDriver extends DriverBase {
     }
 
     private MongoConnection borrowConnection(String host) throws MorphiumDriverException {
-        log.debug("borrowConnection {}", host);
-
+        // log.debug("borrowConnection {}", host);
         if (host == null) throw new MorphiumDriverException("Cannot connect to host null!");
 
         // if pool is empty  -> wait increaseWaitCounter
@@ -641,6 +640,8 @@ public class PooledDriver extends DriverBase {
                         String host = null;
 
                         synchronized (lastSecondaryNode) {
+                            lastSecondaryNode.incrementAndGet();
+
                             if (lastSecondaryNode.get() >= getHostSeed().size()) {
                                 lastSecondaryNode.set(0);
                                 retry++;
@@ -655,7 +656,7 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
 
-                            host = getHostSeed().get(lastSecondaryNode.incrementAndGet());
+                            host = getHostSeed().get(lastSecondaryNode.get());
                         }
 
                         try {
@@ -743,9 +744,9 @@ public class PooledDriver extends DriverBase {
                 if (con.isConnected()) {
                     // c = new Connection((SingleMongoConnection) con);
                     con.close();
-                } else {
-                    return;
                 }
+
+                return;
             }
 
             if (con.getConnectedTo() != null) {
@@ -762,7 +763,9 @@ public class PooledDriver extends DriverBase {
             List<Integer> sourcePortsToDelete = new ArrayList<>();
 
             for (int port : new ArrayList<Integer>(borrowedConnections.keySet())) {
-                if (borrowedConnections.get(port) == null || borrowedConnections.get(port).getCon() == null || borrowedConnections.get(port).getCon().getSourcePort() == 0) {
+                ConnectionContainer connectionContainer = borrowedConnections.get(port);
+
+                if (connectionContainer == null || connectionContainer.getCon() == null || connectionContainer.getCon().getSourcePort() == 0) {
                     sourcePortsToDelete.add(port);
                 }
             }

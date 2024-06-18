@@ -19,8 +19,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.Collator;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
@@ -144,7 +147,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Map<String, Map<String, Integer>>> cappedCollections = new ConcurrentHashMap<>();// db->coll->Settings
     // size/max
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
-    private List<Runnable> eventQueue = new Vector();
+    private BlockingQueue<Runnable> eventQueue =  new LinkedBlockingDeque<>();
     private final List<Map<String, Object>> commandResults = new Vector<>();
     private final Map<String, Class<? extends MongoCommand>> commandsCache = new HashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
@@ -412,6 +415,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         var commandName = cmdMap.keySet().stream().findFirst().get();
         Class<? extends MongoCommand> commandClass = commandsCache.get(commandName);
 
+        if (commandName.equals("aggreagate") && cmdMap.containsKey("pipeline") && ((Map)((List)cmdMap.get("pipeline")).get(0)).containsKey("$changeStream")) {
+            commandClass = WatchCommand.class;
+        } else if (commandName.equals("aggregate")) {
+            commandClass = AggregateMongoCommand.class;
+        }
+
         if (commandClass == null) {
             throw new IllegalArgumentException("Unknown command " + commandName);
         }
@@ -562,7 +571,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, List<Map<String, Object>>> indexesForDB = indicesByDbCollection.get(cmd.getDb());
 
         if (indexesForDB == null) {
-            commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", List.of()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
+            commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", List.of(), "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
             return ret;
         }
 
@@ -621,7 +630,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 indices.add(index);
             }
 
-        commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", indices), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 0)));
+        commandResults.add(prepareResult(Doc.of("cursor", Doc.of("firstBatch", indices, "id", 0L, "ns", cmd.getDb() + "." + cmd.getColl()), "ok", 1.0, "ns", cmd.getDb() + "." + cmd.getColl(), "id", 1)));
         return ret;
     }
 
@@ -1009,7 +1018,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private int runCommand(AggregateMongoCommand cmd) {
-        throw new IllegalArgumentException("pleas use morphium for aggregation in Memory!");
+        if (cmd.getDb().equals("admin") && cmd.getColl().equals("atlascli")) {
+            int ret = commandNumber.incrementAndGet();
+            commandResults.add(prepareResult(Doc.of("ok", 0.0, "msg", "not found")));
+            return ret;
+        }
+
+        throw new IllegalArgumentException("please use morphium for aggregation in Memory!");
     }
 
     private int runCommand(MongoCommand cmd) {
@@ -1185,24 +1200,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Runnable r = ()-> {
             // Notification of watchers.
             try {
-                if (eventQueue.isEmpty()) return;
+                while (true) {
+                    Runnable r1 = eventQueue.poll();
 
-                List<Runnable> current = eventQueue;
-                eventQueue = new Vector<>();
-                // Collections.shuffle(current);
+                    if (r1 == null) return;
 
-                for (Runnable r1 : current) {
-                    //new Thread(r1).start();
                     try {
-                        // log.info("Event processing");
                         r1.run();
-                    } catch (Exception e) {}
+                    } catch (Exception e) {
+                        //swallow
+                    }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 log.error("Error", e);
             }
         };
-        exec.scheduleWithFixedDelay(r, 100, 10, TimeUnit.MILLISECONDS); // check for events every 500ms
+        exec.scheduleWithFixedDelay(r, 100, 1, TimeUnit.MILLISECONDS); // check for events every 500ms
         scheduleExpire();
     }
 
@@ -2688,6 +2701,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         };
         // log.info("Notify watchers -adding event #{}", eventQueue.size());
         eventQueue.add(r);
+        //r.run();
     }
 
     public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)
