@@ -104,6 +104,9 @@ public class StatusInfoListener implements MessageListener<Msg> {
                 answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
                 answer.getMapValue().put("messaging.pause", msg.getPause());
                 answer.getMapValue().put("messaging.time_till_recieved", tripDur);
+                answer.getMapValue().put("messaging.waiting_for_answers", msg.waitingForAnswersCount());
+                answer.getMapValue().put("messaging.in_progress", msg.getInProgressCount());
+                answer.getMapValue().put("messaging.processing", msg.getProcessingCount());
             } catch (Exception e) {
                 answer.getMapValue().put("messaging.stats.error", e.getMessage());
             }

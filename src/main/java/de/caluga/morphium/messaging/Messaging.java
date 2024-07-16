@@ -190,6 +190,18 @@ public class Messaging extends Thread implements ShutdownListener {
         listenerByName.put(statusInfoListenerName, Arrays.asList(statusInfoListener));
     }
 
+    public int getProcessingCount() {
+        return processing.size();
+    }
+
+    public int getInProgressCount() {
+        return idsInProgress.size();
+    }
+
+    public int waitingForAnswersCount() {
+        return waitingForAnswers.size();
+    }
+
     public boolean isStatusInfoListenerEnabled() {
         return statusInfoListenerEnabled;
     }
