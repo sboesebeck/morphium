@@ -1259,37 +1259,42 @@ public class Messaging extends Thread implements ShutdownListener {
         waitingForAnswers.put(requestMsgId, answerList);
         sendMessage(theMessage);
         long start = System.currentTimeMillis();
+        List<T> returnValue = null;
 
-        while (running) {
-            if (answerList.size() > 0) {
-                if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
+        try {
+            while (running) {
+                if (answerList.size() > 0) {
+                    if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
+                        break;
+                    }
+
+                    // time up - return all answers that were received
+                }
+
+                // Did not receive any message in time
+                if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
+                }
+
+                if (System.currentTimeMillis() - start > timeout) {
                     break;
                 }
 
-                // time up - return all answers that were received
-            }
+                if (!running) {
+                    throw new SystemShutdownException("Messaging shutting down - abort waiting!");
+                }
 
-            // Did not receive any message in time
-            if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
-                throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
+                try {
+                    Thread.sleep(morphium.getConfig().getIdleSleepTime());
+                } catch (InterruptedException e) {
+                    // ignore
+                }
             }
-
-            if (System.currentTimeMillis() - start > timeout) {
-                break;
-            }
-
-            if (!running) {
-                throw new SystemShutdownException("Messaging shutting down - abort waiting!");
-            }
-
-            try {
-                Thread.sleep(morphium.getConfig().getIdleSleepTime());
-            } catch (InterruptedException e) {
-                // ignore
-            }
+        } finally {
+            returnValue = (List<T>)waitingForAnswers.remove(requestMsgId);
         }
 
-        return (List<T>) new ArrayList<>(waitingForAnswers.remove(requestMsgId));
+        return returnValue;
     }
 
     public boolean isProcessMultiple() {
