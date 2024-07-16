@@ -202,6 +202,16 @@ public class Messaging extends Thread implements ShutdownListener {
         return waitingForAnswers.size();
     }
 
+    public int waitingForAnswersTotalCount() {
+        int cnt = 0;
+
+        for (Queue l : waitingForAnswers.values()) {
+            cnt = cnt + l.size();
+        }
+
+        return cnt;
+    }
+
     public boolean isStatusInfoListenerEnabled() {
         return statusInfoListenerEnabled;
     }
