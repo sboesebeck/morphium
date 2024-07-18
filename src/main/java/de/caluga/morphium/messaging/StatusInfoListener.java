@@ -1,5 +1,6 @@
 package de.caluga.morphium.messaging;
 
+import java.lang.management.ManagementFactory;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,6 +91,27 @@ public class StatusInfoListener implements MessageListener<Msg> {
                 }
             }
         }
+
+        answer.getMapValue().put("jvm.version", Runtime.getRuntime().version().toString());
+        answer.getMapValue().put("jvm.free_mem", Runtime.getRuntime().freeMemory());
+        answer.getMapValue().put("jvm.total_mem", Runtime.getRuntime().totalMemory());
+        answer.getMapValue().put("jvm.max_mem", Runtime.getRuntime().maxMemory());
+        var memMxBean = ManagementFactory.getMemoryMXBean();
+        var heap = memMxBean.getHeapMemoryUsage();
+        answer.getMapValue().put("jvm.heap.init", heap.getInit());
+        answer.getMapValue().put("jvm.heap.used", heap.getUsed());
+        answer.getMapValue().put("jvm.heap.committed", heap.getCommitted());
+        answer.getMapValue().put("jvm.heap.max", heap.getMax());
+        var nonheap = memMxBean.getNonHeapMemoryUsage();
+        answer.getMapValue().put("jvm.nonheap.init", nonheap.getInit());
+        answer.getMapValue().put("jvm.nonheap.used", nonheap.getUsed());
+        answer.getMapValue().put("jvm.nonheap.committed", nonheap.getCommitted());
+        answer.getMapValue().put("jvm.nonheap.max", nonheap.getMax());
+        var tc = ManagementFactory.getThreadMXBean();
+        answer.getMapValue().put("jvm.threads.active", tc.getThreadCount());
+        answer.getMapValue().put("jvm.threads.deamons", tc.getDaemonThreadCount());
+        answer.getMapValue().put("jvm.threads.peak", tc.getPeakThreadCount());
+        answer.getMapValue().put("jvm.threads.total_started", tc.getTotalStartedThreadCount());
 
         if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
             try {
