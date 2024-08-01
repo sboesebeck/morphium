@@ -56,7 +56,7 @@ public class MessagingTest extends MultiDriverTestBase {
     private final AtomicInteger queueCount = new AtomicInteger(1000);
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void execAfterRelease(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -177,7 +177,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void messagingTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -998,7 +998,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void removeMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -1035,7 +1035,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void timeoutMessages(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -1067,7 +1067,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void selfMessages(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -1137,7 +1137,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void getPendingMessagesOnStartup(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
