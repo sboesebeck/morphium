@@ -31,17 +31,16 @@ public class SortingTest extends MultiDriverTestBase {
             UncachedObject uc = new UncachedObject();
             uc.setStrValue("Random value");
             uc.setCounter((int) Math.floor(Math.random() * 6000.0));
-            uc.setDval(uc.getCounter()%5);
+            uc.setDval(uc.getCounter() % 5);
             lst.add(uc);
         }
 
         var uc = new UncachedObject();
         uc.setStrValue("Random value");
         uc.setCounter(7599);
-        uc.setDval(uc.getCounter()%5);
+        uc.setDval(uc.getCounter() % 5);
         lst.add(uc);
-
-        uc=new UncachedObject();
+        uc = new UncachedObject();
         uc.setStrValue("Random value");
         uc.setCounter(0);
         uc.setDval(0);
@@ -49,37 +48,40 @@ public class SortingTest extends MultiDriverTestBase {
         log.info("Sending bulk write...");
         morphium.storeList(lst);
         log.info("Wrote it... waiting for batch to be stored");
-        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> TestUtils.countUC(morphium)==5002);
+        TestUtils.waitForConditionToBecomeTrue(1000, "Data not written", ()-> TestUtils.countUC(morphium) == 5002);
     }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void sortTestMultiKey(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
+
         try(morphium) {
             prepare(morphium);
             log.info("Sorting objects...");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("str_value").eq("Random value");
-            q = q.sort("dval","-counter");
+            q = q.sort("dval", "-counter");
             long start = System.currentTimeMillis();
             List<UncachedObject> lst = q.asList();
             long dur = System.currentTimeMillis() - start;
             log.info("Got list in: " + dur + "ms");
             int lastValue = 8888;
-            double lastDval=0;
+            double lastDval = 0;
 
             for (UncachedObject u : lst) {
-                log.info(String.format("-- Values: %f  /  %d",u.getDval(),u.getCounter()));
-                if (u.getDval()==lastDval){
-                  assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,u.getCounter()).isGreaterThanOrEqualTo(u.getCounter());// >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
+                log.info(String.format("-- Values: %f  /  %d", u.getDval(), u.getCounter()));
+
+                if (u.getDval() == lastDval) {
+                    assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,
+                        u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
                 } else {
                     assertThat(lastDval).describedAs("Dval").isLessThanOrEqualTo(u.getDval());
-                    lastDval=u.getDval();
+                    lastDval = u.getDval();
                 }
-                lastValue=u.getCounter();
-            }
 
+                lastValue = u.getCounter();
+            }
         }
     }
 
@@ -88,6 +90,7 @@ public class SortingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void sortTestDescending(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
+
         try(morphium) {
             prepare(morphium);
             Thread.sleep(100);
@@ -102,7 +105,8 @@ public class SortingTest extends MultiDriverTestBase {
             int lastValue = 8888;
 
             for (UncachedObject u : lst) {
-                assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,u.getCounter()).isGreaterThanOrEqualTo(u.getCounter());// >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
+                assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,
+                    u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
                 lastValue = u.getCounter();
             }
 
@@ -122,11 +126,11 @@ public class SortingTest extends MultiDriverTestBase {
             }
 
             for (UncachedObject u : lst) {
-                assertThat(lastValue).describedAs("Counter should be smaller, last %d now: %d", lastValue, u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); 
+                assertThat(lastValue).describedAs("Counter should be smaller, last %d now: %d", lastValue, u.getCounter()).isGreaterThanOrEqualTo(u.getCounter());
                 lastValue = u.getCounter();
             }
 
-            assertEquals(0,lastValue,"LastValue wrong");
+            assertEquals(0, lastValue, "LastValue wrong");
         }
     }
 
@@ -135,6 +139,7 @@ public class SortingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void sortTestAscending(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
+
         try(morphium) {
             prepare(morphium);
             Thread.sleep(1000);
@@ -178,6 +183,7 @@ public class SortingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void sortTestLimit(Morphium morphium) throws Exception {
         log.info("Running with " + morphium.getDriver().getName());
+
         try(morphium) {
             prepare(morphium);
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
@@ -186,14 +192,14 @@ public class SortingTest extends MultiDriverTestBase {
             q.limit(1);
             Thread.sleep(1000);
             List<UncachedObject> lst = q.asList();
-            assertEquals(1,lst.size());
-            assertEquals(0,lst.get(0).getCounter(), "Smalest value wrong, should be 0");
+            assertEquals(1, lst.size());
+            assertEquals(0, lst.get(0).getCounter(), "Smalest value wrong, should be 0");
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("strValue").eq("Random value");
             q = q.sort("-counter");
             UncachedObject uc = q.get();
             assertNotNull(uc, "not found?!?");
-            assertEquals(7599,uc.getCounter(),"Highest value wrong, should be 7599");
+            assertEquals(7599, uc.getCounter(), "Highest value wrong, should be 7599");
         }
     }
 

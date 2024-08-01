@@ -168,9 +168,14 @@ public class MultiDriverTestBase {
         var enc = new AESEncryptionProvider();
         enc.setEncryptionKey("1234567890abcdef".getBytes());
         enc.setDecryptionKey("1234567890abcdef".getBytes());
+        var p = MorphiumTestBase.getProps();
         var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
+
+        // var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
+        // var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
+        // var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
 
         //Diferent Drivers
         if (includePooled) {
@@ -178,9 +183,13 @@ public class MultiDriverTestBase {
             pooled.setCredentialsEncrypted(true);
             pooled.setCredentialsEncryptionKey("1234567890abcdef");
             pooled.setCredentialsDecryptionKey("1234567890abcdef");
-            pooled.setMongoAuthDb(authDb);
-            pooled.setMongoPassword(password);
-            pooled.setMongoLogin(user);
+
+            if (p.containsKey("authDb")) {
+                pooled.setMongoAuthDb(authDb);
+                pooled.setMongoPassword(password);
+                pooled.setMongoLogin(user);
+            }
+
             pooled.setDriverName(PooledDriver.driverName);
             pooled.setDatabase("morphium_test_" + number.incrementAndGet());
             log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
@@ -194,9 +203,13 @@ public class MultiDriverTestBase {
             singleConnection.setCredentialsEncrypted(true);
             singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
             singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
-            singleConnection.setMongoAuthDb(authDb);
-            singleConnection.setMongoPassword(password);
-            singleConnection.setMongoLogin(user);
+
+            if (p.containsKey("authDb")) {
+                singleConnection.setMongoAuthDb(authDb);
+                singleConnection.setMongoPassword(password);
+                singleConnection.setMongoLogin(user);
+            }
+
             singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
             log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
             Morphium singleConMorphium = new Morphium(singleConnection);
