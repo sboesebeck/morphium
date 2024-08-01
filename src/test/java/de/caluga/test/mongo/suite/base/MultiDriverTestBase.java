@@ -169,9 +169,18 @@ public class MultiDriverTestBase {
         enc.setEncryptionKey("1234567890abcdef".getBytes());
         enc.setDecryptionKey("1234567890abcdef".getBytes());
         var p = MorphiumTestBase.getProps();
-        var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
-        var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
-        var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
+        String pwd = (String)p.get("mongoPassword");
+        String login = (String)p.get("mongoLogin");
+        String adb = (String)p.get("mongoAuthDb");
+        String password = null;
+        String user = null;
+        String authDb = null;
+
+        if (adb != null && !adb.isBlank() && !adb.isEmpty()) {
+            password = Base64.getEncoder().encodeToString(enc.encrypt(pwd.getBytes(StandardCharsets.UTF_8)));
+            user = Base64.getEncoder().encodeToString(enc.encrypt(login.getBytes(StandardCharsets.UTF_8)));
+            authDb = Base64.getEncoder().encodeToString(enc.encrypt(adb.getBytes(StandardCharsets.UTF_8)));
+        }
 
         // var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         // var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
@@ -184,7 +193,7 @@ public class MultiDriverTestBase {
             pooled.setCredentialsEncryptionKey("1234567890abcdef");
             pooled.setCredentialsDecryptionKey("1234567890abcdef");
 
-            if (p.containsKey("authDb")) {
+            if (authDb != null) {
                 pooled.setMongoAuthDb(authDb);
                 pooled.setMongoPassword(password);
                 pooled.setMongoLogin(user);
@@ -204,7 +213,7 @@ public class MultiDriverTestBase {
             singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
             singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
 
-            if (p.containsKey("authDb")) {
+            if (authDb != null) {
                 singleConnection.setMongoAuthDb(authDb);
                 singleConnection.setMongoPassword(password);
                 singleConnection.setMongoLogin(user);
