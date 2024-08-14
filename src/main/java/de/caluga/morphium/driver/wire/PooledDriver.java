@@ -143,16 +143,31 @@ public class PooledDriver extends DriverBase {
         connect(null);
     }
 
-    private void handleHelloResult(HelloResult hello) {
+    private void handleHelloResult(HelloResult hello, String hostConnected) {
         if (hello == null) return;
 
-        if (hello.getWritablePrimary() != null && hello.getMe() != null) {
+        if (hello.getWritablePrimary() != null && hello.getWritablePrimary() && hello.getMe() == null) {
+            if (hello.getWritablePrimary() && primaryNode == null) {
+                primaryNode = hostConnected;
+            } else if (!hostConnected.equals(primaryNode)) {
+                log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
+                stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
+                primaryNode = hostConnected;
+            } else if (!hello.getWritablePrimary() && hostConnected.equals(primaryNode)) {
+                log.error("Primary node is not me {}", hello.getMe());
+                primaryNode = null;
+            }
+        } else if (hello.getWritablePrimary() != null && hello.getMe() != null) {
             if (primaryNode == null) {
                 primaryNode = hello.getMe();
             } else if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
                 log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
                 stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
                 primaryNode = hello.getMe();
+
+                if (primaryNode == null) {
+                    primaryNode = hostConnected;
+                }
             } else if (!hello.getWritablePrimary() && hello.getMe().equals(primaryNode)) {
                 log.error("Primary node is not me {}", hello.getMe());
                 primaryNode = null;
@@ -347,7 +362,7 @@ public class PooledDriver extends DriverBase {
                                 }
 
                                 // container.touch();
-                                handleHelloResult(result);
+                                handleHelloResult(result, getHost(hst) + ":" + getPortFromHost(hst));
 
                                 synchronized (connectionPool) {
                                     if (connectionPool.containsKey(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) {
@@ -466,7 +481,7 @@ public class PooledDriver extends DriverBase {
             fastestHost = hst;
         }
 
-        handleHelloResult(result);
+        handleHelloResult(result, getHost(hst) + ":" + getPortFromHost(hst));
     }
 
     @Override
