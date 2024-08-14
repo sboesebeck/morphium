@@ -1313,7 +1313,7 @@ public class Messaging extends Thread implements ShutdownListener {
                 }
             }
         } finally {
-            returnValue = (List<T>)waitingForAnswers.remove(requestMsgId);
+            returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));
         }
 
         return returnValue;
