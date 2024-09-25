@@ -1253,6 +1253,14 @@ public class Messaging extends Thread implements ShutdownListener {
         return sendAndAwaitFirstAnswer(theMessage, timeoutInMs, true);
     }
 
+    /**
+     * Sends a message asynchronously and sends all incoming answers via callback.
+     * If sent message is exclusive, only one answer will be processed, otherwise all incoming answers up to timeout
+     * will be processed.
+     * @parameter theMessage to be sent
+     * @parameter timoutInMs - milliseconds to wait until listener is removed
+     * @parameter cb - the message callback
+     */
     public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
         if (!running) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
