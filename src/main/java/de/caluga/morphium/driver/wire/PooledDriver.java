@@ -387,7 +387,7 @@ public class PooledDriver extends DriverBase {
                                 // log.info("Creating new connection to {}", hst);
                                 // System.out.println("Creating new connection to " + hst);
                                 loopCounter++;
-                                log.debug("Creating connection to {} - totalConnections to host is {}", hst, getTotalConnectionsToHost(hst));
+                                // log.debug("Creating connection to {} - totalConnections to host is {}", hst, getTotalConnectionsToHost(hst));
                                 createNewConnection(hst);
                             }
 
@@ -446,8 +446,7 @@ public class PooledDriver extends DriverBase {
 
     private void createNewConnection(String hst) throws Exception {
         // log.info("Heartbeat: WaitCounter for host {} is {}, TotalCon {} ", hst, waitCounter.get(hst).get(), getTotalConnectionsToHost(hst));
-        log.debug("Creating connection to {}", hst);
-
+        //        log.debug("Creating connection to {}", hst);
         synchronized (connectionPool) {
             if (!connectionPool.containsKey(hst)) {
                 return;
