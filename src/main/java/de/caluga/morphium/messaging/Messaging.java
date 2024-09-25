@@ -532,12 +532,14 @@ public class Messaging extends Thread implements ShutdownListener {
                                 Runnable cbRunnable = ()-> {
                                     cb.incomingMessage(theMessage);
                                 };
+                                updateProcessedBy(theMessage);
                                 queueOrRun(cbRunnable);
 
                                 if (cbr.theMessage.isExclusive()) {
                                     waitingForCallbacks.remove(msg.getInAnswerTo());
                                 }
 
+                                checkDeleteAfterProcessing(msg);
                                 return;
                             }
                         }
@@ -570,6 +572,10 @@ public class Messaging extends Thread implements ShutdownListener {
 
         listeners.clear();
         listenerByName.clear();
+    }
+
+    public int getAsyncMessagesPending() {
+        return waitingForCallbacks.size();
     }
 
     private void checkDeleteAfterProcessing(Msg obj) {
@@ -1276,6 +1282,7 @@ public class Messaging extends Thread implements ShutdownListener {
         cbr.callback = cb;
         cbr.ttl = timeoutInMs;
         waitingForCallbacks.put(requestMsgId, cbr);
+        sendMessage(theMessage);
         decouplePool.schedule(()-> {waitingForCallbacks.remove(requestMsgId);}, timeoutInMs, TimeUnit.MILLISECONDS);
     }
 
