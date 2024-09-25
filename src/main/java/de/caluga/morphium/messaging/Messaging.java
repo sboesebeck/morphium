@@ -75,6 +75,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     //answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
 
@@ -520,6 +521,23 @@ public class Messaging extends Thread implements ShutdownListener {
                                 }
 
                                 checkDeleteAfterProcessing(msg);
+                                return;
+                            }
+
+                            final CallbackRequest cbr = waitingForCallbacks.get(msg.getInAnswerTo());
+                            final Msg theMessage = msg;
+
+                            if (cbr != null) {
+                                AsyncMessageCallback cb = cbr.callback;
+                                Runnable cbRunnable = ()-> {
+                                    cb.incomingMessage(theMessage);
+                                };
+                                queueOrRun(cbRunnable);
+
+                                if (cbr.theMessage.isExclusive()) {
+                                    waitingForCallbacks.remove(msg.getInAnswerTo());
+                                }
+
                                 return;
                             }
                         }
@@ -1235,6 +1253,31 @@ public class Messaging extends Thread implements ShutdownListener {
         return sendAndAwaitFirstAnswer(theMessage, timeoutInMs, true);
     }
 
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
+        if (!running) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
+        }
+
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
+
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final CallbackRequest cbr = new CallbackRequest();
+        cbr.timestamp = System.currentTimeMillis();
+        cbr.theMessage = theMessage;
+        cbr.callback = cb;
+        cbr.ttl = timeoutInMs;
+        waitingForCallbacks.put(requestMsgId, cbr);
+        decouplePool.schedule(()-> {waitingForCallbacks.remove(requestMsgId);}, timeoutInMs, TimeUnit.MILLISECONDS);
+    }
+
+    private class CallbackRequest {
+        Msg theMessage;
+        AsyncMessageCallback callback;
+        long ttl;
+        long timestamp;
+    }
+
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
         if (!running) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
@@ -1476,5 +1519,9 @@ public class Messaging extends Thread implements ShutdownListener {
         public int hashCode() {
             return Objects.hash(priority, id, timestamp);
         }
+    }
+
+    public interface AsyncMessageCallback {
+        void incomingMessage(Msg m);
     }
 }
