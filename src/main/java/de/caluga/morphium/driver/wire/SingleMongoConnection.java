@@ -111,6 +111,12 @@ public class SingleMongoConnection implements MongoConnection {
             if (System.currentTimeMillis() - start > getDriver().getMaxWaitTime()) {
                 throw new MorphiumDriverException("Hello result is null");
             }
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                // swallow
+            }
         }
 
         Map<String, Object> firstDoc = result.getFirstDoc();
