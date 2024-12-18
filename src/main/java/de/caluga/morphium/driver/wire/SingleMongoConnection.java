@@ -87,25 +87,30 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public HelloResult getHelloResult(boolean includeClient) throws MorphiumDriverException {
-        HelloCommand cmd = new HelloCommand(null);
+        OpMsg result = null;
+        long start = System.currentTimeMillis();
 
-        if (authDb != null) {
-            cmd.setUser(user);
-            cmd.setSaslSupportedMechs(authDb + "." + user);
-        }
+        while (null == result) {
+            HelloCommand cmd = new HelloCommand(null);
 
-        if (!includeClient) {
-            cmd.setIncludeClient(false);
-        }
+            if (authDb != null) {
+                cmd.setUser(user);
+                cmd.setSaslSupportedMechs(authDb + "." + user);
+            }
 
-        cmd.setLoadBalanced(true);
-        OpMsg msg = new OpMsg();
-        msg.setMessageId(msgId.incrementAndGet());
-        msg.setFirstDoc(cmd.asMap());
-        var result = sendAndWaitForReply(msg);
+            if (!includeClient) {
+                cmd.setIncludeClient(false);
+            }
 
-        if (null == result) {
-            throw new MorphiumDriverException("Hello result is null");
+            cmd.setLoadBalanced(true);
+            OpMsg msg = new OpMsg();
+            msg.setMessageId(msgId.incrementAndGet());
+            msg.setFirstDoc(cmd.asMap());
+            result = sendAndWaitForReply(msg);
+
+            if (System.currentTimeMillis() - start > getDriver().getMaxWaitTime()) {
+                throw new MorphiumDriverException("Hello result is null");
+            }
         }
 
         Map<String, Object> firstDoc = result.getFirstDoc();
@@ -550,12 +555,11 @@ public class SingleMongoConnection implements MongoConnection {
             // log.debug("CursorID:" + cursor.get("id").toString());
             long cursorId = Long.parseLong(cursor.get("id").toString());
             command.setMetaData("cursor", cursorId);
-            List<Map<String, Object>> result = (List<Map<String, Object>>) cursor.get("firstBatch");
+            List<Map<String, Object >> result = (List<Map<String, Object >>) cursor.get("firstBatch");
 
             if (result == null) {
-                result = (List<Map<String, Object>>) cursor.get("nextBatch");
+                result = (List<Map<String, Object >>) cursor.get("nextBatch");
             }
-
             if (result != null && !result.isEmpty()) {
                 for (Map<String, Object> o : result) {
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
@@ -577,7 +581,6 @@ public class SingleMongoConnection implements MongoConnection {
                 command.setMetaData("duration", System.currentTimeMillis() - start);
                 break;
             }
-
             if (cursorId != 0) {
                 msg = new OpMsg();
                 msg.setMessageId(msgId.incrementAndGet());
@@ -610,7 +613,7 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
-    public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+    public List<Map<String, Object >> readAnswerFor(int queryId) throws MorphiumDriverException {
         return readAnswerFor(getAnswerFor(queryId, driver.getDefaultBatchSize()));
         //return readBatches(queryId, driver.getDefaultBatchSize());
     }
@@ -626,8 +629,10 @@ public class SingleMongoConnection implements MongoConnection {
 
         if (reply.hasCursor()) {
             return new SingleMongoConnectionCursor(this, batchSize, true, reply).setServer(connectedTo);
-        } else if (reply.getFirstDoc().containsKey("results")) {
-            return new SingleBatchCursor((List<Map<String, Object>>) reply.getFirstDoc().get("results"));
+        }
+
+        else if (reply.getFirstDoc().containsKey("results")) {
+            return new SingleBatchCursor((List<Map<String, Object >>) reply.getFirstDoc().get("results"));
         }
 
         return new SingleElementCursor(reply.getFirstDoc());
@@ -644,8 +649,8 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     @Override
-    public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
-        List<Map<String, Object>> ret = new ArrayList<>();
+    public List<Map<String, Object >> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+        List<Map<String, Object >> ret = new ArrayList<>();
 
         while (crs.hasNext()) {
             ret.addAll(crs.getBatch());
@@ -669,13 +674,13 @@ public class SingleMongoConnection implements MongoConnection {
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) cursor.get("firstBatch");
+            List<Map<String, Object >> lst = (List<Map<String, Object >>) cursor.get("firstBatch");
 
             if (lst != null && !lst.isEmpty()) {
                 ret = lst.get(0);
             }
         } else {
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) cursor.get("nextBatch");
+            List<Map<String, Object >> lst = (List<Map<String, Object >>) cursor.get("nextBatch");
 
             if (lst != null && !lst.isEmpty()) {
                 ret = lst.get(0);
