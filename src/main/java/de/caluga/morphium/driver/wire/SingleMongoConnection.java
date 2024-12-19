@@ -113,7 +113,7 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             try {
-                Thread.sleep(1000);
+                if (result == null) Thread.sleep(1000);
             } catch (InterruptedException e) {
                 // swallow
             }
