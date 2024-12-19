@@ -92,101 +92,103 @@ public class StatusInfoListener implements MessageListener<Msg> {
             }
         }
 
-        answer.getMapValue().put("jvm.version", Runtime.getRuntime().version().toString());
-        answer.getMapValue().put("jvm.free_mem", Runtime.getRuntime().freeMemory());
-        answer.getMapValue().put("jvm.total_mem", Runtime.getRuntime().totalMemory());
-        answer.getMapValue().put("jvm.max_mem", Runtime.getRuntime().maxMemory());
-        var memMxBean = ManagementFactory.getMemoryMXBean();
-        var heap = memMxBean.getHeapMemoryUsage();
-        answer.getMapValue().put("jvm.heap.init", heap.getInit());
-        answer.getMapValue().put("jvm.heap.used", heap.getUsed());
-        answer.getMapValue().put("jvm.heap.committed", heap.getCommitted());
-        answer.getMapValue().put("jvm.heap.max", heap.getMax());
-        var nonheap = memMxBean.getNonHeapMemoryUsage();
-        answer.getMapValue().put("jvm.nonheap.init", nonheap.getInit());
-        answer.getMapValue().put("jvm.nonheap.used", nonheap.getUsed());
-        answer.getMapValue().put("jvm.nonheap.committed", nonheap.getCommitted());
-        answer.getMapValue().put("jvm.nonheap.max", nonheap.getMax());
-        var tc = ManagementFactory.getThreadMXBean();
-        answer.getMapValue().put("jvm.threads.active", tc.getThreadCount());
-        answer.getMapValue().put("jvm.threads.deamons", tc.getDaemonThreadCount());
-        answer.getMapValue().put("jvm.threads.peak", tc.getPeakThreadCount());
-        answer.getMapValue().put("jvm.threads.total_started", tc.getTotalStartedThreadCount());
+        if (!level.equals(StatusInfoLevel.PING)) {
+            answer.getMapValue().put("jvm.version", Runtime.getRuntime().version().toString());
+            answer.getMapValue().put("jvm.free_mem", Runtime.getRuntime().freeMemory());
+            answer.getMapValue().put("jvm.total_mem", Runtime.getRuntime().totalMemory());
+            answer.getMapValue().put("jvm.max_mem", Runtime.getRuntime().maxMemory());
+            var memMxBean = ManagementFactory.getMemoryMXBean();
+            var heap = memMxBean.getHeapMemoryUsage();
+            answer.getMapValue().put("jvm.heap.init", heap.getInit());
+            answer.getMapValue().put("jvm.heap.used", heap.getUsed());
+            answer.getMapValue().put("jvm.heap.committed", heap.getCommitted());
+            answer.getMapValue().put("jvm.heap.max", heap.getMax());
+            var nonheap = memMxBean.getNonHeapMemoryUsage();
+            answer.getMapValue().put("jvm.nonheap.init", nonheap.getInit());
+            answer.getMapValue().put("jvm.nonheap.used", nonheap.getUsed());
+            answer.getMapValue().put("jvm.nonheap.committed", nonheap.getCommitted());
+            answer.getMapValue().put("jvm.nonheap.max", nonheap.getMax());
+            var tc = ManagementFactory.getThreadMXBean();
+            answer.getMapValue().put("jvm.threads.active", tc.getThreadCount());
+            answer.getMapValue().put("jvm.threads.deamons", tc.getDaemonThreadCount());
+            answer.getMapValue().put("jvm.threads.peak", tc.getPeakThreadCount());
+            answer.getMapValue().put("jvm.threads.total_started", tc.getTotalStartedThreadCount());
 
-        if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
-            try {
-                if (msg.isMultithreadded()) {
-                    answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
-                }
-
-                answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
-                answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
-                answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
-                answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
-                answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
-                answer.getMapValue().put("messaging.pause", msg.getPause());
-                answer.getMapValue().put("messaging.time_till_recieved", tripDur);
-                answer.getMapValue().put("messaging.waiting_for_answers", msg.waitingForAnswersCount());
-                answer.getMapValue().put("messaging.waiting_for_answers_total", msg.waitingForAnswersTotalCount());
-                answer.getMapValue().put("messaging.in_progress", msg.getInProgressCount());
-                answer.getMapValue().put("messaging.processing", msg.getProcessingCount());
-            } catch (Exception e) {
-                answer.getMapValue().put("messaging.stats.error", e.getMessage());
-            }
-        }
-
-        if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
-            try {
-                answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
-
-                if (msg.getMorphium().getConfig() == null) {
-                    answer.getMapValue().put(morphiumConfigKey, "NULL!");
-                } else {
-                    answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
-                }
-
-                answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
-                answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
-
+            if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MESSAGING_ONLY)) {
                 try {
-                    answer.getMapValue().put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
-                } catch (MorphiumDriverException e) {
-                    answer.getMapValue().put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
-                }
-            } catch (Exception e) {
-                answer.getMapValue().put(morphiumDriverStatsKey + ".stats.error", e.getMessage());
-            }
-        }
-
-        if (level.equals(StatusInfoLevel.ALL)) {
-            //alternative morphium stats
-            int i = 0;
-
-            for (var alternativeMorphium : msg.getMorphium().getAlternativeMorphiums()) {
-                i++;
-
-                try {
-                    Map<String, Object> stats = new HashMap<>();
-                    stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
-
-                    if (alternativeMorphium.getConfig() == null) {
-                        stats.put(morphiumConfigKey, "NULL!");
-                    } else {
-                        stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+                    if (msg.isMultithreadded()) {
+                        answer.getMapValue().put(messagingThreadpoolstatsKey, msg.getThreadPoolStats());
                     }
 
-                    stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
-                    stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
+                    answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
+                    answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
+                    answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
+                    answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
+                    answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
+                    answer.getMapValue().put("messaging.pause", msg.getPause());
+                    answer.getMapValue().put("messaging.time_till_recieved", tripDur);
+                    answer.getMapValue().put("messaging.waiting_for_answers", msg.waitingForAnswersCount());
+                    answer.getMapValue().put("messaging.waiting_for_answers_total", msg.waitingForAnswersTotalCount());
+                    answer.getMapValue().put("messaging.in_progress", msg.getInProgressCount());
+                    answer.getMapValue().put("messaging.processing", msg.getProcessingCount());
+                } catch (Exception e) {
+                    answer.getMapValue().put("messaging.stats.error", e.getMessage());
+                }
+            }
+
+            if (level.equals(StatusInfoLevel.ALL) || level.equals(StatusInfoLevel.MORPHIUM_ONLY)) {
+                try {
+                    answer.getMapValue().put(morphiumCachestatsKey, msg.getMorphium().getStatistics());
+
+                    if (msg.getMorphium().getConfig() == null) {
+                        answer.getMapValue().put(morphiumConfigKey, "NULL!");
+                    } else {
+                        answer.getMapValue().put(morphiumConfigKey, msg.getMorphium().getConfig().asProperties());
+                    }
+
+                    answer.getMapValue().put(morphiumDriverStatsKey, msg.getMorphium().getDriver().getDriverStats());
+                    answer.getMapValue().put(morphiumDriverConnections, msg.getMorphium().getDriver().getNumConnectionsByHost());
 
                     try {
-                        stats.put(morphiumDriverReplstatKey, alternativeMorphium.getDriver().getReplsetStatus());
+                        answer.getMapValue().put(morphiumDriverReplstatKey, msg.getMorphium().getDriver().getReplsetStatus());
                     } catch (MorphiumDriverException e) {
-                        stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                        answer.getMapValue().put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
                     }
-
-                    answer.getMapValue().put("alternativeMorphium" + i, stats);
                 } catch (Exception e) {
-                    answer.getMapValue().put("alternativeMorphium" + i + ".stats.error", e.getMessage());
+                    answer.getMapValue().put(morphiumDriverStatsKey + ".stats.error", e.getMessage());
+                }
+            }
+
+            if (level.equals(StatusInfoLevel.ALL)) {
+                //alternative morphium stats
+                int i = 0;
+
+                for (var alternativeMorphium : msg.getMorphium().getAlternativeMorphiums()) {
+                    i++;
+
+                    try {
+                        Map<String, Object> stats = new HashMap<>();
+                        stats.put(morphiumCachestatsKey, alternativeMorphium.getStatistics());
+
+                        if (alternativeMorphium.getConfig() == null) {
+                            stats.put(morphiumConfigKey, "NULL!");
+                        } else {
+                            stats.put(morphiumConfigKey, alternativeMorphium.getConfig().asProperties());
+                        }
+
+                        stats.put(morphiumDriverStatsKey, alternativeMorphium.getDriver().getDriverStats());
+                        stats.put(morphiumDriverConnections, alternativeMorphium.getDriver().getNumConnectionsByHost());
+
+                        try {
+                            stats.put(morphiumDriverReplstatKey, alternativeMorphium.getDriver().getReplsetStatus());
+                        } catch (MorphiumDriverException e) {
+                            stats.put(morphiumDriverReplstatKey, "could not get replicaset status: " + e.getMessage());
+                        }
+
+                        answer.getMapValue().put("alternativeMorphium" + i, stats);
+                    } catch (Exception e) {
+                        answer.getMapValue().put("alternativeMorphium" + i + ".stats.error", e.getMessage());
+                    }
                 }
             }
         }

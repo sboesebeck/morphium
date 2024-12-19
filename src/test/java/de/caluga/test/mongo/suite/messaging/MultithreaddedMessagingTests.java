@@ -309,10 +309,20 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
         long dur = System.currentTimeMillis() - start;
         log.info("processing " + amount + " multithreaded and multiprocessing messages took " + dur + "ms == " + (amount / (dur / 1000)) + " msg/sec");
-        consumer.terminate();
-        producer.terminate();
         log.info("Messages processed: " + count.get());
         log.info("Messages left: " + consumer.getPendingMessagesCount());
+
+        try {
+            consumer.terminate();
+        } catch (Exception e) {
+            log.info("Error stopping consumer");
+        }
+
+        try {
+            producer.terminate();
+        } catch (Exception e) {
+            log.info("Error stopping producer");
+        }
     }
 
 }
