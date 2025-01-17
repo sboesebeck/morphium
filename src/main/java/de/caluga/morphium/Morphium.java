@@ -86,7 +86,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private final List<ShutdownListener> shutDownListeners = new CopyOnWriteArrayList<>();
     private MorphiumConfig config;
     private Map<StatisticKeys, StatisticValue> stats = new ConcurrentHashMap<>();
-    private List<MorphiumStorageListener<?>> listeners = new CopyOnWriteArrayList<>();
+    private List<MorphiumStorageListener<? >> listeners = new CopyOnWriteArrayList<>();
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumObjectMapper objectMapper;
     private EncryptionKeyProvider encryptionKeyProvider;
@@ -459,8 +459,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP) ||
             getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP))) {
-            Map<Class<?>, List<IndexDescription>> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
-
+            Map<Class<?>, List<IndexDescription >> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
                     if (missing.get(cls).size() != 0) {
@@ -600,13 +599,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void addListener(MorphiumStorageListener<?> lst) {
-        List<MorphiumStorageListener<?>> newList = new ArrayList<>(listeners);
+        List<MorphiumStorageListener<? >> newList = new ArrayList<>(listeners);
         newList.add(lst);
         listeners = newList;
     }
 
     public void removeListener(MorphiumStorageListener<?> lst) {
-        List<MorphiumStorageListener<?>> newList = new ArrayList<>(listeners);
+        List<MorphiumStorageListener<? >> newList = new ArrayList<>(listeners);
         newList.remove(lst);
         listeners = newList;
     }
@@ -620,15 +619,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         morphiumDriver = drv;
     }
 
-    public Query<Map<String, Object>> createMapQuery(String collection) {
+    public Query<Map<String, Object >> createMapQuery(String collection) {
         try {
-            Query<Map<String, Object>> q = new Query<>(this, null, getAsyncOperationsThreadPool());
+            Query<Map<String, Object >> q = new Query<>(this, null, getAsyncOperationsThreadPool());
             q.setCollectionName(collection);
             return q;
         } catch (Exception e) {
             log.error("Error", e);
         }
-
         return null;
     }
 
@@ -692,7 +690,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         wr.unset(toSet, collection, field, callback);
     }
 
-    public List<Map<String, Object>> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
+    public List<Map<String, Object >> runCommand(String command, String collection, Map<String, Object> cmdMap) throws MorphiumDriverException {
         GenericCommand cmd = new GenericCommand(getDriver().getPrimaryConnection(null));
 
         try {
@@ -772,7 +770,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
             Map<String, Object> ret = new HashMap<>();
-            List<Map<String, Object>> lst = (List<Map<String, Object>>) q.get("$and");
+            List<Map<String, Object >> lst = (List<Map<String, Object >>) q.get("$and");
 
             for (Object o : lst) {
                 if (o instanceof Map) {
@@ -783,7 +781,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                     return q;
                 }
             }
-
             return ret;
         }
 
@@ -1083,10 +1080,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         try {
             MongoConnection con = morphiumDriver.getReadConnection(getReadPreferenceForClass(o.getClass()));
             settings = new FindCommand(con).setDb(getConfig().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
-            List<Map<String, Object>> found = settings.execute();
+            List<Map<String, Object >> found = settings.execute();
             settings.releaseConnection();
             // log.info("Reread took: "+settings.getMetaData().get("duration"));
-
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
                 Object fromDb = objectMapper.deserialize(o.getClass(), dbo);
@@ -1850,8 +1846,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 Index i = (Index) a;
 
                 if (i.value().length > 0) {
-                    List<Map<String, Object>> options = null;
-
+                    List<Map<String, Object >> options = null;
                     if (i.options().length > 0) {
                         // options set
                         options = createIndexKeyMapFrom(i.options());
@@ -1868,9 +1863,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         options.add(UtilsMap.of("collation", collation));
                     }
 
-                    List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
+                    List<Map<String, Object >> idx = createIndexKeyMapFrom(i.value());
                     int cnt = 0;
-
                     for (Map<String, Object> m : idx) {
                         Map<String, Object> optionsMap = null;
 
@@ -2004,8 +1998,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, String... fldStr) {
-        List<Map<String, Object>> m = createIndexKeyMapFrom(fldStr);
-
+        List<Map<String, Object >> m = createIndexKeyMapFrom(fldStr);
         for (Map<String, Object> idx : m) {
             try {
                 getWriterForClass(cls).createIndex(cls, collection, IndexDescription.fromMaps(idx, null), callback);
@@ -2092,8 +2085,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 Index i = (Index) a;
 
                 if (i.value().length > 0) {
-                    List<Map<String, Object>> options = null;
-
+                    List<Map<String, Object >> options = null;
                     if (i.options().length > 0) {
                         // options set
                         options = createIndexKeyMapFrom(i.options());
@@ -2110,9 +2102,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         options.add(UtilsMap.of("collation", collation));
                     }
 
-                    List<Map<String, Object>> idx = createIndexKeyMapFrom(i.value());
+                    List<Map<String, Object >> idx = createIndexKeyMapFrom(i.value());
                     int cnt = 0;
-
                     for (Map<String, Object> m : idx) {
                         Map<String, Object> optionsMap = null;
 
@@ -2192,12 +2183,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         getWriterForClass(lst.get(0).getClass()).store(lst, collectionName, callback);
     }
 
-    public List<Map<String, Object>> createIndexKeyMapFrom(String[] fldStr) {
+    public List<Map<String, Object >> createIndexKeyMapFrom(String[] fldStr) {
         if (fldStr.length == 0) {
             return null;
         }
 
-        List<Map<String, Object>> lst = new ArrayList<>();
+        List<Map<String, Object >> lst = new ArrayList<>();
 
         for (String f : fldStr) {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -2246,7 +2237,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
             lst.add(m);
         }
-
         return lst;
     }
 
@@ -2270,14 +2260,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback) {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
-        Map<Class<?>, List<Object>> values = new HashMap<>();
+        Map<Class<?>, List<Object >> values = new HashMap<>();
 
         for (Object o : lst) {
             writers.putIfAbsent(o.getClass(), getWriterForClass(o.getClass()));
             values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
-
         for (Class cls : writers.keySet()) {
             try {
                 // noinspection unchecked
@@ -2291,7 +2280,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
 
-    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
+    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object >> lst) throws MorphiumDriverException {
         StoreMongoCommand store = null;
 
         try {
@@ -2317,11 +2306,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
+    public Map<String, Integer> storeMaps(String collection, List<Map<String, Object >> lst) throws MorphiumDriverException {
         return saveMaps(collection, lst);
     }
 
-    public Map<String, Integer> saveMaps(String collection, List<Map<String, Object>> lst) throws MorphiumDriverException {
+    public Map<String, Integer> saveMaps(String collection, List<Map<String, Object >> lst) throws MorphiumDriverException {
         StoreMongoCommand store = null;
 
         try {
@@ -2405,14 +2394,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     public <T> void saveList(List<T> lst, String collection, AsyncOperationCallback<T> callback) {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
-        Map<Class<?>, List<Object>> values = new HashMap<>();
+        Map<Class<?>, List<Object >> values = new HashMap<>();
 
         for (Object o : lst) {
             writers.putIfAbsent(o.getClass(), getWriterForClass(o.getClass()));
             values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
-
         for (Class cls : writers.keySet()) {
             try {
                 // noinspection unchecked
@@ -2512,6 +2500,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         // getConfig().getCache().resetCache();
         // MorphiumSingleton.reset();
+        instances.remove(this);
     }
 
     @SuppressWarnings("unused")
@@ -2539,14 +2528,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         try {
             MapReduceCommand mr = new MapReduceCommand(readConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setMap(map).setReduce(reduce);
-            List<Map<String, Object>> result = mr.execute();
+            List<Map<String, Object >> result = mr.execute();
             mr.releaseConnection();
             List<T> ret = new ArrayList<>();
 
             for (Map<String, Object> o : result) {
                 ret.add(getMapper().deserialize(type, (Map<String, Object>) o.get("value")));
             }
-
             return ret;
         } finally {
         }
@@ -2699,7 +2687,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, null, lst));
     }
 
-    public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watchAsync(String collectionName, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(()->watch(collectionName, updateFull, pipeline, lst));
     }
 
@@ -2707,7 +2695,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         asyncOperationsThreadPool.execute(()->watch(entity, updateFull, null, lst));
     }
 
-    public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watchAsync(Class<T> entity, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         asyncOperationsThreadPool.execute(()->watch(entity, updateFull, pipeline, lst));
     }
 
@@ -2715,7 +2703,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         watch(getMapper().getCollectionName(entity), updateFull, null, lst);
     }
 
-    public <T> void watch(Class<T> entity, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watch(Class<T> entity, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         watch(getMapper().getCollectionName(entity), updateFull, pipeline, lst);
     }
 
@@ -2723,13 +2711,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         watch(collectionName, getConfig().getMaxWaitTime(), updateFull, null, lst);
     }
 
-    public <T> void watch(String collectionName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watch(String collectionName, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         watch(collectionName, getConfig().getMaxWaitTime(), updateFull, pipeline, lst);
     }
 
-    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> void watch(String collectionName, int maxWaitTime, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         WatchCommand settings = null;
-
         try {
             MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
             settings = new WatchCommand(primaryConnection).setDb(getConfig().getDatabase()).setColl(collectionName).setMaxTimeMS(maxWaitTime).setPipeline(pipeline)
@@ -2764,7 +2751,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return lst.incomingData(evt);
     }
 
-    public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(String dbName, boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         AtomicBoolean runningFlag = new AtomicBoolean(true);
         asyncOperationsThreadPool.execute(()-> {
             watchDb(dbName, updateFull, null, runningFlag, lst);
@@ -2777,7 +2764,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return watchDbAsync(getConfig().getDatabase(), updateFull, null, lst);
     }
 
-    public <T> AtomicBoolean watchDbAsync(boolean updateFull, List<Map<String, Object>> pipeline, ChangeStreamListener lst) {
+    public <T> AtomicBoolean watchDbAsync(boolean updateFull, List<Map<String, Object >> pipeline, ChangeStreamListener lst) {
         return watchDbAsync(getConfig().getDatabase(), updateFull, pipeline, lst);
     }
 
@@ -2789,13 +2776,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, null, new AtomicBoolean(true), lst);
     }
 
-    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, boolean updateFull, List<Map<String, Object >> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         watchDb(dbName, getConfig().getMaxWaitTime(), updateFull, pipeline, runningFlag, lst);
     }
 
-    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object>> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
+    public <T> void watchDb(String dbName, int maxWaitTime, boolean updateFull, List<Map<String, Object >> pipeline, AtomicBoolean runningFlag, ChangeStreamListener lst) {
         WatchCommand cmd = null;
-
         try {
             MongoConnection con = getDriver().getPrimaryConnection(null);
             cmd = new WatchCommand(con).setDb(dbName).setMaxTimeMS(maxWaitTime).setFullDocument(updateFull ? WatchCommand.FullDocumentEnum.updateLookup : WatchCommand.FullDocumentEnum.defaultValue)
@@ -2861,12 +2847,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * Entities, whos
      * indices are missing or different
      */
-    public Map<Class<?>, List<IndexDescription>> checkIndices() {
+    public Map<Class<?>, List<IndexDescription >> checkIndices() {
         return checkIndices(null);
     }
 
-    public Map<Class<?>, Map<String, Integer>> checkCapped() {
-        Map<Class<?>, Map<String, Integer>> uncappedCollections = new HashMap<>();
+    public Map<Class<?>, Map<String, Integer >> checkCapped() {
+        Map<Class<?>, Map<String, Integer >> uncappedCollections = new HashMap<>();
 
         try (ScanResult scanResult = new ClassGraph().enableAnnotationInfo().enableClassInfo().scan()) {
             ClassInfoList entities = scanResult.getClassesWithAnnotation(Capped.class.getName());
@@ -2908,13 +2894,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 }
             }
         }
-
         return uncappedCollections;
     }
 
     @SuppressWarnings("CommentedOutCode")
-    public Map<Class<?>, List<IndexDescription>> checkIndices(ClassInfoList.ClassInfoFilter filter) {
-        Map<Class<?>, List<IndexDescription>> missingIndicesByClass = new HashMap<>();
+    public Map<Class<?>, List<IndexDescription >> checkIndices(ClassInfoList.ClassInfoFilter filter) {
+        Map<Class<?>, List<IndexDescription >> missingIndicesByClass = new HashMap<>();
 
         // initializing type IDs
         try (ScanResult scanResult = new ClassGraph()
@@ -2978,7 +2963,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         } catch (Exception e) {
             log.error("error", e);
         }
-
         return missingIndicesByClass;
     }
 

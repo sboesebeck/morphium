@@ -59,7 +59,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private final List<MessageListener> listeners;
 
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
-    private Map<String, List<MessageListener>> listenerByName;
+    private Map<String, List<MessageListener >> listenerByName;
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -74,7 +74,7 @@ public class Messaging extends Thread implements ShutdownListener {
     private static Vector<Messaging> allMessagings = new Vector<>();
 
     //answers for messages
-    private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, Queue<Msg >> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private final BlockingQueue<ProcessingQueueElement> processing = new PriorityBlockingQueue<>();
@@ -227,11 +227,11 @@ public class Messaging extends Thread implements ShutdownListener {
         }
     }
 
-    public Map<String, List<String>> getListenerNames() {
-        Map<String, List<String>> ret = new HashMap<>();
-        Map<String, List<MessageListener>> localCopy = new HashMap<>(listenerByName);
+    public Map<String, List<String >> getListenerNames() {
+        Map<String, List<String >> ret = new HashMap<>();
+        Map<String, List<MessageListener >> localCopy = new HashMap<>(listenerByName);
 
-        for (Map.Entry<String, List<MessageListener>> e : localCopy.entrySet()) {
+        for (Map.Entry<String, List<MessageListener >> e : localCopy.entrySet()) {
             List<String> classes = new ArrayList<>();
 
             for (MessageListener lst : e.getValue()) {
@@ -240,7 +240,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
             ret.put(e.getKey(), classes);
         }
-
         return ret;
     }
 
@@ -350,17 +349,16 @@ public class Messaging extends Thread implements ShutdownListener {
                     //                    .add("processed_by",1).add( "exclusive", 1).add("recipients", 1)
                     //                            .add("name", 1)
                     //                            .add("in_answer_to", 1));
-                    List<Map<String, Object>> msgs = fnd.execute();
-
+                    List<Map<String, Object >> msgs = fnd.execute();
                     if (!msgs.isEmpty()) {
                         msg = msgs.get(0);
                     }
-                } finally {
-                    fnd.releaseConnection();
                 }
 
+                finally {
+                    fnd.releaseConnection();
+                }
                 if (msg == null) return running;
-
                 if (msg.get("sender").equals("id")) {
                     return running;
                 }
@@ -369,17 +367,20 @@ public class Messaging extends Thread implements ShutdownListener {
                 el.setPriority((Integer) msg.get("priority"));
                 el.setId((MorphiumId) msg.get("_id"));
                 el.setTimestamp((Long) msg.get("timestamp"));
-
                 synchronized (processing) {
                     if (!processing.contains(el)) {
                         //                        log.info("ChangeStream: adding el "+el.getPriority()+"/"+el.getTimestamp());
                         processing.add(el);
                     }
                 }
-            } else {
+            }
+
+            else {
                 log.error("Some other id?!?!?" + id.getClass().getName());
             }
-        } catch (Exception e) {
+        }
+
+        catch (Exception e) {
             log.error("Error during event processing in changestream", e);
         }
 
@@ -388,7 +389,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     private void initChangeStreams() {
         // pipeline for reducing incoming traffic
-        List<Map<String, Object>> pipeline = new ArrayList<>();
+        List<Map<String, Object >> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
         //        in.put("$eq", "insert"); //, "delete", "update"));
@@ -1025,7 +1026,7 @@ public class Messaging extends Thread implements ShutdownListener {
 
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+            HashMap<String, List<MessageListener >> c = (HashMap)((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<>());
             listenerByName = c;
         }
@@ -1044,9 +1045,8 @@ public class Messaging extends Thread implements ShutdownListener {
             return;
         }
 
-        HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+        HashMap<String, List<MessageListener >> c = (HashMap)((HashMap) listenerByName).clone();
         c.get(n).remove(l);
-
         if (c.get(n).isEmpty()) {
             c.remove(n);
         }
@@ -1088,7 +1088,7 @@ public class Messaging extends Thread implements ShutdownListener {
         waitingForAnswers.clear();
         processing.clear();
         requestPoll.set(0);
-
+        allMessagings.remove(this);
         if (decouplePool != null) {
             try {
                 int sz = decouplePool.shutdownNow().size();
@@ -1102,7 +1102,6 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         morphium.removeShutdownListener(this);
-
         if (threadPool != null) {
             try {
                 int sz = threadPool.shutdownNow().size();
@@ -1128,7 +1127,6 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         int retry = 0;
-
         while (isAlive()) {
             try {
                 sleep(150);
@@ -1137,7 +1135,6 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             retry++;
-
             if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150) {
                 throw new RuntimeException("Could not terminate Messaging!");
             }
