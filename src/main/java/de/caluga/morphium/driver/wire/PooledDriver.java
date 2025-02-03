@@ -422,7 +422,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             //Do not remove ConnectionPool for host, if it is still in host-seed!
-            if (!getHostSeed().contains(host)) {
+            if (getHostSeed() != null && !getHostSeed().isEmpty() && !getHostSeed().contains(host)) {
                 connectionsList = connectionPool.remove(host);
             }
         }
