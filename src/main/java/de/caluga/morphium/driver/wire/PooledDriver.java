@@ -420,9 +420,9 @@ public class PooledDriver extends DriverBase {
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
         BlockingQueue<ConnectionContainer> connectionsList = null;
 
-        synchronized (connectionPool) {
-            //Do not remove ConnectionPool for host, if it is still in host-seed!
-            if (getHostSeed() != null && !getHostSeed().isEmpty() && !getHostSeed().contains(host)) {
+        if (getHostSeed() != null && !getHostSeed().isEmpty() && !getHostSeed().contains(host)) {
+            synchronized (connectionPool) {
+                //Do not remove ConnectionPool for host, if it is still in host-seed!
                 connectionsList = connectionPool.remove(host);
             }
         }
