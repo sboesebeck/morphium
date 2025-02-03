@@ -99,9 +99,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
 
     private static Vector<Morphium> instances = new Vector<>();
+    private static AtomicInteger maxInstances = new AtomicInteger();
     public Morphium() {
         // profilingListeners = new CopyOnWriteArrayList<>();
         instances.add(this);
+
+        if (maxInstances.get() < instances.size()) {
+            maxInstances.set(instances.size());
+            stats.put(StatisticKeys.INSTANCE_COUNT, instances);
+        }
     }
 
     public Morphium(String host, String db) {
@@ -1082,6 +1088,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             settings = new FindCommand(con).setDb(getConfig().getDatabase()).setColl(collection).setFilter(Doc.of(srch)).setBatchSize(1).setLimit(1);
             List<Map<String, Object >> found = settings.execute();
             settings.releaseConnection();
+
             // log.info("Reread took: "+settings.getMetaData().get("duration"));
             if (found != null && !found.isEmpty()) {
                 Map<String, Object> dbo = found.get(0);
