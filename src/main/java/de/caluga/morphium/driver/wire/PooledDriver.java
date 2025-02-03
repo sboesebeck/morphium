@@ -51,7 +51,7 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
 
 public class PooledDriver extends DriverBase {
     public static final String driverName = "PooledDriver";
-    private final Map<String, BlockingQueue<ConnectionContainer>> connectionPool;
+    private final Map<String, BlockingQueue<ConnectionContainer >> connectionPool;
     private final Map<Integer, ConnectionContainer> borrowedConnections;
     private final Map<DriverStatsKey, AtomicDecimal> stats;
     private long fastestTime = 10000;
@@ -421,7 +421,10 @@ public class PooledDriver extends DriverBase {
         BlockingQueue<ConnectionContainer> connectionsList = null;
 
         synchronized (connectionPool) {
-            connectionsList = connectionPool.remove(host);
+            //Do not remove ConnectionPool for host, if it is still in host-seed!
+            if (!getHostSeed().contains(host)) {
+                connectionsList = connectionPool.remove(host);
+            }
         }
 
         if (host.equals(primaryNode)) {
@@ -949,7 +952,7 @@ public class PooledDriver extends DriverBase {
         return cmd.execute();
     }
 
-    public List<Map<String, Object>> currentOp(int threshold) throws MorphiumDriverException {
+    public List<Map<String, Object >> currentOp(int threshold) throws MorphiumDriverException {
         CurrentOpCommand cmd = null;
 
         try {
@@ -971,7 +974,7 @@ public class PooledDriver extends DriverBase {
     }
 
     public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
+        return new NetworkCallHelper<Map<String, Object >> ().doCall(() -> {
             OpMsg msg = new OpMsg();
             msg.setMessageId(getNextId());
             Map<String, Object> v = Doc.of("dbStats", 1, "scale", 1024);
@@ -1002,9 +1005,9 @@ public class PooledDriver extends DriverBase {
         return getDbStats(db, false);
     }
 
-    private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
+    private List<Map<String, Object >> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked
-        return new NetworkCallHelper<List<Map<String, Object>>>().doCall(() -> {
+        return new NetworkCallHelper<List<Map<String, Object >>> ().doCall(() -> {
             var con = getReadConnection(ReadPreference.primary());
             ListCollectionsCommand cmd = new ListCollectionsCommand(con);
             cmd.setDb(db);
@@ -1032,8 +1035,7 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
-        List<Map<String, Object>> lst = getCollectionInfo(db, coll);
-
+        List<Map<String, Object >> lst = getCollectionInfo(db, coll);
         try {
             if (!lst.isEmpty() && lst.get(0).get("name") != null && lst.get(0).get("name").equals(coll)) {
                 Object capped = ((Map) lst.get(0).get("options")).get("capped");
@@ -1132,7 +1134,7 @@ public class PooledDriver extends DriverBase {
                 return up;
             }
 
-            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
+            public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object >> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
