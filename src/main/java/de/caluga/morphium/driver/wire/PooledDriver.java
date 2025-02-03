@@ -278,7 +278,7 @@ public class PooledDriver extends DriverBase {
                                     onConnectionError(hst);
                                 }
                             }
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             log.error("error", e);
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                         }
@@ -323,7 +323,7 @@ public class PooledDriver extends DriverBase {
                                     connectionPoolForHost.add(connection);
                                 }
                             }
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                         }
                     }
 
@@ -392,7 +392,7 @@ public class PooledDriver extends DriverBase {
                             }
 
                             // log.info("Finished connection creation");
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             log.error("Could not create connection to host " + hst, e);
                             onConnectionError(hst);
                         } finally {
