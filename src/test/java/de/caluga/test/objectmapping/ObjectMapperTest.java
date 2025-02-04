@@ -43,9 +43,6 @@ public class ObjectMapperTest {
     }
 
 
-
-
-
     @Test
     public void marshallListOfIdsTest() {
         ListOfIdsContainer c = new ListOfIdsContainer();
