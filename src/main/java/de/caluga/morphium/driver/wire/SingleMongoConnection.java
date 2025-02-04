@@ -592,14 +592,12 @@ public class SingleMongoConnection implements MongoConnection {
                 msg.setMessageId(msgId.incrementAndGet());
                 String[] ns = cursor.get("ns").toString().split("\\.");
                 var db = ns[0];
-                var col = ns[1];
-
-                if (ns.length > 2) {
-                    for (int i = 2; i < ns.length; i++) {
-                        col = col + "." + ns[i];
-                    }
-                }
-
+                var col = cursor.get("ns").toString().substring(ns[0].length() + 1);
+                // if (ns.length > 2) {
+                //     for (int i = 2; i < ns.length; i++) {
+                //         col = col + "." + ns[i];
+                //     }
+                // }
                 Doc doc = new Doc();
                 doc.put("getMore", cursorId);
                 doc.put("collection", col);
