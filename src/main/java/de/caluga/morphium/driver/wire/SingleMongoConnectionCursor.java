@@ -44,10 +44,11 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         setCursorId(cursorId);
         String[] ns = ((String) cursor.get("ns")).split("\\.");
         setDb(ns[0]); //collection name
-
-        if (ns.length > 1) {
-            setCollection(ns[1]);    //collection name
-        }
+        String cl = ((String)cursor.get("ns")).substring(ns[0].length() + 1);
+        // if (ns.length > 1) {
+        //     setCollection(ns[1]);    //collection name
+        // }
+        setCollection(cl);
 
         if (cursor.get("firstBatch") != null) {
             //noinspection unchecked
@@ -75,7 +76,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     //    }
 
     @Override
-    public Iterator<Map<String, Object>> iterator() {
+    public Iterator<Map<String, Object >> iterator() {
         return this;
     }
 
@@ -135,7 +136,9 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
 
         if (multithreaddedAccess && batch != null) {
             setBatch(Collections.synchronizedList(batch));
-        } else {
+        }
+
+        else {
             setBatch(batch);
         }
     }
@@ -189,7 +192,7 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         return connection;
     }
 
-    private List<Map<String, Object>> nextIteration() throws MorphiumDriverException {
+    private List<Map<String, Object >> nextIteration() throws MorphiumDriverException {
         if (getCursorId() == 0) {
             //end of stream
             return null;
@@ -215,14 +218,13 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
     }
 
     @Override
-    public synchronized List<Map<String, Object>> getAll() throws MorphiumDriverException {
-        List<Map<String, Object>> ret = new ArrayList<>();
+    public synchronized List<Map<String, Object >> getAll() throws MorphiumDriverException {
+        List<Map<String, Object >> ret = new ArrayList<>();
 
         while (hasNext()) {
             ret.addAll(getBatch());
             internalIndex = getBatch().size();
         }
-
         return ret;
     }
 

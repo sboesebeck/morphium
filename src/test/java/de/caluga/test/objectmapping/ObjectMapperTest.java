@@ -33,6 +33,16 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 public class ObjectMapperTest {
     private Logger log = LoggerFactory.getLogger(ObjectMapperTest.class);
 
+
+    @Test
+    public void getCollectionNameWithDot() {
+        MorphiumObjectMapper mapper = new ObjectMapperImpl();
+        String n = mapper.getCollectionName(DotClass.class);
+        log.info("ClassName: " + n);
+        assertEquals("dot.class", n);
+    }
+
+
     @Test
     public void marshallListOfIdsTest() {
         ListOfIdsContainer c = new ListOfIdsContainer();
@@ -205,18 +215,19 @@ public class ObjectMapperTest {
 
         TestClassContainer tcc = new TestClassContainer();
         tcc.id = new MorphiumId();
-        tcc.elements=lst;
+        tcc.elements = lst;
         var m = om.serialize(tcc);
         assertNotNull(m);
         assertNotNull(m.get("elements"));
-        assertTrue(m.get("elements") instanceof List );
-        assertEquals(10,((List)m.get("elements")).size());
+        assertTrue(m.get("elements") instanceof List);
+        assertEquals(10, ((List)m.get("elements")).size());
         var tcc2 = om.deserialize(TestClassContainer.class, m);
         assertNotNull(tcc2);
         assertNotNull(tcc2.id);
-        assertEquals(tcc.elements.size(),tcc2.elements.size());
-        for (int i=0;i<10;i++){
-            assertEquals("str"+i,tcc2.elements.get(i).justAString);
+        assertEquals(tcc.elements.size(), tcc2.elements.size());
+
+        for (int i = 0; i < 10; i++) {
+            assertEquals("str" + i, tcc2.elements.get(i).justAString);
         }
     }
 
@@ -229,6 +240,12 @@ public class ObjectMapperTest {
         public List<TestClass> elements;
         public Map<String, TestClass> map;
 
+    }
+
+    @Entity(collectionName = "dot.class")
+    public static class DotClass {
+        @Id
+        String id;
     }
 
     public static class TestClass implements Serializable {
