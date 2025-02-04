@@ -44,7 +44,12 @@ public class SingleMongoConnectionCursor extends MorphiumCursor {
         setCursorId(cursorId);
         String[] ns = ((String) cursor.get("ns")).split("\\.");
         setDb(ns[0]); //collection name
-        String cl = ((String)cursor.get("ns")).substring(ns[0].length() + 1);
+        String cl = cursor.get("ns").toString();
+
+        if (ns[0].length() + 1 < cursor.get("ns").toString().length()) {
+            cl = ((String)cursor.get("ns")).substring(ns[0].length() + 1);
+        }
+
         // if (ns.length > 1) {
         //     setCollection(ns[1]);    //collection name
         // }
