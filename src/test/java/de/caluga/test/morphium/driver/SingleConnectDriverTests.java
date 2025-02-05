@@ -20,7 +20,6 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 
-@Disabled
 public class SingleConnectDriverTests extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
 
@@ -36,14 +35,13 @@ public class SingleConnectDriverTests extends DriverTestBase {
     }
 
     @Test
-    @Disabled
     public void testHeartbeat() throws Exception {
         SingleMongoConnectDriver drv = getDriver();
         log.info("Hearbeat frequency " + drv.getHeartbeatFrequency());
         Thread.sleep(drv.getHeartbeatFrequency() * 5);
         MongoConnection con = drv.getConnection();
         var originalConnectedTo = con.getConnectedTo();
-        log.info("Stepping down on node "+originalConnectedTo);
+        log.info("Stepping down on node " + originalConnectedTo);
         StepDownCommand cmd = new StepDownCommand(con).setTimeToStepDown(15).setForce(Boolean.TRUE);
         var res = cmd.execute();
         log.info("result: " + Utils.toJsonString(res));
@@ -58,7 +56,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
             con = drv.getConnection();
 
             if (con.getConnectedTo().equals(originalConnectedTo)) {
-                log.info("still on same node: "+originalConnectedTo);
+                log.info("still on same node: " + originalConnectedTo);
                 drv.releaseConnection(con);
                 Thread.sleep(1000);
                 continue;
@@ -151,7 +149,7 @@ public class SingleConnectDriverTests extends DriverTestBase {
         assertNotNull(result);
         assertTrue(result.size() > 0, "did not find");
         var update = new UpdateMongoCommand(drv.getConnection()).setDb("morphium_test").setColl("tests").addUpdate(Doc.of("_id", "123123"), Doc.of("value", "the value"), null, false, false, null,
-          null, null);
+            null, null);
         var stats = update.execute();
         update.releaseConnection();
         assertNotNull(stats);

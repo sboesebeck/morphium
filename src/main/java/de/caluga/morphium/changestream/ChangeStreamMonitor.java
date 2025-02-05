@@ -36,7 +36,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
     private Thread changeStreamThread;
     private final MorphiumObjectMapper mapper;
     private boolean dbOnly = false;
-    private final List<Map<String, Object>> pipeline;
+    private final List<Map<String, Object >> pipeline;
     private MorphiumDriver dedicatedConnection;
 
     public ChangeStreamMonitor(Morphium m) {
@@ -44,7 +44,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         dbOnly = true;
     }
 
-    public ChangeStreamMonitor(Morphium m, List<Map<String, Object>> pipeline) {
+    public ChangeStreamMonitor(Morphium m, List<Map<String, Object >> pipeline) {
         this(m, null, false, pipeline);
         dbOnly = true;
     }
@@ -54,7 +54,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         this(m, m.getMapper().getCollectionName(entity), false, null);
     }
 
-    public ChangeStreamMonitor(Morphium m, Class<?> entity, List<Map<String, Object>> pipeline) {
+    public ChangeStreamMonitor(Morphium m, Class<?> entity, List<Map<String, Object >> pipeline) {
         this(m, m.getMapper().getCollectionName(entity), false, null);
     }
 
@@ -62,11 +62,11 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         this(m, collectionName, fullDocument, null);
     }
 
-    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, List<Map<String, Object>> pipeline) {
+    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, List<Map<String, Object >> pipeline) {
         this(m, collectionName, fullDocument, m.getConfig().getMaxWaitTime(), pipeline);
     }
 
-    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object>> pipeline) {
+    public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object >> pipeline) {
         morphium = m;
 
         //dedicated connection
@@ -141,13 +141,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
         try {
             long start = System.currentTimeMillis();
-
-            try {
-                dedicatedConnection.close();
-            } catch (Exception e) {
-                log.warn("Closing mongo connection error", e.getMessage());
-            }
-
             dedicatedConnection = null;
 
             while (changeStreamThread != null && changeStreamThread.isAlive()) {
