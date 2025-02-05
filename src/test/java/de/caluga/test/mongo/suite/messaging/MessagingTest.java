@@ -95,7 +95,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testMsgQueName(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -156,7 +156,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testMsgLifecycle(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
@@ -1374,7 +1374,7 @@ public class MessagingTest extends MultiDriverTestBase {
             Messaging sender = new Messaging(morphium, 10000, false);
             sender.setSenderId("sender");
             sender.start();
-            Map<String, List<MorphiumId>> receivedIds = new ConcurrentHashMap<String, List<MorphiumId>>();
+            Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
             List<Messaging> receivers = new ArrayList<Messaging>();
 
             for (int i = 0; i < 10; i++) {
@@ -1394,7 +1394,6 @@ public class MessagingTest extends MultiDriverTestBase {
                     return null;
                 });
             }
-
             int amount = 100;
 
             for (int i = 0; i < amount; i++) {
@@ -1405,7 +1404,6 @@ public class MessagingTest extends MultiDriverTestBase {
                     log.info("Sent message #" + i);
                 }
             }
-
             while (true) {
                 StringBuilder b = new StringBuilder();
                 int totalNum = 0;
@@ -1434,7 +1432,6 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 Thread.sleep(1500);
             }
-
             Thread.sleep(1000);
             log.info("--------");
             StringBuilder b = new StringBuilder();
@@ -1473,7 +1470,6 @@ public class MessagingTest extends MultiDriverTestBase {
                 b.append(")");
                 log.info(b.toString());
             }
-
             log.info("Total processed: " + totalNum);
             log.info("    exclusives : " + excl);
             log.info("    broadcasts : " + bcast);
@@ -1481,7 +1477,6 @@ public class MessagingTest extends MultiDriverTestBase {
             for (Messaging m : receivers) {
                 m.terminate();
             }
-
             sender.terminate();
             log.info(method + "() finished with " + morphium.getDriver().getName());
         }

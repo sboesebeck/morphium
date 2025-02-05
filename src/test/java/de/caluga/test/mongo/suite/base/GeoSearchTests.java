@@ -26,6 +26,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+
             //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
@@ -36,12 +37,12 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
+
             morphium.storeList(toStore);
-
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").near(0, 0, 10);
-
             List<Place> lst = q.asList();
             log.info("Found " + lst.size() + " places around 0,0 (10)");
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
@@ -54,7 +55,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
-            //        morphium.ensureIndicesFor(Place.class);
+            morphium.ensureIndicesFor(Place.class);
+
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
@@ -64,12 +66,12 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
+
             morphium.storeList(toStore);
-
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").nearSphere(0, 0);
-
             List<Place> lst = q.asList();
             log.info("Found " + lst.size() + " places around 0,0 ");
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
@@ -82,6 +84,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+
             //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
@@ -92,13 +95,14 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
-            morphium.storeList(toStore);
 
+            morphium.storeList(toStore);
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").box(0, 0, 10, 10);
             log.info("Query: " + q.toQueryObject().toString());
             long cnt = q.countAll();
             log.info("Found " + cnt + " places around 0,0 -> (10,10)");
             List<Place> lst = q.asList();
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
@@ -111,6 +115,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+
             //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
@@ -121,13 +126,14 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
-            morphium.storeList(toStore);
 
+            morphium.storeList(toStore);
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").centerSphere(0, 0, 0.01);
             log.info("Query: " + q.toQueryObject().toString());
             long cnt = q.countAll();
             log.info("Found " + cnt + " places around 0,0 -> 0.01 rad");
             List<Place> lst = q.asList();
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
@@ -140,6 +146,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+
             //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
@@ -150,13 +157,14 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
-            morphium.storeList(toStore);
 
+            morphium.storeList(toStore);
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").polygon(0, 0, 0, 10, 10, 80, 80, 0);
             log.info("Query: " + q.toQueryObject().toString());
             long cnt = q.countAll();
             log.info("Found " + cnt + " places around 0,0 -> (10,10)");
             List<Place> lst = q.asList();
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
@@ -169,6 +177,7 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+
             //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
@@ -179,13 +188,14 @@ public class GeoSearchTests extends MultiDriverTestBase {
                 p.setPosition(pos);
                 toStore.add(p);
             }
-            morphium.storeList(toStore);
 
+            morphium.storeList(toStore);
             Query<Place> q = morphium.createQueryFor(Place.class).f("position").center(0, 0, 10);
             log.info("Query: " + q.toQueryObject().toString());
             long cnt = q.countAll();
             log.info("Found " + cnt + " places around 0,0 -> 10");
             List<Place> lst = q.asList();
+
             for (Place p : lst) {
                 log.info("Position: " + p.getPosition().get(0) + " / " + p.getPosition().get(1));
             }
