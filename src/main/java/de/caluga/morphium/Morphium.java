@@ -106,7 +106,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (maxInstances.get() < instances.size()) {
             maxInstances.set(instances.size());
-            stats.put(StatisticKeys.INSTANCE_COUNT, instances);
+            StatisticValue v = new StatisticValue();
+            v.set(maxInstances.get());
+            stats.putIfAbsent(StatisticKeys.INSTANCE_COUNT, v);
         }
     }
 
