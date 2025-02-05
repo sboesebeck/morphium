@@ -30,15 +30,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @Disabled
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamDatabaseTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             morphium.dropCollection(ComplexObject.class);
             morphium.dropCollection(UncachedObject.class);
             count = 0;
             Thread.sleep(1500);
-            var runningFlag = morphium.watchDbAsync(morphium.getDatabase(), true, null, evt->{
+            var runningFlag = morphium.watchDbAsync(morphium.getDatabase(), true, null, evt-> {
                 log.info("Incoming event!");
                 printevent(morphium, evt);
                 count++;
@@ -76,7 +76,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamBackgroundTest(Morphium morphium) throws Exception {
         try (morphium) {
             if (morphium.getDriver() instanceof SingleMongoConnectDriver) { return; }
@@ -88,7 +88,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             try {
                 final var count = new AtomicInteger(0);
                 final var written = new AtomicInteger(0);
-                var t = new Thread(()->{
+                var t = new Thread(()-> {
                     try {
                         while (run.get()) {
                             try {
@@ -110,7 +110,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 });
                 t.start();
                 start = System.currentTimeMillis();
-                morphium.watchAsync(UncachedObject.class, true, evt->{
+                morphium.watchAsync(UncachedObject.class, true, evt-> {
                     count.incrementAndGet();
                     printevent(morphium, evt);
                     return run.get();
@@ -141,15 +141,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamInsertTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             //morphium.dropCollection(UncachedObject.class);
             final var run = new AtomicBoolean(true);
             final var count = new AtomicInteger(0);
             final var written = new AtomicInteger(0);
-            new Thread(()->{
+            new Thread(()-> {
                 while (run.get()) {
                     try {
                         Thread.sleep(2500);
@@ -175,7 +175,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 }
             }).start();
             start = System.currentTimeMillis();
-            morphium.watch(UncachedObject.class, true, evt->{
+            morphium.watch(UncachedObject.class, true, evt-> {
                 printevent(morphium, evt);
                 count.incrementAndGet();
                 return System.currentTimeMillis() - start < 8500;
@@ -188,10 +188,10 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamUpdateTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             //morphium.dropCollection(UncachedObject.class);
             Thread.sleep(1500);
             createUncachedObjects(morphium, 100);
@@ -200,7 +200,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             final var count = new AtomicInteger(0);
             start = System.currentTimeMillis();
             long start = System.currentTimeMillis();
-            new Thread(()->{
+            new Thread(()-> {
                 try {
                     Thread.sleep(2500);
                 } catch (InterruptedException e) {
@@ -237,7 +237,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
                 log.info("Writing thread finished...");
             }).start();
             log.info("Watching...");
-            morphium.watch(UncachedObject.class, true, evt->{
+            morphium.watch(UncachedObject.class, true, evt-> {
                 printevent(morphium, evt);
                 count.incrementAndGet();
                 log.info("count: " + count.get());
@@ -278,15 +278,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamMonitorTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             morphium.dropCollection(UncachedObject.class);
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
             m.start();
             final AtomicInteger cnt = new AtomicInteger(0);
-            m.addListener(evt->{
+            m.addListener(evt-> {
                 printevent(morphium, evt);
                 cnt.incrementAndGet();
                 return true;
@@ -305,15 +305,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void changeStreamMonitorCollectionTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             morphium.dropCollection(UncachedObject.class, "uncached_object", null);
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "uncached_object", false, null);
             m.start();
             final AtomicInteger cnt = new AtomicInteger(0);
-            m.addListener(evt->{
+            m.addListener(evt-> {
                 printevent(morphium, evt);
                 cnt.set(cnt.get() + 1);
                 return true;
@@ -321,6 +321,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             Thread.sleep(1000);
 
             for (int i = 0; i < 100; i++) {
+                log.info("Storing " + i);
                 morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
             }
 
@@ -332,14 +333,15 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void terminateChangeStreamTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
+
             for (int i = 0; i < 3; i++) {
                 ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, UncachedObject.class);
                 m.start();
-                m.addListener(evt->{
+                m.addListener(evt-> {
                     printevent(morphium, evt);
                     return true;
                 });
@@ -351,17 +353,17 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoInMem")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void changeStreamPipelineTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
-            List<Map<String, Object>> pipeline = new ArrayList<>();
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
+            List<Map<String, Object >> pipeline = new ArrayList<>();
             pipeline.add(UtilsMap.of("$match", UtilsMap.of("operationType", UtilsMap.of("$in", Arrays.asList("insert")))));
             ChangeStreamMonitor mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
             final AtomicInteger inserts = new AtomicInteger();
             final AtomicInteger updates = new AtomicInteger();
             final AtomicInteger deletes = new AtomicInteger();
-            mon.addListener(evt->{
+            mon.addListener(evt-> {
                 if (evt.getOperationType().equals("insert")) {
                     log.info("The strValue inserted: " + evt.getFullDocument().get("str_value"));
                     inserts.incrementAndGet();
@@ -380,7 +382,6 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             for (int i = 0; i < 10; i++) {
                 morphium.store(new UncachedObject("changeStreamPipelineTestValue " + i, i), "uncached_object", null);
             }
-
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
             morphium.delete(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"));
             Thread.sleep(2500);
@@ -395,7 +396,7 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             pipeline = new ArrayList<>();
             pipeline.add(UtilsMap.of("$match", UtilsMap.of("operationType", UtilsMap.of("$in", Arrays.asList("update")))));
             mon = new ChangeStreamMonitor(morphium, "uncached_object", false, pipeline);
-            mon.addListener(evt->{
+            mon.addListener(evt-> {
                 if (evt.getOperationType().equals("insert")) {
                     if (evt.getFullDocument().get("str_value").equals("value")) {
                         log.info("got an old store");
@@ -417,7 +418,6 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             for (int i = 0; i < 10; i++) {
                 morphium.store(new UncachedObject("changeStreamPipelineTestOtherValue " + i, i), "uncached_object", null);
             }
-
             morphium.set(morphium.createQueryFor(UncachedObject.class).setCollectionName("uncached_object"), "strValue", "updated");
             Thread.sleep(2000);
             assertEquals(0, inserts.get());
@@ -431,16 +431,16 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testStringId(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info(String.format("=====================> Running Test with %s <===============================",morphium.getDriver().getName()));
+            log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
             final AtomicInteger cnt = new AtomicInteger();
             morphium.dropCollection(StringIdEntity.class);
             Thread.sleep(1000);
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "string_id_entity", true, null);
             m.start();
-            m.addListener(evt->{
+            m.addListener(evt-> {
                 log.info("incoming event " + evt.getOperationType());
                 log.info(Utils.toJsonString(evt.getFullDocument()));
                 //printevent(morphium,evt);

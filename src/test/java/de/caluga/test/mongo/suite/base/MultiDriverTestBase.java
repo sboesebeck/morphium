@@ -254,6 +254,8 @@ public class MultiDriverTestBase {
 
             if (m == null) return morphiums.stream();
 
+            if (m.listDatabases() == null) return morphiums.stream();
+
             for (String db : m.listDatabases()) {
                 if (db.startsWith("morphium")) {
                     log.info(m.getDriver().getName() + ": Dropping db " + db);
