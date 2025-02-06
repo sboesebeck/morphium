@@ -1,4 +1,11 @@
 #!/bin/bash
+RD='\033[0;31m'
+GN='\033[0;32m'
+BL='\033[0;34m'
+YL='\033[0;33m'
+MG='\033[0;35m'
+CN='\033[0;36m'
+CL='\033[0m'
 
 getFailure() {
   cls=$1
@@ -76,12 +83,24 @@ for i in $(grep -a "Tests run: .*in " test.log/*.log | cut -f5 -d: | cut -f1 -d,
   ((err = err + i))
 done
 ((sum = fail + err))
+C1="$GN"
+C2="$GN"
+C3="$GN"
 
+if [ "$sum" -gt 0 ]; then
+  C1=$RD
+fi
+if [ "$fail" -gt 0 ]; then
+  C2=$RD
+fi
+if [ "$err" -gt 0 ]; then
+  C3=$RD
+fi
 if [ "$nosum" -eq 0 ]; then
-  echo "Toal tests run   : $run"
-  echo "Total failed     : $sum"
-  echo "Tests failed     : $fail"
-  echo "Tests with errors: $err"
+  echo -e "Toal tests run     : ${BL}$run${CL}"
+  echo -e "Total unsuccessful : ${C1}$sum${CL}"
+  echo -e "Tests failed       : ${C2}$fail${CL}"
+  echo -e "Tests with errors  : ${C3}$err${CL}"
 fi
 if [ "$fail" -eq 0 ] && [ "$err" -eq 0 ]; then
   exit
