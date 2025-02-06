@@ -33,7 +33,7 @@ public class AliasesTest extends MultiDriverTestBase {
         try (morphium) {
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class).f("last_changed").eq(new Date());
             assertNotNull(q, "Null Query?!?!?");
-            assert (q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
+            assert(q.toQueryObject().toString().startsWith("{changed=")) : "Wrong query: " + q.toQueryObject().toString();
             log.info("All ok");
         }
     }
@@ -44,12 +44,11 @@ public class AliasesTest extends MultiDriverTestBase {
         try (morphium) {
             MorphiumId id = new MorphiumId();
             Map<String, Object> stats = morphium.storeMap(ComplexObject.class, UtilsMap.of("last_changed", (Object) System.currentTimeMillis(),
-                    "_id", id,
-                    "einText", "A little text")
-            );
+                "_id", id,
+                "einText", "A little text")
+                );
             assertNotNull(stats);
             assertEquals(1, stats.get("n"));
-
             List<ComplexObject> lst = morphium.createQueryFor(ComplexObject.class).asList();
             assertEquals(1, lst.size());
             assertEquals(id, lst.get(0).getId());
@@ -70,7 +69,7 @@ public class AliasesTest extends MultiDriverTestBase {
             m.put("the_value", "other value");
             m.put("_id", id);
             morphium.storeMap(AliasesEntity.class, m);
-
+            Thread.sleep(150);
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
             assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
             assertNotNull(ae2.getValues());
@@ -93,11 +92,10 @@ public class AliasesTest extends MultiDriverTestBase {
             m.put("the_value", m.get("value"));
             m.remove("value");
             m.put("_id", id);
-
             m.put("lots_of_values", m.get("values"));
             m.remove("values");
             morphium.storeMap(AliasesEntity.class, m);
-
+            Thread.sleep(150);
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
             assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
             assertNotNull(ae2.getValues());
@@ -120,11 +118,10 @@ public class AliasesTest extends MultiDriverTestBase {
             m.put("the_value", m.get("value"));
             m.remove("value");
             m.put("_id", id);
-
             m.put("lots_of_values", m.get("values"));
             m.remove("values");
             morphium.storeMap(AliasesEntity.class, m);
-
+            Thread.sleep(150);
             AliasesEntity ae2 = morphium.createQueryFor(AliasesEntity.class).f("_id").eq(id).get();
             assertEquals("a value", ae2.getValue()); //if primary name is present, do not use aliases
             assertNotNull(ae2.getReferences());

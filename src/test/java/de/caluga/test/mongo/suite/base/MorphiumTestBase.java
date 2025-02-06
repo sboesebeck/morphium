@@ -120,12 +120,6 @@ public class MorphiumTestBase {
     private void init() {
         log.info("in init!");
 
-        if (morphium != null) {
-            log.info("Closing morphium");
-            morphium.close();
-            morphium = null;
-        }
-
         if (morphium == null) {
             MorphiumConfig cfg;
             Properties p = getProps();
@@ -187,31 +181,25 @@ public class MorphiumTestBase {
                 storeProps();
             }
 
-            if (!cfg.isAtlas()) {
-                cfg.setDatabase(cfg.getDatabase() + "_" + number.get());
-            }
-
             morphium = new Morphium(cfg);
             log.info("Morphium instanciated");
         }
 
-        int num = number.incrementAndGet();
+        // int num = number.incrementAndGet();
         OutputHelper.figletOutput(log, "---------");
-        OutputHelper.figletOutput(log, "Test#: " + num);
-
-        try {
-            if (!morphium.getConfig().isAtlas()) {
-                log.info("Dropping database: " + morphium.getConfig().getDatabase());
-                DropDatabaseMongoCommand settings = new DropDatabaseMongoCommand(morphium.getDriver().getPrimaryConnection(null));
-                settings.setComment("Dropping from morphiumg test base");
-                settings.setDb(morphium.getConfig().getDatabase());
-                settings.execute();
-                settings.releaseConnection();
-            }
-        } catch (MorphiumDriverException e) {
-            e.printStackTrace();
-        }
-
+        // OutputHelper.figletOutput(log, "Test#: " + num);
+        // try {
+        //     if (!morphium.getConfig().isAtlas()) {
+        //         log.info("Dropping database: " + morphium.getConfig().getDatabase());
+        //         DropDatabaseMongoCommand settings = new DropDatabaseMongoCommand(morphium.getDriver().getPrimaryConnection(null));
+        //         settings.setComment("Dropping from morphiumg test base");
+        //         settings.setDb(morphium.getConfig().getDatabase());
+        //         settings.execute();
+        //         settings.releaseConnection();
+        //     }
+        // } catch (MorphiumDriverException e) {
+        //     e.printStackTrace();
+        // }
         log.info("Init complete");
     }
 
