@@ -3,6 +3,7 @@ package de.caluga.morphium.driver.wireprotocol;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.zip.DeflaterInputStream;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
@@ -29,7 +30,28 @@ public class OpCompressed extends WireProtocolMessage {
         idx++;
         compressedMessage = new byte[bytes.length - idx];
         System.arraycopy(bytes, idx, compressedMessage, 0, compressedMessage.length);
-        compressedMessage = Snappy.uncompress(compressedMessage);
+
+        if (compressorId == COMPRESSOR_SNAPPY) {
+            compressedMessage = Snappy.uncompress(compressedMessage);
+        } else if (compressorId == COMPRESSOR_ZLIB) {
+            InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(compressedMessage));
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] b = new byte[100];
+            int r = 0;
+
+            while ((r = in.read(b, 0, 100)) != -1) {
+                System.out.println("read: " + r);
+                out.write(b, 0, r);
+            }
+
+            in.close();
+            out.flush();
+            compressedMessage = out.toByteArray();
+        } else if (compressorId == COMPRESSOR_ZSTD) {
+            throw new IllegalArgumentException("ZSTD compression not supported!");
+        } else {
+            throw new IllegalArgumentException("unsupported compression id: " + compressorId);
+        }
     }
 
     @Override
@@ -45,6 +67,8 @@ public class OpCompressed extends WireProtocolMessage {
             DeflaterOutputStream zlibOut = new DeflaterOutputStream(out);
             zlibOut.write(compressedMessage);
             zlibOut.flush();
+            zlibOut.close();
+            out.flush();
         } else if (compressorId == COMPRESSOR_ZSTD) {
             throw new IllegalArgumentException("ZSTD compression not supported!");
         } else {
