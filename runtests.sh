@@ -8,7 +8,7 @@ CN='\033[0;36m'
 CL='\033[0m'
 
 function quitting() {
-  echo "Shutting down... current test $t"
+  echo -e "${RD}Shutting down...${CL} current test $t"
 
   kill -9 $(<test.pid) >/dev/null 2>&1
   kill -9 $(<fail.pid) >/dev/null 2>&1
@@ -23,16 +23,31 @@ function quitting() {
 
 nodel=0
 skip=0
-if [ "q$1" == "q--nodel" ]; then
-  nodel=1
-  shift
-fi
+refresh=5
+logLength=15
 
-if [ "q$1" == "q--skip" ]; then
-  skip=1
-  shift
-fi
+while [ "q$1" != "q" ]; do
 
+  if [ "q$1" == "q--nodel" ]; then
+    nodel=1
+    shift
+  elif [ "q$1" == "q--skip" ]; then
+    skip=1
+    shift
+  elif [ "q$1" == "q--restart" ]; then
+    rm -rf test.log
+    mkdir test.log
+    shift
+  elif [ "q$1" == "q--logs" ]; then
+    shift
+    logLength=$1
+    shift
+  elif [ "q$1" == "q--refresh" ]; then
+    shift
+    refresh=$1
+    shift
+  fi
+done
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   count=$(ls -1 test.log/* | wc -l)
   if [ "$count" -gt 0 ]; then
@@ -84,7 +99,7 @@ rg -l "@ParameterizedTest" | grep ".java" >>files.lst
 sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
 sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
 if [ "$skip" -ne 0 ]; then
-  echo "Skipping tests already run"
+  echo -e "${BL}Info:${CL} Skipping tests already run"
   for i in $(ls -1 test.log); do
     i=$(basename $i)
     i=${i%%.log}
@@ -120,7 +135,7 @@ mvn compile test-compile >/dev/null || {
 }
 
 tst=0
-echo "Starting..." >failed.txt
+echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
 {
   while true; do
@@ -134,7 +149,7 @@ echo "Starting..." >failed.txt
 } &
 
 echo $! >fail.pid
-
+start=$(date +%s)
 for t in $(<files.txt); do
   ((tst = tst + 1))
   tm=$(date +%s)
@@ -147,19 +162,22 @@ for t in $(<files.txt); do
   fi
   while true; do
     clear
-    echo -e "Date: $(date)"
+    ((d = $(date +%s) - start))
+    echo -e "Date: $(date) - Running ${MG}$d{$CL}sec"
+    echo "---------------------------------------------------------------------------------------------------------"
     echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
     echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
     echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')$CL"
     if [ "$m" != "." ]; then
       echo -e " Tests matching: ${BL}$m${CL}"
     fi
-    cat failed.txt | pr -t -2 -w100
+    echo "---------------------------------------------------------------------------------------------------------"
+    cat failed.txt
     ((dur = $(date +%s) - tm))
     echo -e "Duration: ${MG}${dur}s${CL}"
-    echo -e "---------- ${CN}LOG:$CL"
-    tail -n 15 test.log/"$t".log
-    echo "----------"
+    echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+    tail -n $logLength test.log/"$t".log
+    echo "---------------------------------------------------------------------------------------------------------"
     # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
 
     # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
@@ -175,7 +193,7 @@ for t in $(<files.txt); do
       ((err = err + 1))
       kill %1
     fi
-    sleep 5
+    sleep $refresh
   done
 
 done
