@@ -45,14 +45,16 @@ public class PooledDriverTest {
     @Test
     public void testPooledConnections() throws Exception {
         PooledDriver drv = getDriver();
+        int min = drv.getMinConnectionsPerHost();
+        int max = drv.getMaxConnectionsPerHost();
         log.info("Connecting...");
         drv.connect();
         Thread.sleep(1000);
         log.info("Checking status");
 
         for (var e : drv.getNumConnectionsByHost().entrySet()) {
-            log.info("Host: " + e.getKey() + " connections: " + e.getValue());
-            assertTrue(e.getValue() <= 10 && e.getValue() >= 2);
+            log.info("Host: " + e.getKey() + " connections: " + e.getValue() + " min connections: " + min + " Max: " + max);
+            assertTrue(e.getValue() <= 10 && e.getValue() >= min);
         }
 
         drv.close();
