@@ -76,26 +76,27 @@ public class PooledDriverTest {
 
         try (drv) {
             drv.connect();
+            Thread.sleep(2000);
             //dropping testdb
             var con = drv.getPrimaryConnection(null);
             DropDatabaseMongoCommand cmd = new DropDatabaseMongoCommand(con);
             cmd.setDb("morphium_test");
             cmd.execute();
             drv.releaseConnection(con);
+            con = drv.getPrimaryConnection(null);
 
             for (int i = 0; i < amount; i++) {
                 if (i % 100 == 0) {
                     log.info(String.format("Stored %s/%s", i, amount));
                 }
 
-                con = drv.getPrimaryConnection(null);
                 InsertMongoCommand insert = new InsertMongoCommand(con);
                 insert.setDocuments(Arrays.asList(om.serialize(new UncachedObject("value_" + (i + amount), i + amount)), om.serialize(new UncachedObject("value_" + i, i))));
                 insert.setColl("uncached_object").setDb("morphium_test");
                 var m = insert.execute();
                 assertEquals(2, m.get("n"), "should insert 2 elements");
                 //log.info(Utils.toJsonString(m));
-                drv.releaseConnection(con);
+                // drv.releaseConnection(con);
             }
 
             drv.releaseConnection(con);
@@ -105,17 +106,15 @@ public class PooledDriverTest {
             //            log.info("Waiting for reconnects due to idle / max age connections");
             //            Thread.sleep(1000); //forcing idle reconnects
             //reading
-            var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
 
             for (int i = 0; i < amount; i++) {
-                //log.info("got connection to " + c.getConnectedTo());
+                var c = drv.getReadConnection(ReadPreference.secondaryPreferred());
+                // log.info("got connection to " + c.getConnectedTo());
                 FindCommand fnd = new FindCommand(c).setLimit(10).setColl("uncached_object").setDb("morphium_test").setFilter(Doc.of("counter", i));
                 var ret = fnd.execute();
                 assertNotNull(ret);
                 assertEquals(ret.size(), 1, "Should find exactly one element");
             }
-
-            drv.releaseConnection(con);
         }
 
         long dur = System.currentTimeMillis() - start;
