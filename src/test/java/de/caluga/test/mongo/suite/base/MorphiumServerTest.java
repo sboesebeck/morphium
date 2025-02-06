@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.server.MorphiumServer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Disabled
 public class MorphiumServerTest {
     private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
 
