@@ -11,20 +11,19 @@ public class DefaultValuesTest extends MorphiumTestBase {
     public void defaultValuesTest() throws Exception {
         DefaultsTestEntitiy e = new DefaultsTestEntitiy();
         morphium.store(e);
-
+        Thread.sleep(150);
         DefaultsTestEntitiy read = morphium.findById(DefaultsTestEntitiy.class, e.id);
-        assert (read.bool == null);
-        assert (read.v == e.v);
-        assert (read.value.equals("value"));
-        assert (read.value2.equals("value2"));
-
+        assert(read.bool == null);
+        assert(read.v == e.v);
+        assert(read.value.equals("value"));
+        assert(read.value2.equals("value2"));
         morphium.set(read, "value", (Object) null);
         morphium.unset(read, "value2");
         Thread.sleep(500);
         read = morphium.findById(DefaultsTestEntitiy.class, e.id);
-        assert (read.value == null);
-        assert (read.value2.equals("value2"));
-        assert (read.bool == null);
+        assert(read.value == null);
+        assert(read.value2.equals("value2"));
+        assert(read.bool == null);
     }
 
 

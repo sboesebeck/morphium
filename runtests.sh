@@ -6,11 +6,11 @@ function quitting() {
 	kill -9 $(<test.pid) >/dev/null 2>&1
 	kill -9 $(<fail.pid) >/dev/null 2>&1
 	rm -f test.pid fail.pid >/dev/null 2>&1
-    echo "Removing unfinished test $t"
-    rm -f test.log/$t.log
+	echo "Removing unfinished test $t"
+	rm -f test.log/$t.log
 	./getFailedTests.sh >failed.txt
 	echo "List of failed tests in failed.txt"
-    cat failed.txt
+	cat failed.txt
 	exit
 }
 
@@ -27,28 +27,29 @@ if [ "q$1" == "q--skip" ]; then
 fi
 
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
-    count=$(ls -1 test.log/* | wc -l)
-    if [ "$count" -gt 0 ]; then
-        echo "There are restults from old tests there - continue tests (c), erase old logs and restart all (r) or abort (CTRL-C / a)?"
-        read q
-        case $q in
-            c)
-                echo "Will continue where we left of..."
-                skip=1;
-                ;;
-            r)
-                echo "Erase all and restart..."
-                skip=0;
-                ;;
-            a)
-                echo "Aborting..."
-                exit
-                ;;
-            *)
-                echo "Unknown answer - aborting"
-                exit 1
-        esac
-    fi
+	count=$(ls -1 test.log/* | wc -l)
+	if [ "$count" -gt 0 ]; then
+		echo "There are restults from old tests there - continue tests (c), erase old logs and restart all (r) or abort (CTRL-C / a)?"
+		read q
+		case $q in
+		c)
+			echo "Will continue where we left of..."
+			skip=1
+			;;
+		r)
+			echo "Erase all and restart..."
+			skip=0
+			;;
+		a)
+			echo "Aborting..."
+			exit
+			;;
+		*)
+			echo "Unknown answer - aborting"
+			exit 1
+			;;
+		esac
+	fi
 fi
 #trap quitting EXIT
 trap quitting SIGINT
@@ -96,7 +97,7 @@ testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" fil
 testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-((testMethods = testMethods + 3 * testMethods3 + testMethods2*2 + testMethods1))
+((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
 	rm -rf test.log
 	mkdir test.log
@@ -110,7 +111,6 @@ mvn compile test-compile >/dev/null || {
 	echo "Compilation failed!"
 	exit 1
 }
-
 
 tst=0
 echo "Starting..." >failed.txt
@@ -146,7 +146,7 @@ for t in $(<files.txt); do
 		if [ "$m" != "." ]; then
 			echo " Tests matching: $m"
 		fi
-		cat failed.txt | pr -t -2 -w280
+		cat failed.txt | pr -t -2 -w80
 		((dur = $(date +%s) - tm))
 		echo "Duration: $dur"
 		echo "---------- LOG: "

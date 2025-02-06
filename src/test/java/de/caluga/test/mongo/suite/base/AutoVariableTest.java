@@ -31,161 +31,153 @@ public class AutoVariableTest extends MorphiumTestBase {
                 CTimeTest ct = new CTimeTest();
                 ct.value = "should not work";
                 morphium.store(ct);
-                assert (ct.created == null);
-                assert (ct.timestamp == 0);
-
+                assert(ct.created == null);
+                assert(ct.timestamp == 0);
                 morphium.reread(ct);
-                assert (ct.created == null);
-                assert (ct.timestamp == 0);
-
-
+                assert(ct.created == null);
+                assert(ct.timestamp == 0);
                 LCTest lc = new LCTest();
                 lc.value = "a test";
                 morphium.store(lc);
-                assert (lc.lastChange == 0);
-                assert (lc.lastChangeDate == null);
-                assert (lc.lastChangeString == null);
-
+                assert(lc.lastChange == 0);
+                assert(lc.lastChangeDate == null);
+                assert(lc.lastChangeString == null);
                 lc.value = "updated";
                 morphium.store(lc);
-                assert (lc.lastChange == 0);
-                assert (lc.lastChangeDate == null);
-                assert (lc.lastChangeString == null);
-
+                assert(lc.lastChange == 0);
+                assert(lc.lastChangeDate == null);
+                assert(lc.lastChangeString == null);
                 morphium.set(lc, "value", "set", false, null);
+
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                }
+
                 morphium.reread(lc);
-                assert (lc.lastChange == 0);
-                assert (lc.lastChangeDate == null);
-                assert (lc.lastChangeString == null);
-                assert (lc.value.equals("set"));
-
-
+                assert(lc.lastChange == 0);
+                assert(lc.lastChangeDate == null);
+                assert(lc.lastChangeString == null);
+                assert(lc.value.equals("set"));
                 morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
-                morphium.reread(lc);
-                assert (lc.lastChange == 0);
-                assert (lc.lastChangeDate == null);
-                assert (lc.lastChangeString == null);
 
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                }
+
+                morphium.reread(lc);
+                assert(lc.lastChange == 0);
+                assert(lc.lastChangeDate == null);
+                assert(lc.lastChangeString == null);
                 LATest la = new LATest();
                 la.value = "last access";
                 morphium.store(la);
+
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException e) {
+                }
+
                 la = morphium.findById(LATest.class, la.morphiumId);
-                assert (la.lastAccess == 0);
+                assert(la.lastAccess == 0);
             }
         };
+
         t.start();
-
-
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
         morphium.store(ct);
         assertNotNull(ct.created);
         ;
-        assert (ct.timestamp != 0);
-
+        assert(ct.timestamp != 0);
         morphium.reread(ct);
         assertNotNull(ct.created);
         ;
-        assert (ct.timestamp != 0);
-
-
+        assert(ct.timestamp != 0);
         LCTest lc = new LCTest();
         lc.value = "a test";
         morphium.store(lc);
-        assert (lc.lastChange != 0);
+        assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
         ;
         assertNotNull(lc.lastChangeString);
         ;
-
         lc.value = "updated";
         morphium.store(lc);
-        assert (lc.lastChange != 0);
+        assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
         ;
         assertNotNull(lc.lastChangeString);
         ;
-
         morphium.set(lc, "value", "set", false, null);
         morphium.reread(lc);
-        assert (lc.lastChange != 0);
+        assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
         ;
         assertNotNull(lc.lastChangeString);
         ;
-        assert (lc.value.equals("set"));
-
-
+        assert(lc.value.equals("set"));
         morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
         morphium.reread(lc);
-        assert (lc.lastChange != 0);
+        assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
         ;
         assertNotNull(lc.lastChangeString);
         ;
-
-
         LATest la = new LATest();
         la.value = "last access";
-
         morphium.store(la);
         long stored = System.currentTimeMillis();
         Thread.sleep(10);
         la = morphium.findById(LATest.class, la.morphiumId);
-        assert (la.lastAccess != 0);
-        assert (la.lastAccess > stored);
+        assert(la.lastAccess != 0);
+        assert(la.lastAccess > stored);
 
         while (t.isAlive()) {
             Thread.yield();
         }
     }
+
     @Test
     public void disableAutoValues() throws Exception {
         morphium.getConfig().disableAutoValues();
-
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
         morphium.store(ct);
-        assert (ct.created == null);
-        assert (ct.timestamp == 0);
-
+        assert(ct.created == null);
+        assert(ct.timestamp == 0);
         morphium.reread(ct);
-        assert (ct.created == null);
-        assert (ct.timestamp == 0);
-
-
+        assert(ct.created == null);
+        assert(ct.timestamp == 0);
         LCTest lc = new LCTest();
         lc.value = "a test";
         morphium.store(lc);
-        assert (lc.lastChange == 0);
-        assert (lc.lastChangeDate == null);
-        assert (lc.lastChangeString == null);
-
+        assert(lc.lastChange == 0);
+        assert(lc.lastChangeDate == null);
+        assert(lc.lastChangeString == null);
         lc.value = "updated";
         morphium.store(lc);
-        assert (lc.lastChange == 0);
-        assert (lc.lastChangeDate == null);
-        assert (lc.lastChangeString == null);
-
+        assert(lc.lastChange == 0);
+        assert(lc.lastChangeDate == null);
+        assert(lc.lastChangeString == null);
         morphium.set(lc, "value", "set", false, null);
         morphium.reread(lc);
-        assert (lc.lastChange == 0);
-        assert (lc.lastChangeDate == null);
-        assert (lc.lastChangeString == null);
-        assert (lc.value.equals("set"));
-
-
+        assert(lc.lastChange == 0);
+        assert(lc.lastChangeDate == null);
+        assert(lc.lastChangeString == null);
+        assert(lc.value.equals("set"));
         morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
         morphium.reread(lc);
-        assert (lc.lastChange == 0);
-        assert (lc.lastChangeDate == null);
-        assert (lc.lastChangeString == null);
-
+        assert(lc.lastChange == 0);
+        assert(lc.lastChangeDate == null);
+        assert(lc.lastChangeString == null);
         LATest la = new LATest();
         la.value = "last access";
         morphium.store(la);
+        Thread.sleep(500);
         la = morphium.findById(LATest.class, la.morphiumId);
-        assert (la.lastAccess == 0);
+        assert(la.lastAccess == 0);
         morphium.getConfig().enableAutoValues();
     }
 
@@ -198,39 +190,36 @@ public class AutoVariableTest extends MorphiumTestBase {
         morphium.store(ct);
         Thread.sleep(250);
         assertNotNull(ct.created);
-        
-        assert (ct.timestamp != 0);
-
+        assert(ct.timestamp != 0);
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
         morphium.set(q, "additional", "value", true, true);
         Thread.sleep(100);
-        assert (q.countAll() == 1) : "Count wrong: " + q.countAll();
-        assert (q.get().timestamp != 0);
+        assert(q.countAll() == 1) : "Count wrong: " + q.countAll();
+        assert(q.get().timestamp != 0);
         assertNotNull(q.get().created);
         ;
-        assert (q.get().value.equals("annother test"));
-
+        assert(q.get().value.equals("annother test"));
         q = morphium.createQueryFor(CTimeTest.class).f("value").eq("additional test");
         morphium.push(q, "lst", "value", true, true);
-        assert (q.countAll() == 1) : "Count wrong: " + q.countAll();
-        assert (q.get().timestamp != 0);
+        assert(q.countAll() == 1) : "Count wrong: " + q.countAll();
+        assert(q.get().timestamp != 0);
         assertNotNull(q.get().created);
         ;
-        assert (q.get().value.equals("additional test"));
-        assert (q.get().lst.size() == 1);
-
-
+        assert(q.get().value.equals("additional test"));
+        assert(q.get().lst.size() == 1);
         List<CTimeTest> lst = new ArrayList<>();
+
         for (int i = 0; i < 100; i++) {
             ct = new CTimeTest();
             ct.value = "value" + i;
             ct.additional = "auch";
             lst.add(ct);
         }
+
         morphium.storeList(lst);
 
         for (CTimeTest tst : q.q().asIterable()) {
-            assert (tst.timestamp != 0);
+            assert(tst.timestamp != 0);
             assertNotNull(tst.created);
             ;
             assertNotNull(tst.createdString);
@@ -241,30 +230,27 @@ public class AutoVariableTest extends MorphiumTestBase {
     @Test
     public void testLastAccess() throws Exception {
         morphium.dropCollection(LATest.class);
-
         LATest la = new LATest();
         la.value = "value1";
         morphium.store(la);
-
         la = new LATest();
         la.value = "value2";
         morphium.store(la);
-
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
-        assert (la.lastAccess != 0);
+        assert(la.lastAccess != 0);
         assertNotNull(la.lastAccessDate);
         long lastAcc = la.lastAccess;
         Thread.sleep(1); //just to be sure
         la = morphium.createQueryFor(LATest.class).f("value").eq("value1").get();
         assertNotEquals(lastAcc, la.lastAccess);
         assertNotNull(la.lastAccessString);
-
     }
 
     @Test
     public void testAutoVariablesBulkWrite() {
         morphium.dropCollection(CTimeTest.class);
         List<CTimeTest> lst = new ArrayList<>();
+
         for (int i = 0; i < 100; i++) {
             CTimeTest ct = new CTimeTest();
             ct.additional = "tst";
@@ -273,14 +259,14 @@ public class AutoVariableTest extends MorphiumTestBase {
         }
 
         morphium.storeList(lst);
-
         lst = morphium.createQueryFor(CTimeTest.class).asList();
+
         for (CTimeTest t : lst) {
             assertNotNull(t.created);
             assertNotEquals(0, t.timestamp);
         }
-        log.info("Done");
 
+        log.info("Done");
     }
 
     @Test
@@ -289,41 +275,38 @@ public class AutoVariableTest extends MorphiumTestBase {
         LCTest lc = new LCTest();
         lc.value = "value1";
         morphium.store(lc);
-
         lc = new LCTest();
         lc.value = "value2";
         morphium.store(lc);
-
         lc = new LCTest();
         lc.value = "value3";
         morphium.store(lc);
-
+        Thread.sleep(500);
         lc = morphium.createQueryFor(LCTest.class).f("value").eq("value1").get();
         long created = lc.lastChange;
         Thread.sleep(10);
         lc.value = "different";
         morphium.store(lc);
-        assert (lc.lastChange != 0);
+        assert(lc.lastChange != 0);
         assertNotNull(lc.lastChangeDate);
-        ;
-        assert (lc.lastChange > created);
-
+        Thread.sleep(100);
+        assert(lc.lastChange > created);
         Query<LCTest> q = morphium.createQueryFor(LCTest.class);
         morphium.set(q, "value", "all_same", false, true);
         long cmp = 0;
+
         for (LCTest tst : q.asIterable()) {
             if (cmp == 0) {
                 cmp = tst.lastChange;
             }
-            assert (tst.lastChange != 0);
-            assert (tst.lastChange == cmp) : "Last change wrong cmp: " + cmp + " but is: " + tst.lastChange;
+
+            assert(tst.lastChange != 0);
+            assert(tst.lastChange == cmp) : "Last change wrong cmp: " + cmp + " but is: " + tst.lastChange;
             assertNotNull(tst.lastChangeDate);
             ;
             assertNotNull(tst.lastChangeString);
             ;
         }
-
-
     }
 
     @Test
@@ -331,53 +314,44 @@ public class AutoVariableTest extends MorphiumTestBase {
         morphium.getConfig().setCheckForNew(true);
         morphium.dropCollection(CTimeTestStringId.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTestStringId.class);
-//        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
-//            Thread.sleep(100);
-//            log.info("... waiting...");
-//        }
+        //        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
+        //            Thread.sleep(100);
+        //            log.info("... waiting...");
+        //        }
         //        Thread.sleep(1000);
         CTimeTestStringId record = new CTimeTestStringId();
         record.mongoId = "12345";
         record.value = "v1";
         morphium.store(record);
-
-
         record = new CTimeTestStringId();
         record.mongoId = "12346";
         record.value = "v2";
         morphium.store(record);
-
         record = new CTimeTestStringId();
         record.mongoId = "12347";
         record.value = "v3";
         morphium.store(record);
-
-
+        Thread.sleep(150);
         Query<CTimeTestStringId> q = morphium.createQueryFor(CTimeTestStringId.class);
         q = q.f("value").eq("v1");
         record = q.get();
         assertNotNull(record.created);
         ;
-        assert (record.timestamp != 0);
+        assert(record.timestamp != 0);
         long created = record.timestamp;
-
         record.value = "v1*";
         morphium.store(record);
         Thread.sleep(250);
         record = q.q().f("value").eq("v1*").get();
         assertNotNull(record);
-        assert (record.timestamp == created) : "Record timestamp " + record.timestamp;
-
+        assert(record.timestamp == created) : "Record timestamp " + record.timestamp;
         Thread.sleep(500);
-
         q = q.q().f("value").eq("new");
         morphium.set(q, "additional", "1111", true, true);
         record = q.get();
-
-        assert (record.timestamp != 0);
-
-
+        assert(record.timestamp != 0);
         ArrayList<CTimeTestStringId> lst = new ArrayList<>();
+
         for (int i = 0; i < 100; i++) {
             CTimeTestStringId ct = new CTimeTestStringId();
             ct.mongoId = "" + i;
@@ -385,10 +359,12 @@ public class AutoVariableTest extends MorphiumTestBase {
             ct.additional = "add";
             lst.add(ct);
         }
+
         morphium.storeList(lst);
+        Thread.sleep(150);
 
         for (CTimeTestStringId ct : q.q().asIterable()) {
-            assert (ct.timestamp != 0);
+            assert(ct.timestamp != 0);
             assertNotNull(ct.created);
             ;
         }
