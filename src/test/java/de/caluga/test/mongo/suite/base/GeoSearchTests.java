@@ -26,8 +26,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+            morphium.ensureIndicesFor(Place.class);
 
-            //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
@@ -84,8 +84,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+            morphium.ensureIndicesFor(Place.class);
 
-            //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
@@ -115,8 +115,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+            morphium.ensureIndicesFor(Place.class);
 
-            //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
@@ -146,8 +146,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+            morphium.ensureIndicesFor(Place.class);
 
-            //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
@@ -177,8 +177,8 @@ public class GeoSearchTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Place.class);
             ArrayList<Place> toStore = new ArrayList<>();
+            morphium.ensureIndicesFor(Place.class);
 
-            //        morphium.ensureIndicesFor(Place.class);
             for (int i = 0; i < 1000; i++) {
                 Place p = new Place();
                 List<Double> pos = new ArrayList<>();
