@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumConfig.CappedCheck;
+import de.caluga.morphium.MorphiumConfig.IndexCheck;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
@@ -201,6 +203,8 @@ public class MultiDriverTestBase {
 
             pooled.setDriverName(PooledDriver.driverName);
             pooled.setDatabase("morphium_test_" + number.incrementAndGet());
+            pooled.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+            pooled.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
             log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverName());
             Morphium pooledMorphium = new Morphium(pooled);
             morphiums.add(Arguments.of(pooledMorphium));
@@ -220,6 +224,8 @@ public class MultiDriverTestBase {
             }
 
             singleConnection.setDatabase("morphium_test_" + number.incrementAndGet());
+            singleConnection.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+            singleConnection.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
             log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverName());
             Morphium singleConMorphium = new Morphium(singleConnection);
             morphiums.add(Arguments.of(singleConMorphium));
@@ -240,6 +246,8 @@ public class MultiDriverTestBase {
             inMemDriver.setMongoLogin(null);
             inMemDriver.setMongoPassword(null);
             inMemDriver.setDatabase("morphium_test_" + number.incrementAndGet());
+            inMemDriver.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
+            inMemDriver.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             var inMem = new Morphium(inMemDriver);
             ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
             morphiums.add(Arguments.of(inMem));
