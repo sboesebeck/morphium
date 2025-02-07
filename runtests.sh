@@ -151,7 +151,7 @@ echo -e "${GN}Starting tests..${CL}" >failed.txt
 } &
 
 echo $! >fail.pid
-if [ -e test.log/startTS ]; then
+if [ -e startTS ]; then
   start=$(<startTS)
 else
   start=$(date +%s)
