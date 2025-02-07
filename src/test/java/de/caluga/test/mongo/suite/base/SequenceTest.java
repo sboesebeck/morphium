@@ -29,9 +29,9 @@ public class SequenceTest extends MorphiumTestBase {
         morphium.dropCollection(Sequence.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
         long v = sg.getNextValue();
-        assertEquals (1,v,"Value wrong: " + v);
+        assertEquals(1, v, "Value wrong: " + v);
         v = sg.getNextValue();
-        assertEquals(2,v);
+        assertEquals(2, v);
     }
 
     @Test
@@ -40,16 +40,15 @@ public class SequenceTest extends MorphiumTestBase {
         SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
         SequenceGenerator sg2 = new SequenceGenerator(morphium, "tstseq2", 1, 1);
         long v = sg1.getNextValue();
-        assertEquals (1,v);
+        assertEquals(1, v);
         v = sg2.getNextValue();
         v = sg2.getNextValue();
-        assertEquals (2,v);
-
+        assertEquals(2, v);
         v = sg1.getNextValue();
-        assertEquals(2,v);
+        assertEquals(2, v);
         v = sg2.getNextValue();
         v = sg2.getNextValue();
-        assertEquals(4,v);
+        assertEquals(4, v);
     }
 
     @Test
@@ -58,27 +57,25 @@ public class SequenceTest extends MorphiumTestBase {
         morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "test", 1, 1);
         sg.getNextValue(); //initializing
-
         Sequence s = morphium.createQueryFor(Sequence.class).f(Sequence.Fields.name).eq("test").get();
         morphium.store(s);
-        Sequence.SeqLock l=new Sequence.SeqLock();
+        Sequence.SeqLock l = new Sequence.SeqLock();
         l.setLockedBy("noone");
         l.setLockedAt(new Date());
         l.setName(s.getName());
         morphium.store(l);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         //now sequence is blocked by someone else... waiting 30-60s
         long v = sg.getNextValue();
         log.info("Got next Value: " + v);
-        assertEquals (v,2);
-
-
+        assertEquals(v, 2);
     }
 
     @Test
     public void massiveMultiSequenceTest() {
         morphium.dropCollection(Sequence.class);
         Vector<SequenceGenerator> gens = new Vector<>();
+
         //creating lots of sequences
         for (int i = 0; i < 10; i++) {
             SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq_" + i, i % 3 + 1, i);
@@ -86,14 +83,16 @@ public class SequenceTest extends MorphiumTestBase {
         }
 
         log.info("getting values...");
+
         for (int i = 0; i < 200; i++) {
             log.info("" + i + "/200");
-            int r = (int) (Math.random() * gens.size());
+            int r = (int)(Math.random() * gens.size());
             SequenceGenerator g = gens.get(r);
             long v = g.getCurrentValue();
             long v2 = g.getNextValue();
             assertEquals(v2, v + g.getInc(), "incremented wrong?");
         }
+
         log.info("done");
     }
 
@@ -103,12 +102,14 @@ public class SequenceTest extends MorphiumTestBase {
         final SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq", 1, 0);
         Vector<Thread> thr = new Vector<>();
         final Vector<Long> data = new Vector<>();
+
         for (int i = 0; i < 10; i++) {
             Thread t = new Thread(() -> {
                 for (int i1 = 0; i1 < 25; i1++) {
                     long nv = sg1.getNextValue();
-                    assertFalse(data.contains(nv),"Value already stored? Value: " + nv);
+                    assertFalse(data.contains(nv), "Value already stored? Value: " + nv);
                     data.add(nv);
+
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException e) {
@@ -118,23 +119,30 @@ public class SequenceTest extends MorphiumTestBase {
             t.start();
             thr.add(t);
         }
+
         log.info("Waiting for threads to finish");
+
         for (Thread t : thr) {
             t.join();
         }
+
         long last = -1;
         Collections.sort(data);
+
         for (Long l : data) {
-            assertEquals (l-1,last);
+            assertEquals(l - 1, last);
             last = l;
         }
+
         log.info("done");
     }
 
     @Test
     public void massiveParallelMultiSequenceTest() throws Exception {
         morphium.dropCollection(Sequence.class);
+        Thread.sleep(100);
         Vector<SequenceGenerator> gens = new Vector<>();
+
         //creating lots of sequences
         for (int i = 0; i < 10; i++) {
             SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq_" + i, i % 3 + 1, i);
@@ -142,13 +150,16 @@ public class SequenceTest extends MorphiumTestBase {
         }
 
         Vector<Thread> thr = new Vector<>();
+
         for (final SequenceGenerator g : gens) {
             Thread t = new Thread(() -> {
                 double max = Math.random() * 10;
+
                 for (int i = 0; i < max; i++) {
                     long cv = g.getCurrentValue();
                     long nv = g.getNextValue();
-                    assertEquals(nv,cv + g.getInc());
+                    assertEquals(nv, cv + g.getInc());
+
                     try {
                         Thread.sleep(10);
                     } catch (InterruptedException e) {
@@ -162,9 +173,11 @@ public class SequenceTest extends MorphiumTestBase {
 
         //joining threads
         log.info("Waiting for threads to finish");
+
         for (Thread t : thr) {
             t.join();
         }
+
         log.info("done!");
     }
 
@@ -172,24 +185,25 @@ public class SequenceTest extends MorphiumTestBase {
     public void massiveParallelMulticonnectSingleSequenceTest() throws Exception {
         morphium.dropCollection(Sequence.class);
         Thread.sleep(100); //wait for the drop to be persisted
-
-
         //creating lots of sequences, with separate MongoDBConnections
         //reading from the same sequence
         //in different Threads
         final Vector<Long> values = new Vector<>();
         List<Thread> threads = new ArrayList<>();
         final AtomicInteger errors = new AtomicInteger(0);
+
         for (int i = 0; i < 25; i++) {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-
             Thread t = new Thread(() -> {
                 SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
+
                 for (int j = 0; j < 20; j++) {
                     try {
                         long l = sg1.getNextValue();
+
                         if (l % 100 == 0)
                             log.info("Got nextValue: " + l);
+
                         if (values.contains(l)) {
                             log.error("Duplicate value " + l);
                             errors.incrementAndGet();
@@ -197,21 +211,19 @@ public class SequenceTest extends MorphiumTestBase {
                             values.add(l);
                         }
                     } catch (Exception e) {
-                        log.error("Got Exception... pausing",e);
+                        log.error("Got Exception... pausing", e);
                         errors.incrementAndGet();
+
                         try {
-                            Thread.sleep((long) (250 * Math.random()));
+                            Thread.sleep((long)(250 * Math.random()));
                         } catch (InterruptedException interruptedException) {
                         }
-
                     }
-
                 }
                 m.close();
             });
             threads.add(t);
             t.start();
-
         }
 
         while (threads.size() > 0) {
@@ -219,31 +231,33 @@ public class SequenceTest extends MorphiumTestBase {
             threads.remove(0).join();
         }
 
-        assertEquals (0,errors.get(),"No errors allowed");
-        assertEquals (500,values.size(),"Should have gotten 500 values in total");
+        assertEquals(0, errors.get(), "No errors allowed");
+        assertEquals(500, values.size(), "Should have gotten 500 values in total");
+
         //checking that no value was skipped
         for (int i = 0; i < values.size(); i++) {
-            assertEquals(i,values.get(i),"Values not ordered properly!");
+            assertEquals(i, values.get(i), "Values not ordered properly!");
         }
-
     }
 
     @Test
     public void sequenceSpeedTest() throws Exception {
         morphium.dropCollection(Sequence.class);
         Thread.sleep(100); //wait for the drop to be persisted
-
-        SequenceGenerator sg=new SequenceGenerator(morphium,"test1");
+        SequenceGenerator sg = new SequenceGenerator(morphium, "test1");
         log.info("Starting...");
-        long start=System.currentTimeMillis();
-        int amount=200;
-        for (int i =0;i<amount;i++){
-            if (i%25==0){
-                log.info(i+"..."+(System.currentTimeMillis()-start));
+        long start = System.currentTimeMillis();
+        int amount = 200;
+
+        for (int i = 0; i < amount; i++) {
+            if (i % 25 == 0) {
+                log.info(i + "..." + (System.currentTimeMillis() - start));
             }
+
             sg.getNextValue();
         }
-        long dur=System.currentTimeMillis()-start;
-        log.info(String.format("Took %s ms for %s calls",dur,amount));
+
+        long dur = System.currentTimeMillis() - start;
+        log.info(String.format("Took %s ms for %s calls", dur, amount));
     }
 }
