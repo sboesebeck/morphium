@@ -24,17 +24,16 @@ public class MapSubDocumentTest extends MultiDriverTestBase {
             m.mapValue.put(42L, "life and universe and everything");
             m.mapValue.put(54322321L, "test 2");
             m.value = "Val";
-
             morphium.store(m);
-
+            Thread.sleep(500);
             MapDoc d = morphium.findById(MapDoc.class, m.id);
-            assert (d.value.equals("Val"));
+            assert(d.value.equals("Val"));
             assertNotNull(d.mapValue);
             ;
-            assert (d.mapValue.get(42L).equals("life and universe and everything"));
-            assert (d.mapValue.get(54322321L).equals("test 2"));
-
+            assert(d.mapValue.get(42L).equals("life and universe and everything"));
+            assert(d.mapValue.get(54322321L).equals("test 2"));
         }
+
         //this test will fail with map keys that cannot easily be translated
         //from and to string. E.g. a key like 123.45 will NOT work!
         //TODO: handle storage of SubDocuments with non-String keys
