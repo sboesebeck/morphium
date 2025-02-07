@@ -1135,8 +1135,8 @@ public class Messaging extends Thread implements ShutdownListener {
             }
 
             retry++;
-            if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150) {
-                throw new RuntimeException("Could not terminate Messaging!");
+            if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150 + 5) {
+                throw new RuntimeException("Could not terminate Messaging! MaxTime exceeded twice");
             }
         }
     }
