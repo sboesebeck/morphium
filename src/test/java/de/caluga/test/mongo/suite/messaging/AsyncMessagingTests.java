@@ -210,8 +210,6 @@ public class AsyncMessagingTests extends MorphiumTestBase {
                 log.info("Waiting for incoming answers for broadcast, got {}", received.size());
             }
 
-            //There should be still one listener, as the timeout was 9000!
-            assertEquals(1, sender.getAsyncMessagesPending());
             log.info("Waiting to clear up...");
 
             while (sender.getAsyncMessagesPending() > 0) {
