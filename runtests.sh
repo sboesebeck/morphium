@@ -216,7 +216,7 @@ for t in $(<files.txt); do
         C3=$RD
       fi
       ((prc = (testsRun + lmeth) * 100 / testMethods))
-      echo -e "Total Tests run           :  ${BL}$testsRun${CL} + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ $prc %"
+      echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
       echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
       echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
       echo -e "Duration: ${MG}${dur}s${CL}"
@@ -237,11 +237,10 @@ for t in $(<files.txt); do
     if [ "$j" -lt 2 ]; then
       break
     fi
-    if [ $dur -gt 900 ]; then
-      echo -e "${RD}Error:${CL} Test class runs longer than 15 minutes - killing it!"
+    if [ $dur -gt 600 ]; then
+      echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
       echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
-      ((err = err + 1))
-      kill %1
+      kill $(<test.pid)
     fi
     sleep $refresh
   done
