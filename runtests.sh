@@ -150,6 +150,10 @@ echo -e "${GN}Starting tests..${CL}" >failed.txt
 
 echo $! >fail.pid
 start=$(date +%s)
+testsRun=0
+unsuc=0
+fail=0
+err=0
 for t in $(<files.txt); do
   ((tst = tst + 1))
   tm=$(date +%s)
@@ -162,8 +166,21 @@ for t in $(<files.txt); do
   fi
   while true; do
     clear
+    testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+    unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+    fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+    err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
     ((d = $(date +%s) - start))
-    echo -e "Date: $(date) - Running ${MG}$d{$CL}sec"
+
+    if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ]; then
+      ((spt = d / testsRun))
+      ((etl = spt * testMethods - d))
+      ((etlm = etl / 60))
+      echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
+    else
+      echo -e "Date: $(date) - ${BL}Startup...$CL"
+
+    fi
     echo "---------------------------------------------------------------------------------------------------------"
     echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
     echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
@@ -172,12 +189,36 @@ for t in $(<files.txt); do
       echo -e " Tests matching: ${BL}$m${CL}"
     fi
     echo "---------------------------------------------------------------------------------------------------------"
-    cat failed.txt
+
+    C1="$GN"
+    C2="$GN"
+    C3="$GN"
+
     ((dur = $(date +%s) - tm))
-    echo -e "Duration: ${MG}${dur}s${CL}"
-    echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-    tail -n $logLength test.log/"$t".log
-    echo "---------------------------------------------------------------------------------------------------------"
+    if [ -z "$testsRun" ]; then
+      echo -e "....."
+    else
+      if [ "$unsuc" -gt 0 ]; then
+        C1=$RD
+      fi
+      if [ "$fail" -gt 0 ]; then
+        C2=$RD
+      fi
+      if [ "$err" -gt 0 ]; then
+        C3=$RD
+      fi
+      echo -e "Total Tests run           :  ${BL}$testsRun${CL}"
+      echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+      echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+      echo -e "Duration: ${MG}${dur}s${CL}"
+      if [ "$unsuc" -gt 0 ]; then
+        echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+        tail -n+5 failed.txt
+      fi
+      echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+      tail -n $logLength test.log/"$t".log
+      echo "---------------------------------------------------------------------------------------------------------"
+    fi
     # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
 
     # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
