@@ -158,16 +158,12 @@ public class PooledDriver extends DriverBase {
                 primaryNode = null;
             }
         } else if (hello.getWritablePrimary() != null && hello.getMe() != null) {
-            if (primaryNode == null) {
-                primaryNode = hello.getMe();
+            if (primaryNode == null && hello.getPrimary() != null) {
+                primaryNode = hello.getPrimary();
             } else if (hello.getWritablePrimary() && !hello.getMe().equals(primaryNode)) {
                 log.warn("Primary failover? {} -> {}", primaryNode, hello.getMe());
                 stats.get(DriverStatsKey.FAILOVERS).incrementAndGet();
                 primaryNode = hello.getMe();
-
-                if (primaryNode == null) {
-                    primaryNode = hostConnected;
-                }
             } else if (!hello.getWritablePrimary() && hello.getMe().equals(primaryNode)) {
                 log.error("Primary node is not me {}", hello.getMe());
                 primaryNode = null;
