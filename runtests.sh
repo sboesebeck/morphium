@@ -21,6 +21,8 @@ function quitting() {
   exit
 }
 
+run=1
+
 nodel=0
 skip=0
 refresh=5
@@ -47,10 +49,16 @@ while [ "q$1" != "q" ]; do
     shift
     refresh=$1
     shift
+  else
+    break
   fi
 done
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
-  count=$(ls -1 test.log/* | wc -l)
+  if [ -z "$(ls -A 'test.log')" ]; then
+    count=0
+  else
+    count=$(ls -1 test.log/* | wc -l)
+  fi
   if [ "$count" -gt 0 ]; then
     echo -e "There are restults from old tests there - ${BL}c${CL}ontinue tests (c), erase old logs and ${BL}r${CL}estart all (r) or ${RD}a${CL}bort (CTRL-C / a)?"
     read q
@@ -101,13 +109,17 @@ sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' |
 sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
 if [ "$skip" -ne 0 ]; then
   echo -e "${BL}Info:${CL} Skipping tests already run"
-  for i in $(ls -1 test.log); do
-    i=$(basename $i)
-    i=${i%%.log}
-    echo -e "${BL}info: ${CL}not rerunning $i"
-    grep -v $i files.txt >files.tmp
-    mv files.tmp files.txt
-  done
+  if [ -z "$(ls -A 'test.log')" ]; then
+    echo "Nothing to skip"
+  else
+    for i in test.log/*; do
+      i=$(basename $i)
+      i=${i%%.log}
+      echo -e "${BL}info: ${CL}not rerunning $i"
+      grep -v $i files.txt >files.tmp
+      mv files.tmp files.txt
+    done
+  fi
 fi
 # read
 cnt=$(wc -l <files.txt | tr -d ' ')
@@ -122,12 +134,13 @@ testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$
 # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 ((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
-  rm -rf test.log
-  rm startTS
+  echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
+  rm -rf test.log >/dev/null 2>&1
+  rm -f startTS >/dev/null 2>&1
   mkdir test.log
 fi
 if [ "$nodel" -eq 0 ]; then
-  echo -e "${BL}Info:${CL} Cleaning up..."
+  echo -e "${BL}Info:${CL} Cleaning up - mvn clean..."
   mvn clean >/dev/null
 fi
 echo -e "${BL}Info:${CL} Compiling..."
@@ -140,13 +153,11 @@ tst=0
 echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
 {
-  while true; do
-    # date >failed.tmp
-    # echo >>failed.tmp
+  while [ $run -eq 1 ]; do
     ./getFailedTests.sh >failed.tmp
     mv failed.tmp failed.txt
-    sleep 8
-  done
+    sleep 4
+  done >/dev/null 2>&1
 
 } &
 
@@ -180,11 +191,13 @@ for t in $(<files.txt); do
     lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')
     clear
 
-    if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ]; then
+    if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
       ((spt = d / testsRun))
       ((etl = spt * testMethods - d))
       ((etlm = etl / 60))
       echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
+    elif [ "$m" != "." ]; then
+      echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Runing Tests matching ${BL}$m$CL  in ${YL}$t$CL ($lmeth methods)"
     else
       echo -e "Date: $(date) - ${BL}Startup...$CL"
 
@@ -205,6 +218,20 @@ for t in $(<files.txt); do
     ((dur = $(date +%s) - tm))
     if [ -z "$testsRun" ]; then
       echo -e "....."
+    elif [ "$m" != "." ] || [ "$p" != "." ]; then
+      ((testsRun = testsRun - lmeth))
+
+      echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL"
+      echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+      echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+      echo -e "Duration: ${MG}${dur}s${CL}"
+      if [ "$unsuc" -gt 0 ]; then
+        echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+        tail -n+5 failed.txt
+      fi
+      echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+      tail -n $logLength test.log/"$t".log
+      echo "---------------------------------------------------------------------------------------------------------"
     else
       if [ "$unsuc" -gt 0 ]; then
         C1=$RD
@@ -215,6 +242,7 @@ for t in $(<files.txt); do
       if [ "$err" -gt 0 ]; then
         C3=$RD
       fi
+      ((testsRun = testsRun - lmeth))
       ((prc = (testsRun + lmeth) * 100 / testMethods))
       echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
       echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
@@ -252,9 +280,11 @@ testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
 fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
 err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-kill $(<fail.pid) >/dev/null 2>&1
+run=0
+sleep 5
+# kill $(<fail.pid) >/dev/null 2>&1
 rm -f fail.pid >/dev/null 2>&1
-echo -e "${GN}Finished!${CL} - total run $testsRun - total unsuccessful $unsuc"
+echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
 if [ "$unsuc" -gt 0 ]; then
   echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
   exit 1
