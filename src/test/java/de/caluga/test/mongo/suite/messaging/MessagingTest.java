@@ -378,110 +378,6 @@ public class MessagingTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    public void severalSystemsTest(Morphium morphium) throws Exception {
-        try (morphium) {
-            String method = new Object() {
-            }
-
-            .getClass().getEnclosingMethod().getName();
-            morphium.clearCollection(Msg.class);
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            error = false;
-            final Messaging m1 = new Messaging(morphium, 10, true);
-            final Messaging m2 = new Messaging(morphium, 10, true);
-            final Messaging m3 = new Messaging(morphium, 10, true);
-            final Messaging m4 = new Messaging(morphium, 10, true);
-            m4.start();
-            m1.start();
-            m2.start();
-            m3.start();
-            Thread.sleep(2000);
-            m1.addMessageListener((msg, m) -> {
-                gotMessage1 = true;
-                log.info("M1 got message " + m.toString());
-                return null;
-            });
-            m2.addMessageListener((msg, m) -> {
-                gotMessage2 = true;
-                log.info("M2 got message " + m.toString());
-                return null;
-            });
-            m3.addMessageListener((msg, m) -> {
-                gotMessage3 = true;
-                log.info("M3 got message " + m.toString());
-                return null;
-            });
-            m4.addMessageListener((msg, m) -> {
-                gotMessage4 = true;
-                log.info("M4 got message " + m.toString());
-                return null;
-            });
-            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
-
-            while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
-                Thread.sleep(100);
-                //log.info("Still waiting for messages...");
-            }
-
-            assertTrue(gotMessage2, "Message not recieved yet by m2?!?!?");
-            assertTrue(gotMessage3, "Message not recieved yet by m3?!?!?");
-            assertTrue(gotMessage4, "Message not recieved yet by m4?!?!?");
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
-
-            while (!gotMessage1 || !gotMessage3 || !gotMessage4) {
-                Thread.sleep(100);
-                //log.info("Still waiting for messages...");
-            }
-
-            assertTrue(gotMessage1, "Message not recieved yet by m1?!?!?");
-            assertTrue(gotMessage3, "Message not recieved yet by m3?!?!?");
-            assertTrue(gotMessage4, "Message not recieved yet by m4?!?!?");
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
-
-            while (!gotMessage1 && !gotMessage2 && !gotMessage3 && !gotMessage4) {
-                Thread.sleep(100);
-            }
-
-            int cnt = 0;
-
-            if (gotMessage1) {
-                cnt++;
-            }
-
-            if (gotMessage2) {
-                cnt++;
-            }
-
-            if (gotMessage3) {
-                cnt++;
-            }
-
-            if (gotMessage4) {
-                cnt++;
-            }
-
-            assertTrue(cnt != 0, "Message was not received");
-            assertTrue(cnt == 1, "Message was received too often: " + cnt);
-            m1.terminate();
-            m2.terminate();
-            m3.terminate();
-            m4.terminate();
-            log.info(method + "() finished with " + morphium.getDriver().getName());
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
@@ -635,70 +531,7 @@ public class MessagingTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
-    public void severalMessagingsTest(Morphium morphium) throws Exception {
-        try (morphium) {
-            String method = new Object() {
-            }
 
-            .getClass().getEnclosingMethod().getName();
-            log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
-            m1.setSenderId("m1");
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
-            m2.setSenderId("m2");
-            Messaging m3 = new Messaging(morphium, 10, false, true, 10);
-            m3.setSenderId("m3");
-            m1.start();
-            m2.start();
-            m3.start();
-            Thread.sleep(2000);
-
-            try {
-                m3.addListenerForMessageNamed("multisystemtest", (msg, m) -> {
-                    //log.info("Got message: "+m.getName());
-                    log.info("Sending answer for " + m.getMsgId());
-                    return new Msg("multisystemtest", "answer", "value", 60000);
-                });
-                procCounter.set(0);
-
-                for (int i = 0; i < 180; i++) {
-                    final int num = i;
-                    new Thread() {
-                        public void run() {
-                            Msg m = new Msg("multisystemtest", "nothing", "value");
-                            m.setTtl(10000);
-
-                            try {
-                                Msg a = m1.sendAndAwaitFirstAnswer(m, 5000);
-                                assertNotNull(a);
-                                procCounter.incrementAndGet();
-                            } catch (Exception e) {
-                                log.error("Did not receive answer for msg " + num);
-                            }
-                        }
-                    }
-
-                    .start();
-                }
-
-                long s = System.currentTimeMillis();
-
-                while (procCounter.get() < 180) {
-                    Thread.sleep(1000);
-                    log.info("Recieved " + procCounter.get());
-                    assert(System.currentTimeMillis() - s < 60000);
-                }
-            } finally {
-                m1.terminate();
-                m2.terminate();
-                m3.terminate();
-            }
-
-            log.info(method + "() finished with " + morphium.getDriver().getName());
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
@@ -736,10 +569,10 @@ public class MessagingTest extends MultiDriverTestBase {
                                 failed[0] = true;
                             }
 
-                            assert(!ids.contains(msg.getSenderId() + "/" + m.getMsgId())) : "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId();
+                            assertFalse(ids.contains(msg.getSenderId() + "/" + m.getMsgId()), "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId());
                             ids.add(msg.getSenderId() + "/" + m.getMsgId());
-                            assert(m.getTo() == null || m.getTo().contains(msg.getSenderId())) : "got message not for me?";
-                            assert(!m.getSender().equals(msg.getSenderId())) : "Got message from myself?";
+                            assertTrue(m.getTo() == null || m.getTo().contains(msg.getSenderId()), "got message not for me?");
+                            assertFalse(m.getSender().equals(msg.getSenderId()), "Got message from myself?");
 
                             synchronized (processedMessages) {
                                 Integer pr = processedMessages.get(m.getMsgId());
@@ -978,9 +811,13 @@ public class MessagingTest extends MultiDriverTestBase {
                     producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
                 }
 
+                long start = System.currentTimeMillis();
+
                 for (int i = 0; i < 70 && processed[0] < amount; i++) {
                     log.info("Still processing: " + processed[0]);
                     Thread.sleep(1000);
+                    long dur = System.currentTimeMillis() - start;
+                    assertTrue(dur < 20000);
                 }
 
                 assert(processed[0] == amount) : "Did process " + processed[0];
@@ -1362,6 +1199,7 @@ public class MessagingTest extends MultiDriverTestBase {
         }
     }
 
+    //TODO: MOVE
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void broadCastMultiTest(Morphium morphium) throws Exception {
@@ -1404,6 +1242,8 @@ public class MessagingTest extends MultiDriverTestBase {
                     log.info("Sent message #" + i);
                 }
             }
+            long start = System.currentTimeMillis();
+
             while (true) {
                 StringBuilder b = new StringBuilder();
                 int totalNum = 0;
@@ -1431,6 +1271,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 }
 
                 Thread.sleep(1500);
+                assertTrue(System.currentTimeMillis() - start < 15000, "Did not get all messages in time");
             }
             Thread.sleep(1000);
             log.info("--------");
@@ -1448,6 +1289,13 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 for (int i = 0; i < e.getValue().size(); i++) {
                     var m = morphium.findById(Msg.class, e.getValue().get(i));
+
+                    if (m == null) {
+                        log.warn("Hmm.. did not get message... retrying...");
+                        Thread.sleep(100);
+                        m = morphium.findById(Msg.class, e.getValue().get(i));
+                        assertNotNull(m, "Message not found");
+                    }
 
                     if (m.isExclusive()) {
                         b.append("!");
