@@ -1219,7 +1219,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private void scheduleExpire() {
         expire = exec.scheduleWithFixedDelay(()-> {
             // checking indexes for expire options
-            log.info("Checking expire indices");
+            // log.info("Checking expire indices");
 
             try {
                 for (String db : database.keySet()) {
