@@ -36,6 +36,7 @@ while [ "q$1" != "q" ]; do
     shift
   elif [ "q$1" == "q--restart" ]; then
     rm -rf test.log
+    rm -f startTS
     mkdir test.log
     shift
   elif [ "q$1" == "q--logs" ]; then
@@ -122,6 +123,7 @@ testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$
 ((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   rm -rf test.log
+  rm startTS
   mkdir test.log
 fi
 if [ "$nodel" -eq 0 ]; then
@@ -149,7 +151,12 @@ echo -e "${GN}Starting tests..${CL}" >failed.txt
 } &
 
 echo $! >fail.pid
-start=$(date +%s)
+if [ -e test.log/startTS ]; then
+  start=$(<startTS)
+else
+  start=$(date +%s)
+  echo "$start" >startTS
+fi
 testsRun=0
 unsuc=0
 fail=0
@@ -165,12 +172,13 @@ for t in $(<files.txt); do
     echo $! >test.pid
   fi
   while true; do
-    clear
     testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
     unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
     fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
     err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
     ((d = $(date +%s) - start))
+    lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+    clear
 
     if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ]; then
       ((spt = d / testsRun))
@@ -184,7 +192,7 @@ for t in $(<files.txt); do
     echo "---------------------------------------------------------------------------------------------------------"
     echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
     echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
-    echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')$CL"
+    echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
     if [ "$m" != "." ]; then
       echo -e " Tests matching: ${BL}$m${CL}"
     fi
@@ -207,7 +215,8 @@ for t in $(<files.txt); do
       if [ "$err" -gt 0 ]; then
         C3=$RD
       fi
-      echo -e "Total Tests run           :  ${BL}$testsRun${CL}"
+      ((prc = (testsRun + lmeth) * 100 / testMethods))
+      echo -e "Total Tests run           :  ${BL}$testsRun${CL} + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ $prc %"
       echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
       echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
       echo -e "Duration: ${MG}${dur}s${CL}"
