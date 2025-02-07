@@ -248,8 +248,18 @@ for t in $(<files.txt); do
 
 done
 ./getFailedTests.sh >failed.txt
-cat failed.txt
-echo -e "${GN}Finished!${CL} List of failed tests in ./failed.txt"
 
+testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
 kill $(<fail.pid) >/dev/null 2>&1
 rm -f fail.pid >/dev/null 2>&1
+echo -e "${GN}Finished!${CL} - total run $testsRun - total unsuccessful $unsuc"
+if [ "$unsuc" -gt 0 ]; then
+  echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
+  exit 1
+else
+  echo -e "${GN}no errors recorded$CL"
+  rm -f failed.txt
+fi
