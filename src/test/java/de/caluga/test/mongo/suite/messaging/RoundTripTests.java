@@ -41,7 +41,7 @@ public class RoundTripTests extends MorphiumTestBase {
 
     public void runTest(boolean sameMorphium, boolean exclusive, boolean multithreadded, boolean processMultiple, int warmUp, int amount) throws Exception {
         log.info("===========> Running test: " + (sameMorphium ? "on same Morphium Instance" : "separate Morphium Instances") + " " + (exclusive ? "exclusive messages" : "not exclusive messages")
-         + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
+            + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
         //        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
         //        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
         Messaging m1 = new Messaging(morphium, 100, processMultiple, multithreadded, 10);
@@ -190,7 +190,8 @@ public class RoundTripTests extends MorphiumTestBase {
         int idx = 0;
 
         for (Long sent : times) {
-            if (substract.size()<idx) break;
+            if (substract.size() <= idx) break;
+
             long t = sent - substract.get(idx);
 
             if (t < 10) {
