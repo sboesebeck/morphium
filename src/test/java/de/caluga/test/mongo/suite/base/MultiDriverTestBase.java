@@ -253,7 +253,7 @@ public class MultiDriverTestBase {
             inMemDriver.setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
             inMemDriver.setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             var inMem = new Morphium(inMemDriver);
-            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(1000); //speed up expiry check
+            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500); //speed up expiry check
             morphiums.add(Arguments.of(inMem));
             log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverName());
         }
