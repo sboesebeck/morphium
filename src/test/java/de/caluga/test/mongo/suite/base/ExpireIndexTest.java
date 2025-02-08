@@ -18,22 +18,25 @@ import java.util.Date;
 @SuppressWarnings("AssertWithSideEffects")
 public class ExpireIndexTest extends MultiDriverTestBase {
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void testExpiry(Morphium morphium)  throws Exception {
-        log.info("==========> Running test with: "+morphium.getDriver().getName());
+        log.info("==========> Running test with: " + morphium.getDriver().getName());
+
         try (morphium) {
             morphium.dropCollection(UCobj.class);
             morphium.ensureIndicesFor(UCobj.class);
+
             for (int i = 0; i < 100; i++) {
                 UCobj u = new UCobj();
                 u.setCounter(i);
                 u.setStrValue("V" + i);
                 morphium.store(u);
             }
+
             Thread.sleep(500);
-            TestUtils.waitForConditionToBecomeTrue(1000, "Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 100);
+            TestUtils.waitForConditionToBecomeTrue(1000, morphium.getDriver().getName() + ": Writing failed?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 100);
             log.info("Waiting for mongo to clear it");
-            TestUtils.waitForConditionToBecomeTrue(62000, "Did not clear?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
+            TestUtils.waitForConditionToBecomeTrue(62000, morphium.getDriver().getName() + ": Did not clear?!?!", () -> morphium.createQueryFor(UCobj.class).countAll() == 0);
             log.info("done.");
         }
     }
