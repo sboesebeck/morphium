@@ -152,6 +152,10 @@ public class MultiDriverTestBase {
         return getMorphiumAllInstances(false, true, true);
     }
 
+    public static Stream<Arguments> getMorphiumInstancesInMemOnly() {
+        return getMorphiumAllInstances(false, true, false);
+    }
+
     public static Stream<Arguments> getMorphiumInstancesNoInMem() {
         return getMorphiumAllInstances(true, false, true);
     }

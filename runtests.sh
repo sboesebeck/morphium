@@ -242,7 +242,6 @@ for t in $(<files.txt); do
       if [ "$err" -gt 0 ]; then
         C3=$RD
       fi
-      ((testsRun = testsRun - lmeth))
       ((prc = (testsRun + lmeth) * 100 / testMethods))
       echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
       echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
