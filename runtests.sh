@@ -284,10 +284,11 @@ sleep 5
 # kill $(<fail.pid) >/dev/null 2>&1
 rm -f fail.pid >/dev/null 2>&1
 echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
-if [ "$unsuc" -gt 0 ]; then
-  echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
-  exit 1
-else
+
+if [ -z "$unzuc" ] || [ "$unsuc" -eq 0 ]; then
   echo -e "${GN}no errors recorded$CL"
   rm -f failed.txt
+else
+  echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
+  exit 1
 fi
