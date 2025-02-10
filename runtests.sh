@@ -7,6 +7,23 @@ MG='\033[0;35m'
 CN='\033[0;36m'
 CL='\033[0m'
 
+function createFileList() {
+  rg -l "@Test" | grep ".java" >files.lst
+  rg -l "@ParameterizedTest" | grep ".java" >>files.lst
+
+  sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
+  sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
+  rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >disabled.lst
+  cat files.lst | while read l; do
+    if grep $l disabled.lst; then
+      echo "$l disabled"
+    else
+      echo "$l" >>files.tmp
+    fi
+  done
+  mv files.tmp files.lst
+
+}
 function quitting() {
   echo -e "${RD}Shutting down...${CL} current test $t"
 
@@ -22,7 +39,7 @@ function quitting() {
   ./getFailedTests.sh >failed.txt
   echo "List of failed tests in failed.txt"
   cat failed.txt
-  rm -f run.lck
+  rm -f run.lck disabled.lst
   exit
 }
 
@@ -112,11 +129,7 @@ if [ "q$2" == "q" ]; then
 # 	echo "Checking for test-methods matching $m"
 fi
 
-rg -l "@Test" | grep ".java" >files.lst
-rg -l "@ParameterizedTest" | grep ".java" >>files.lst
-
-sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
-sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
+createFileList
 if [ "$skip" -ne 0 ]; then
   echo -e "${BL}Info:${CL} Skipping tests already run"
   if [ -z "$(ls -A 'test.log')" ]; then
@@ -137,12 +150,16 @@ if [ "$cnt" -eq 0 ]; then
   echo "no matching class found for $p"
   exit 1
 fi
+disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | wc -l)
+disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | wc -l)
+disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | wc -l)
+disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | wc -l)
 testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
 # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1))
+((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
   rm -rf test.log >/dev/null 2>&1
@@ -303,6 +320,8 @@ for t in $(<files.txt); do
         break
       fi
     done
+    createFileList
+
   fi
 done
 ./getFailedTests.sh >failed.txt
