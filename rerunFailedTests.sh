@@ -2,6 +2,11 @@
 
 failed=$(./getFailedTests.sh --noreason --nosum)
 
+if [ ! -z "$1" ]; then
+  failed=$(./getFailedTests.sh --noreason --nosum | grep "$1")
+else
+  failed=$(./getFailedTests.sh --noreason --nosum)
+fi
 RD='\033[0;31m'
 GN='\033[0;32m'
 BL='\033[0;34m'
