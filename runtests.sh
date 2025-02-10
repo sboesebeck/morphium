@@ -11,6 +11,10 @@ PID=$$
 
 filesList=files_$PID.lst
 classList=classes_$PID.txt
+disabledList=disabled_$PID.txt
+runLock=run_$PID.lck
+testPid=test_$PID.pid
+failPid=fail_$PID.pid
 
 function createFileList() {
   rg -l "@Test" | grep ".java" >$filesList
@@ -18,9 +22,9 @@ function createFileList() {
 
   sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
   sort -u $filesList | grep "$p" >files_$PID.tmp && mv -f files_$PID.tmp $filesList
-  rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >disabled.lst
+  rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >$disabledList
   cat $filesList | while read l; do
-    if grep $l disabled.lst; then
+    if grep $l $disabledList; then
       echo "$l disabled"
     else
       echo "$l" >>files_$PID.tmp
@@ -32,19 +36,19 @@ function createFileList() {
 function quitting() {
   echo -e "${RD}Shutting down...${CL} current test $t"
 
-  if [ -e test.pid ]; then
-    kill -9 $(<test.pid) >/dev/null 2>&1
+  if [ -e $testPid ]; then
+    kill -9 $(<$testPid) >/dev/null 2>&1
   fi
-  if [ -e fail.pid ]; then
-    kill -9 $(<fail.pid) >/dev/null 2>&1
+  if [ -e $failPid ]; then
+    kill -9 $(<$failPid) >/dev/null 2>&1
   fi
-  rm -f test.pid fail.pid >/dev/null 2>&1
+  rm -f $testPid $failPid >/dev/null 2>&1
   echo "Removing unfinished test $t"
   rm -f test.log/$t.log
   ./getFailedTests.sh >failed.txt
   echo "List of failed tests in failed.txt"
   cat failed.txt
-  rm -f run.lck disabled.lst
+  rm -f $runLock $disabledList
   rm -f $filesList $classList files_$PID.tmp
   exit
 }
@@ -186,16 +190,16 @@ tst=0
 echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
 {
-  touch run.lck
-  while [ -e run.lck ]; do
+  touch $runLock
+  while [ -e $runLock ]; do
     ./getFailedTests.sh >failed.tmp
     mv failed.tmp failed.txt
-    sleep 4
+    sleep $refresh
   done >/dev/null 2>&1
 
 } &
 
-echo $! >fail.pid
+echo $! >$failPid
 if [ -e startTS ]; then
   start=$(<startTS)
 else
@@ -209,18 +213,17 @@ err=0
 ##################################################################################################################
 #######MAIN LOOP
 for t in $(<$classList); do
-  fn=$(echo "$t" | tr "." "/")
-  if ! grep "$fn" $filesList; then
+  if grep "$t" $disabledList; then
     continue
   fi
   ((tst = tst + 1))
   tm=$(date +%s)
   if [ "$m" == }"." ]; then
     mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
-    echo $! >test.pid
+    echo $! >$testPid
   else
     mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1 &
-    echo $! >test.pid
+    echo $! >$testPid
   fi
   while true; do
     testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
@@ -229,6 +232,7 @@ for t in $(<$classList); do
     err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
     ((d = $(date +%s) - start))
     # echo "Checking $fn"
+    fn=$(echo "$t" | tr "." "/")
     lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
     clear
 
@@ -311,7 +315,7 @@ for t in $(<$classList); do
     if [ $dur -gt 600 ]; then
       echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
       echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
-      kill $(<test.pid)
+      kill $(<$testPid)
     fi
     sleep $refresh
   done
@@ -344,10 +348,10 @@ testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
 fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
 err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-rm -f run.lck
+rm -f $runLock
 sleep 5
-# kill $(<fail.pid) >/dev/null 2>&1
-rm -f fail.pid >/dev/null 2>&1
+# kill $(<$failPid) >/dev/null 2>&1
+rm -f $failPid >/dev/null 2>&1
 echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
 
 if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
