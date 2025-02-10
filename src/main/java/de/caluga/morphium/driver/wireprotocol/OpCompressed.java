@@ -40,12 +40,12 @@ public class OpCompressed extends WireProtocolMessage {
             int r = 0;
 
             while ((r = in.read(b, 0, 100)) != -1) {
-                System.out.println("read: " + r);
+                // System.out.println("read: " + r);
                 out.write(b, 0, r);
             }
 
-            in.close();
             out.flush();
+            in.close();
             compressedMessage = out.toByteArray();
         } else if (compressorId == COMPRESSOR_ZSTD) {
             throw new IllegalArgumentException("ZSTD compression not supported!");
