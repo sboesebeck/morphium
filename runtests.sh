@@ -27,6 +27,7 @@ nodel=0
 skip=0
 refresh=5
 logLength=15
+numRetries=1
 
 while [ "q$1" != "q" ]; do
 
@@ -45,11 +46,16 @@ while [ "q$1" != "q" ]; do
     shift
     logLength=$1
     shift
+  elif [ "q$1" == "q--retry" ]; then
+    shift
+    numRetries=$1
+    shift
   elif [ "q$1" == "q--refresh" ]; then
     shift
     refresh=$1
     shift
   else
+    echo "Do not know option $1 - assuming it is a testname"
     break
   fi
 done
@@ -271,7 +277,19 @@ for t in $(<files.txt); do
     fi
     sleep $refresh
   done
-
+  ./getFailedTests.sh >failed.txt
+  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+  num=$numRetries
+  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
+    while [ "$num" -gt 0 ]; do
+      echo -e "${YL}Some tests failed$CL - retrying...."
+      ./rerunFailedTests.sh
+      ((num = num - 1))
+    done
+  fi
 done
 ./getFailedTests.sh >failed.txt
 
