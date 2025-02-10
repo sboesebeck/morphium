@@ -22,6 +22,18 @@ public class DriverMock implements MorphiumDriver {
 
     private int maxWaitTime = 99991000;
 
+
+
+    @Override
+    public int getCompression() {
+        return 0;
+    }
+
+    @Override
+    public MorphiumDriver setCompression(int type) {
+        return this;
+    }
+
     @Override
     public String getName() {
         return "mock";
@@ -34,7 +46,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxBsonObjectSize(int maxBsonObjectSize) {
-
     }
 
     @Override
@@ -44,7 +55,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxMessageSize(int maxMessageSize) {
-
     }
 
     @Override
@@ -54,7 +64,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxWriteBatchSize(int maxWriteBatchSize) {
-
     }
 
     @Override
@@ -64,7 +73,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setReplicaSet(boolean replicaSet) {
-
     }
 
     @Override
@@ -79,12 +87,10 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setDefaultWriteTimeout(int wt) {
-
     }
 
     @Override
     public int getMaxWaitTime() {
-
         return maxWaitTime;
     }
 
@@ -105,17 +111,14 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setHostSeed(List<String> hosts) {
-
     }
 
     @Override
     public void setHostSeed(String... host) {
-
     }
 
     @Override
     public void setConnectionUrl(String connectionUrl) throws MalformedURLException {
-
     }
 
     @Override
@@ -136,7 +139,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void close() {
-
     }
 
     @Override
@@ -166,7 +168,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setReplicaSetName(String replicaSetName) {
-
     }
 
 
@@ -238,7 +239,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setReadTimeout(int readTimeout) {
-
     }
 
     @Override
@@ -248,7 +248,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMinConnectionsPerHost(int minConnectionsPerHost) {
-
     }
 
     @Override
@@ -258,12 +257,10 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxConnectionsPerHost(int maxConnectionsPerHost) {
-
     }
 
     @Override
     public void setCredentials(String db, String login, String pwd) {
-
     }
 
     @Override
@@ -288,7 +285,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void commitTransaction() throws MorphiumDriverException {
-
     }
 
     @Override
@@ -298,12 +294,10 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setTransactionContext(MorphiumTransactionContext ctx) {
-
     }
 
     @Override
     public void abortTransaction() throws MorphiumDriverException {
-
     }
 
 
@@ -329,7 +323,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxConnectionLifetime(int timeout) {
-
     }
 
     @Override
@@ -339,7 +332,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setMaxConnectionIdleTime(int time) {
-
     }
 
     @Override
@@ -349,7 +341,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setConnectionTimeout(int timeout) {
-
     }
 
     @Override
@@ -359,7 +350,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setDefaultW(int w) {
-
     }
 
     @Override
@@ -369,7 +359,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setHeartbeatFrequency(int heartbeatFrequency) {
-
     }
 
     @Override
@@ -379,7 +368,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setDefaultReadPreference(ReadPreference rp) {
-
     }
 
     @Override
@@ -389,7 +377,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setDefaultBatchSize(int defaultBatchSize) {
-
     }
 
     @Override
@@ -399,7 +386,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setUseSSL(boolean useSSL) {
-
     }
 
     @Override
@@ -409,12 +395,10 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void setDefaultJ(boolean j) {
-
     }
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
-
     }
 
     @Override
@@ -429,7 +413,6 @@ public class DriverMock implements MorphiumDriver {
 
     @Override
     public void releaseConnection(MongoConnection con) {
-
     }
 
     @Override
@@ -461,7 +444,6 @@ public class DriverMock implements MorphiumDriver {
     @Override
     public void setIdleSleepTime(int sl) {
         // TODO Auto-generated method stub
-
     }
 
     @Override
@@ -472,6 +454,5 @@ public class DriverMock implements MorphiumDriver {
     @Override
     public void closeConnection(MongoConnection con) {
         // TODO Auto-generated method stub
-
     }
 }
