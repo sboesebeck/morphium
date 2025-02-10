@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.wire;
 
+import de.caluga.morphium.MorphiumConfig.CompressionType;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.bson.UUIDRepresentation;
@@ -53,6 +54,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryReads = false;
     private boolean retryWrites = true;
     private int readTimeout = 30000;
+    private int compressionType = 0;
 
     private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
 
@@ -71,6 +73,20 @@ public abstract class DriverBase implements MorphiumDriver {
         if (!u.getProtocol().equals("mongodb")) {
             throw new MalformedURLException("unsupported protocol: " + u.getProtocol());
         }
+    }
+
+
+
+    @Override
+    public int getCompression() {
+        return this.compressionType;
+    }
+
+    @Override
+    public MorphiumDriver setCompression(int type) {
+        log.debug("Setting compression to {}", type);
+        this.compressionType = type;
+        return this;
     }
 
     @Override
@@ -290,7 +306,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
             if (res.get("databases") != null) {
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object>> lst = (List<Map<String, Object>>) res.get("databases");
+                List<Map<String, Object >> lst = (List<Map<String, Object >>) res.get("databases");
 
                 for (Map<String, Object> db : lst) {
                     if (db.get("name") != null) {
