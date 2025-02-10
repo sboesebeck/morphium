@@ -10,24 +10,28 @@ CL='\033[0m'
 function quitting() {
   echo -e "${RD}Shutting down...${CL} current test $t"
 
-  kill -9 $(<test.pid) >/dev/null 2>&1
-  kill -9 $(<fail.pid) >/dev/null 2>&1
+  if [ -e test.pid ]; then
+    kill -9 $(<test.pid) >/dev/null 2>&1
+  fi
+  if [ -e fail.pid ]; then
+    kill -9 $(<fail.pid) >/dev/null 2>&1
+  fi
   rm -f test.pid fail.pid >/dev/null 2>&1
   echo "Removing unfinished test $t"
   rm -f test.log/$t.log
   ./getFailedTests.sh >failed.txt
   echo "List of failed tests in failed.txt"
   cat failed.txt
+  rm -f run.lck
   exit
 }
-
-run=1
 
 nodel=0
 skip=0
 refresh=5
 logLength=15
 numRetries=1
+totalRetries=0
 
 while [ "q$1" != "q" ]; do
 
@@ -159,7 +163,8 @@ tst=0
 echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
 {
-  while [ $run -eq 1 ]; do
+  touch run.lck
+  while [ -e run.lck ]; do
     ./getFailedTests.sh >failed.tmp
     mv failed.tmp failed.txt
     sleep 4
@@ -212,6 +217,9 @@ for t in $(<files.txt); do
     echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
     echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
     echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
+    if [ "$totalRetries" -ne 0 ]; then
+      echo -e "Had to retry ${YL}$totalRetries${CL} times"
+    fi
     if [ "$m" != "." ]; then
       echo -e " Tests matching: ${BL}$m${CL}"
     fi
@@ -286,8 +294,14 @@ for t in $(<files.txt); do
   if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
     while [ "$num" -gt 0 ]; do
       echo -e "${YL}Some tests failed$CL - retrying...."
-      ./rerunFailedTests.sh
+      ./rerunFailedTests.sh $t
       ((num = num - 1))
+      ((totalRetries = totalRetries + 1))
+      ./getFailedTests.sh >failed.txt
+      unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+      if [ "$unsuc" -eq 0 ]; then
+        break
+      fi
     done
   fi
 done
@@ -297,13 +311,13 @@ testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
 fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
 err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-run=0
+rm -f run.lck
 sleep 5
 # kill $(<fail.pid) >/dev/null 2>&1
 rm -f fail.pid >/dev/null 2>&1
 echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
 
-if [ -z "$unzuc" ] || [ "$unsuc" -eq 0 ]; then
+if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
   echo -e "${GN}no errors recorded$CL"
   rm -f failed.txt
 else

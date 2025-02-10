@@ -37,6 +37,7 @@ import de.caluga.morphium.driver.wireprotocol.OpQuery;
 import de.caluga.morphium.driver.wireprotocol.OpReply;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
 
+@Deprecated
 public class MorphiumServer {
 
     private static Logger log = LoggerFactory.getLogger(MorphiumServer.class);

@@ -63,18 +63,20 @@ public class OpCompressed extends WireProtocolMessage {
 
         if (compressorId == COMPRESSOR_SNAPPY) {
             out.write(Snappy.compress(compressedMessage));
+        } else if (compressorId == COMPRESSOR_NOOP) {
+            out.write(compressedMessage);
         } else if (compressorId == COMPRESSOR_ZLIB) {
             DeflaterOutputStream zlibOut = new DeflaterOutputStream(out);
             zlibOut.write(compressedMessage);
             zlibOut.flush();
             zlibOut.close();
-            out.flush();
         } else if (compressorId == COMPRESSOR_ZSTD) {
             throw new IllegalArgumentException("ZSTD compression not supported!");
         } else {
             throw new IllegalArgumentException("unsupported compression id: " + compressorId);
         }
 
+        out.flush();
         return out.toByteArray();
     }
 
