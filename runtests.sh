@@ -45,7 +45,7 @@ function quitting() {
   rm -f $testPid $failPid >/dev/null 2>&1
   echo "Removing unfinished test $t"
   rm -f test.log/$t.log
-  ./getFailedTests.sh >failed.txt
+  ./getStats.sh >failed.txt
   echo "List of failed tests in failed.txt"
   cat failed.txt
   rm -f $runLock $disabledList
@@ -192,7 +192,7 @@ echo -e "${GN}Starting tests..${CL}" >failed.txt
 {
   touch $runLock
   while [ -e $runLock ]; do
-    ./getFailedTests.sh >failed.tmp
+    ./getStats.sh >failed.tmp
     mv failed.tmp failed.txt
     sleep $refresh
   done >/dev/null 2>&1
@@ -319,7 +319,7 @@ for t in $(<$classList); do
     fi
     sleep $refresh
   done
-  ./getFailedTests.sh >failed.txt
+  ./getStats.sh >failed.txt
 
   testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
   unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
@@ -332,7 +332,7 @@ for t in $(<$classList); do
       ./rerunFailedTests.sh $t
       ((num = num - 1))
       ((totalRetries = totalRetries + 1))
-      ./getFailedTests.sh >failed.txt
+      ./getStats.sh >failed.txt
       unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
       if [ "$unsuc" -eq 0 ]; then
         break
@@ -342,7 +342,7 @@ for t in $(<$classList); do
 
   fi
 done
-./getFailedTests.sh >failed.txt
+./getStats.sh >failed.txt
 
 testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
