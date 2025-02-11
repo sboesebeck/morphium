@@ -31,16 +31,18 @@ public class SetsTests extends MorphiumTestBase {
     public void setStoringTest() throws Exception {
         morphium.dropCollection(Uc.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
+
         for (int i = 0; i < 100; i++) {
             Uc u = new Uc();
             u.setCounter(i);
             u.setStrValue("V: " + i);
             lst.add(u);
         }
+
         morphium.storeList(lst);
         Thread.sleep(200);
         long count = morphium.createQueryFor(UncachedObject.class, "UCTest").countAll();
-        assert (count == 100) : "Count wrong " + count;
+        assert(count == 100) : "Count wrong " + count;
     }
 
     @Test
@@ -64,10 +66,10 @@ public class SetsTests extends MorphiumTestBase {
             lst.addRef(uc);
         }
 
-
         for (int i = 0; i < count; i++) {
             lst.addLong(i);
         }
+
         for (int i = 0; i < count; i++) {
             lst.addString("Value " + i);
         }
@@ -78,34 +80,29 @@ public class SetsTests extends MorphiumTestBase {
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         SetContainer lst2 = q.get();
         assertNotNull(lst2, "Error - not found?");
-
         assertNotNull(lst2.getEmbeddedObjectsSet(), "Embedded list null?");
         assertNotNull(lst2.getLongSet(), "Long list null?");
         assertNotNull(lst2.getRefSet(), "Ref list null?");
         assertNotNull(lst2.getStringSet(), "String list null?");
 
         for (int i = 0; i < count; i++) {
-
-            assert (lst2.getEmbeddedObjectsSet().toArray()[i].equals(lst.getEmbeddedObjectsSet().toArray()[i])) : "Embedded objects list differ? - " + i;
-            assert (lst2.getLongSet().toArray()[i].equals(lst.getLongSet().toArray()[i])) : "long list differ? - " + i;
-            assert (lst2.getStringSet().toArray()[i].equals(lst.getStringSet().toArray()[i])) : "string list differ? - " + i;
-            assert (lst2.getRefSet().toArray()[i].equals(lst.getRefSet().toArray()[i])) : "reference list differ? - " + i;
+            assert(lst2.getEmbeddedObjectsSet().toArray()[i].equals(lst.getEmbeddedObjectsSet().toArray()[i])) : "Embedded objects list differ? - " + i;
+            assert(lst2.getLongSet().toArray()[i].equals(lst.getLongSet().toArray()[i])) : "long list differ? - " + i;
+            assert(lst2.getStringSet().toArray()[i].equals(lst.getStringSet().toArray()[i])) : "string list differ? - " + i;
+            assert(lst2.getRefSet().toArray()[i].equals(lst.getRefSet().toArray()[i])) : "reference list differ? - " + i;
         }
 
         Thread.sleep(1000);
         q = morphium.createQueryFor(SetContainer.class).f("refSet").eq(lst2.getRefSet().toArray()[0]);
-        assert (q.countAll() != 0);
+        assert(q.countAll() != 0);
         log.info("found " + q.countAll() + " entries");
-        assert (q.countAll() == 1);
+        assert(q.countAll() == 1);
         SetContainer c = q.get();
-        assert (c.getId().equals(lst2.getId()));
-
-
+        assert(c.getId().equals(lst2.getId()));
     }
 
     @Test
     public void nullValueListTest() throws Exception {
-
         morphium.dropCollection(SetContainer.class);
         SetContainer lst = new SetContainer();
         int count = 2;
@@ -117,6 +114,7 @@ public class SetsTests extends MorphiumTestBase {
             eo.setTest(i);
             lst.addEmbedded(eo);
         }
+
         lst.addEmbedded(null);
 
         for (int i = 0; i < count; i++) {
@@ -126,8 +124,8 @@ public class SetsTests extends MorphiumTestBase {
             //references should be stored automatically...
             lst.addRef(uc);
         }
-        lst.addRef(null);
 
+        lst.addRef(null);
 
         for (int i = 0; i < count; i++) {
             lst.addLong(i);
@@ -136,17 +134,16 @@ public class SetsTests extends MorphiumTestBase {
         for (int i = 0; i < count; i++) {
             lst.addString("Value " + i);
         }
-        lst.addString(null);
 
+        lst.addString(null);
         morphium.store(lst);
         Thread.sleep(250);
         Query q = morphium.createQueryFor(SetContainer.class).f("id").eq(lst.getId());
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         SetContainer lst2 = (SetContainer) q.get();
-        assert (lst2.getStringSet().toArray()[count] == null);
-        assert (lst2.getRefSet().toArray()[count] == null);
-        assert (lst2.getEmbeddedObjectsSet().toArray()[count] == null);
-
+        assert(lst2.getStringSet().toArray()[count] == null);
+        assert(lst2.getRefSet().toArray()[count] == null);
+        assert(lst2.getEmbeddedObjectsSet().toArray()[count] == null);
     }
 
 
@@ -155,75 +152,58 @@ public class SetsTests extends MorphiumTestBase {
         morphium.dropCollection(UncachedObject.class);
         Set<UncachedObject> lst = new LinkedHashSet<>();
         lst.add(new UncachedObject());
-
-        lst.toArray(new UncachedObject[]{})[0].setStrValue("hello");
-        lst.toArray(new UncachedObject[]{})[0].setCounter(1);
-
+        lst.toArray(new UncachedObject[] {})[0].setStrValue("hello");
+        lst.toArray(new UncachedObject[] {})[0].setCounter(1);
         morphium.storeList(lst);
         Thread.sleep(100);
-
-        assertNotNull(lst.toArray(new UncachedObject[]{})[0].getMorphiumId());
+        assertNotNull(lst.toArray(new UncachedObject[] {})[0].getMorphiumId());
         ;
-
-        lst.toArray(new UncachedObject[]{})[0].setCounter(999);
-
+        lst.toArray(new UncachedObject[] {})[0].setCounter(999);
         morphium.storeList(lst);
         Thread.sleep(100);
-        assert (morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
-
+        assert(morphium.createQueryFor(UncachedObject.class).asList().get(0).getCounter() == 999);
     }
 
 
     @Test
-    public void testHybridSet() {
+    public void testHybridSet() throws InterruptedException {
         morphium.dropCollection(MySetContainer.class);
         MySetContainer mc = new MySetContainer();
         mc.name = "test";
         mc.number = 42;
         mc.objectList = new LinkedHashSet<>();
-
         ExtendedEmbeddedObject extendedEmbeddedObject = new ExtendedEmbeddedObject();
         extendedEmbeddedObject.setName("testName");
         extendedEmbeddedObject.setAdditionalValue("additionalValue");
         extendedEmbeddedObject.setTest(4711);
         extendedEmbeddedObject.setValue("value");
-
         UncachedObject uc = new UncachedObject();
         uc.setCounter(42);
         uc.setStrValue("val");
-
         EmbeddedObject eo = new EmbeddedObject();
         eo.setValue("Embedded");
         eo.setName("Fred");
         eo.setTest(System.currentTimeMillis());
-
         mc.objectList.add(uc);
         mc.objectList.add(eo);
         mc.objectList.add(extendedEmbeddedObject);
-
         morphium.store(mc);
-
+        Thread.sleep(100);
         MySetContainer mc2 = morphium.createQueryFor(MySetContainer.class).asList().get(0);
-        assert (mc2.id.equals(mc.id));
-        assert (mc2.objectList.size() == mc.objectList.size());
-
-        assert (mc2.objectList.toArray()[0] instanceof UncachedObject);
-        assert (mc2.objectList.toArray()[1] instanceof EmbeddedObject);
-        assert (mc2.objectList.toArray()[2] instanceof ExtendedEmbeddedObject);
-
-        assert (((UncachedObject) mc2.objectList.toArray()[0]).getStrValue().equals("val"));
-        assert (((UncachedObject) mc2.objectList.toArray()[0]).getCounter() == 42);
-
-        assert (((EmbeddedObject) mc2.objectList.toArray()[1]).getValue().equals("Embedded"));
-        assert (((EmbeddedObject) mc2.objectList.toArray()[1]).getName().equals("Fred"));
-        assert (((EmbeddedObject) mc2.objectList.toArray()[1]).getTest() != 0);
-
-        assert (((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getName().equals("testName"));
-        assert (((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getAdditionalValue().equals("additionalValue"));
-        assert (((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getTest() == 4711);
-        assert (((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getValue().equals("value"));
-
-
+        assert(mc2.id.equals(mc.id));
+        assert(mc2.objectList.size() == mc.objectList.size());
+        assert(mc2.objectList.toArray()[0] instanceof UncachedObject);
+        assert(mc2.objectList.toArray()[1] instanceof EmbeddedObject);
+        assert(mc2.objectList.toArray()[2] instanceof ExtendedEmbeddedObject);
+        assert(((UncachedObject) mc2.objectList.toArray()[0]).getStrValue().equals("val"));
+        assert(((UncachedObject) mc2.objectList.toArray()[0]).getCounter() == 42);
+        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getValue().equals("Embedded"));
+        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getName().equals("Fred"));
+        assert(((EmbeddedObject) mc2.objectList.toArray()[1]).getTest() != 0);
+        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getName().equals("testName"));
+        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getAdditionalValue().equals("additionalValue"));
+        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getTest() == 4711);
+        assert(((ExtendedEmbeddedObject) mc2.objectList.toArray()[2]).getValue().equals("value"));
     }
 
     @Test
@@ -236,24 +216,18 @@ public class SetsTests extends MorphiumTestBase {
         ilst.idList.add(new MorphiumId());
         ilst.name = "A test";
         ilst.number = 1;
-
         morphium.store(ilst);
         Thread.sleep(1000);
         assertNotNull(ilst.id);
         ;
-
         MyIdSetContainer ilst2 = morphium.createQueryFor(MyIdSetContainer.class).get();
-        assert (ilst2.idList.size() == ilst.idList.size());
-        assert (ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
-
-
+        assert(ilst2.idList.size() == ilst.idList.size());
+        assert(ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
         ilst2.idList.add(new MorphiumId());
         ilst2.number = 234;
         morphium.store(ilst2);
-        assert (ilst2.idList.toArray()[0] instanceof MorphiumId);
-        assert (ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
-
-
+        assert(ilst2.idList.toArray()[0] instanceof MorphiumId);
+        assert(ilst2.idList.toArray()[0].equals(ilst.idList.toArray()[0]));
     }
 
 
