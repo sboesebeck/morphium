@@ -276,13 +276,13 @@ for t in $(<$classList); do
       echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
       echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
       if [ "$totalRetries" -ne 0 ]; then
+        echo "--------------------------${MG}Retries${CL}-----------------------------------------------------------------------"
         echo -e "Had to retry ${YL}$totalRetries${CL} times:"
-        echo -e "$retried"
+        echo -e "Classes retried:$retried"
       fi
       if [ "$m" != "." ]; then
         echo -e " Tests matching: ${BL}$m${CL}"
       fi
-      echo "---------------------------------------------------------------------------------------------------------"
 
       C1="$GN"
       C2="$GN"
