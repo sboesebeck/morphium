@@ -154,6 +154,7 @@ if [ "q$2" == "q" ]; then
 # else
 # 	echo "Checking for test-methods matching $m"
 fi
+m=$(echo "$m" | tr -d '"')
 
 createFileList
 if [ "$skip" -ne 0 ]; then
@@ -369,6 +370,7 @@ for t in $(<$classList); do
     fi
     if grep -A3 "Results:" test.log/$t.log | grep "Tests run: 0,"; then
       echo -e "${RD}Error:$CL No tests run in $t - enter to retry"
+      mvn clean compile test-compile
       read </dev/tty
     else
       break
