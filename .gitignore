@@ -3,8 +3,13 @@ fail.pid
 test.log
 test.log/*
 target/
-files.lst
-files.txt
+files*.lst
+files*.txt
+classes*
+fail*
+run*
+test*
+disabled*
 .idea/
 *.iml
 dist/
