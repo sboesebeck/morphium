@@ -34,7 +34,6 @@ function createFileList() {
 
 }
 function quitting() {
-  echo -e "${RD}Shutting down...${CL} current test $t"
 
   if [ -e $testPid ]; then
     kill -9 $(<$testPid) >/dev/null 2>&1
@@ -44,11 +43,14 @@ function quitting() {
   fi
   rm -f $testPid $failPid >/dev/null 2>&1
   if [ -n "$t" ]; then
+    echo -e "${RD}Shutting down...${CL} current test $t"
     echo "Removing unfinished test $t"
     rm -f test.log/$t.log
     ./getStats.sh >failed.txt
     echo "List of failed tests in failed.txt"
     cat failed.txt
+  else
+    echo -e "${YL} Shutting down...$CL"
   fi
   rm -f $runLock $disabledList
   rm -f $filesList $classList files_$PID.tmp
