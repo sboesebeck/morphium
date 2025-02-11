@@ -19,48 +19,41 @@ public class LastAccessTest extends MorphiumTestBase {
         TstObjLA tst = new TstObjLA();
         tst.setValue("A value");
         morphium.store(tst);
-        assert (tst.getCreationTime() > 0) : "No creation time set?!?!?!";
+        assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
-        Thread.sleep(1000);
-
-
+        Thread.sleep(100);
         tst.setValue("Annother value");
         morphium.store(tst);
-        assert (tst.getLastChange() > 0) : "No last change set?";
-        assert (tst.getLastChange() > creationTime) : "No last change set?";
+        assert(tst.getLastChange() > 0) : "No last change set?";
+        assert(tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
-        assert (tst.getCreationTime() == creationTime) : "Creation time change? was: " + creationTime + " is " + tst.getCreationTime();
-
+        assert(tst.getCreationTime() == creationTime) : "Creation time change? was: " + creationTime + " is " + tst.getCreationTime();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         tst = q.get();
-        assert (tst.getLastAccess() > 0) : "No last_access set?";
+        assert(tst.getLastAccess() > 0) : "No last_access set?";
         long lastAccess = tst.getLastAccess();
-        assert (tst.getCreationTime() == creationTime) : "Creation time change?";
-        assert (tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
-
+        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
+        assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
         tst = q.asList().get(0);
-        assert (tst.getLastAccess() > 0) : "No last_access set?";
-
+        assert(tst.getLastAccess() > 0) : "No last_access set?";
         q = morphium.createQueryFor(TstObjLA.class);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         tst = q.get();
-        assert (tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
-        assert (tst.getLastChange() == lastChange);
-        assert (tst.getCreationTime() == creationTime);
-
+        assert(tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
+        assert(tst.getLastChange() == lastChange);
+        assert(tst.getCreationTime() == creationTime);
     }
 
     @Test
     public void createOnUpsert() throws Exception {
         morphium.dropCollection(TstObjLA.class);
-
         morphium.set(morphium.createQueryFor(TstObjLA.class).f("int_value").eq(12), "value", "a test", true, false, null);
+        Thread.sleep(100);
         TstObjLA tst = morphium.createQueryFor(TstObjLA.class).get();
-        assert (tst.getIntValue() == 12);
-        assert (tst.getValue().equals("a test"));
-        assert (tst.getCreationTime() != 0);
-
+        assert(tst.getIntValue() == 12);
+        assert(tst.getValue().equals("a test"));
+        assert(tst.getCreationTime() != 0);
     }
 
     @Test
@@ -71,36 +64,30 @@ public class LastAccessTest extends MorphiumTestBase {
         tst.setId("test1");
         tst.setValue("A value");
         morphium.store(tst);
-        assert (tst.getCreationTime() > 0) : "No creation time set?!?!?!";
+        assert(tst.getCreationTime() > 0) : "No creation time set?!?!?!";
         long creationTime = tst.getCreationTime();
-        Thread.sleep(1000);
-
-
+        Thread.sleep(100);
         tst.setValue("Annother value");
         morphium.store(tst);
-        assert (tst.getLastChange() > 0) : "No last change set?";
-        assert (tst.getLastChange() > creationTime) : "No last change set?";
+        assert(tst.getLastChange() > 0) : "No last change set?";
+        assert(tst.getLastChange() > creationTime) : "No last change set?";
         long lastChange = tst.getLastChange();
-        assert (tst.getCreationTime() == creationTime) : "Creation time change?";
-
+        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
         Query<TstObjAutoValuesStringId> q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         tst = q.get();
-        assert (tst.getLastAccess() > 0) : "No last_access set?";
+        assert(tst.getLastAccess() > 0) : "No last_access set?";
         long lastAccess = tst.getLastAccess();
-        assert (tst.getCreationTime() == creationTime) : "Creation time change?";
-        assert (tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
-
+        assert(tst.getCreationTime() == creationTime) : "Creation time change?";
+        assert(tst.getLastAccess() != tst.getCreationTime()) : "Last access == creation time";
         tst = q.asList().get(0);
-        assert (tst.getLastAccess() > 0) : "No last_access set?";
-
+        assert(tst.getLastAccess() > 0) : "No last_access set?";
         q = morphium.createQueryFor(TstObjAutoValuesStringId.class);
-        Thread.sleep(1000);
+        Thread.sleep(100);
         tst = q.get();
-        assert (tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
-        assert (tst.getLastChange() == lastChange);
-        assert (tst.getCreationTime() == creationTime);
-
+        assert(tst.getLastAccess() != lastAccess) : "Lat Access did not change?";
+        assert(tst.getLastChange() == lastChange);
+        assert(tst.getCreationTime() == creationTime);
     }
 
     @Test
@@ -108,80 +95,83 @@ public class LastAccessTest extends MorphiumTestBase {
         Thread.sleep(200);
         TstObjLA la = new TstObjLA();
         la.setValue("value");
-
         morphium.store(la);
-
         long s = System.currentTimeMillis();
 
         while (morphium.findById(TstObjLA.class, la.id) == null) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
+
         morphium.reread(la);
-
-        assert (la.creationTime != 0);
-        assert (la.lastChange != 0);
-
+        assert(la.creationTime != 0);
+        assert(la.lastChange != 0);
         la.setValue("new Value");
         morphium.store(la);
         s = System.currentTimeMillis();
+
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == la.getCreationTime()) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+            assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
+
         morphium.reread(la);
         long lc = la.getLastChange();
-        assert (la.getCreationTime() != la.getLastChange());
-
+        assert(la.getCreationTime() != la.getLastChange());
         morphium.set(la, "value", "set");
         morphium.reread(la);
-        assert (lc != la.getLastChange());
+        assert(lc != la.getLastChange());
         lc = la.getLastChange();
         la.setIntValue(41);
         Thread.sleep(100); //forcing last change to be later!
         morphium.store(la);
         s = System.currentTimeMillis();
+
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 15000);
+            assert(System.currentTimeMillis() - s < 15000);
         }
-        morphium.reread(la);
 
-        assert (lc != la.getLastChange());
+        morphium.reread(la);
+        assert(lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(la, "int_value", 1);
         s = System.currentTimeMillis();
+
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 15000);
+            assert(System.currentTimeMillis() - s < 15000);
         }
-        morphium.reread(la);
-        assert (la.getIntValue() == 42);
-        assert (lc != la.getLastChange());
 
+        morphium.reread(la);
+        assert(la.getIntValue() == 42);
+        assert(lc != la.getLastChange());
         //now using ID
         lc = la.getLastChange();
         Query<TstObjLA> q = morphium.createQueryFor(TstObjLA.class).f("_id").eq(la.getId());
         morphium.set(q, "int_value", 1);
         s = System.currentTimeMillis();
+
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 15000);
+            assert(System.currentTimeMillis() - s < 15000);
         }
-        morphium.reread(la);
-        assert (la.getIntValue() == 1);
-        assert (lc != la.getLastChange());
 
+        morphium.reread(la);
+        assert(la.getIntValue() == 1);
+        assert(lc != la.getLastChange());
         lc = la.getLastChange();
         morphium.inc(q, "int_value", 41);
         s = System.currentTimeMillis();
+
         while (morphium.findById(TstObjLA.class, la.id).getLastChange() == lc) {
             Thread.sleep(100);
-            assert (System.currentTimeMillis() - s < 15000);
+            assert(System.currentTimeMillis() - s < 15000);
         }
+
         morphium.reread(la);
-        assert (la.getIntValue() == 42);
-        assert (lc != la.getLastChange());
+        assert(la.getIntValue() == 42);
+        assert(lc != la.getLastChange());
     }
 
     @Entity
