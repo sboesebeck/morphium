@@ -932,17 +932,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @Entity
-    public static class ObjectIdTest {
-        @Id
-        public ObjectId id;
-        public String value;
-
-        public enum Fields {
-            value, id
-        }
-    }
-
     @Entity()
     @DefaultReadPreference(ReadPreferenceLevel.NEAREST)
     @WriteSafety(level = SafetyLevel.MAJORITY)
