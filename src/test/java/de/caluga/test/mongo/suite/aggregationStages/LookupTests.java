@@ -25,13 +25,11 @@ public class LookupTests extends MorphiumTestBase {
         morphium.store(new Order(2, "pecans", 20.0, 1));
         morphium.store(new Order(3, null, null, null));
         morphium.store(new Order(4, "peanuts", 8.0, 12));
-
         morphium.store(new Inventory(1, "almonds", "Product 1", 120));
         morphium.store(new Inventory(2, "bread", "Product 2", 80));
         morphium.store(new Inventory(3, "cashews", "Product 3", 60));
         morphium.store(new Inventory(4, "pecans", "Product 4", 70));
         morphium.store(new Inventory(5, null, "incomplete", null));
-
         Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
         List<Map> lst = agg.lookup(morphium.getMapper().getCollectionName(Inventory.class), "item", "sku", "inventory_docs", null, null).aggregate();
 
@@ -39,10 +37,11 @@ public class LookupTests extends MorphiumTestBase {
             log.info("Map: " + m.toString());
             assertNotNull(m.get("inventory_docs"));
             ;
+
             if (m.get("_id").equals(4)) {
-                assert (((List) m.get("inventory_docs")).size() == 0);
+                assert(((List) m.get("inventory_docs")).size() == 0);
             } else {
-                assert (((List) m.get("inventory_docs")).size() == 1);
+                assert(((List) m.get("inventory_docs")).size() == 1);
             }
         }
     }
@@ -53,13 +52,11 @@ public class LookupTests extends MorphiumTestBase {
         morphium.dropCollection(Order.class);
         morphium.dropCollection(Inventory.class);
         Thread.sleep(100);
-
         morphium.store(new Order(1, "almonds", 12.0, 20));
         morphium.store(new Order(2, "pecans", 20.0, 18));
         morphium.store(new Order(3, "cashews", 11.0, 12));
         morphium.store(new Order(4, "peanuts", 12.0, 14));
         morphium.store(new Order(5, "bread", 12.0, 84));
-
         morphium.store(new Inventory(1, "almonds", "Product 1", "Warehouse A", 120));
         morphium.store(new Inventory(2, "almonds", "Product 1", "Warehouse C", 120));
         morphium.store(new Inventory(3, "bread", "Product 2", "Warehouse A", 80));
@@ -68,29 +65,30 @@ public class LookupTests extends MorphiumTestBase {
         morphium.store(new Inventory(6, "pecans", "Product 6", "Warehouse C", 70));
         morphium.store(new Inventory(7, "peanuts", "peanuts", "Warehouse B", 10));
         morphium.store(new Inventory(8, "peanuts", "peanuts!", "Warehouse A", 120));
-
+        Thread.sleep(150);
         Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
         List<Expr> pipeline = new ArrayList<>();
         pipeline.add(Expr.match(Expr.expr(
-                Expr.and(
-                        Expr.eq(Expr.field("sku"), Expr.field("$$order_item")),
-                        Expr.gte(Expr.field("$instock"), Expr.field("$$order_qty"))
-                ))));
+            Expr.and(
+                Expr.eq(Expr.field("sku"), Expr.field("$$order_item")),
+                Expr.gte(Expr.field("$instock"), Expr.field("$$order_qty"))
+            ))));
         pipeline.add(Expr.project(UtilsMap.of("sku", Expr.intExpr(0), "_id", Expr.intExpr(0))));
         agg.lookup("inventory", null, null, "stock_data", pipeline, UtilsMap.of("order_item", Expr.field("item"), "order_qty", Expr.field("quantity")));
-
-        List<Map<String, Object>> result = agg.aggregateMap();
+        List<Map<String, Object >> result = agg.aggregateMap();
         for (Map<String, Object> m : result) {
             log.info(m.toString());
+
             if (m.get("_id").equals(1)) {
                 //should be two possible warehouses
-                assert (((List) m.get("stock_data")).size() == 2);
+                assert(((List) m.get("stock_data")).size() == 2);
             } else if (m.get("_id").equals(5)) {
-                assert (((List) m.get("stock_data")).size() == 0); //not available
+                assert(((List) m.get("stock_data")).size() == 0);  //not available
             } else {
-                assert (((List) m.get("stock_data")).size() == 1);
+                assert(((List) m.get("stock_data")).size() == 1);
             }
         }
+
         log.info("done");
     }
 
