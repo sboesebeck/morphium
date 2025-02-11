@@ -31,101 +31,92 @@ public class ReferenceTest extends MorphiumTestBase {
     private final boolean wouldDeref = false;
 
     @Test
-    public void storeReferenceTest() {
+    public void storeReferenceTest() throws InterruptedException {
         morphium.dropCollection(ReferenceContainer.class);
-
         UncachedObject uc1 = new UncachedObject();
         uc1.setCounter(1);
         uc1.setStrValue("Uncached 1");
         morphium.store(uc1);
-
         UncachedObject uc2 = new UncachedObject();
         uc2.setCounter(1);
         uc2.setStrValue("Uncached 2");
         morphium.store(uc2);
-
-
         CachedObject co = new CachedObject();
         co.setCounter(3);
         co.setValue("Cached 3");
         morphium.storeNoCache(co);
         //Making sure it's stored yet
-
         ReferenceContainer rc = new ReferenceContainer();
         rc.setCo(co);
         rc.setLazyUc(uc2);
         rc.setUc(uc1);
-
         List<UncachedObject> lst = new ArrayList<>();
         UncachedObject toSearchFor = null;
+
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
             uc.setStrValue("list value " + i);
             uc.setCounter(i);
+
             if (i == 4) {
                 toSearchFor = uc;
             }
+
             lst.add(uc);
         }
+
         morphium.storeList(lst);
         rc.setLst(lst);
-
         UncachedObject toSearchFor2 = null;
         lst = new ArrayList<>();
+
         for (int i = 0; i < 10; i++) {
             //creating uncached Objects
             UncachedObject uc = new UncachedObject();
             uc.setStrValue("list value " + i);
             uc.setCounter(i);
             lst.add(uc);
+
             if (i == 4) {
                 toSearchFor2 = uc;
             }
         }
 
         rc.setLzyLst(lst);
-
-
         morphium.store(rc); //stored
-
-
         ReferenceContainer rc2 = new ReferenceContainer();
         rc2.setLst(new ArrayList<>());
         rc2.setUc(toSearchFor);
         morphium.store(rc2);
-
+        Thread.sleep(500);
         //read from db....
-
         Query<ReferenceContainer> q = morphium.createQueryFor(ReferenceContainer.class);
         q.f("uc").eq(uc1);
         ReferenceContainer rcRead = q.get(); //should only be one...
-
-        assert (rcRead.getId().equals(rc.getId())) : "ID's different?!?!?";
-        assert (rcRead.getUc().getMorphiumId().equals(rc.getUc().getMorphiumId())) : "Uc's Id's different?!?!";
-        assert (rcRead.getCo().getId().equals(rc.getCo().getId())) : "Co's id's different";
-        assert (rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())) : "lazy refs Ids differ";
-        assert (rcRead.getLst().size() == rc.getLst().size()) : "Size of lists differ?";
-        assert (rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
-        assert (rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
-
+        assert(rcRead.getId().equals(rc.getId())) : "ID's different?!?!?";
+        assert(rcRead.getUc().getMorphiumId().equals(rc.getUc().getMorphiumId())) : "Uc's Id's different?!?!";
+        assert(rcRead.getCo().getId().equals(rc.getCo().getId())) : "Co's id's different";
+        assert(rcRead.getLazyUc().getMorphiumId().equals(rc.getLazyUc().getMorphiumId())) : "lazy refs Ids differ";
+        assert(rcRead.getLst().size() == rc.getLst().size()) : "Size of lists differ?";
+        assert(rcRead.getLzyLst().get(0).getClass().getName().contains("$EnhancerByCGLIB$")) : "List not lazy?";
+        assert(rcRead.getLzyLst().get(0).getCounter() == rc.getLzyLst().get(0).getCounter()) : "Counter different?!?";
         q = morphium.createQueryFor(ReferenceContainer.class).f("lst").eq(toSearchFor);
         rcRead = q.get();
         assertNotNull(rcRead);
         ;
-        assert (rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0));
+        assert(rcRead.getUc().getCounter() != (toSearchFor != null ? toSearchFor.getCounter() : 0));
         assertNotNull(rcRead.getCo());
         ;
-        assert (rcRead.getId().equals(rc.getId()));
-
+        assert(rcRead.getId().equals(rc.getId()));
         q = morphium.createQueryFor(ReferenceContainer.class).f("lzyLst").eq(toSearchFor2);
         rcRead = q.get();
         assertNotNull(rcRead);
         ;
-        assert (rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0));
+        assert(rcRead.getUc().getCounter() != (toSearchFor2 != null ? toSearchFor2.getCounter() : 0));
         assertNotNull(rcRead.getCo());
         ;
-        assert (rcRead.getId().equals(rc.getId()));
+        assert(rcRead.getId().equals(rc.getId()));
     }
 
     @Test
@@ -138,59 +129,48 @@ public class ReferenceTest extends MorphiumTestBase {
         reference.put("referenced_class_name", UncachedObject.class.getName());
         reference.put("collection_name", "uncached_object");
         reference.put("refid", referenced.getMorphiumId());
-
         Map<String, Object> rc = new HashMap<>();
         rc.put("uc", reference);
-
-        List<Map<String, Object>> lst = new ArrayList<>();
+        List<Map<String, Object >> lst = new ArrayList<>();
         lst.add(rc);
         InsertMongoCommand cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(null)).setColl("reference_container")
-                .setDb(morphium.getDatabase()).setDocuments(lst);
+        .setDb(morphium.getDatabase()).setDocuments(lst);
         cmd.execute();
         cmd.releaseConnection();
         Thread.sleep(1000);
-
-        assert (morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
+        assert(morphium.createQueryFor(ReferenceContainer.class).countAll() == 1);
         ReferenceContainer container = morphium.createQueryFor(ReferenceContainer.class).get();
         assertNotNull(container.uc);
         ;
-        assert (container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
-        assert (container.uc.getCounter() == referenced.getCounter());
-
-
+        assert(container.uc.getMorphiumId().equals(referenced.getMorphiumId()));
+        assert(container.uc.getCounter() == referenced.getCounter());
     }
 
 
     @Test
-    public void testSimpleDoublyLinkedStructure() {
+    public void testSimpleDoublyLinkedStructure() throws InterruptedException {
         Morphium m = morphium;
         m.clearCollection(SimpleDoublyLinkedEntity.class);
         SimpleDoublyLinkedEntity e1 = new SimpleDoublyLinkedEntity(1);
         SimpleDoublyLinkedEntity e2 = new SimpleDoublyLinkedEntity(2);
         SimpleDoublyLinkedEntity e3 = new SimpleDoublyLinkedEntity(3);
-
         // store wihtout links to get Ids
         m.store(e1);
         m.store(e2);
         m.store(e3);
-
         // set links
         e2.setPrev(e1);
         e3.setPrev(e2);
-
         // update
         m.store(e1);
         m.store(e2);
         m.store(e3);
-
         m.clearCachefor(SimpleDoublyLinkedEntity.class);
-
+        Thread.sleep(100);
         e2 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e2.id);
         e1 = m.createQueryFor(SimpleDoublyLinkedEntity.class).getById(e1.id);
-
-        assert (e1.getValue() == e2.getPrev().getValue());
-        assert (e2.getValue() == e1.getNext().getValue());
-
+        assert(e1.getValue() == e2.getPrev().getValue());
+        assert(e2.getValue() == e1.getNext().getValue());
     }
 
 
@@ -199,25 +179,24 @@ public class ReferenceTest extends MorphiumTestBase {
         morphium.clearCollection(ReferenceContainer.class);
         ReferenceContainer c = new ReferenceContainer();
         Map<String, UncachedObject> m = new HashMap<>();
+
         for (int i = 0; i < 10; i++) {
             UncachedObject uc = new UncachedObject();
             uc.setCounter(i);
             uc.setStrValue("" + i);
             m.put("" + i, uc);
         }
+
         c.map = m;
         morphium.store(c);
         Thread.sleep(150);
-
         ReferenceContainer cont = morphium.createQueryFor(ReferenceContainer.class).get();
+        assert(cont.id.equals(c.id));
 
-        assert (cont.id.equals(c.id));
         for (int i = 0; i < 10; i++) {
-            assert (cont.map.get("" + i).getCounter() == i);
-            assert (cont.map.get("" + i).getStrValue().equals("" + i));
-            assert (cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId()));
-
-
+            assert(cont.map.get("" + i).getCounter() == i);
+            assert(cont.map.get("" + i).getStrValue().equals("" + i));
+            assert(cont.map.get("" + i).getMorphiumId().equals(c.map.get("" + i).getMorphiumId()));
         }
     }
 
