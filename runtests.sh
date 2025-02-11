@@ -24,7 +24,7 @@ function createFileList() {
   sort -u $filesList | grep "$p" >files_$PID.tmp && mv -f files_$PID.tmp $filesList
   rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >$disabledList
   cat $filesList | while read l; do
-    if grep $l $disabledList; then
+    if grep $l $disabledList >/dev/null; then
       echo "$l disabled"
     else
       echo "$l" >>files_$PID.tmp
@@ -62,6 +62,7 @@ skip=0
 refresh=5
 logLength=15
 numRetries=1
+retried=""
 totalRetries=0
 
 while [ "q$1" != "q" ]; do
@@ -275,7 +276,8 @@ for t in $(<$classList); do
       echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
       echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
       if [ "$totalRetries" -ne 0 ]; then
-        echo -e "Had to retry ${YL}$totalRetries${CL} times"
+        echo -e "Had to retry ${YL}$totalRetries${CL} times:"
+        echo -e "$retried"
       fi
       if [ "$m" != "." ]; then
         echo -e " Tests matching: ${BL}$m${CL}"
@@ -355,6 +357,7 @@ for t in $(<$classList); do
         ./rerunFailedTests.sh $t
         ((num = num - 1))
         ((totalRetries = totalRetries + 1))
+        retried="$retried\n$t"
         ./getStats.sh >failed.txt
         unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
         if [ "$unsuc" -eq 0 ]; then
