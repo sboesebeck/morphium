@@ -18,11 +18,11 @@ CL='\033[0m'
 echo -e "${MG}Rerunning$CL ${CN}failed tests...$CL"
 
 for f in $failed; do
-  echo "----- > Failed test: ${RD}$f$CL"
+  echo -e "----- > Failed test: ${RD}$f$CL"
   cls=${f%#*}
   m=${f#*#}
   m=${m/(*/}
   #m=$(echo "$m" | sed -e 's/\\(.*$//' )
-  echo "${YL}Re-Running$CL tests in $BL$cls$CL Method $GN$m$CL"
+  echo -e "${YL}Re-Running$CL tests in $BL$cls$CL Method $GN$m$CL"
   ./runtests.sh --retry 0 --nodel $cls $m
 done
