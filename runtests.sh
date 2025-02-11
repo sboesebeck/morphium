@@ -279,7 +279,7 @@ for t in $(<$classList); do
       if [ "$totalRetries" -ne 0 ]; then
         echo -e "--------------------------${MG}Retries${CL}-----------------------------------------------------------------------"
         echo -e "Had to retry ${YL}$totalRetries${CL} times:"
-        echo -e "Classes retried:$retried"
+        echo -e "Classes retried:$retried" | sort -u
       fi
       if [ "$m" != "." ]; then
         echo -e " Tests matching: ${BL}$m${CL}"
