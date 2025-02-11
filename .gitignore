@@ -7,8 +7,8 @@ files*.lst
 files*.txt
 classes*
 fail*
-run*
-test*
+run*.pid
+*.lck
 disabled*
 .idea/
 *.iml
@@ -23,7 +23,7 @@ slackurl.inc
 .classpath
 .settings/
 .project
-test.pid
+test*.pid
 
 failed.txt
 pom.xml.releaseBackup
