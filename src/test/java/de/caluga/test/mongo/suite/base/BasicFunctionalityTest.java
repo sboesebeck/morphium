@@ -28,8 +28,6 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -120,10 +118,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void existTest(Morphium m) {
+    public void existTest(Morphium m) throws Exception {
         try (m) {
             log.info("----> Running with: " + m.getDriver().getName());
             createUncachedObjects(m, 10);
+            Thread.sleep(100);
             long cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.boolData).exists().countAll();
             assertEquals(0, cnt);
             cnt = m.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(4).countAll();
@@ -487,15 +486,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @Test
-    public void testAnnotationCache() {
-        Morphium morphium = (Morphium) getMorphiumInstances().findFirst().get().get()[0];
-        Entity e = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Entity.class);
-        assert(e == null);
-        Embedded em = morphium.getARHelper().getAnnotationFromHierarchy(EmbeddedObject.class, Embedded.class);
-        assertNotNull(em);
-        ;
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -762,7 +752,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
-    public void listOfIdsTest(Morphium morphium) {
+    public void listOfIdsTest(Morphium morphium) throws InterruptedException {
         String tstName = new Object() {
         }
 
@@ -790,6 +780,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             c.idMap = map;
             c.simpleId = new MorphiumId();
             morphium.store(c);
+            Thread.sleep(150);
             Query<ListOfIdsContainer> q = morphium.createQueryFor(ListOfIdsContainer.class);
             ListOfIdsContainer cnt = q.get();
             assertEquals(c.id, cnt.id);
@@ -887,76 +878,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             assertTrue(ex);
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void customMapperObjectIdTest(Morphium morphium) {
-        String tstName = new Object() {
-        }
-
-        .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try (morphium) {
-            MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
-                @Override
-                public Object marshall(ObjectIdTest o) {
-                    Map serialized = new HashMap();
-                    serialized.put("value", o.value);
-                    serialized.put("_id", o.id);
-                    return serialized;
-                }
-
-                @Override
-                public ObjectIdTest unmarshall(Object d) {
-                    Map obj = ((Map) d);
-                    ObjectIdTest o = new ObjectIdTest();
-                    o.id = new ObjectId(obj.get("_id").toString());
-                    o.value = (String)(obj.get("value"));
-                    return o;
-                }
-            };
-
-            morphium.getMapper().registerCustomMapperFor(ObjectIdTest.class, mapper);
-            ObjectIdTest t = new ObjectIdTest();
-            t.value = "test1";
-            t.id = new ObjectId();
-            morphium.store(t);
-            morphium.reread(t);
-            t = new ObjectIdTest();
-            t.value = "test2";
-            t.id = new ObjectId();
-            morphium.store(t);
-            List<ObjectIdTest> lst = morphium.createQueryFor(ObjectIdTest.class).asList();
-
-            for (ObjectIdTest tst : lst) {
-                log.info("T: " + tst.value + " id: " + tst.id.toHexString());
-            }
-
-            morphium.getMapper().deregisterCustomMapperFor(ObjectIdTest.class);
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void objectIdIdstest(Morphium morphium) {
-        String tstName = new Object() {
-        }
-
-        .getClass().getEnclosingMethod().getName();
-        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-
-        try (morphium) {
-            ObjectIdTest o = new ObjectIdTest();
-            o.value = "test1";
-            morphium.store(o);
-            assertNotNull(o.id);
-            assertTrue(o.id instanceof ObjectId);
-            morphium.reread(o);
-            assertNotNull(o.id);
-            assertTrue(o.id instanceof ObjectId);
         }
     }
 

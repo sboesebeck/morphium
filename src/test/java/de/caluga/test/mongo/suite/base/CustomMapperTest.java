@@ -212,14 +212,54 @@ public class CustomMapperTest extends MorphiumTestBase {
     }
 
     @Test
+    public void customMapperObjectIdTest() {
+        MorphiumTypeMapper<ObjectIdTest> mapper = new MorphiumTypeMapper<ObjectIdTest>() {
+            @Override
+            public Object marshall(ObjectIdTest o) {
+                Map serialized = new HashMap();
+                serialized.put("value", o.value);
+                serialized.put("_id", o.id);
+                return serialized;
+            }
+
+            @Override
+            public ObjectIdTest unmarshall(Object d) {
+                Map obj = ((Map) d);
+                ObjectIdTest o = new ObjectIdTest();
+                o.id = new ObjectId(obj.get("_id").toString());
+                o.value = (String)(obj.get("value"));
+                return o;
+            }
+        };
+
+        morphium.getMapper().registerCustomMapperFor(ObjectIdTest.class, mapper);
+        ObjectIdTest t = new ObjectIdTest();
+        t.value = "test1";
+        t.id = new ObjectId();
+        morphium.store(t);
+        morphium.reread(t);
+        t = new ObjectIdTest();
+        t.value = "test2";
+        t.id = new ObjectId();
+        morphium.store(t);
+        List<ObjectIdTest> lst = morphium.createQueryFor(ObjectIdTest.class).asList();
+
+        for (ObjectIdTest tst : lst) {
+            log.info("T: " + tst.value + " id: " + tst.id.toHexString());
+        }
+
+        morphium.getMapper().deregisterCustomMapperFor(ObjectIdTest.class);
+    }
+
+    @Test
     public void complexCustomMappingTest() {
         morphium.getMapper().registerCustomMapperFor(CustomMappedObject.class, new CustomMappedObjectMapper());
         morphium.dropCollection(ObjectWithCustomMappedObject.class);
         ComplexCustomMapperObject containingObject = new ComplexCustomMapperObject();
-        List<Map<String, List<CustomMappedObject>>> complexestList = new ArrayList<>();
-        Map<String, List<Map<String, CustomMappedObject>>> complexestMap = new HashMap<>();
-        List<Map<String, CustomMappedObject>> complexList = new ArrayList<>();
-        Map<String, List<CustomMappedObject>> complexMap = new HashMap<>();
+        List<Map<String, List<CustomMappedObject >>> complexestList = new ArrayList<>();
+        Map<String, List<Map<String, CustomMappedObject >>> complexestMap = new HashMap<>();
+        List<Map<String, CustomMappedObject >> complexList = new ArrayList<>();
+        Map<String, List<CustomMappedObject >> complexMap = new HashMap<>();
         List<CustomMappedObject> list = new ArrayList<>();
         Map<String, CustomMappedObject> map = new HashMap<>();
         mockupContainerObject(containingObject, list, map);
@@ -252,41 +292,41 @@ public class CustomMapperTest extends MorphiumTestBase {
     }
 
     private static class ComplexCustomMapperObject extends ObjectWithCustomMappedObject {
-        private List<Map<String, CustomMappedObject>> complexList;
-        private Map<String, List<CustomMappedObject>> complexMap;
+        private List<Map<String, CustomMappedObject >> complexList;
+        private Map<String, List<CustomMappedObject >> complexMap;
 
-        private List<Map<String, List<CustomMappedObject>>> complexestList;
-        private Map<String, List<Map<String, CustomMappedObject>>> complexestMap;
+        private List<Map<String, List<CustomMappedObject >>> complexestList;
+        private Map<String, List<Map<String, CustomMappedObject >>> complexestMap;
 
-        public List<Map<String, CustomMappedObject>> getComplexList() {
+        public List<Map<String, CustomMappedObject >> getComplexList() {
             return complexList;
         }
 
-        public void setComplexList(List<Map<String, CustomMappedObject>> complexList) {
+        public void setComplexList(List<Map<String, CustomMappedObject >> complexList) {
             this.complexList = complexList;
         }
 
-        public Map<String, List<CustomMappedObject>> getComplexMap() {
+        public Map<String, List<CustomMappedObject >> getComplexMap() {
             return complexMap;
         }
 
-        public void setComplexMap(Map<String, List<CustomMappedObject>> complexMap) {
+        public void setComplexMap(Map<String, List<CustomMappedObject >> complexMap) {
             this.complexMap = complexMap;
         }
 
-        public List<Map<String, List<CustomMappedObject>>> getComplexestList() {
+        public List<Map<String, List<CustomMappedObject >>> getComplexestList() {
             return complexestList;
         }
 
-        public void setComplexestList(List<Map<String, List<CustomMappedObject>>> complexestList) {
+        public void setComplexestList(List<Map<String, List<CustomMappedObject >>> complexestList) {
             this.complexestList = complexestList;
         }
 
-        public Map<String, List<Map<String, CustomMappedObject>>> getComplexestMap() {
+        public Map<String, List<Map<String, CustomMappedObject >>> getComplexestMap() {
             return complexestMap;
         }
 
-        public void setComplexestMap(Map<String, List<Map<String, CustomMappedObject>>> complexestMap) {
+        public void setComplexestMap(Map<String, List<Map<String, CustomMappedObject >>> complexestMap) {
             this.complexestMap = complexestMap;
         }
     }
