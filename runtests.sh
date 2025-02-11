@@ -218,7 +218,7 @@ for t in $(<$classList); do
   fi
   ((tst = tst + 1))
   tm=$(date +%s)
-  if [ "$m" == }"." ]; then
+  if [ "$m" == "." ]; then
     mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
     echo $! >$testPid
   else
@@ -340,6 +340,10 @@ for t in $(<$classList); do
     done
     createFileList
 
+  fi
+  if grep "Tests run: 0 " test.log/$t; then
+    echo -e "${RD}Error:$CL No tests run in $t"
+    read </dev/tty
   fi
 done
 ./getStats.sh >failed.txt
