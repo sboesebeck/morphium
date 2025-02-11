@@ -137,6 +137,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             lc.addString("one");
             lc.addString("one");
             m.store(lc);
+            Thread.sleep(250);
             cnt = m.createQueryFor(ListContainer.class).f(ListContainer.Fields.stringList).exists().countAll();
             assertEquals(1, cnt);
             cnt = m.createQueryFor(ListContainer.class).f("string_list.0").exists().countAll();
