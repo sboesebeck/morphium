@@ -22,6 +22,7 @@ for f in $failed; do
   cls=${f%#*}
   m=${f#*#}
   m=${m/(*/}
+  m=$(echo "$m" | tr -d '"')
   #m=$(echo "$m" | sed -e 's/\\(.*$//' )
   echo -e "${YL}Re-Running$CL tests in $BL$cls$CL Method $GN$m$CL"
   ./runtests.sh --retry 0 --nodel $cls $m
