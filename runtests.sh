@@ -65,6 +65,17 @@ while [ "q$1" != "q" ]; do
   if [ "q$1" == "q--nodel" ]; then
     nodel=1
     shift
+  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
+    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
+    echo -e "${BL}--skip$CL        - if presen, allready run tests will be skipped"
+    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
+    echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
+    echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
+    echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
+    echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
+    echo "Test name is the classname to run, and method is method name in that class"
+    echo
+    exit 0
   elif [ "q$1" == "q--skip" ]; then
     skip=1
     shift
@@ -341,7 +352,7 @@ for t in $(<$classList); do
     createFileList
 
   fi
-  if grep "Tests run: 0 " test.log/$t; then
+  if grep "Tests run: 0 " test.log/$t.log; then
     echo -e "${RD}Error:$CL No tests run in $t"
     read </dev/tty
   fi
