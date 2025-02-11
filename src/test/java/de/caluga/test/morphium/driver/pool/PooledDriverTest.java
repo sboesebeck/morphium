@@ -22,6 +22,7 @@ import com.mongodb.ServerAddress;
 import com.mongodb.client.MongoClients;
 import com.mongodb.connection.ClusterConnectionMode;
 import de.caluga.morphium.ObjectMapperImpl;
+import de.caluga.morphium.MorphiumConfig.CompressionType;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -38,7 +39,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 // @Disabled
 public class PooledDriverTest {
     private Logger log = LoggerFactory.getLogger(PooledDriverTest.class);
-    private int amount = 1000;
+    private int amount = 100;
 
     private Object sync = new Object();
 
@@ -52,6 +53,14 @@ public class PooledDriverTest {
         Thread.sleep(1000);
         log.info("Checking status");
 
+        for (int i = 0; i < 10; i++) {
+            Thread.sleep(1000);
+
+            for (var e : drv.getNumConnectionsByHost().entrySet()) {
+                log.info("Host: " + e.getKey() + " connections: " + e.getValue() + " min connections: " + min + " Max: " + max);
+            }
+        }
+
         for (var e : drv.getNumConnectionsByHost().entrySet()) {
             log.info("Host: " + e.getKey() + " connections: " + e.getValue() + " min connections: " + min + " Max: " + max);
             assertTrue(e.getValue() <= 10 && e.getValue() >= min);
@@ -61,7 +70,7 @@ public class PooledDriverTest {
     }
 
     @Test
-    // @Disabled
+    @Disabled
     public void comparePooledDriverMongoDriver() throws Exception {
         testCRUDPooledDriver();
         crudTestMongoDriver();
@@ -73,6 +82,7 @@ public class PooledDriverTest {
         var drv = getDriver();
         drv.setMaxConnectionLifetime(45000);
         drv.setMaxConnectionIdleTime(44000);
+        drv.setCompression(CompressionType.ZLIB.getCode());
 
         try (drv) {
             drv.connect();

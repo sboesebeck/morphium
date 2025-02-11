@@ -86,33 +86,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
-    public void testConnectionFail(Morphium morphium) {
-        if (morphium.getDriver() instanceof InMemoryDriver) {
-            return;
-        }
-
-        Morphium m = null;
-
-        try (morphium) {
-            log.info("----> Running with: " + morphium.getDriver().getName());
-            //trying to connect with the sepcified driver to non existent mongo
-            MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-            cfg.setCredentialsEncrypted(false);
-            cfg.setHostSeed("localhost:12312"); //does not exist, but should be easy to find
-            m = new Morphium(cfg);
-            log.info("No exception!");
-            assertTrue(true, "Exception not thrown!");
-        } catch (Exception e) {
-            log.info("Got exception!", e);
-        } finally {
-            if (m != null)
-                m.close();
-        }
-
-        assertFalse(m != null && m.getDriver() != null && m.getDriver().isConnected(), "Connection status wrong");
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

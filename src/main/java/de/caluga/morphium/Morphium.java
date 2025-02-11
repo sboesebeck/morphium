@@ -20,6 +20,7 @@ import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
+import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.Msg;
@@ -304,6 +305,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             morphiumDriver.setMaxWaitTime(getConfig().getMaxWaitTime());
             morphiumDriver.setIdleSleepTime(getConfig().getIdleSleepTime());
             morphiumDriver.setUseSSL(getConfig().isUseSSL());
+            morphiumDriver.setCompression(getConfig().getCompressionType().getCode());
 
             if (getConfig().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
                 throw new RuntimeException("Error - no server address specified!");

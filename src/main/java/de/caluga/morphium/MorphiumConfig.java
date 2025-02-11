@@ -48,6 +48,7 @@ public class MorphiumConfig {
     private int maxConnections = 250, housekeepingTimeout = 5000;
     private int minConnections = 1;
     private int idleSleepTime = 20;
+    private CompressionType compressionType = CompressionType.NONE;
 
     private int globalCacheValidTime = 5000;
     private int writeCacheTimeout = 5000;
@@ -317,6 +318,15 @@ public class MorphiumConfig {
 
     public boolean isReplicaset() {
         return replicaset;
+    }
+
+    public CompressionType getCompressionType() {
+        return compressionType;
+    }
+
+    public MorphiumConfig setCompressionType(CompressionType t) {
+        compressionType = t;
+        return this;
     }
 
     public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
@@ -1249,18 +1259,17 @@ public class MorphiumConfig {
         return this;
     }
 
-    public List<Map<String, String>> getDefaultTagSet() {
+    public List<Map<String, String >> getDefaultTagSet() {
         if (defaultTags == null) {
             return null;
         }
 
-        List<Map<String, String>> tagList = new ArrayList<>();
+        List<Map<String, String >> tagList = new ArrayList<>();
 
         for (String t : defaultTags.split(",")) {
             String[] tag = t.split(":");
             tagList.add(UtilsMap.of(tag[0], tag[1]));
         }
-
         return tagList;
     }
 
@@ -1372,6 +1381,19 @@ public class MorphiumConfig {
 
     public enum CappedCheck {
         NO_CHECK, WARN_ON_STARTUP, CREATE_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CONVERT_EXISTING_ON_STARTUP,
+    }
+
+    public enum CompressionType {
+        NONE(0), ZLIB(2), SNAPPY(1); //ZSTD(3) - not supported
+        CompressionType(int c) {
+            this.code = c;
+        }
+
+        private int code;
+        public int getCode() {
+            return code;
+        }
+
     }
 
     public int getIdleSleepTime() {
