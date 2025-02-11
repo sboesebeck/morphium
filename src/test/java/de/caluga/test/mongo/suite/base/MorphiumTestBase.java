@@ -11,19 +11,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.MorphiumConfig.CompressionType;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
-import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.messaging.Messaging;
@@ -137,6 +138,7 @@ public class MorphiumTestBase {
                 cfg.setMongoAuthDb("admin");
                 cfg.setMongoPassword("test");
                 cfg.setMongoLogin("test");
+                cfg.setCompressionType(MorphiumConfig.CompressionType.SNAPPY);
                 cfg.setCredentialsEncrypted(false);
                 cfg.setWriteCacheTimeout(1000);
                 cfg.setConnectionTimeout(2000);
