@@ -43,11 +43,13 @@ function quitting() {
     kill -9 $(<$failPid) >/dev/null 2>&1
   fi
   rm -f $testPid $failPid >/dev/null 2>&1
-  echo "Removing unfinished test $t"
-  rm -f test.log/$t.log
-  ./getStats.sh >failed.txt
-  echo "List of failed tests in failed.txt"
-  cat failed.txt
+  if [ -n "$t" ]; then
+    echo "Removing unfinished test $t"
+    rm -f test.log/$t.log
+    ./getStats.sh >failed.txt
+    echo "List of failed tests in failed.txt"
+    cat failed.txt
+  fi
   rm -f $runLock $disabledList
   rm -f $filesList $classList files_$PID.tmp
   exit
@@ -130,7 +132,7 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
     esac
   fi
 fi
-#trap quitting EXIT
+trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
 
@@ -365,6 +367,7 @@ fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
 err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
 rm -f $runLock
 sleep 5
+t=""
 # kill $(<$failPid) >/dev/null 2>&1
 rm -f $failPid >/dev/null 2>&1
 echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
