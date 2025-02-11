@@ -21,9 +21,8 @@ public class PlainConatinerTest extends MultiDriverTestBase {
         try (morphium) {
             PlainContainer pc = new PlainContainer();
             pc.setPlainList(Arrays.asList("str1", "str2"));
-
             morphium.store(pc);
-
+            Thread.sleep(200);
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
             assertEquals(pc.getId(), pc2.getId());
             assertEquals(2, pc2.getPlainList().size());
@@ -37,7 +36,6 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             PlainContainer pc = new PlainContainer();
             //pc.setPlainMap(UtilsMap.of("test",(Object)"value").add("test2",Arrays.asList("str1","stre2")));
             pc.setPlainMap(UtilsMap.of("$in", (Object) "value", "$test2", UtilsMap.of("$str1", "stre2")));
-
             morphium.store(pc);
             //sleep to be sure all slaves are updated
             Thread.sleep(100);
@@ -54,9 +52,8 @@ public class PlainConatinerTest extends MultiDriverTestBase {
             PlainContainer pc = new PlainContainer();
             pc.setPlainMap(UtilsMap.of("test", (Object) "value", "test2", Arrays.asList("str1", "stre2")));
             //pc.setPlainMap(UtilsMap.of("$in",(Object)"value").add("$test2",UtilsMap.of("$str1","stre2")));
-
             morphium.store(pc);
-
+            Thread.sleep(200);
             PlainContainer pc2 = morphium.findById(PlainContainer.class, pc.getId());
             assertEquals(pc.getId(), pc2.getId());
             assertEquals(2, pc2.getPlainMap().size());
