@@ -134,7 +134,7 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
     esac
   fi
 fi
-trap quitting EXIT
+# trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
 
@@ -175,16 +175,16 @@ if [ "$cnt" -eq 0 ]; then
   echo "no matching class found for $p"
   exit 1
 fi
-disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | wc -l)
-disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | wc -l)
-disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | wc -l)
-disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | wc -l)
+disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | grep "$p" | wc -l)
+disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
+disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | grep "$p" | wc -l)
 testMethods=$(grep -E "@Test" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
 testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
 testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
 testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
 # testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+((testMethods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
   rm -rf test.log >/dev/null 2>&1
@@ -248,7 +248,12 @@ for t in $(<$classList); do
     ((d = $(date +%s) - start))
     # echo "Checking $fn"
     fn=$(echo "$t" | tr "." "/")
-    lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+    lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+    lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+    lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+    lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+    ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+
     clear
 
     if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
@@ -377,7 +382,9 @@ echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc
 if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
   echo -e "${GN}no errors recorded$CL"
   rm -f failed.txt
+  quitting
 else
   echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
+  quitting
   exit 1
 fi
