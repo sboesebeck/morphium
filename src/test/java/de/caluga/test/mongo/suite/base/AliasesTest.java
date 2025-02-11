@@ -49,6 +49,7 @@ public class AliasesTest extends MultiDriverTestBase {
                 );
             assertNotNull(stats);
             assertEquals(1, stats.get("n"));
+            Thread.sleep(100);
             List<ComplexObject> lst = morphium.createQueryFor(ComplexObject.class).asList();
             assertEquals(1, lst.size());
             assertEquals(id, lst.get(0).getId());
