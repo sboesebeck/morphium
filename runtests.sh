@@ -370,8 +370,8 @@ for t in $(<$classList); do
     fi
     if grep -A3 "Results:" test.log/$t.log | grep "Tests run: 0,"; then
       echo -e "${RD}Error:$CL No tests run in $t - enter to retry"
-      mvn clean compile test-compile
       read </dev/tty
+      mvn clean compile test-compile
     else
       break
     fi
