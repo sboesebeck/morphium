@@ -232,139 +232,145 @@ for t in $(<$classList); do
     continue
   fi
   ((tst = tst + 1))
-  tm=$(date +%s)
-  if [ "$m" == "." ]; then
-    mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
-    echo $! >$testPid
-  else
-    mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1 &
-    echo $! >$testPid
-  fi
   while true; do
+    tm=$(date +%s)
+    if [ "$m" == "." ]; then
+      echo "Running Tests in $t" >"test.log/$t.log"
+      mvn -Dsurefire.useFile=false test -Dtest="$t" >>"test.log/$t".log 2>&1 &
+      echo $! >$testPid
+    else
+      echo "Running $m in $t" >"test.log/$t.log"
+      mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
+      echo $! >$testPid
+    fi
+    while true; do
+      testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+      unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+      fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+      err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+      ((d = $(date +%s) - start))
+      # echo "Checking $fn"
+      fn=$(echo "$t" | tr "." "/")
+      lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+      lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+      lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+      lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+      ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+
+      clear
+
+      if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
+        ((spt = d / testsRun))
+        ((etl = spt * testMethods - d))
+        ((etlm = etl / 60))
+        echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
+      elif [ "$m" != "." ]; then
+        echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Runing Tests matching ${BL}$m$CL  in ${YL}$t$CL ($lmeth methods)"
+      else
+        echo -e "Date: $(date) - ${BL}Startup...$CL"
+
+      fi
+      echo "---------------------------------------------------------------------------------------------------------"
+      echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
+      echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
+      echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
+      if [ "$totalRetries" -ne 0 ]; then
+        echo -e "Had to retry ${YL}$totalRetries${CL} times"
+      fi
+      if [ "$m" != "." ]; then
+        echo -e " Tests matching: ${BL}$m${CL}"
+      fi
+      echo "---------------------------------------------------------------------------------------------------------"
+
+      C1="$GN"
+      C2="$GN"
+      C3="$GN"
+
+      ((dur = $(date +%s) - tm))
+      if [ -z "$testsRun" ]; then
+        echo -e "....."
+      elif [ "$m" != "." ] || [ "$p" != "." ]; then
+        ((testsRun = testsRun - lmeth))
+
+        echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL"
+        echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+        echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+        echo -e "Duration: ${MG}${dur}s${CL}"
+        if [ "$unsuc" -gt 0 ]; then
+          echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+          tail -n+5 failed.txt
+        fi
+        echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+        tail -n $logLength test.log/"$t".log
+        echo "---------------------------------------------------------------------------------------------------------"
+      else
+        if [ "$unsuc" -gt 0 ]; then
+          C1=$RD
+        fi
+        if [ "$fail" -gt 0 ]; then
+          C2=$RD
+        fi
+        if [ "$err" -gt 0 ]; then
+          C3=$RD
+        fi
+        ((prc = (testsRun + lmeth) * 100 / testMethods))
+        echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
+        echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+        echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+        echo -e "Duration: ${MG}${dur}s${CL}"
+        if [ "$unsuc" -gt 0 ]; then
+          echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+          tail -n+5 failed.txt
+        fi
+        echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+        tail -n $logLength test.log/"$t".log
+        echo "---------------------------------------------------------------------------------------------------------"
+      fi
+      # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
+
+      # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
+      # egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
+      jobs >/dev/null
+      j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
+      if [ "$j" -lt 2 ]; then
+        break
+      fi
+      if [ $dur -gt 600 ]; then
+        echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
+        echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
+        kill $(<$testPid)
+      fi
+      sleep $refresh
+    done
+    ./getStats.sh >failed.txt
+
     testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
     unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
     fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
     err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-    ((d = $(date +%s) - start))
-    # echo "Checking $fn"
-    fn=$(echo "$t" | tr "." "/")
-    lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-    lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-    lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-    lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-    ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+    num=$numRetries
+    if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
+      while [ "$num" -gt 0 ]; do
+        echo -e "${YL}Some tests failed$CL - retrying...."
+        ./rerunFailedTests.sh $t
+        ((num = num - 1))
+        ((totalRetries = totalRetries + 1))
+        ./getStats.sh >failed.txt
+        unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+        if [ "$unsuc" -eq 0 ]; then
+          break
+        fi
+      done
+      createFileList
 
-    clear
-
-    if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
-      ((spt = d / testsRun))
-      ((etl = spt * testMethods - d))
-      ((etlm = etl / 60))
-      echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
-    elif [ "$m" != "." ]; then
-      echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Runing Tests matching ${BL}$m$CL  in ${YL}$t$CL ($lmeth methods)"
+    fi
+    if grep -A3 "Results: " test.log/$t.log | grep "Tests run: 0,"; then
+      echo -e "${RD}Error:$CL No tests run in $t - enter to retry"
+      read </dev/tty
     else
-      echo -e "Date: $(date) - ${BL}Startup...$CL"
-
-    fi
-    echo "---------------------------------------------------------------------------------------------------------"
-    echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
-    echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
-    echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
-    if [ "$totalRetries" -ne 0 ]; then
-      echo -e "Had to retry ${YL}$totalRetries${CL} times"
-    fi
-    if [ "$m" != "." ]; then
-      echo -e " Tests matching: ${BL}$m${CL}"
-    fi
-    echo "---------------------------------------------------------------------------------------------------------"
-
-    C1="$GN"
-    C2="$GN"
-    C3="$GN"
-
-    ((dur = $(date +%s) - tm))
-    if [ -z "$testsRun" ]; then
-      echo -e "....."
-    elif [ "$m" != "." ] || [ "$p" != "." ]; then
-      ((testsRun = testsRun - lmeth))
-
-      echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL"
-      echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
-      echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
-      echo -e "Duration: ${MG}${dur}s${CL}"
-      if [ "$unsuc" -gt 0 ]; then
-        echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
-        tail -n+5 failed.txt
-      fi
-      echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-      tail -n $logLength test.log/"$t".log
-      echo "---------------------------------------------------------------------------------------------------------"
-    else
-      if [ "$unsuc" -gt 0 ]; then
-        C1=$RD
-      fi
-      if [ "$fail" -gt 0 ]; then
-        C2=$RD
-      fi
-      if [ "$err" -gt 0 ]; then
-        C3=$RD
-      fi
-      ((prc = (testsRun + lmeth) * 100 / testMethods))
-      echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
-      echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
-      echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
-      echo -e "Duration: ${MG}${dur}s${CL}"
-      if [ "$unsuc" -gt 0 ]; then
-        echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
-        tail -n+5 failed.txt
-      fi
-      echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-      tail -n $logLength test.log/"$t".log
-      echo "---------------------------------------------------------------------------------------------------------"
-    fi
-    # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
-
-    # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
-    # egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
-    jobs >/dev/null
-    j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
-    if [ "$j" -lt 2 ]; then
       break
     fi
-    if [ $dur -gt 600 ]; then
-      echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
-      echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
-      kill $(<$testPid)
-    fi
-    sleep $refresh
   done
-  ./getStats.sh >failed.txt
-
-  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-  num=$numRetries
-  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
-    while [ "$num" -gt 0 ]; do
-      echo -e "${YL}Some tests failed$CL - retrying...."
-      ./rerunFailedTests.sh $t
-      ((num = num - 1))
-      ((totalRetries = totalRetries + 1))
-      ./getStats.sh >failed.txt
-      unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-      if [ "$unsuc" -eq 0 ]; then
-        break
-      fi
-    done
-    createFileList
-
-  fi
-  if grep "Tests run: 0 " test.log/$t.log; then
-    echo -e "${RD}Error:$CL No tests run in $t"
-    read </dev/tty
-  fi
 done
 ./getStats.sh >failed.txt
 
