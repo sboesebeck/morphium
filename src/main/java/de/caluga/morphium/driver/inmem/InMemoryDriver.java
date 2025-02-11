@@ -3291,4 +3291,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public void setIdleSleepTime(int sl) {
         // TODO Auto-generated method stub
     }
+
+    @Override
+    public int getCompression() {
+        return 0;
+    }
+
+    @Override
+    public MorphiumDriver setCompression(int type) {
+        log.warn("Cannot set compression on inMemDriver");
+        return this;
+    }
+
+
 }

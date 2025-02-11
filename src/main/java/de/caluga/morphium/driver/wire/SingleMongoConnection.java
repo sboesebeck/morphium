@@ -1,5 +1,6 @@
 package de.caluga.morphium.driver.wire;
 
+import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.KillCursorsCommand;
@@ -9,6 +10,8 @@ import de.caluga.morphium.driver.commands.auth.SaslAuthCommand;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
 import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage;
+import de.caluga.morphium.driver.wireprotocol.WireProtocolMessage.OpCode;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -256,7 +259,12 @@ public class SingleMongoConnection implements MongoConnection {
             OpMsg msg = null;
 
             if (incoming instanceof OpCompressed) {
-                msg = (OpMsg)WireProtocolMessage.parseFromStream(new ByteArrayInputStream(((OpCompressed)incoming).getCompressedMessage()));
+                var opc = ((OpCompressed)incoming);
+                byte[] msgb = opc.getCompressedMessage();
+                OpMsg message = new OpMsg();
+                message.setMessageId(opc.getMessageId());
+                message.parsePayload(msgb, 0);
+                msg = message;
             } else {
                 msg = (OpMsg)incoming;
             }
@@ -279,7 +287,7 @@ public class SingleMongoConnection implements MongoConnection {
             return msg;
         } catch (Exception e) {
             close();
-            throw new MorphiumDriverException("error: " + e.getMessage(), e);
+            throw new MorphiumDriverException("" + e.getMessage(), e);
         }
     }
 
@@ -439,7 +447,23 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             stats.get(MSG_SENT).incrementAndGet();
-            out.write(q.bytes());
+
+            if (driver.getCompression() != OpCompressed.COMPRESSOR_NOOP) {
+                var opc = new OpCompressed();
+                opc.setOriginalOpCode(OpMsg.OP_CODE);
+                opc.setCompressorId(driver.getCompression());
+                q.setFlags(0);
+                byte[] data = q.getPayload();
+                opc.setCompressedMessage(data);
+                opc.setSize(data.length + 4);
+                opc.setMessageId(msgId.incrementAndGet());
+                opc.setUncompressedSize(data.length);
+                // log.info(Utils.getHex(opc.bytes()));
+                out.write(opc.bytes());
+            } else {
+                out.write(q.bytes());
+            }
+
             out.flush();
         } catch (MorphiumDriverException e) {
             close();

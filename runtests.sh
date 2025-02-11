@@ -7,39 +7,53 @@ MG='\033[0;35m'
 CN='\033[0;36m'
 CL='\033[0m'
 
-function createFileList() {
-  rg -l "@Test" | grep ".java" >files.lst
-  rg -l "@ParameterizedTest" | grep ".java" >>files.lst
+PID=$$
 
-  sort -u files.lst | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >files.txt
-  sort -u files.lst | grep "$p" >files.tmp && mv -f files.tmp files.lst
-  rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >disabled.lst
-  cat files.lst | while read l; do
-    if grep $l disabled.lst; then
+filesList=files_$PID.lst
+classList=classes_$PID.txt
+disabledList=disabled_$PID.txt
+runLock=run_$PID.lck
+testPid=test_$PID.pid
+failPid=fail_$PID.pid
+
+function createFileList() {
+  rg -l "@Test" | grep ".java" >$filesList
+  rg -l "@ParameterizedTest" | grep ".java" >>$filesList
+
+  sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+  sort -u $filesList | grep "$p" >files_$PID.tmp && mv -f files_$PID.tmp $filesList
+  rg -A2 "^ *@Disabled" | grep -B2 "public class" | grep : | cut -f1 -d: >$disabledList
+  cat $filesList | while read l; do
+    if grep $l $disabledList; then
       echo "$l disabled"
     else
-      echo "$l" >>files.tmp
+      echo "$l" >>files_$PID.tmp
     fi
   done
-  mv files.tmp files.lst
+  mv files_$PID.tmp $filesList
 
 }
 function quitting() {
-  echo -e "${RD}Shutting down...${CL} current test $t"
 
-  if [ -e test.pid ]; then
-    kill -9 $(<test.pid) >/dev/null 2>&1
+  if [ -e $testPid ]; then
+    kill -9 $(<$testPid) >/dev/null 2>&1
   fi
-  if [ -e fail.pid ]; then
-    kill -9 $(<fail.pid) >/dev/null 2>&1
+  if [ -e $failPid ]; then
+    kill -9 $(<$failPid) >/dev/null 2>&1
   fi
-  rm -f test.pid fail.pid >/dev/null 2>&1
-  echo "Removing unfinished test $t"
-  rm -f test.log/$t.log
-  ./getFailedTests.sh >failed.txt
-  echo "List of failed tests in failed.txt"
-  cat failed.txt
-  rm -f run.lck disabled.lst
+  rm -f $testPid $failPid >/dev/null 2>&1
+  if [ -n "$t" ]; then
+    echo -e "${RD}Shutting down...${CL} current test $t"
+    echo "Removing unfinished test $t"
+    rm -f test.log/$t.log
+    ./getStats.sh >failed.txt
+    echo "List of failed tests in failed.txt"
+    cat failed.txt
+  else
+    echo -e "${YL} Shutting down...$CL"
+  fi
+  rm -f $runLock $disabledList
+  rm -f $filesList $classList files_$PID.tmp
   exit
 }
 
@@ -55,6 +69,17 @@ while [ "q$1" != "q" ]; do
   if [ "q$1" == "q--nodel" ]; then
     nodel=1
     shift
+  elif [ "q$1" == "q--help" ] || [ "q$1" == "-h" ]; then
+    echo -e "Usage ${BL}$0$CL [--OPTION...] [TESTNAME] [METHOD]"
+    echo -e "${BL}--skip$CL        - if presen, allready run tests will be skipped"
+    echo -e "${BL}--restart$CL     - forget about existing test logs, restart"
+    echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
+    echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
+    echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
+    echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
+    echo "Test name is the classname to run, and method is method name in that class"
+    echo
+    exit 0
   elif [ "q$1" == "q--skip" ]; then
     skip=1
     shift
@@ -109,7 +134,7 @@ if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
     esac
   fi
 fi
-#trap quitting EXIT
+trap quitting EXIT
 trap quitting SIGINT
 trap quitting SIGHUP
 
@@ -139,13 +164,13 @@ if [ "$skip" -ne 0 ]; then
       i=$(basename $i)
       i=${i%%.log}
       echo -e "${BL}info: ${CL}not rerunning $i"
-      grep -v $i files.txt >files.tmp
-      mv files.tmp files.txt
+      grep -v $i $classList >files_$PID.tmp
+      mv files_$PID.tmp $classList
     done
   fi
 fi
 # read
-cnt=$(wc -l <files.txt | tr -d ' ')
+cnt=$(wc -l <$classList | tr -d ' ')
 if [ "$cnt" -eq 0 ]; then
   echo "no matching class found for $p"
   exit 1
@@ -154,11 +179,11 @@ disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | grep : | cut -f1 -d: | wc 
 disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | grep : | cut -f1 -d: | wc -l)
 disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep : | cut -f1 -d: | wc -l)
 disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep : | cut -f1 -d: | wc -l)
-testMethods=$(grep -E "@Test" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
-# testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+testMethods=$(grep -E "@Test" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+testMethods3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+testMethods2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+testMethods1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+# testMethodsP=$(grep -E "@ParameterizedTest" $(grep "$p" $filesList) | cut -f2 -d: | grep -vc '^ *//')
 ((testMethods = testMethods + 3 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   echo -e "${BL}Info:${CL} Cleaning up - cleansing logs..."
@@ -180,16 +205,16 @@ tst=0
 echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
 {
-  touch run.lck
-  while [ -e run.lck ]; do
-    ./getFailedTests.sh >failed.tmp
+  touch $runLock
+  while [ -e $runLock ]; do
+    ./getStats.sh >failed.tmp
     mv failed.tmp failed.txt
-    sleep 4
+    sleep $refresh
   done >/dev/null 2>&1
 
 } &
 
-echo $! >fail.pid
+echo $! >$failPid
 if [ -e startTS ]; then
   start=$(<startTS)
 else
@@ -200,15 +225,20 @@ testsRun=0
 unsuc=0
 fail=0
 err=0
-for t in $(<files.txt); do
+##################################################################################################################
+#######MAIN LOOP
+for t in $(<$classList); do
+  if grep "$t" $disabledList; then
+    continue
+  fi
   ((tst = tst + 1))
   tm=$(date +%s)
   if [ "$m" == "." ]; then
     mvn -Dsurefire.useFile=false test -Dtest="$t" >test.log/"$t".log 2>&1 &
-    echo $! >test.pid
+    echo $! >$testPid
   else
     mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >"test.log/$t.log" 2>&1 &
-    echo $! >test.pid
+    echo $! >$testPid
   fi
   while true; do
     testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
@@ -216,7 +246,9 @@ for t in $(<files.txt); do
     fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
     err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
     ((d = $(date +%s) - start))
-    lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$t" files.lst) | cut -f2 -d: | grep -vc '^ *//')
+    # echo "Checking $fn"
+    fn=$(echo "$t" | tr "." "/")
+    lmeth=$(grep -E "@Test|@ParameterizedTest" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
     clear
 
     if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
@@ -298,11 +330,12 @@ for t in $(<files.txt); do
     if [ $dur -gt 600 ]; then
       echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
       echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
-      kill $(<test.pid)
+      kill $(<$testPid)
     fi
     sleep $refresh
   done
-  ./getFailedTests.sh >failed.txt
+  ./getStats.sh >failed.txt
+
   testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
   unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
   fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
@@ -314,7 +347,7 @@ for t in $(<files.txt); do
       ./rerunFailedTests.sh $t
       ((num = num - 1))
       ((totalRetries = totalRetries + 1))
-      ./getFailedTests.sh >failed.txt
+      ./getStats.sh >failed.txt
       unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
       if [ "$unsuc" -eq 0 ]; then
         break
@@ -323,17 +356,22 @@ for t in $(<files.txt); do
     createFileList
 
   fi
+  if grep "Tests run: 0 " test.log/$t.log; then
+    echo -e "${RD}Error:$CL No tests run in $t"
+    read </dev/tty
+  fi
 done
-./getFailedTests.sh >failed.txt
+./getStats.sh >failed.txt
 
 testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
 fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
 err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-rm -f run.lck
+rm -f $runLock
 sleep 5
-# kill $(<fail.pid) >/dev/null 2>&1
-rm -f fail.pid >/dev/null 2>&1
+t=""
+# kill $(<$failPid) >/dev/null 2>&1
+rm -f $failPid >/dev/null 2>&1
 echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
 
 if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then

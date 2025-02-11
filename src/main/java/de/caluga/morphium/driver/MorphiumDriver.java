@@ -7,6 +7,7 @@ import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.driver.bulk.BulkRequestContext;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
+import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 
 import java.io.Closeable;
 import java.net.MalformedURLException;
@@ -29,7 +30,8 @@ public interface MorphiumDriver extends Closeable {
     //.----)   |   |  |____     |  |        |  |     |  | |  |\   | |  |__| | .----)   |
     //|_______/    |_______|    |__|        |__|     |__| |__| \__|  \______| |_______/
     String getName();
-
+    int getCompression();
+    MorphiumDriver setCompression(int type);
     int getIdleSleepTime();
     void setIdleSleepTime(int sl);
     @SuppressWarnings("unused")
@@ -265,5 +267,8 @@ public interface MorphiumDriver extends Closeable {
         MSG_SENT, REPLY_PROCESSED, REPLY_IN_MEM, REPLY_RECEIVED,
         THREADS_CREATED, CONNECTIONS_IN_USE,
         THREADS_WAITING_FOR_CONNECTION,
+    }
+    enum CompressionType {
+        NONE, ZLIB, SNAPPY,
     }
 }
