@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.objectmapping.BsonGeoMapper;
+import de.caluga.morphium.objectmapping.MorphiumTypeMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.geospatial.Geo;
 import de.caluga.morphium.query.geospatial.GeoType;
@@ -13,6 +14,8 @@ import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.test.mongo.suite.data.CustomMappedObject;
 import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
+
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -330,4 +333,16 @@ public class CustomMapperTest extends MorphiumTestBase {
             this.complexestMap = complexestMap;
         }
     }
+
+    @Entity
+    public static class ObjectIdTest {
+        @Id
+        public ObjectId id;
+        public String value;
+
+        public enum Fields {
+            value, id
+        }
+    }
+
 }
