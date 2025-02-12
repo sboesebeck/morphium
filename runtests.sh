@@ -364,7 +364,7 @@ num=$numRetries
 if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
   while [ "$num" -gt 0 ]; do
     echo -e "${YL}Some tests failed$CL - retrying...."
-    ./rerunFailedTests.sh $t
+    ./rerunFailedTests.sh
     ((num = num - 1))
     ((totalRetries = totalRetries + 1))
     retried="$retried\n$t"
