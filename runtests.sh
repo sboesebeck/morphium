@@ -374,7 +374,6 @@ if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
       break
     fi
   done
-  createFileList
 
 fi
 ./getStats.sh >failed.txt
