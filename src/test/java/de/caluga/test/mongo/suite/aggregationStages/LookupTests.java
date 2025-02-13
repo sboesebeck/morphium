@@ -20,7 +20,6 @@ public class LookupTests extends MorphiumTestBase {
     public void singleEqualityJoinTest() throws Exception {
         morphium.dropCollection(Order.class);
         morphium.dropCollection(Inventory.class);
-        Thread.sleep(100);
         morphium.store(new Order(1, "almonds", 12.0, 2));
         morphium.store(new Order(2, "pecans", 20.0, 1));
         morphium.store(new Order(3, null, null, null));
@@ -30,6 +29,7 @@ public class LookupTests extends MorphiumTestBase {
         morphium.store(new Inventory(3, "cashews", "Product 3", 60));
         morphium.store(new Inventory(4, "pecans", "Product 4", 70));
         morphium.store(new Inventory(5, null, "incomplete", null));
+        Thread.sleep(100);
         Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
         List<Map> lst = agg.lookup(morphium.getMapper().getCollectionName(Inventory.class), "item", "sku", "inventory_docs", null, null).aggregate();
 
