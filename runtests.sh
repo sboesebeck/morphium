@@ -354,6 +354,8 @@ for t in $(<$classList); do
     fi
   done
 done
+##### Mainloop end
+######################################################
 ./getStats.sh >failed.txt
 
 testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
@@ -387,7 +389,7 @@ sleep 5
 t=""
 # kill $(<$failPid) >/dev/null 2>&1
 rm -f $failPid >/dev/null 2>&1
-echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc"
+echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc - Retries: $totalRetries"
 
 if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
   echo -e "${GN}no errors recorded$CL"
