@@ -2456,7 +2456,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void addShutdownListener(ShutdownListener l) {
-        shutDownListeners.add(l);
+        shutDownListeners.add(0, l);
     }
 
     @SuppressWarnings("unused")
