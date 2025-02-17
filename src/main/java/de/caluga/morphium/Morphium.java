@@ -2466,15 +2466,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     @SuppressWarnings("CommentedOutCode")
     public void close() {
+        for (ShutdownListener l : shutDownListeners) {
+            l.onShutdown(this);
+        }
+
         if (asyncOperationsThreadPool != null) {
             asyncOperationsThreadPool.shutdownNow();
         }
 
         asyncOperationsThreadPool = null;
-
-        for (ShutdownListener l : shutDownListeners) {
-            l.onShutdown(this);
-        }
 
         if (rsMonitor != null) {
             rsMonitor.terminate();
