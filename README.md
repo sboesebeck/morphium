@@ -46,7 +46,7 @@ Morphium V5.0.x has major breaking changes, so upgrading will need some work:
   (making refactoring easier). Hence, if you changed the Driver from the
   default one, you might need to change the setting in either properties or
   when calling MorphiumConfig.
-- As MorphiumV5 introduces it's own driver for accessing mongodb, not
+- As MorphiumV5 introduces its own driver for accessing mongodb, no
   dependency to org.mongodb is needed (just for the bson-package). So the new
   dependency in your `pom.xml` should be like:
 
@@ -54,49 +54,26 @@ Morphium V5.0.x has major breaking changes, so upgrading will need some work:
  <dependency>
     <groupId>de.caluga</groupId>
     <artifactId>morphium</artifactId>
-    <version>[5.0.5,)</version>
+    <version>[5.1.28,)</version>
  </dependency>
  <dependency>
     <groupId>org.mongodb</groupId>
     <artifactId>bson</artifactId>
-    <version>[4.1.0,)</version>
-    <scope>provided</scope>
+    <version>[4.7.1,)</version>
  </dependency>
 ```
 
-Morphium up to V4.1.x is built using the mongodb drivers 3.x (up to V3.12.2).
-Since Morphium V4.2.0 the more modern mongodb driver 4.x is being used.
+Morphium up to V4.1.x was built using the mongodb drivers 3.x (up to V3.12.2).
+Morphium V4.2.0 through V4.x used the mongodb driver 4.x.
+Since Morphium V5.0, it includes its own MongoDB driver implementation.
 
-This brings some changes, to which mongodb is supported. In short, the Mongodb Driver determines, which mongodb servers are supported. So in short, Morphium up to 4.1 supports mongodb up to 4.2 (4.4 with missing features, not recommended), morphium 4.2 supports mongodb 4.4.
+Since Morphium V5.x includes its own MongoDB driver implementation, it supports MongoDB 5.0 and later versions directly, without dependency on the MongoDB Java driver compatibility matrix.
 
-For more details about, please visit the (mongodb java driver documentation)[https://docs.mongodb.com/drivers/java/] at mongodb.com.
+For more details about MongoDB compatibility, please refer to the Morphium documentation.
 
-Morphium does not bring in it's own dependencies, it relies on you adding the drivers to classpath. So, you explicitly need to add the driver in your `pom.xml`.
+Since Morphium V5 includes its own MongoDB driver implementation, you only need the BSON dependency for object serialization. The MongoDB driver dependencies are no longer required for runtime.
 
-_Attention:_ if you for some reason have both the old and the new mongodb driver version in classpath, ugly things will happen. Make sure, that you have the proper dependencies set:
-
-```
- <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>bson</artifactId>
-            <version>[4.1.0,)</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-sync</artifactId>
-            <version>[4.1.0,)</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mongodb</groupId>
-            <artifactId>mongodb-driver-core</artifactId>
-            <version>[4.1.0,)</version>
-            <scope>provided</scope>
-        </dependency>
-```
-
-All versions starting with 4.1 should work.
+_Note:_ Only the BSON package from MongoDB is needed as a dependency for Morphium V5.x.
 
 # Quick Start
 
@@ -172,7 +149,7 @@ All Entities need an ID field. This field can by any type you like. If it is not
 
 - Before Morphium 3.x: If the type is `org.bson.types.ObjectId`, it will be created by mongo, if not - you need to take care of that.
 - Since Morphium 3: To encapsulate dependencies better, morphium is not relying on mongodb code directly. Hence in your code, you do not use `ObjectID` anymore, but MorphiumID.
-  These are more or less source compatible, migration should be easy. But the rule from abve applies here to, if you use MorphiumID, you do not need to create the ID, Mongo is doing it.
+  These are more or less source compatible, migration should be easy. But the rule from above applies here too, if you use MorphiumID, you do not need to create the ID, Mongo is doing it.
 
 Only entities can be referenced, as you need an ID for that. The type of the ID is not important.
 You can also use Maps, Lists or Arrays, all may also include other Entities or Embedded types.
@@ -221,155 +198,6 @@ Have fun,
 
 Stephan
 
-# morphium
-
-Morphium - Java Object Mapper and Caching Layer for MongoDB
-
-Morphium is a POJO Object mapper for Accessing Mongodb. Some of the main Features of Morphium:
-
-- actively developed
-- used by a number of projects (including holidayinsider.com and holidays.hrs.de/)
-- Transparent access to MongoDB
-- Transparent declarative (Annotation based) caching
-- Annotation based definition of mappings
-- Cluster Awareness
-- Cache synchronization between cluster nodes
-- Asynchronous and Buffered write access
-- Messaging
-- fluent interface for querying mongodb
-- support for the MongoDB aggregator framework
-- support for complex queries
-- support inheritance and polymorphism
-- support for javax.validation annotations
-- lifecycle method of pojos
-- nearly every aspect of Morphium can be replaced by own implementation (e.g. Query-Object, CacheImplementation...)
-- ConfigManager helps storing app configurations in Mongo with efficient access to it (cached)
-- Support for References, including lazy loaded references
-- Support for partial updated objects (when writing, only the changes of the object are transferred)
-- Almost any operation morphium provides is async capable. That means, if you pass it an `AsyncOperationListener` as argument, you won't get a batch now, but after the async operation finished via the callback
-
-for questions and feature requests / bug reports also have a look at the google group morphium-discuss@googlegroups.com
-
-# Quick Start
-
-before accessing mongo via Morphium, you need to configure Morphium. this is done by preparing a MorphiumConfig Object:
-
-```java
-  MorphiumConfig cfg = new MorphiumConfig();
-  cfg.setDatabase("testdb");
-  cfg.addHost("localhost", 27017);
-```
-
-you can also configure Morphium using properties: new MorphiumConfig(properties); or a json-String: MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
-
-After that, you just need to instantiate Morphium:
-
-```
-  Morphium m=new Morphium(cfg);
-```
-
-There are some convenience constructors available since V2.2.23 which make your life a bit easier:
-
-```
-   Morphium m=new Morphium("localhost","test-db");
-```
-
-this creates a morphium instance with most default settings, connecting to localhost, standard port 27017 and using database `test-db`
-
-if necessary, it's of course possible to specify the port to connect to:
-
-```
-  Morphium m=new Morphium("localhost:27019","test-db");
-  Morphium n=new Morphium("localhost",27020,"test-db");
-```
-
-then you are good to go:
-
-```java
-  Query<MyEntity> q=m.createQueryFor(MyEntity.class).f("a_field").eq("a id");
-  List<MyEntity> lst=q.asList();
-  MyEntity ent=q.get();
-  ...
-  m.store(ent);
-```
-
-Defining an Entity is quite simple as well:
-
-```java
-  @Entity(translateCamelCase = true)
-  @Cache
-  public class MyEntity {
-    @Id
-    private MorphiumId myId;
-
-    private String aField;
-
-    private EmbeddedObject emb;
-
-    @Reference
-    private MyEntity otherEntity;
-
-   ...
-  }
-
-  @Embedded
-  public class EmbeddedObject {
-   ...
-  }
-```
-
-All Entities need an ID field. This field can by any type you like. If it is not `ObjectID` or `MorphiumID, you need to create the id yourself.
-
-- Before Morphium 3.x: If the type is `org.bson.types.ObjectId`, it will be created by mongo, if not - you need to take care of that.
-- Since Morphium 3: To encapsulate dependencies better, morphium is not relying on mongodb code directly. Hence in your code, you do not use `ObjectID` anymore, but MorphiumID.
-  These are more or less source compatible, migration should be easy. But the rule from abve applies here to, if you use MorphiumID, you do not need to create the ID, Mongo is doing it.
-
-Only entities can be referenced, as you need an ID for that. The type of the ID is not important.
-You can also use Maps, Lists or Arrays, all may also include other Entities or Embedded types.
-``
-
-## Use enum instead of strings for queries
-
-As using strings to query your object might be a bit error prone, you also can use enums instead of field name strings:
-
-```java
-   Query<MyEntity> q=m.createQueryFor(MyEntity.class).f(MyEntity.Fields.aField).eq("a id");
-```
-
-of course, these enums need to be created. have a look at https://github.com/sboesebeck/intelliJGenPropertyEnumsPlugin for a plugin for generating those automatically
-in our example, the batch would look like this:
-
-```java
-  @Entity(translateCamelCase = true)
-  @Cache
-  public class MyEntity {
-    @Id
-    private MorphiumId myId;
-
-    private String aField;
-
-    private EmbeddedObject emb;
-
-    @Reference
-    private MyEntity otherEntity;
-    ...
-    public enum Fields { myId, aField, emb, otherEntity }
-
-  }
-
-  @Embedded
-  public class EmbeddedObject {
-   ...
-  }
-```
-
-This is a very short glance at all the features of Morphium!
-
-For more information take a closer look at the wiki.
-
-Have fun,
-
-Stephan
 
 # InMemoryDriver
 
