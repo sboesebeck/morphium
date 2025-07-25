@@ -20,14 +20,13 @@ public class MessagingSeveralMessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+            Messaging m1 = new Messaging(morphium, 10,  true, 1);
             m1.setSenderId("m1");
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+            Messaging m2 = new Messaging(morphium, 10,  true, 1);
             m2.setSenderId("m2");
-            Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+            Messaging m3 = new Messaging(morphium, 10,  true, 1);
             m3.setSenderId("m3");
             m1.start();
             m2.start();
@@ -58,7 +57,6 @@ public class MessagingSeveralMessagingTest extends MultiDriverTestBase {
                             }
                         }
                     }
-
                     .start();
                 }
 

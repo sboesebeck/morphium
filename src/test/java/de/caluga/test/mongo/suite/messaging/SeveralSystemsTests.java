@@ -20,16 +20,17 @@ public class SeveralSystemsTests extends MorphiumTestBase {
     private final List<Morphium> morphiums = new Vector<>();
     private final List<Messaging> messagings = new Vector<>();
 
-    private void createIndependentMessagings(int num, boolean processMultiple, int pause, boolean changeStream) {
+    private void createIndependentMessagings(int num,  int pause, boolean changeStream) {
         for (int i = 0; i < num; i++) {
             Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
             morphiums.add(m);
-            Messaging msg = new Messaging(m, pause, processMultiple);
+            Messaging msg = new Messaging(m, pause);
             msg.setUseChangeStream(changeStream);
             msg.setSenderId("Msg" + i);
             messagings.add(msg);
             msg.start();
         }
+
         try {
             Thread.sleep(2500);
         } catch (InterruptedException e) {
@@ -39,55 +40,54 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
     private void terminateAll() {
         List<Thread> threads = new ArrayList<>();
+
         for (Messaging m : messagings) {
             Thread t = new Thread() {
                 private Messaging m;
-
                 public Thread init(Messaging m) {
                     this.m = m;
                     return this;
                 }
-
                 public void run() {
                     log.info("Terminating " + m.getSenderId());
                     m.terminate();
                 }
-            }.init(m);
+            } .init(m);
             threads.add(t);
             t.start();
         }
+
         for (Thread t : threads) {
             try {
                 t.join();
             } catch (InterruptedException e) {
             }
         }
+
         messagings.clear();
         threads.clear();
+
         for (Morphium m : morphiums) {
             Thread t = new Thread() {
                 private Morphium m;
-
                 public Thread init(Morphium m) {
                     this.m = m;
                     return this;
                 }
-
                 public void run() {
                     m.close();
                 }
-            }.init(m);
+            } .init(m);
             threads.add(t);
             t.start();
         }
+
         for (Thread t : threads) {
             try {
                 t.join();
             } catch (InterruptedException e) {
             }
         }
-
-
     }
 
 
@@ -97,11 +97,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10, true, 1);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, true);
+            createIndependentMessagings(10,  10, true);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -114,11 +115,13 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             for (int i = 0; i < 10; i++) {
                 m1.sendMessage(new Msg("test", "msg", "value"));
                 long s = System.currentTimeMillis();
+
                 while (cnt.get() < 10) {
                     Thread.sleep(100);
-                    assert (System.currentTimeMillis() - s < 35000);
+                    assert(System.currentTimeMillis() - s < 35000);
                 }
-                assert (cnt.get() == 10) : "Count wrong: " + cnt.get();
+
+                assert(cnt.get() == 10) : "Count wrong: " + cnt.get();
                 cnt.set(0);
             }
         } finally {
@@ -133,11 +136,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, false);
+            createIndependentMessagings(10,  10, false);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -150,7 +154,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             for (int i = 0; i < 10; i++) {
                 m1.sendMessage(new Msg("test", "msg", "value"));
                 Thread.sleep(400);
-                assert (cnt.get() == 10) : "Count wrong: " + cnt.get();
+                assert(cnt.get() == 10) : "Count wrong: " + cnt.get();
                 cnt.set(0);
             }
         } finally {
@@ -165,11 +169,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10, true, 1);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, true);
+            createIndependentMessagings(10,  10, true);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -178,13 +183,15 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 });
             }
 
-            //broadcase
+            //broadcast
             for (int i = 0; i < 20; i++) {
                 m1.sendMessage(new Msg("test", "msg", "value", 30000, true));
+
                 while (cnt.get() < 1) {
                     Thread.sleep(100);
                 }
-                assert (cnt.get() == 1);
+
+                assert(cnt.get() == 1);
                 cnt.set(0);
             }
         } finally {
@@ -200,11 +207,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10, true, 1);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, false);
+            createIndependentMessagings(10,  10, false);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -213,13 +221,15 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 });
             }
 
-            //broadcase
+            //broadcast
             for (int i = 0; i < 20; i++) {
                 m1.sendMessage(new Msg("test", "msg", "value", 30000, true));
+
                 while (cnt.get() < 1) {
                     Thread.sleep(100);
                 }
-                assert (cnt.get() == 1);
+
+                assert(cnt.get() == 1);
                 cnt.set(0);
             }
         } finally {
@@ -232,19 +242,18 @@ public class SeveralSystemsTests extends MorphiumTestBase {
 
     @Test
     public void parallelExclusiveMessages() throws Exception {
-        // morphium.dropCollection(Msg.class, "msg", null);
-        // TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        // Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 100, true);
+            createIndependentMessagings(10,  100, true);
+
             for (Messaging m : messagings) {
                 m.addListenerForMessageNamed("test", (ms, msg) -> {
-                    log.info("incoming message to "+msg.getMsg());
+                    log.info("incoming message to " + msg.getMsg());
+
                     try {
                         Thread.sleep(250);
                     } catch (InterruptedException e) {
@@ -257,28 +266,32 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             }
 
             Thread.sleep(1000);
+
             for (int j = 0; j < 5; j++) {
-                log.info("j="+j);
+                log.info("j=" + j);
                 countById.clear();
                 cnt.set(0);
+
                 for (int i = 0; i < 30; i++) {
-                    m1.sendMessage(new Msg("test", "msg"+i, "value", 30000, true));
+                    m1.sendMessage(new Msg("test", "msg" + i, "value", 30000, true));
                 }
 
                 while (cnt.get() != 30) {
-                    log.info("Did not get all messages yet. Need 30, got "+cnt.get());
+                    log.info("Did not get all messages yet. Need 30, got " + cnt.get());
                     Thread.sleep(1000);
                 }
-                assert (cnt.get() == 30);
+
+                assert(cnt.get() == 30);
+
                 for (Map.Entry<String, AtomicInteger> e : countById.entrySet()) {
                     log.info(e.getKey() + " - processed: " + e.getValue());
-                    assert (e.getValue().get() != 0);
+                    assert(e.getValue().get() != 0);
+
                     if (e.getValue().get() > 4 || e.getValue().get() < 2) {
                         log.warn("---> not evenly distributed...");
                     }
                 }
             }
-
         } finally {
             m1.terminate();
             terminateAll();
@@ -292,11 +305,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         final AtomicInteger cnt = new AtomicInteger();
         final Map<String, AtomicInteger> countById = new ConcurrentHashMap<>();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, false);
+            createIndependentMessagings(10, 10, false);
+
             for (Messaging m : messagings) {
                 m.addListenerForMessageNamed("test", (ms, msg) -> {
                     //log.info("incoming message to "+ms.getSenderId());
@@ -311,10 +325,10 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 });
             }
 
-
             for (int j = 0; j < 5; j++) {
                 countById.clear();
                 cnt.set(0);
+
                 for (int i = 0; i < 30; i++) {
                     m1.sendMessage(new Msg("test", "msg", "value", 60000, true));
                 }
@@ -322,13 +336,14 @@ public class SeveralSystemsTests extends MorphiumTestBase {
                 while (cnt.get() != 30) {
                     Thread.sleep(100);
                 }
-                assert (cnt.get() == 30);
+
+                assert(cnt.get() == 30);
+
                 for (Map.Entry<String, AtomicInteger> e : countById.entrySet()) {
                     log.info(e.getKey() + " - processed: " + e.getValue());
-                    assert (e.getValue().get() != 0);
+                    assert(e.getValue().get() != 0);
                 }
             }
-
         } finally {
             m1.terminate();
             terminateAll();
@@ -342,11 +357,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10, true, 1);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, true);
+            createIndependentMessagings(10, 10, true);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -358,8 +374,8 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             //broadcast
             for (int i = 0; i < 10; i++) {
                 List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 2000);
-                assert (cnt.get() == 10);
-                assert (answers.size() == 10);
+                assert(cnt.get() == 10);
+                assert(answers.size() == 10);
                 cnt.set(0);
             }
         } finally {
@@ -374,11 +390,12 @@ public class SeveralSystemsTests extends MorphiumTestBase {
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
         Thread.sleep(100);
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 10, false);
+        Messaging m1 = new Messaging(morphium, 10, true, 1);
         m1.start();
 
         try {
-            createIndependentMessagings(10, true, 10, false);
+            createIndependentMessagings(10, 10, false);
+
             for (Messaging m : messagings) {
                 m.addMessageListener((ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
@@ -390,8 +407,8 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             //broadcast
             for (int i = 0; i < 10; i++) {
                 List<Msg> answers = m1.sendAndAwaitAnswers(new Msg("test", "msg", "value"), 10, 2000);
-                assert (cnt.get() == 10);
-                assert (answers.size() == 10);
+                assert(cnt.get() == 10);
+                assert(answers.size() == 10);
                 cnt.set(0);
             }
         } finally {

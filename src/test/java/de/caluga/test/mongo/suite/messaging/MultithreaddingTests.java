@@ -19,11 +19,10 @@ public class MultithreaddingTests extends MorphiumTestBase {
     @Test
     public void multithreaddingMessagingTest() throws Exception {
         log.info("Starting test");
-        Messaging sender = new Messaging(morphium, 100, false, false, 1); //no Multithreadding
+        Messaging sender = new Messaging(morphium, 100,  false, 1); //no Multithreadding
         sender.setSenderId("sender");
         sender.start();
-
-        Messaging rec = new Messaging(morphium, 100, true, true, 4);
+        Messaging rec = new Messaging(morphium, 100,  true, 4);
         rec.setSenderId("rec");
         rec.start();
         AtomicInteger parallelThreads = new AtomicInteger(0);
@@ -53,24 +52,28 @@ public class MultithreaddingTests extends MorphiumTestBase {
 
         morphium.insert(toSend);
         long start = System.currentTimeMillis();
+
         while (parallelThreads.get() == 0) {
             Thread.sleep(100);
             assertTrue(System.currentTimeMillis() - start < 60000);
         }
+
         int maxParallel = 0;
         int minParallel = 1000;
+
         while (parallelThreads.get() != 0) {
             log.info("Parallel threads: " + parallelThreads.get());
             ;
+
             if (parallelThreads.get() > maxParallel) maxParallel = parallelThreads.get();
+
             if (parallelThreads.get() < minParallel) minParallel = parallelThreads.get();
+
             Thread.sleep(1000);
         }
+
         assertEquals(5, maxParallel);
         assertTrue(minParallel != 0);
-
-
-
     }
 
 }

@@ -13,7 +13,7 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
     @Test
     public void writeSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
-        Messaging msg = new Messaging(morphium, 100, false, true, 10);
+        Messaging msg = new Messaging(morphium, 100, true, 1);
         msg.start();
 
         try {
@@ -53,9 +53,9 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
     public void writeRecSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
         //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        Messaging sender = new Messaging(morphium, 100, true, 1);
         sender.start();
-        Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+        Messaging receiver = new Messaging(morphium, 100,  true, 100);
         receiver.start();
 
         try {
@@ -104,20 +104,20 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
     public void writeExclusiveRec() throws Exception {
         //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         morphium.clearCollection(Msg.class);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        Messaging sender = new Messaging(morphium, 100,  true, 1);
         sender.start();
-        Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+        Messaging receiver = new Messaging(morphium, 100,  true, 100);
         receiver.start();
-        Messaging receiver2 = new Messaging(morphium, 100, true, true, 100);
+        Messaging receiver2 = new Messaging(morphium, 100,  true, 100);
         receiver2.start();
 
         try {
             final AtomicInteger recCount = new AtomicInteger();
-            receiver.addMessageListener((msg, m)->{
+            receiver.addMessageListener((msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });
-            receiver2.addMessageListener((msg, m)->{
+            receiver2.addMessageListener((msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });

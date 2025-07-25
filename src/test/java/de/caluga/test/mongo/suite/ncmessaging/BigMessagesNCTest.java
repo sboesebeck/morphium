@@ -17,8 +17,9 @@ public class BigMessagesNCTest extends MorphiumTestBase {
         final AtomicInteger count = new AtomicInteger();
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
+        Messaging sender = new Messaging(morphium, 100,  true, 10);
         Messaging receiver = new Messaging(morphium);
+
         try {
             sender.setUseChangeStream(false).start();
             receiver.setUseChangeStream(false).start();
@@ -29,17 +30,17 @@ public class BigMessagesNCTest extends MorphiumTestBase {
                 count.incrementAndGet();
                 return null;
             });
-
             int amount = 25;
 
             for (int i = 0; i < amount; i++) {
                 StringBuilder txt = new StringBuilder();
                 txt.append("Test");
+
                 for (int t = 0; t < 6 * Math.random() + 5; t++) {
                     txt.append(txt.toString() + "/" + txt.toString());
                 }
-                log.info("Text Size: " + txt.length());
 
+                log.info("Text Size: " + txt.length());
                 Msg big = new Msg();
                 big.setName("bigMsg");
                 big.setTtl(3000000);
@@ -54,12 +55,12 @@ public class BigMessagesNCTest extends MorphiumTestBase {
                 if (count.get() % 10 == 0) {
                     log.info("still waiting... messages recieved: " + count.get());
                 }
+
                 Thread.sleep(500);
             }
         } finally {
             sender.terminate();
             receiver.terminate();
         }
-
     }
 }

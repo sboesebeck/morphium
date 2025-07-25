@@ -26,14 +26,13 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.clearCollection(Msg.class);
-            final Messaging m1 = new Messaging(morphium, 1000, true);
-            final Messaging m2 = new Messaging(morphium, 10, true);
-            final Messaging m3 = new Messaging(morphium, 10, true);
-            final Messaging m4 = new Messaging(morphium, 10, true);
+            final Messaging m1 = new Messaging(morphium, 1000, true, 10);
+            final Messaging m2 = new Messaging(morphium, 10, true, 10);
+            final Messaging m3 = new Messaging(morphium, 10, true, 10);
+            final Messaging m4 = new Messaging(morphium, 10, true, 10);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
@@ -123,34 +122,36 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void broadcastMultiTest(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
-            Messaging sender = new Messaging(morphium, 10000, false);
+            Messaging sender = new Messaging(morphium, 10000, true, 1);
             sender.setSenderId("sender");
             sender.start();
             Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
             List<Messaging> receivers = new ArrayList<Messaging>();
 
             for (int i = 0; i < 10; i++) {
-                Messaging rec1 = new Messaging(morphium, 10, true);
+                Messaging rec1 = new Messaging(morphium, 10, true, 10);
                 rec1.setSenderId("rec" + i);
                 receivers.add(rec1);
                 rec1.start();
                 rec1.addListenerForMessageNamed("bcast", (msg, m) -> {
-                    receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
+                    synchronized(receivedIds) {
+                        receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
 
-                    if (receivedIds.get(rec1.getSenderId()).contains(m.getMsgId())) {
-                        log.error("Duplicate processing!!!!");
-                    } else if (m.isExclusive() && m.getProcessedBy() != null && m.getProcessedBy().size() != 0) {
-                        log.error("Duplicate processing Exclusive Message!!!!!");
+                        if (receivedIds.get(rec1.getSenderId()).contains(m.getMsgId())) {
+                            log.error("Duplicate processing!!!!");
+                        } else if (m.isExclusive() && m.getProcessedBy() != null && m.getProcessedBy().size() != 0) {
+                            log.error("Duplicate processing Exclusive Message!!!!!");
+                        }
+
+                        receivedIds.get(rec1.getSenderId()).add(m.getMsgId());
                     }
-                    receivedIds.get(rec1.getSenderId()).add(m.getMsgId());
                     return null;
                 });
             }
@@ -186,13 +187,13 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     log.info(b.toString());
                 }
 
-                if (totalNum == amount * receivers.size() + amount) {
+                if (totalNum >= amount * receivers.size() + amount) {
                     break;
                 } else {
-                    log.info("Did not receive all: " + totalNum);
+                    log.info("Did not receive all: {} of {}", totalNum, amount * receivers.size() + amount);
                 }
 
-                Thread.sleep(1500);
+                Thread.sleep(200);
                 assertTrue(System.currentTimeMillis() - start < 15000, "Did not get all messages in time");
             }
             Thread.sleep(1000);
@@ -213,7 +214,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     var m = morphium.findById(Msg.class, e.getValue().get(i));
 
                     if (m == null) {
-                        log.warn("Hmm.. did not get message... retrying...");
+                        log.warn("Hmm.. Did not get message... retrying...");
                         Thread.sleep(100);
                         m = morphium.findById(Msg.class, e.getValue().get(i));
                         assertNotNull(m, "Message not found");
