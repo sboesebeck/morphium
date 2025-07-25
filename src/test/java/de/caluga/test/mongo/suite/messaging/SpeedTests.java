@@ -20,7 +20,7 @@ public class SpeedTests extends MultiDriverTestBase {
 
         try (morphium) {
             morphium.clearCollection(Msg.class);
-            Messaging msg = new Messaging(morphium, 100, false, true, 10);
+            Messaging msg = new Messaging(morphium, 100,  true, 1);
             msg.start();
 
             try {
@@ -65,9 +65,9 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.clearCollection(Msg.class);
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-            Messaging sender = new Messaging(morphium, 100, false, true, 10);
+            Messaging sender = new Messaging(morphium, 100,  true, 1);
             sender.start();
-            Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+            Messaging receiver = new Messaging(morphium, 100,  true, 100);
             receiver.start();
 
             try {
@@ -121,11 +121,11 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
             morphium.clearCollection(Msg.class);
-            Messaging sender = new Messaging(morphium, 100, false, true, 10);
+            Messaging sender = new Messaging(morphium, 100, true, 1);
             sender.start();
-            Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+            Messaging receiver = new Messaging(morphium, 100,  true, 100);
             receiver.start();
-            Messaging receiver2 = new Messaging(morphium, 100, true, true, 100);
+            Messaging receiver2 = new Messaging(morphium, 100,  true, 100);
             receiver2.start();
 
             try {

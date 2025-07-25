@@ -14,7 +14,8 @@ public class Context implements javax.jms.JMSContext {
 
     public Context(Morphium morphium, String name, int sessionMode) {
         this.morphium = morphium;
-        this.messaging = new Messaging(morphium, 100, true, true, 10);
+        this.messaging = new Messaging(morphium, 100, true, 10);
+
         if (name != null) this.messaging.setQueueName(name);
     }
 
@@ -54,7 +55,6 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public void setExceptionListener(ExceptionListener listener) {
-
     }
 
     @Override
@@ -134,22 +134,20 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public void commit() {
-
     }
 
     @Override
     public void rollback() {
-
     }
 
     @Override
     public void recover() {
-
     }
 
     @Override
     public JMSConsumer createConsumer(Destination destination) {
         if (startOnCosumerCreate) start();
+
         return new Consumer(messaging, destination);
     }
 
@@ -225,11 +223,9 @@ public class Context implements javax.jms.JMSContext {
 
     @Override
     public void unsubscribe(String name) {
-
     }
 
     @Override
     public void acknowledge() {
-
     }
 }

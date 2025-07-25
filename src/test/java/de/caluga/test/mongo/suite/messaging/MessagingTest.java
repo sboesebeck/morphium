@@ -61,7 +61,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -100,7 +99,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -109,11 +107,11 @@ public class MessagingTest extends MultiDriverTestBase {
             m.setPause(500);
             m.setMultithreadded(false);
             m.setAutoAnswer(false);
-            m.setProcessMultiple(true);
+            // m.setProcessMultiple(true);
             assert(!m.isAutoAnswer());
             assert(!m.isMultithreadded());
             assert(m.getPause() == 500);
-            assert(m.isProcessMultiple());
+            assert(m.getWindowSize() != 1);
             m.addMessageListener((msg, m1) -> {
                 gotMessage1 = true;
                 return null;
@@ -161,7 +159,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             Msg m = new Msg();
@@ -182,7 +179,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             error = false;
@@ -226,7 +222,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             log.info("Starting test with: " + morphium.getDriver().getName());
@@ -324,7 +319,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -385,7 +379,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.clearCollection(Msg.class);
@@ -503,7 +496,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -539,7 +531,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             List<Messaging> systems;
@@ -588,7 +579,6 @@ public class MessagingTest extends MultiDriverTestBase {
                             return null;
                         }
                     };
-
                     m.addMessageListener(l);
                 }
 
@@ -665,7 +655,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -738,7 +727,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class, "msg", null);
@@ -775,7 +763,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             final AtomicInteger cnt = new AtomicInteger();
@@ -807,7 +794,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -877,7 +863,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.dropCollection(Msg.class);
@@ -946,7 +931,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             log.info("Running with " + morphium.getDriver().getName());
@@ -1030,7 +1014,6 @@ public class MessagingTest extends MultiDriverTestBase {
         try (morphium) {
             String method = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             Messaging sender = new Messaging(morphium, 1000, false);

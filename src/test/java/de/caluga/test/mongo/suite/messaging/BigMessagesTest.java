@@ -21,12 +21,14 @@ public class BigMessagesTest extends MultiDriverTestBase {
     public void testBigMessage(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+
         try (morphium) {
             final AtomicInteger count = new AtomicInteger();
             morphium.dropCollection(Msg.class, "msg", null);
             Thread.sleep(1000);
-            Messaging sender = new Messaging(morphium, 100, true, true, 10);
+            Messaging sender = new Messaging(morphium, 100, true, 10);
             Messaging receiver = new Messaging(morphium);
+
             try {
                 sender.setUseChangeStream(true).start();
                 receiver.setUseChangeStream(true).start();
@@ -37,15 +39,16 @@ public class BigMessagesTest extends MultiDriverTestBase {
                     count.incrementAndGet();
                     return null;
                 });
-
                 int amount = 25;
 
                 for (int i = 0; i < amount; i++) {
                     StringBuilder txt = new StringBuilder();
                     txt.append("Test");
+
                     for (int t = 0; t < 6 * Math.random() + 5; t++) {
                         txt.append(txt.toString() + "/" + txt.toString());
                     }
+
                     log.info(i + ". Text Size: " + txt.length());
                     Thread.yield();
                     Msg big = new Msg();
@@ -57,26 +60,32 @@ public class BigMessagesTest extends MultiDriverTestBase {
                     big.setTimestamp(System.currentTimeMillis());
                     sender.sendMessage(big);
                 }
+
                 long start = System.currentTimeMillis();
+
                 while (count.get() < amount) {
                     if (count.get() % 10 == 0) {
                         log.info("... messages recieved: " + count.get());
                     }
+
                     Thread.sleep(500);
+
                     if (System.currentTimeMillis() - start > 10000) {
                         log.error("Message was lost");
                         log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
+
                         for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
                             log.info("Msg: " + m.getMsgId());
+
                             if (m.getProcessedBy() != null) {
                                 for (String pb : m.getProcessedBy()) {
                                     log.info("Processed by: " + pb);
                                 }
                             }
-
                         }
                     }
-                    assertTrue(System.currentTimeMillis()-start < 35000);
+
+                    assertTrue(System.currentTimeMillis() - start < 35000);
                 }
             } finally {
                 sender.terminate();

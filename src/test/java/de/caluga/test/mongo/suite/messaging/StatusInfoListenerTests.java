@@ -28,32 +28,25 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
-
         addListeners(m1, m2);
         Messaging sender = new Messaging(morphium, 100, true);
         sender.start();
         Thread.sleep(5250);
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertEquals(2, lst.size());
-
         m1.disableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertEquals(1, lst.size());
         m2.disableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
-
         assertTrue(lst == null || lst.size() == 0);
-
         m1.enableStatusInfoListener();
         m2.enableStatusInfoListener();
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertEquals(2, lst.size());
-
         m1.terminate();
         m2.terminate();
         sender.terminate();
-
-
     }
 
     @Test
@@ -66,9 +59,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
-
         addListeners(m1, m2);
-
         Thread.sleep(1500);
         Messaging sender = new Messaging(morphium, 100, true);
         sender.start();
@@ -76,38 +67,41 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", "value"), 2, 5000);
         assertNotNull(lst);
         assertEquals(2, lst.size());
+
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
             assertFalse(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
             assertFalse(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
             checkMessagingStats(m, mapValue);
         }
-        log.info("Getting all status");
 
+        log.info("Getting all status");
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.ALL.name()), 2, 1000);
         assertNotNull(lst);
         assertEquals(2, lst.size());
+
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
             assertTrue(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
             assertTrue(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
             checkMessagingStats(m, mapValue);
         }
-        log.info("just ping");
 
+        log.info("just ping");
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
         assertNotNull(lst);
         assertEquals(2, lst.size());
+
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
             assertEquals(0, mapValue.size());
         }
 
         log.info("Getting morphium stats only");
-
         lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.MORPHIUM_ONLY.name()), 2, 1000);
         assertNotNull(lst);
         assertEquals(2, lst.size());
+
         for (Msg m : lst) {
             Map<String, Object> mapValue = m.getMapValue();
             assertTrue(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
@@ -115,9 +109,8 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             assertFalse(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
             assertFalse(mapValue.containsKey(StatusInfoListener.globalListenersKey));
         }
+
         log.info("all fine... exiting");
-
-
         m1.terminate();
         m2.terminate();
         sender.terminate();
@@ -136,14 +129,12 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
                 return null;
             }
         });
-
         m2.addListenerForMessageNamed("test1", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m)  {
                 return null;
             }
         });
-
         m2.addListenerForMessageNamed("test2", new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {
@@ -157,25 +148,24 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     public void testStatusInfoListener() throws Exception {
         Messaging m = new Messaging(morphium);
         m.setWindowSize(1);
-        m.setProcessMultiple(false);
         m.setMultithreadded(false);
         m.setUseChangeStream(false);
         m.start();
         assertTrue(m.isStatusInfoListenerEnabled());
         m.addMessageListener((msg, m1) -> {
             log.info("Incoming message! " + m1.getMsgId());
+
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
-
             }
             return null;
         });
-
         Messaging sender = new Messaging(morphium);
         sender.start();
         Thread.sleep(3000);
         ArrayList<Msg> lst = new ArrayList<>();
+
         for (int i = 0; i < 100; i++) {
             var msg = new Msg("something else", "no", "");
             msg.setSender(sender.getSenderId());
@@ -188,6 +178,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         }
 
         morphium.storeList(lst);
+
         for (int i = 0; i < 10; i++) {
             Thread.sleep(100);
             var msg = new Msg(sender.getStatusInfoListenerName(), "PING", "");
@@ -204,7 +195,6 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     @Test
     public void prioQueueTest() throws Exception {
         PriorityBlockingQueue<Messaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
-
         Messaging.ProcessingQueueElement el = new Messaging.ProcessingQueueElement(500, 123, new MorphiumId());
         qu.add(el);
         el = new Messaging.ProcessingQueueElement(500, 124, new MorphiumId());
@@ -219,6 +209,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         qu.add(el);
         int sz = qu.size();
         log.info("Queue size: " + sz);
+
         for (int i = 0; i < sz; i++) {
             var e = qu.take();
             log.info(i + ". element: " + e.getPriority() + " / " + e.getTimestamp());
@@ -234,7 +225,6 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
             assertFalse(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));
             assertTrue(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey));
-
         } else if (m.getSender().equals("m2")) {
             assertTrue(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
             assertTrue(mapValue.containsKey(StatusInfoListener.globalListenersKey));
@@ -243,7 +233,6 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));
             assertFalse(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey));
-
         } else {
             throw new RuntimeException("WRONG SENDER " + m.getSender());
         }

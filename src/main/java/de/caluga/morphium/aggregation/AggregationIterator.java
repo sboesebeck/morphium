@@ -1,10 +1,7 @@
 package de.caluga.morphium.aggregation;
 
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.AggregateMongoCommand;
-import de.caluga.morphium.driver.wire.MongoConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

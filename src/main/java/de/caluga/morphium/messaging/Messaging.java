@@ -54,7 +54,6 @@ public class Messaging extends Thread implements ShutdownListener {
     private String id;
     private boolean autoAnswer = false;
     private String hostname;
-    private boolean processMultiple;
 
     private final List<MessageListener> listeners;
 
@@ -87,36 +86,86 @@ public class Messaging extends Thread implements ShutdownListener {
      *
      * @param m               - morphium
      * @param pause           - pause between checks
-     * @param processMultiple - process multiple messages at once, if false, only
-     *                        ony by one
-     */
+     * @param processMultiple - deprecated, set windowSize to 1 if needed
+    */
+    @Deprecated
     public Messaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
+
+        if (!processMultiple) setWindowSize(1);
+    }
+    public Messaging(Morphium m, int pause) {
+        this(m, null, pause, true, 10);
     }
 
     public Messaging(Morphium m) {
-        this(m, null, 500, false, false, 100);
+        this(m, null, 500, false, 100);
     }
 
+    /**
+     * @Deprecated - processMultiple is unused
+     */
+    @Deprecated
     public Messaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
-        this(m, null, pause, processMultiple, multithreadded, windowSize);
+        this(m, null, pause, multithreadded, windowSize);
+
+        if (!processMultiple) setWindowSize(1);
+    }
+    public Messaging(Morphium m, int pause,  boolean multithreadded, int windowSize) {
+        this(m, null, pause,  multithreadded, windowSize);
     }
 
+
+    /**
+     * @Deprecated - processMultiple is unused
+     */
+    @Deprecated
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple) {
-        this(m, queueName, pause, processMultiple, false, m.getConfig().getMessagingWindowSize());
+        this(m, queueName, pause,  false, m.getConfig().getMessagingWindowSize());
+
+        if (!processMultiple) setWindowSize(1);
     }
 
+    public Messaging(Morphium m, String queueName, int pause,  boolean multithreadded, int windowSize) {
+        this(m, queueName, pause,  multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
+    }
+
+    /**
+     * @Deprecated - processMultiple is unused
+     */
+    @Deprecated
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
-        this(m, queueName, pause, processMultiple, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
+        this(m, queueName, pause,  multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
+
+        if (!processMultiple) setWindowSize(1);
     }
 
+    /**
+     * @Deprecated - processMultiple is unused
+     */
+    @Deprecated
     public Messaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
+        this(m, queueName, pause, multithreadded, windowSize, useChangeStream);
+
+        if (!processMultiple) setWindowSize(1);
+    }
+
+    /**
+     * @param Morphium m:  the morphium instance to use
+     * @param queueName: The name of the messaging queue
+     * @prarm pause: when waiting for incoming messages, especially when multithreadded == false, how long to wait between polls
+     * @param windowSize: how many messages to mark for processing at once
+     * @param useChangeStream: whether to use changeStream (reccommended!) or not. Attention: changestream cannot be used on single
+     *                         mongodb instances or mongos sharded clusters - needs to be a replicaset!
+     *                         morphium automatically sets this value accordingly depending on your configuration
+     *
+     * */
+    public Messaging(Morphium m, String queueName, int pause,  boolean multithreadded, int windowSize, boolean useChangeStream) {
         allMessagings.add(this);
         setWindowSize(windowSize);
         setUseChangeStream(useChangeStream);
         setQueueName(queueName);
         setPause(pause);
-        setProcessMultiple(processMultiple);
         morphium = m;
         statusInfoListener = new StatusInfoListener();
         statusInfoListenerEnabled = m.getConfig().isMessagingStatusInfoListenerEnabled();
@@ -138,7 +187,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 return ret;
             }
         });
-
         morphium.addShutdownListener(this);
         running = true;
         id = UUID.randomUUID().toString();
@@ -362,7 +410,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 if (msg.get("sender").equals("id")) {
                     return running;
                 }
-
                 ProcessingQueueElement el = new ProcessingQueueElement();
                 el.setPriority((Integer) msg.get("priority"));
                 el.setId((MorphiumId) msg.get("_id"));
@@ -383,7 +430,6 @@ public class Messaging extends Thread implements ShutdownListener {
         catch (Exception e) {
             log.error("Error during event processing in changestream", e);
         }
-
         return running;
     }
 
@@ -432,7 +478,7 @@ public class Messaging extends Thread implements ShutdownListener {
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
                         sk.set(sk.get() + requestPoll.get());
                         requestPoll.set(0);
-                        findMessages(processMultiple);
+                        findMessages();
                     } else {
                         morphium.inc(StatisticKeys.SKIPPED_MSG_UPDATES);
                     }
@@ -630,7 +676,7 @@ public class Messaging extends Thread implements ShutdownListener {
         return ret;
     }
 
-    private List<ProcessingQueueElement> getMessagesForProcessing(boolean multiple) {
+    private List<ProcessingQueueElement> getMessagesForProcessing() {
         if (!running) {
             return new ArrayList<>();
         }
@@ -675,11 +721,6 @@ public class Messaging extends Thread implements ShutdownListener {
 
         try {
             int ws = windowSize;
-
-            if (!multiple) {
-                ws = 1;
-            }
-
             // get IDs of messages to process
             fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             fnd.setDb(morphium.getDatabase());
@@ -723,13 +764,13 @@ public class Messaging extends Thread implements ShutdownListener {
         requestPoll.incrementAndGet();
     }
 
-    private void findMessages(boolean multiple) {
+    private void findMessages() {
         if (!running) {
             return;
         }
 
         // log.debug("getting messages...");
-        List<ProcessingQueueElement> messages = getMessagesForProcessing(multiple);
+        List<ProcessingQueueElement> messages = getMessagesForProcessing();
 
         if (messages == null) {
             return;
@@ -1050,7 +1091,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (c.get(n).isEmpty()) {
             c.remove(n);
         }
-
         listenerByName = c;
     }
 
@@ -1076,7 +1116,6 @@ public class Messaging extends Thread implements ShutdownListener {
         if (useChangeStream) {
             return changeStreamMonitor != null && changeStreamMonitor.isRunning();
         }
-
         return running;
     }
 
@@ -1100,7 +1139,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.warn("Exception when shutting down decouple-pool", e);
             }
         }
-
         morphium.removeShutdownListener(this);
         if (threadPool != null) {
             try {
@@ -1113,11 +1151,9 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.warn("Exception when shutting down threadpool");
             }
         }
-
         if (changeStreamMonitor != null) {
             changeStreamMonitor.terminate();
         }
-
         if (isAlive()) {
             try {
                 interrupt();
@@ -1125,7 +1161,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 log.warn("Exception when interrupint messaging thread", e);
             }
         }
-
         int retry = 0;
         while (isAlive()) {
             try {
@@ -1133,7 +1168,6 @@ public class Messaging extends Thread implements ShutdownListener {
             } catch (InterruptedException e) {
                 // swallow
             }
-
             retry++;
             if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150 + 5) {
                 throw new RuntimeException("Could not terminate Messaging! MaxTime exceeded twice");
@@ -1180,7 +1214,6 @@ public class Messaging extends Thread implements ShutdownListener {
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
                 }
-
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
@@ -1375,11 +1408,17 @@ public class Messaging extends Thread implements ShutdownListener {
     }
 
     public boolean isProcessMultiple() {
-        return processMultiple;
+        return windowSize == 1;
     }
 
+    @Deprecated
     public Messaging setProcessMultiple(boolean processMultiple) {
-        this.processMultiple = processMultiple;
+        if (processMultiple) {
+            windowSize = 10;
+        } else {
+            windowSize = 1;
+        }
+
         return this;
     }
 

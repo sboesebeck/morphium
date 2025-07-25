@@ -251,6 +251,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 } else {
                     for (String cn : entities.getNames()) {
                         try {
+                            @SuppressWarnings("rawtypes")
                             Class c = Class.forName(cn);
 
                             if (Modifier.isAbstract(c.getModifiers())) {
@@ -414,7 +415,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         var capped = checkCapped();
 
         if (capped != null && !capped.isEmpty()) {
-            for (Class cls : capped.keySet()) {
+            for (@SuppressWarnings("rawtypes") Class cls : capped.keySet()) {
                 switch (getConfig().getCappedCheck()) {
                     case WARN_ON_STARTUP:
                         log.warn("Collection for entity " + cls.getName() + " is not capped although configured!");
@@ -494,7 +495,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
-        getCache().setValidCacheTime(CollectionInfo.class, 15000); // TODO: settings for collectionCache
+        getCache().setValidCacheTime(CollectionInfo.class, 15000);
     }
 
     public ValueEncryptionProvider getValueEncrpytionProvider() {
@@ -641,6 +642,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> Query<T> createQueryByTemplate(T template, String ... fields) {
+        @SuppressWarnings("rawtypes")
         Class cls = template.getClass();
         List<String> flds;
 
@@ -777,6 +779,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
     }
 
+    @SuppressWarnings("rawtypes")
     public Map<String, Object> simplifyQueryObject(Map<String, Object> q) {
         if (q.keySet().size() == 1 && q.get("$and") != null) {
             Map<String, Object> ret = new HashMap<>();
@@ -808,6 +811,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     // public <T> Map<String, Object> push(final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple, final AsyncOperationCallback<T> callback){
     //     return null;
     // }
+    @SuppressWarnings("rawtypes")
     public void push(Object entity, String collection, String field, Object value, boolean upsert) {
         Object id = getId(entity);
 
@@ -845,6 +849,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 fld.set(entity, arr);
             } else if (Collection.class.isAssignableFrom(fld.getType())) {
                 // collection / List etc.
+                @SuppressWarnings("rawtypes")
                 Collection v = null;
                 v = (Collection) fld.get(entity);
 
@@ -934,14 +939,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * Please use {@link Morphium setInEntity()} instead.
      */
     @Deprecated
-    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
+    public <T> void set(final T toSet, String collection, boolean upserts, @SuppressWarnings("rawtypes") final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
         setInEntity(toSet, collection, upserts, values, callback);
     }
 
-    public <T> void setInEntity(final T entity, String collection, boolean upserts, final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
+    public <T> void setInEntity(final T entity, String collection, boolean upserts, @SuppressWarnings("rawtypes") final Map<Enum, Object> values, AsyncOperationCallback<T> callback) {
         Map<String, Object> strValues = new HashMap<>();
 
-        for (Map.Entry<Enum, Object> e : values.entrySet()) {
+        for (@SuppressWarnings("rawtypes") Map.Entry<Enum, Object> e : values.entrySet()) {
             strValues.put(e.getKey().name(), e.getValue());
         }
 
@@ -993,10 +998,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
 
-    public <T> Map<String, Object> inc(final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    public <T> Map<String, Object> inc(@SuppressWarnings("rawtypes") final Map<Enum, Number> fieldsToInc, final Query<T> matching, final boolean upsert, final boolean multiple,
+        AsyncOperationCallback<T> callback) {
         Map<String, Number> toUpdate = new HashMap<>();
 
-        for (Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
+        for (@SuppressWarnings("rawtypes") Map.Entry<Enum, Number> e : fieldsToInc.entrySet()) {
             toUpdate.put(e.getKey().name(), e.getValue());
         }
 
@@ -1140,7 +1146,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             return;
         }
 
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.preStore(this, o, isNew);
         }
@@ -1149,7 +1155,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void firePostStore(Object o, boolean isNew) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.postStore(this, o, isNew);
         }
@@ -1158,15 +1164,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         // existing object => store last Access, if needed
     }
 
-    public void firePreDrop(Class cls) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePreDrop(@SuppressWarnings("rawtypes") Class cls) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.preDrop(this, cls);
         }
     }
 
     public <T> void firePostStore(Map<T, Boolean> isNew) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.postStore(this, isNew);
         }
@@ -1177,7 +1183,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void firePostRemove(List<T> toRemove) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.postRemove(this, toRemove);
         }
@@ -1188,7 +1194,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void firePostLoad(List<T> loaded) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.postLoad(this, loaded);
         }
@@ -1199,7 +1205,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void firePreStore(Map<Object, Boolean> isNew) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.preStore(this, isNew);
         }
@@ -1210,7 +1216,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> void firePreRemove(List<T> lst) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.preRemove(this, lst);
         }
@@ -1221,7 +1227,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public void firePreRemove(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             // noinspection unchecked
             l.preRemove(this, o);
         }
@@ -1230,29 +1236,29 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     @SuppressWarnings("unchecked")
-    public void firePostDropEvent(Class cls) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePostDropEvent(@SuppressWarnings("rawtypes") Class cls) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.postDrop(this, cls);
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void firePostUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePostUpdateEvent(@SuppressWarnings("rawtypes") Class cls, MorphiumStorageListener.UpdateTypes t) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.postUpdate(this, cls, t);
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void firePreUpdateEvent(Class cls, MorphiumStorageListener.UpdateTypes t) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePreUpdateEvent(@SuppressWarnings("rawtypes") Class cls, MorphiumStorageListener.UpdateTypes t) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.preUpdate(this, cls, t);
         }
     }
 
     @SuppressWarnings("unchecked")
     public void firePostRemoveEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.postRemove(this, o);
         }
 
@@ -1260,15 +1266,15 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     @SuppressWarnings("unchecked")
-    public void firePostRemoveEvent(Query q) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePostRemoveEvent(@SuppressWarnings("rawtypes") Query q) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.postRemove(this, q);
         }
     }
 
     @SuppressWarnings("unchecked")
-    public void firePreRemoveEvent(Query q) {
-        for (MorphiumStorageListener l : listeners) {
+    public void firePreRemoveEvent(@SuppressWarnings("rawtypes") Query q) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.preRemove(this, q);
         }
     }
@@ -1299,6 +1305,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
             if (r != null && r.lazyLoading()) {
                 try {
+                    @SuppressWarnings("rawtypes")
                     LazyDeReferencingProxy v = (LazyDeReferencingProxy) fld.get(obj);
                     Object value = v.__getDeref();
                     fld.set(obj, value);
@@ -1326,7 +1333,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     public void firePostLoadEvent(Object o) {
-        for (MorphiumStorageListener l : listeners) {
+        for (@SuppressWarnings("rawtypes") MorphiumStorageListener l : listeners) {
             l.postLoad(this, o);
         }
 
@@ -1363,11 +1370,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return rp.value().getPref();
     }
 
+    @SuppressWarnings("rawtypes")
     public MorphiumBulkContext createBulkRequestContext(Class<?> type, boolean ordered) {
         return new MorphiumBulkContext(getDriver().createBulkContext(this, getConfig().getDatabase(), getMapper().getCollectionName(type), ordered, getWriteConcernForClass(type)));
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({ "unused", "rawtypes" })
     public MorphiumBulkContext createBulkRequestContext(String collection, boolean ordered) {
         return new MorphiumBulkContext(getDriver().createBulkContext(this, getConfig().getDatabase(), collection, ordered, null));
     }
@@ -1459,6 +1467,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @param colName - CollectionName
      */
     public void clearCollection(Class<?> cls, String colName) {
+        @SuppressWarnings("rawtypes")
         Query q = createQueryFor(cls);
         q.setCollectionName(colName);
         // noinspection unchecked
@@ -1577,7 +1586,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * unmarshalled, you might get MongoMap<String,Object>s
      */
     @SuppressWarnings("unchecked")
-    public List<Object> distinct(String key, Query q) {
+    public List<Object> distinct(String key, @SuppressWarnings("rawtypes") Query q) {
         MongoConnection con = null;
         DistinctMongoCommand settings = null; //new DistinctMongoCommand(con).setColl(q.getCollectionName()).setDb(getConfig().getDatabase()).setQuery(Doc.of(q.toQueryObject())).setKey(key);
 
@@ -1599,7 +1608,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
     }
 
-    public List<Object> distinct(String key, Class cls, Collation collation) {
+    public List<Object> distinct(String key, @SuppressWarnings("rawtypes") Class cls, Collation collation) {
         MongoConnection con = null;
         DistinctMongoCommand settings = null;
 
@@ -1639,7 +1648,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
 
-    public <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback) {
+    public <T> void findById(Class<? extends T> type, Object id, String collection, @SuppressWarnings("rawtypes") AsyncOperationCallback callback) {
         // noinspection unchecked
         createQueryFor(type).setCollectionName(collection).f(getARHelper().getIdFieldName(type)).eq(id).get(callback);
     }
@@ -1681,6 +1690,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public <T> boolean setAutoValues(T o) throws IllegalAccessException {
+        @SuppressWarnings("rawtypes")
         Class type = getARHelper().getRealClass(o.getClass());
         Object id = getARHelper().getId(o);
         boolean aNew = id == null;
@@ -1805,7 +1815,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         getConfig().getWriter().flush();
     }
 
-    public void flush(Class type) {
+    public void flush(@SuppressWarnings("rawtypes") Class type) {
         getConfig().getBufferedWriter().flush(type);
         getConfig().getWriter().flush(type);
     }
@@ -1981,11 +1991,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @param cls - class
      * @param fldStr - fields
      */
-    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, Enum... fldStr) {
+    public <T> void ensureIndex(Class<T> cls, AsyncOperationCallback<T> callback, @SuppressWarnings("rawtypes") Enum... fldStr) {
         ensureIndex(cls, getMapper().getCollectionName(cls), callback, fldStr);
     }
 
-    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, Enum... fldStr) {
+    public <T> void ensureIndex(Class<T> cls, String collection, AsyncOperationCallback<T> callback, @SuppressWarnings("rawtypes") Enum... fldStr) {
         Map<String, Object> m = new LinkedHashMap<>();
 
         for (Enum<?> e : fldStr) {
@@ -2063,7 +2073,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
     }
 
-    public List<IndexDescription> getIndexesFromMongo(Class cls) {
+    public List<IndexDescription> getIndexesFromMongo(@SuppressWarnings("rawtypes") Class cls) {
         return getIndexesFromMongo(getMapper().getCollectionName(cls));
     }
 
@@ -2198,7 +2208,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         if (fldStr.length == 0) {
             return null;
         }
-
         List<Map<String, Object >> lst = new ArrayList<>();
 
         for (String f : fldStr) {
@@ -2265,11 +2274,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     @SuppressWarnings("unused")
-    public void ensureIndex(Class<?> cls, Enum... fldStr) {
+    public void ensureIndex(Class<?> cls, @SuppressWarnings("rawtypes") Enum... fldStr) {
         ensureIndex(cls, null, fldStr);
     }
 
-    public <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback) {
+    public <T> void insertList(@SuppressWarnings("rawtypes") List lst, String collection, AsyncOperationCallback<T> callback) {
         Map<Class<?>, MorphiumWriter> writers = new HashMap<>();
         Map<Class<?>, List<Object >> values = new HashMap<>();
 
@@ -2278,7 +2287,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
-        for (Class cls : writers.keySet()) {
+        for (@SuppressWarnings("rawtypes") Class cls : writers.keySet()) {
             try {
                 // noinspection unchecked
                 writers.get(cls).insert((List<T>) values.get(cls), collection, callback);
@@ -2291,7 +2300,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
 
-    public Map<String, Integer> saveMaps(Class type, List<Map<String, Object >> lst) throws MorphiumDriverException {
+    public Map<String, Integer> saveMaps(@SuppressWarnings("rawtypes") Class type, List<Map<String, Object >> lst) throws MorphiumDriverException {
         StoreMongoCommand store = null;
 
         try {
@@ -2380,7 +2389,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Object> storeMap(Class type, Map<String, Object> m) throws MorphiumDriverException {
+    public Map<String, Object> storeMap(@SuppressWarnings("rawtypes") Class type, Map<String, Object> m) throws MorphiumDriverException {
         MongoConnection primaryConnection = getDriver().getPrimaryConnection(null);
         StoreMongoCommand settings = new StoreMongoCommand(primaryConnection).setDb(getDatabase()).setColl(getMapper().getCollectionName(type)).setDocuments(Arrays.asList(m));
 
@@ -2412,7 +2421,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             values.putIfAbsent(o.getClass(), new ArrayList<>());
             values.get(o.getClass()).add(o);
         }
-        for (Class cls : writers.keySet()) {
+        for (@SuppressWarnings("rawtypes") Class cls : writers.keySet()) {
             try {
                 // noinspection unchecked
                 writers.get(cls).store((List<T>) values.get(cls), collection, callback);
@@ -2560,7 +2569,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return aggregator;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public <T> T createLazyLoadedEntity(Class<? extends T> cls, Object id, String collectionName) {
         return (T) Enhancer.create(cls, new Class[] {Serializable.class}, new LazyDeReferencingProxy(this, cls, id, collectionName));
     }
@@ -2737,7 +2746,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 public void incomingData(Map<String, Object> data, long dur) {
                     b = processEvent(lst, data);
                 }
-
                 @Override
                 public boolean isContinued() {
                     return b;
@@ -2805,7 +2813,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         runningFlag.set(false);
                     }
                 }
-
                 @Override
                 public boolean isContinued() {
                     return runningFlag.get();
