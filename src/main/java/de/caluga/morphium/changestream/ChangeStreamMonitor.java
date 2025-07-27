@@ -68,22 +68,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
     public ChangeStreamMonitor(Morphium m, String collectionName, boolean fullDocument, int maxWait, List<Map<String, Object >> pipeline) {
         morphium = m;
-
-        //dedicated connection
         try {
-            // if (m.getDriver() instanceof InMemoryDriver) {
             dedicatedConnection = m.getDriver();
-            // } else {
-            //     dedicatedConnection = new SingleMongoConnectDriver().setConnectionType(ConnectionType.PRIMARY);
-            //     dedicatedConnection.setDefaultBatchSize(morphium.getConfig().getCursorBatchSize());
-            //     dedicatedConnection.setMaxWaitTime(morphium.getConfig().getMaxWaitTime());
-            //     dedicatedConnection.setHostSeed(morphium.getConfig().getHostSeed());
-            //     dedicatedConnection.setMinConnections(1);
-            //     dedicatedConnection.setMaxConnections(3);
-            //     dedicatedConnection.setCredentials(morphium.getConfig().decryptAuthDb(), morphium.getConfig().decryptMongoLogin(), morphium.getConfig().decryptMongoPassword());
-            //     dedicatedConnection.connect();
-            //     Thread.sleep(1000);
-            // }
         } catch (Exception e) {
             if (!e.getMessage().contains("sleep interrupted")) {
                 throw new RuntimeException(e);
@@ -236,7 +222,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                 if (!dbOnly) {
                     watch.setColl(collectionName);
-                    //                    morphium.getDriver().watch(morphium.getConfig().getDatabase(), maxWait, fullDocument, pipeline, callback);
                 }
 
                 if (watch.getConnection().isConnected()) watch.watch();
@@ -251,15 +236,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("Changstream connection broke - restarting");
                 } else if (e.getMessage().contains("Did not receive OpMsg-Reply in time") || e.getMessage().contains("Read timed out")) {
                     log.debug("changestream iteration");
-                    // } else if (e.getMessage().equals("error")){
-                    //     //probably timeout
-                    //     try {
-                    //         dedicatedConnection.connect();
-                    //     } catch (MorphiumDriverException e1) {
-                    //         // TODO Auto-generated catch block
-                    //         e1.printStackTrace();
-                    //     }
-                    //
                 } else if (e.getMessage().contains("closed") || morphium.getConfig() == null) {
                     log.warn("connection closed!", e);
                     break;
