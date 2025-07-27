@@ -89,12 +89,12 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                 throw new RuntimeException(e);
             }
         }
-
         listeners = new ConcurrentLinkedDeque<>();
         morphium.addShutdownListener(this);
         this.pipeline = pipeline;
         this.collectionName = collectionName;
         this.fullDocument = fullDocument;
+        dbOnly = (collectionName == null);
 
         if (maxWait != 0) {
             this.maxWait = maxWait;
@@ -216,7 +216,6 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         listeners.removeAll(toRemove);
                     }
-
                     @Override
                     public boolean isContinued() {
                         return ChangeStreamMonitor.this.running;
