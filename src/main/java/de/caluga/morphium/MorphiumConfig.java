@@ -44,7 +44,6 @@ import de.caluga.morphium.writer.MorphiumWriterImpl;
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
     private Map<String, Object> restoreData;
-    // private MongoDbMode mode;
     private int maxConnections = 250, housekeepingTimeout = 5000;
     private int minConnections = 1;
     private int idleSleepTime = 20;
@@ -472,12 +471,7 @@ public class MorphiumConfig {
         return this;
     }
 
-    @SuppressWarnings("CommentedOutCode")
     public MorphiumCache getCache() {
-        // if (cache == null) {
-        // cache = new MorphiumCacheImpl();
-        //
-        // }
         return cache;
     }
 
@@ -862,14 +856,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public long getValidTime() {
-        return globalCacheValidTime;
-    }
-
-    public MorphiumConfig setValidTime(int tm) {
-        globalCacheValidTime = tm;
-        return this;
-    }
 
     /**
      * returns json representation of this object containing all values
@@ -1173,9 +1159,6 @@ public class MorphiumConfig {
         return this;
     }
 
-    public int getMinConnectionsHost() {
-        return minConnections;
-    }
 
     public MorphiumConfig setMinConnections(int minConnections) {
         this.minConnections = minConnections;
