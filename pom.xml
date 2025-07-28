@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>de.caluga</groupId>
   <artifactId>morphium</artifactId>
-  <version>5.1.28-SNAPSHOT</version>
+  <version>6.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
   <!--    <parent>-->
   <!--        <groupId>org.sonatype.oss</groupId>-->
@@ -31,17 +31,20 @@
   <developers>
     <developer>
       <id>sBoesebeck</id>
-      <name>Stephan Bösebeck</name>
+      <name>Stephan B&#xF6;sebeck</name>
       <email>sb@caluga.de</email>
     </developer>
   </developers>
   <properties>
-    <java.version>11</java.version>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <maven.compiler.release>21</maven.compiler.release>
+    <java.version>21</java.version>
     <jacoco.percentage.instruction>0.40</jacoco.percentage.instruction>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -94,7 +97,9 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.12.1</version>
         <configuration>
-          <release>11</release>
+          <source>${maven.compiler.source}</source>
+          <target>${maven.compiler.target}</target>
+          <release>${maven.compiler.release}</release>
         </configuration>
       </plugin>
       <plugin>
