@@ -59,16 +59,7 @@ public class PooledDriver extends DriverBase {
     private String fastestHost = null;
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private String primaryNode;
-    private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, new ThreadFactory() {
-        private AtomicLong l = new AtomicLong(0);
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread ret = new Thread(r);
-            ret.setName("MCon_" + (l.incrementAndGet()));
-            ret.setDaemon(true);
-            return ret;
-        }
-    });
+    private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, Thread.ofVirtual().name("MCon-", 0).factory());
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     private final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();

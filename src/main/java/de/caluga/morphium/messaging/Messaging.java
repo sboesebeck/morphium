@@ -175,18 +175,7 @@ public class Messaging extends Thread implements ShutdownListener {
         }
 
         setMultithreadded(multithreadded);
-        decouplePool = new ScheduledThreadPoolExecutor(windowSize);
-        // noinspection unused,unused
-        decouplePool.setThreadFactory(new ThreadFactory() {
-            private final AtomicInteger num = new AtomicInteger(1);
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread ret = new Thread(r, "decouple_thr_" + num);
-                num.set(num.get() + 1);
-                ret.setDaemon(true);
-                return ret;
-            }
-        });
+        decouplePool = new ScheduledThreadPoolExecutor(windowSize, Thread.ofVirtual().name("decouple_thr-", 0).factory());
         morphium.addShutdownListener(this);
         running = true;
         id = UUID.randomUUID().toString();
@@ -334,9 +323,14 @@ public class Messaging extends Thread implements ShutdownListener {
         //     }
         // };
         //
-        threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-        threadPool.setCorePoolSize(morphium.getConfig().getThreadPoolMessagingCoreSize());
-        threadPool.setMaximumPoolSize(morphium.getConfig().getThreadPoolMessagingMaxSize());
+        threadPool = new ThreadPoolExecutor(
+            morphium.getConfig().getThreadPoolMessagingCoreSize(), 
+            morphium.getConfig().getThreadPoolMessagingMaxSize(),
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), 
+            TimeUnit.MILLISECONDS, 
+            new LinkedBlockingQueue<>(),
+            Thread.ofVirtual().name("msg-thr-", 0).factory()
+        );
         // threadPool = new ThreadPoolExecutor(morphium.getConfig().getThreadPoolMessagingCoreSize(), morphium.getConfig().getThreadPoolMessagingMaxSize(),
         //     morphium.getConfig().getThreadPoolMessagingKeepAliveTime(), TimeUnit.MILLISECONDS, queue);
         // threadPool.setRejectedExecutionHandler((r, executor) -> {

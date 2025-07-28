@@ -126,10 +126,14 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 max = 2 * core;
             }
 
-            executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-            executor.setMaximumPoolSize(max);
-            executor.setCorePoolSize(core);
-            executor.setKeepAliveTime(60, TimeUnit.SECONDS);
+            executor = new ThreadPoolExecutor(
+                core, 
+                max, 
+                60L, 
+                TimeUnit.SECONDS, 
+                new LinkedBlockingQueue<>(),
+                Thread.ofVirtual().name("writer-", 0).factory()
+            );
             // new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
             // executor.setRejectedExecutionHandler((r, executor)-> {
             //     try {

@@ -180,9 +180,14 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         //         }
         //     }
         // };
-        asyncOperationsThreadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-        asyncOperationsThreadPool.setCorePoolSize(getConfig().getThreadPoolAsyncOpCoreSize());
-        asyncOperationsThreadPool.setMaximumPoolSize(getConfig().getThreadPoolAsyncOpMaxSize());
+        asyncOperationsThreadPool = new ThreadPoolExecutor(
+            getConfig().getThreadPoolAsyncOpCoreSize(), 
+            getConfig().getThreadPoolAsyncOpMaxSize(), 
+            getConfig().getThreadPoolAsyncOpKeepAliveTime(),
+            TimeUnit.MILLISECONDS, 
+            new LinkedBlockingQueue<>(),
+            Thread.ofVirtual().name("asyncOp-", 0).factory()
+        );
         // new ThreadPoolExecutor(getConfig().getThreadPoolAsyncOpCoreSize(), getConfig().getThreadPoolAsyncOpMaxSize(), getConfig().getThreadPoolAsyncOpKeepAliveTime(),
         //     TimeUnit.MILLISECONDS, queue);
         // asyncOperationsThreadPool.setRejectedExecutionHandler((r, executor)-> {
