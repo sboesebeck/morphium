@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
@@ -50,16 +51,16 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
     public void runTest(boolean multithreadded, boolean exclusive) throws Exception {
 
         final Map<String, AtomicInteger> count = new HashMap<>();
-        Messaging m1 = new Messaging(morphium, 100, true);
+        StdMessaging m1 = new StdMessaging(morphium, 100, true);
         m1.start();
-        Messaging m2 = new Messaging(morphium, 100, true, multithreadded, 10);
+        StdMessaging m2 = new StdMessaging(morphium, 100, true, multithreadded, 10);
         m2.setSenderId("m2");
         m2.start();
 
-        Messaging m3 = new Messaging(morphium, 100, true, multithreadded, 10);
+        StdMessaging m3 = new StdMessaging(morphium, 100, true, multithreadded, 10);
         m3.setSenderId("m3");
         m3.start();
-        Messaging m4 = new Messaging(morphium, 100, true, multithreadded, 10);
+        StdMessaging m4 = new StdMessaging(morphium, 100, true, multithreadded, 10);
         m4.setSenderId("m4");
         m4.start();
         Thread.sleep(2500);

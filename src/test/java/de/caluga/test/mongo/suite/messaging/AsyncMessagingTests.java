@@ -6,10 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicLong;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
@@ -21,8 +21,8 @@ public class AsyncMessagingTests extends MorphiumTestBase {
      */
     @Test
     public void multipleAsyncMessagesSending() throws InterruptedException {
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver = new Messaging(morphium, 100, true, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 10);
         int msgToSend = 10;
 
         try {
@@ -87,8 +87,8 @@ public class AsyncMessagingTests extends MorphiumTestBase {
      */
     @Test
     public void singleAsyncMessageSending() throws InterruptedException {
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver = new Messaging(morphium, 100, true, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 10);
 
         try {
             sender.start();
@@ -148,11 +148,11 @@ public class AsyncMessagingTests extends MorphiumTestBase {
      */
     @Test
     public void broadcastAsyncMessages() throws InterruptedException {
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver1 = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver2 = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver3 = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver4 = new Messaging(morphium, 100, true, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver1 = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver2 = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver3 = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver4 = new StdMessaging(morphium, 100, true, true, 10);
 
         try {
             sender.start();

@@ -27,7 +27,7 @@ import de.caluga.morphium.driver.commands.ShutdownCommand;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -76,9 +76,9 @@ public class FailoverTests extends MultiDriverTestBase {
         l.setLevel(Level.OFF);
 
         try (morphium) {
-            Messaging sender = new Messaging(morphium, 250, true);
+            StdMessaging sender = new StdMessaging(morphium, 250, true);
             sender.start();
-            Messaging receiver = new Messaging(morphium, 250, true);
+            StdMessaging receiver = new StdMessaging(morphium, 250, true);
             receiver.start();
             receiver.addMessageListener((m, msg)->{
                 return msg.createAnswerMsg();

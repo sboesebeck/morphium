@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -28,7 +28,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     public void pauseUnpauseProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 10, false, false, 1);
+        StdMessaging sender = new StdMessaging(morphium, 10, false, false, 1);
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         gotMessage1 = false;
@@ -36,7 +36,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, 10, false, false, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, false, 1);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
@@ -85,10 +85,10 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         Thread.sleep(100);
         list.clear();
         final AtomicInteger cnt = new AtomicInteger(0);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
 
-        Messaging receiver = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 10, false, true, 10);
         receiver.setUseChangeStream(false).start();
 
         Thread.sleep(1000);
@@ -154,7 +154,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     private void testPausingUnpausingInListener(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         log.info("Sender ID: " + sender.getSenderId());
@@ -162,7 +162,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage1 = false;
         gotMessage2 = false;
 
-        Messaging m1 = new Messaging(morphium, 10, false, multithreadded, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, multithreadded, 10);
         m1.addListenerForMessageNamed("test", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("test");
             try {
@@ -227,8 +227,8 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, true, true, 10);
-        Messaging receiver = new Messaging(morphium, 100, true, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 10);
         sender.setUseChangeStream(false).start();
         receiver.setUseChangeStream(false).start();
         Thread.sleep(1000);
@@ -258,12 +258,12 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
 
     private void testPausingUnpausingInListenerExclusive(boolean multithreadded) throws Exception {
-        Messaging sender = null;
-        Messaging m1 = null;
+        StdMessaging sender = null;
+        StdMessaging m1 = null;
         try {
             morphium.dropCollection(Msg.class);
             Thread.sleep(1000);
-            sender = new Messaging(morphium, 100, false);
+            sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("Sender");
             // sender.setUseChangeStream(false).start();
             log.info("Sender ID: " + sender.getSenderId());
@@ -271,7 +271,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
             gotMessage1 = false;
             gotMessage2 = false;
             boolean[] fail = {false};
-            m1 = new Messaging(morphium, 100, true, multithreadded, 1);
+            m1 = new StdMessaging(morphium, 100, true, multithreadded, 1);
             m1.setSenderId("m1");
             m1.addListenerForMessageNamed("test", (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("test");

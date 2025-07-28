@@ -2,10 +2,7 @@ package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.*;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.MessageRejectedException;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -44,14 +41,14 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(Msg.class, "mmsg_msg2", null);
 
-        Messaging m = new Messaging(morphium, 100, true);
+        StdMessaging m = new StdMessaging(morphium, 100, true);
         m.addMessageListener((msg, m1) -> {
             gotMessage1 = true;
             return null;
         });
         m.setUseChangeStream(false).start();
 
-        Messaging m2 = new Messaging(morphium, "msg2", 100, true);
+        StdMessaging m2 = new StdMessaging(morphium, "msg2", 100, true);
         m2.addMessageListener((msg, m1) -> {
             gotMessage2 = true;
             return null;
@@ -102,7 +99,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void multithreaddingTestSingle() throws Exception {
         int amount = 65;
-        Messaging producer = new Messaging(morphium, 500, false);
+        StdMessaging producer = new StdMessaging(morphium, 500, false);
         producer.start();
         for (int i = 0; i < amount; i++) {
             if (i % 10 == 0) {
@@ -112,7 +109,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             producer.sendMessage(m);
         }
         final AtomicInteger count = new AtomicInteger();
-        Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
+        StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
 //            log.info("Got message!");
             count.incrementAndGet();
@@ -137,7 +134,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void mutlithreaddingTestMultiple() throws Exception {
         int amount = 650;
-        Messaging producer = new Messaging(morphium, 500, false);
+        StdMessaging producer = new StdMessaging(morphium, 500, false);
         producer.start();
         log.info("now multithreadded and multiprocessing");
         for (int i = 0; i < amount; i++) {
@@ -149,7 +146,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         }
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
-        Messaging consumer = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 100);
         consumer.addMessageListener((msg, m) -> {
 //            log.info("Got message!");
             count.incrementAndGet();
@@ -178,7 +175,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
         morphium.dropCollection(Msg.class);
 
-        final Messaging messaging = new Messaging(morphium, 100, true);
+        final StdMessaging messaging = new StdMessaging(morphium, 100, true);
         try {
             messaging.setUseChangeStream(false).start();
             Thread.sleep(500);
@@ -229,8 +226,8 @@ public class MessagingNCTest extends MorphiumTestBase {
         error = false;
 
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 100, true);
-        final Messaging m2 = new Messaging(morphium, 100, true);
+        final StdMessaging m1 = new StdMessaging(morphium, 100, true);
+        final StdMessaging m2 = new StdMessaging(morphium, 100, true);
         try {
             m1.setUseChangeStream(false).start();
             m2.setUseChangeStream(false).start();
@@ -286,10 +283,10 @@ public class MessagingNCTest extends MorphiumTestBase {
         error = false;
 
 
-        final Messaging m1 = new Messaging(morphium, 10, true);
-        final Messaging m2 = new Messaging(morphium, 10, true);
-        final Messaging m3 = new Messaging(morphium, 10, true);
-        final Messaging m4 = new Messaging(morphium, 10, true);
+        final StdMessaging m1 = new StdMessaging(morphium, 10, true);
+        final StdMessaging m2 = new StdMessaging(morphium, 10, true);
+        final StdMessaging m3 = new StdMessaging(morphium, 10, true);
+        final StdMessaging m4 = new StdMessaging(morphium, 10, true);
 
         try {
             m4.setUseChangeStream(false).start();
@@ -374,15 +371,15 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void testRejectExclusiveMessage() throws Exception {
-        Messaging sender = null;
-        Messaging rec1 = null;
-        Messaging rec2 = null;
+        StdMessaging sender = null;
+        StdMessaging rec1 = null;
+        StdMessaging rec2 = null;
         try {
-            sender = new Messaging(morphium, 100, false);
+            sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
-            rec1 = new Messaging(morphium, 100, false);
+            rec1 = new StdMessaging(morphium, 100, false);
             rec1.setSenderId("rec1");
-            rec2 = new Messaging(morphium, 100, false);
+            rec2 = new StdMessaging(morphium, 100, false);
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
@@ -437,13 +434,13 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void testRejectMessage() throws Exception {
-        Messaging sender = null;
-        Messaging rec1 = null;
-        Messaging rec2 = null;
+        StdMessaging sender = null;
+        StdMessaging rec1 = null;
+        StdMessaging rec2 = null;
         try {
-            sender = new Messaging(morphium, 100, false);
-            rec1 = new Messaging(morphium, 100, false);
-            rec2 = new Messaging(morphium, 500, false);
+            sender = new StdMessaging(morphium, 100, false);
+            rec1 = new StdMessaging(morphium, 100, false);
+            rec2 = new StdMessaging(morphium, 500, false);
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
             sender.setUseChangeStream(false).start();
@@ -491,12 +488,12 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void directedMessageTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging m1;
-        final Messaging m2;
-        final Messaging m3;
-        m1 = new Messaging(morphium, 100, true);
-        m2 = new Messaging(morphium, 100, true);
-        m3 = new Messaging(morphium, 100, true);
+        final StdMessaging m1;
+        final StdMessaging m2;
+        final StdMessaging m3;
+        m1 = new StdMessaging(morphium, 100, true);
+        m2 = new StdMessaging(morphium, 100, true);
+        m3 = new StdMessaging(morphium, 100, true);
         try {
 
             m1.setUseChangeStream(false).start();
@@ -610,9 +607,9 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void ignoringMessagesTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
-        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
-        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
         try {
             m1.setUseChangeStream(false).start();
@@ -633,11 +630,11 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void ignoringExclusiveMessagesTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
-        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
-        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
-        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
         m3.addMessageListener(new MessageListener() {
             @Override
@@ -669,11 +666,11 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void severalMessagingsTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
-        Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
-        Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
-        Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -717,7 +714,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void massiveMessagingTest() throws Exception {
-        List<Messaging> systems;
+        List<StdMessaging> systems;
         systems = new ArrayList<>();
         try {
             int numberOfWorkers = 20;
@@ -731,12 +728,12 @@ public class MessagingNCTest extends MorphiumTestBase {
             procCounter.set(0);
             for (int i = 0; i < numberOfWorkers; i++) {
                 //creating messaging instances
-                Messaging m = new Messaging(morphium, 100, true);
+                StdMessaging m = new StdMessaging(morphium, 100, true);
                 m.setUseChangeStream(false).start();
                 systems.add(m);
                 MessageListener l = new MessageListener() {
                     final List<String> ids = Collections.synchronizedList(new ArrayList<>());
-                    Messaging msg;
+                    StdMessaging msg;
 
                     @Override
                     public Msg onMessage(Messaging msg, Msg m) {
@@ -807,11 +804,11 @@ public class MessagingNCTest extends MorphiumTestBase {
             //Waiting for all messages to be outdated and deleted
         } finally {
             //Stopping all
-            for (Messaging m : systems) {
+            for (StdMessaging m : systems) {
                 m.terminate();
             }
             Thread.sleep(1000);
-            for (Messaging m : systems) {
+            for (StdMessaging m : systems) {
                 assert (!m.isAlive()) : "Thread still running?";
             }
 
@@ -824,10 +821,10 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void broadcastTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging m1 = new Messaging(morphium, 1000, true);
-        final Messaging m2 = new Messaging(morphium, 10, true);
-        final Messaging m3 = new Messaging(morphium, 10, true);
-        final Messaging m4 = new Messaging(morphium, 10, true);
+        final StdMessaging m1 = new StdMessaging(morphium, 1000, true);
+        final StdMessaging m2 = new StdMessaging(morphium, 10, true);
+        final StdMessaging m3 = new StdMessaging(morphium, 10, true);
+        final StdMessaging m4 = new StdMessaging(morphium, 10, true);
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
@@ -916,8 +913,8 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void messagingSendReceiveThreaddedTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(2500);
-        final Messaging producer = new Messaging(morphium, 100, true, false, 10);
-        final Messaging consumer = new Messaging(morphium, 100, true, true, 2000);
+        final StdMessaging producer = new StdMessaging(morphium, 100, true, false, 10);
+        final StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 2000);
         producer.setUseChangeStream(false).start();
         consumer.setUseChangeStream(false).start();
         try {
@@ -961,8 +958,8 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void messagingSendReceiveTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(100);
-        final Messaging producer = new Messaging(morphium, 100, true);
-        final Messaging consumer = new Messaging(morphium, 10, true);
+        final StdMessaging producer = new StdMessaging(morphium, 100, true);
+        final StdMessaging consumer = new StdMessaging(morphium, 10, true);
         producer.setUseChangeStream(false).start();
         consumer.setUseChangeStream(false).start();
         Thread.sleep(2500);
@@ -1006,8 +1003,8 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging producer = new Messaging(morphium, 100, true);
-        final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
+        final StdMessaging producer = new StdMessaging(morphium, 100, true);
+        final StdMessaging consumer = new StdMessaging(morphium, 10, true, true, 2000);
         consumer.setUseChangeStream(false).start();
         producer.setUseChangeStream(false).start();
         Thread.sleep(2500);
@@ -1067,20 +1064,20 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageCustomQueueTest() throws Exception {
-        Messaging sender = null;
-        Messaging sender2 = null;
-        Messaging m1 = null;
-        Messaging m2 = null;
-        Messaging m3 = null;
-        Messaging m4 = null;
+        StdMessaging sender = null;
+        StdMessaging sender2 = null;
+        StdMessaging m1 = null;
+        StdMessaging m2 = null;
+        StdMessaging m3 = null;
+        StdMessaging m4 = null;
         try {
             morphium.dropCollection(Msg.class);
 
-            sender = new Messaging(morphium, "test", 100, false);
+            sender = new StdMessaging(morphium, "test", 100, false);
             sender.setSenderId("sender1");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             sender.setUseChangeStream(false).start();
-            sender2 = new Messaging(morphium, "test2", 100, false);
+            sender2 = new StdMessaging(morphium, "test2", 100, false);
             sender2.setSenderId("sender2");
             morphium.dropCollection(Msg.class, sender2.getCollectionName(), null);
             sender2.setUseChangeStream(false).start();
@@ -1090,28 +1087,28 @@ public class MessagingNCTest extends MorphiumTestBase {
             gotMessage3 = false;
             gotMessage4 = false;
 
-            m1 = new Messaging(morphium, "test", 100, false);
+            m1 = new StdMessaging(morphium, "test", 100, false);
             m1.setSenderId("m1");
             m1.addMessageListener((msg, m) -> {
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
-            m2 = new Messaging(morphium, "test", 100, false);
+            m2 = new StdMessaging(morphium, "test", 100, false);
             m2.setSenderId("m2");
             m2.addMessageListener((msg, m) -> {
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
-            m3 = new Messaging(morphium, "test2", 100, false);
+            m3 = new StdMessaging(morphium, "test2", 100, false);
             m3.setSenderId("m3");
             m3.addMessageListener((msg, m) -> {
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
-            m4 = new Messaging(morphium, "test2", 100, false);
+            m4 = new StdMessaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
             m4.addMessageListener((msg, m) -> {
                 gotMessage4 = true;
@@ -1166,7 +1163,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             assert (rec == 1) : "rec is " + rec;
             Thread.sleep(2500);
 
-            for (Messaging ms : Arrays.asList(m1, m2, m3)) {
+            for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
                 if (ms.getNumberOfMessages() > 0) {
                     Query<Msg> q1 = morphium.createQueryFor(Msg.class, ms.getCollectionName());
                     q1.f(Msg.Fields.sender).ne(ms.getSenderId());
@@ -1177,7 +1174,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                     }
                 }
             }
-            for (Messaging ms : Arrays.asList(m1, m2, m3)) {
+            for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
                 assert (ms.getNumberOfMessages() == 0) : "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages();
             }
         } finally {
@@ -1194,7 +1191,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
@@ -1202,17 +1199,17 @@ public class MessagingNCTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, 100, false);
+        StdMessaging m1 = new StdMessaging(morphium, 100, false);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return null;
         });
-        Messaging m2 = new Messaging(morphium, 100, false);
+        StdMessaging m2 = new StdMessaging(morphium, 100, false);
         m2.addMessageListener((msg, m) -> {
             gotMessage2 = true;
             return null;
         });
-        Messaging m3 = new Messaging(morphium, 100, false);
+        StdMessaging m3 = new StdMessaging(morphium, 100, false);
         m3.addMessageListener((msg, m) -> {
             gotMessage3 = true;
             return null;
@@ -1257,7 +1254,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void removeMessageTest() throws Exception {
-        Messaging m1 = new Messaging(morphium, 1000, false);
+        StdMessaging m1 = new StdMessaging(morphium, 1000, false);
         try {
             Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("name").setValue("a value");
             m1.sendMessage(m);
@@ -1274,7 +1271,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void timeoutMessages() throws Exception {
         final AtomicInteger cnt = new AtomicInteger();
-        Messaging m1 = new Messaging(morphium, 1000, false);
+        StdMessaging m1 = new StdMessaging(morphium, 1000, false);
         try {
             m1.addMessageListener((msg, m) -> {
                 log.error("ERROR!");
@@ -1297,7 +1294,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void selfMessages() throws Exception {
         morphium.dropCollection(Msg.class);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         sender.addMessageListener(((msg, m) -> {
@@ -1312,7 +1309,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, 100, false);
+        StdMessaging m1 = new StdMessaging(morphium, 100, false);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
@@ -1334,7 +1331,7 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void getPendingMessagesOnStartup() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
@@ -1342,9 +1339,9 @@ public class MessagingNCTest extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m3 = new Messaging(morphium, 100, false);
-        Messaging m2 = new Messaging(morphium, 100, false);
-        Messaging m1 = new Messaging(morphium, 100, false);
+        StdMessaging m3 = new StdMessaging(morphium, 100, false);
+        StdMessaging m2 = new StdMessaging(morphium, 100, false);
+        StdMessaging m1 = new StdMessaging(morphium, 100, false);
 
         try {
             m3.addMessageListener((msg, m) -> {
@@ -1399,11 +1396,11 @@ public class MessagingNCTest extends MorphiumTestBase {
     public void waitingForMessagesIfNonMultithreadded() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, false, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, false, 10);
         sender.setUseChangeStream(false).start();
 
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, false, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, false, false, 10);
         receiver.addMessageListener((msg, m) -> {
             list.add(m);
             try {
@@ -1436,11 +1433,11 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium.getConfig().setThreadPoolMessagingCoreSize(5);
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
         sender.setUseChangeStream(false).start();
 
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, false, true, 10);
         receiver.addMessageListener((msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
@@ -1469,13 +1466,13 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void priorityTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
         Thread.sleep(250);
         list.clear();
         //if running multithreadded, the execution order might differ a bit because of the concurrent
         //execution - hence if set to multithreadded, the test will fail!
-        Messaging receiver = new Messaging(morphium, 10, false, false, 100);
+        StdMessaging receiver = new StdMessaging(morphium, 10, false, false, 100);
         try {
             receiver.addMessageListener((msg, m) -> {
                 log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
@@ -1539,12 +1536,12 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void markExclusiveMessageTest() throws Exception {
 
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         sender.setUseChangeStream(false).start();
-        Messaging receiver = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 10, false, true, 10);
         receiver.setUseChangeStream(false).start();
-        Messaging receiver2 = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging receiver2 = new StdMessaging(morphium, 10, false, true, 10);
         receiver2.setUseChangeStream(false).start();
 
         final AtomicInteger pausedReciever = new AtomicInteger(0);
@@ -1603,7 +1600,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void exclusivityPausedUnpausingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 1000, false);
+        StdMessaging sender = new StdMessaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
@@ -1612,7 +1609,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
+        StdMessaging receiver = new StdMessaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
         receiver.setUseChangeStream(false).start();
 
@@ -1620,7 +1617,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
+        StdMessaging receiver2 = new StdMessaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.setUseChangeStream(false).start();
 
@@ -1628,7 +1625,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
+        StdMessaging receiver3 = new StdMessaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.setUseChangeStream(false).start();
 
@@ -1636,7 +1633,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
+        StdMessaging receiver4 = new StdMessaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.setUseChangeStream(false).start();
 
@@ -1701,7 +1698,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                 long messageCount = sender.getPendingMessagesCount();
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
+                for (StdMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                 }
                 assert (dups.get() == 0) : "got duplicate message";
@@ -1744,7 +1741,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void exclusivityTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
@@ -1753,7 +1750,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver = new Messaging(morphium2, 10, true, true, 15);
+        StdMessaging receiver = new StdMessaging(morphium2, 10, true, true, 15);
         receiver.setSenderId("r1");
         receiver.setUseChangeStream(false).start();
 
@@ -1761,7 +1758,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver2 = new Messaging(morphium3, 10, false, false, 15);
+        StdMessaging receiver2 = new StdMessaging(morphium3, 10, false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.setUseChangeStream(false).start();
 
@@ -1769,7 +1766,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver3 = new Messaging(morphium4, 10, true, false, 15);
+        StdMessaging receiver3 = new StdMessaging(morphium4, 10, true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.setUseChangeStream(false).start();
 
@@ -1777,7 +1774,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver4 = new Messaging(morphium5, 10, false, true, 15);
+        StdMessaging receiver4 = new StdMessaging(morphium5, 10, false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.setUseChangeStream(false).start();
         final AtomicInteger received = new AtomicInteger();
@@ -1838,7 +1835,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                 long messageCount = sender.getPendingMessagesCount();
                 log.info("Send excl: " + amount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (amount + broadcastAmount * 4 - rec - messageCount));
                 assert (dups.get() == 0) : "got duplicate message";
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
+                for (StdMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
                 }
                 Thread.sleep(1000);
@@ -1872,8 +1869,8 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageStartupTests() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
-        Messaging receiverNoListener = new Messaging(morphium, 100, true);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
+        StdMessaging receiverNoListener = new StdMessaging(morphium, 100, true);
         try {
             sender.setSenderId("sender");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
@@ -1897,16 +1894,16 @@ public class MessagingNCTest extends MorphiumTestBase {
     @Test
     public void exclusiveTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        Messaging sender;
-        List<Messaging> recs;
+        StdMessaging sender;
+        List<StdMessaging> recs;
 
-        sender = new Messaging(morphium, 1000, false);
+        sender = new StdMessaging(morphium, 1000, false);
         sender.setSenderId("sender");
         sender.setUseChangeStream(false).start();
         final AtomicInteger counts = new AtomicInteger();
         recs = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            Messaging r = new Messaging(morphium, 100, false);
+            StdMessaging r = new StdMessaging(morphium, 100, false);
             r.setSenderId("r" + i);
             recs.add(r);
             r.setUseChangeStream(false).start();
@@ -1944,7 +1941,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
         } finally {
             sender.terminate();
-            for (Messaging r : recs) r.terminate();
+            for (StdMessaging r : recs) r.terminate();
 
 
         }
@@ -1954,15 +1951,15 @@ public class MessagingNCTest extends MorphiumTestBase {
 
     @Test
     public void severalRecipientsTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.setSenderId("sender");
         sender.setUseChangeStream(false).start();
 
-        List<Messaging> receivers = new ArrayList<>();
+        List<StdMessaging> receivers = new ArrayList<>();
         final List<String> receivedBy = new Vector<>();
 
         for (int i = 0; i < 10; i++) {
-            Messaging receiver1 = new Messaging(morphium, 100, false);
+            StdMessaging receiver1 = new StdMessaging(morphium, 100, false);
             receiver1.setSenderId("rec" + i);
             receiver1.setUseChangeStream(false).start();
             receivers.add(receiver1);
@@ -2006,7 +2003,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             assert (receivedBy.size() == 1);
             assert (m.getTo().contains(receivedBy.get(0)));
         } finally {
-            for (Messaging ms : receivers) {
+            for (StdMessaging ms : receivers) {
                 ms.terminate();
             }
         }

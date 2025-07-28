@@ -5,10 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -19,11 +19,11 @@ public class TimeoutTests extends MorphiumTestBase {
     public void timeOutTests() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Messaging m1 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100,  true, 1);
         m1.setSenderId("sender");
         m1.setUseChangeStream(true);
         m1.start();
-        Messaging m2 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m2 = new StdMessaging(morphium, 100,  true, 1);
         m2.setUseChangeStream(true);
         m2.setSenderId("recevier");
         m2.start();
@@ -58,7 +58,7 @@ public class TimeoutTests extends MorphiumTestBase {
     public void timeoutAfterProcessing() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Messaging m1 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100,  true, 1);
         m1.setSenderId("sender");
         m1.setUseChangeStream(true);
         m1.start();
@@ -67,7 +67,7 @@ public class TimeoutTests extends MorphiumTestBase {
         TestUtils.wait(3);
         assertEquals(1, morphium.createQueryFor(Msg.class).countAll());
         log.info("Msg not deleted yet - good");
-        Messaging m2 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m2 = new StdMessaging(morphium, 100,  true, 1);
         m2.setUseChangeStream(true);
         m2.setSenderId("recevier");
         m2.addListenerForMessageNamed("test", (n, m)-> {
@@ -89,7 +89,7 @@ public class TimeoutTests extends MorphiumTestBase {
     public void standardBehaviour() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-        Messaging m1 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100,  true, 1);
         m1.setSenderId("sender");
         m1.setUseChangeStream(true);
         m1.start();
@@ -102,7 +102,7 @@ public class TimeoutTests extends MorphiumTestBase {
         assertEquals(0, morphium.createQueryFor(Msg.class).countAll());
         log.info("Was deleted...");
         m1.sendMessage(new Msg("test", "value0", "").setExclusive(true));
-        Messaging m2 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m2 = new StdMessaging(morphium, 100,  true, 1);
         m2.setUseChangeStream(true);
         m2.setSenderId("recevier");
         m2.addListenerForMessageNamed("test", (n, m)-> {

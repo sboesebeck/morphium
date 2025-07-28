@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -17,8 +17,8 @@ public class BigMessagesNCTest extends MorphiumTestBase {
         final AtomicInteger count = new AtomicInteger();
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100,  true, 10);
-        Messaging receiver = new Messaging(morphium);
+        StdMessaging sender = new StdMessaging(morphium, 100,  true, 10);
+        StdMessaging receiver = new StdMessaging(morphium);
 
         try {
             sender.setUseChangeStream(false).start();

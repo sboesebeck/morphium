@@ -5,7 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -56,17 +56,17 @@ public class MorphiumInMemTestBase {
             f.setAccessible(true);
             List<ShutdownListener> listeners = (List<ShutdownListener>) f.get(morphium);
             for (ShutdownListener l : listeners) {
-                if (l instanceof Messaging) {
-                    ((Messaging) l).terminate();
-                    log.info("Terminating still running messaging..." + ((Messaging) l).getSenderId());
+                if (l instanceof StdMessaging) {
+                    ((StdMessaging) l).terminate();
+                    log.info("Terminating still running messaging..." + ((StdMessaging) l).getSenderId());
                     long start=System.currentTimeMillis();
-                    while (((Messaging) l).isRunning()) {
+                    while (((StdMessaging) l).isRunning()) {
                         log.info("Waiting for messaging to finish");
                         long dur=System.currentTimeMillis()-start;
 
                         if (dur>5000 && dur<5500){
                             log.warn("Shutting down failed, retrying");
-                            ((Messaging)l).terminate();
+                            ((StdMessaging)l).terminate();
                         }
                         if (dur>10000){
                             throw new RuntimeException("Could not terminate messaging!");

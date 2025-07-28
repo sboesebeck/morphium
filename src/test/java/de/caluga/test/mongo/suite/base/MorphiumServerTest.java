@@ -9,6 +9,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -23,7 +25,6 @@ import de.caluga.morphium.changestream.ChangeStreamListener;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.server.MorphiumServer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -38,10 +39,10 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(17017, "localhost", 20, 1);
         srv.start();
         Morphium morphium = new Morphium("localhost:17017", "test");
-        Messaging msg1 = new Messaging(morphium, 100, true);
+        StdMessaging msg1 = new StdMessaging(morphium, 100, true);
         msg1.setUseChangeStream(true);
         AtomicInteger received = new AtomicInteger();
-        Messaging msg2 = new Messaging(morphium, 100, true);
+        StdMessaging msg2 = new StdMessaging(morphium, 100, true);
         msg2.setUseChangeStream(true);
         msg2.addMessageListener((msg, m)-> {
             received.incrementAndGet();
@@ -160,9 +161,9 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium);
+            var msg1 = new StdMessaging(morphium);
             msg1.start();
-            var msg2 = new Messaging(morphium);
+            var msg2 = new StdMessaging(morphium);
             msg2.start();
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
@@ -206,10 +207,10 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium, 100, true);
+            var msg1 = new StdMessaging(morphium, 100, true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
@@ -298,10 +299,10 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium, 1000, true);
+            var msg1 = new StdMessaging(morphium, 1000, true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
@@ -379,10 +380,10 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new Messaging(morphium, 100, true);
+            var msg1 = new StdMessaging(morphium, 100, true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new Messaging(morphium2, 10, true, true, 1000);
+            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);

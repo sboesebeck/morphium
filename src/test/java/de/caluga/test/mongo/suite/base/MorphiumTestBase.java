@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -21,13 +22,11 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumConfig.CompressionType;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.ListCollectionsCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
@@ -218,18 +217,18 @@ public class MorphiumTestBase {
         List<ShutdownListener> toRemove = new ArrayList<>();
 
         for (ShutdownListener l : morphium.getShutDownListeners()) {
-            if (l instanceof Messaging) {
+            if (l instanceof StdMessaging) {
                 try {
-                    ((Messaging) l).terminate();
+                    ((StdMessaging) l).terminate();
                 } catch (Exception e) {
                     log.error("could not terminate messaging!!!");
                 }
 
                 long start = System.currentTimeMillis();
-                var id = ((Messaging) l).getSenderId();
+                var id = ((StdMessaging) l).getSenderId();
                 log.info("Terminating still running messaging..." + id);
 
-                while (((Messaging) l).isRunning()) {
+                while (((StdMessaging) l).isRunning()) {
                     log.info("Waiting for messaging to finish");
 
                     try {
@@ -244,7 +243,7 @@ public class MorphiumTestBase {
                 }
 
                 toRemove.add(l);
-                morphium.dropCollection(Msg.class, ((Messaging) l).getCollectionName(), null);
+                morphium.dropCollection(Msg.class, ((StdMessaging) l).getCollectionName(), null);
             } else if (l instanceof ChangeStreamMonitor) {
                 try {
                     log.info("Changestream Monitor still running");

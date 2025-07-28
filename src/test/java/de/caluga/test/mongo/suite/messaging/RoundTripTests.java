@@ -2,8 +2,7 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
@@ -44,16 +43,16 @@ public class RoundTripTests extends MorphiumTestBase {
             + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
         //        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
         //        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
-        Messaging m1 = new Messaging(morphium, 100, processMultiple, multithreadded, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 100, processMultiple, multithreadded, 10);
         m1.setSenderId("m1");
-        Messaging m2;
+        StdMessaging m2;
         Morphium morphium2 = null;
 
         if (sameMorphium) {
-            m2 = new Messaging(morphium, 100, processMultiple, multithreadded, 10);
+            m2 = new StdMessaging(morphium, 100, processMultiple, multithreadded, 10);
         } else {
             morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-            m2 = new Messaging(morphium2, 100, processMultiple, multithreadded, 10);
+            m2 = new StdMessaging(morphium2, 100, processMultiple, multithreadded, 10);
         }
 
         m2.setSenderId("m2");

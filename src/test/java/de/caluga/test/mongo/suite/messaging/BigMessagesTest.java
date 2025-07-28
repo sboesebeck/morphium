@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -26,8 +26,8 @@ public class BigMessagesTest extends MultiDriverTestBase {
             final AtomicInteger count = new AtomicInteger();
             morphium.dropCollection(Msg.class, "msg", null);
             Thread.sleep(1000);
-            Messaging sender = new Messaging(morphium, 100, true, 10);
-            Messaging receiver = new Messaging(morphium);
+            StdMessaging sender = new StdMessaging(morphium, 100, true, 10);
+            StdMessaging receiver = new StdMessaging(morphium);
 
             try {
                 sender.setUseChangeStream(true).start();

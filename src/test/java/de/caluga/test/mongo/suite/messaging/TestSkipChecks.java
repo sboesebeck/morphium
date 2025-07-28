@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -26,7 +27,7 @@ public class TestSkipChecks extends MorphiumTestBase {
 
     private void checkStartup(int pause, boolean multiple, boolean multith, int window)  throws Exception {
         morphium.resetStatistics();
-        Messaging m = new Messaging(morphium, pause, multiple, multith, window);
+        StdMessaging m = new StdMessaging(morphium, pause, multiple, multith, window);
         m.start();
         Thread.sleep(100);
         Map<String, Double> stats = morphium.getStatistics();
@@ -51,7 +52,7 @@ public class TestSkipChecks extends MorphiumTestBase {
     @Test
     public void testActiveMessaging() throws Exception {
         morphium.resetStatistics();
-        Messaging m = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging m = new StdMessaging(morphium, 100, true, true, 100);
         m.start();
         m.addMessageListener(new MessageListener() {
             @Override
@@ -59,7 +60,7 @@ public class TestSkipChecks extends MorphiumTestBase {
                 return null;
             }
         });
-        Messaging m2 = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging m2 = new StdMessaging(morphium, 100, true, true, 100);
         m2.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m) {

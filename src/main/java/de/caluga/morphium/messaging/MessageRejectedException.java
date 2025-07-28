@@ -4,7 +4,6 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.commands.DeleteMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 
 /**

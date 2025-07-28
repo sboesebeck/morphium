@@ -1,8 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
-import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
@@ -21,8 +20,8 @@ public class CustomMsgTest extends MorphiumTestBase {
     @Test
     public void testCustomMsgSending() throws Exception {
         morphium.dropCollection(Msg.class);
-        Messaging m1 = new Messaging(morphium, 100, false);
-        Messaging m2 = new Messaging(morphium, 100, false);
+        StdMessaging m1 = new StdMessaging(morphium, 100, false);
+        StdMessaging m2 = new StdMessaging(morphium, 100, false);
         m2.addMessageListener((MessageListener<CustomMsg>) (msg, m) -> {
             received = true;
             log.info("incoming message: " + m.getCustomBuiltValue());

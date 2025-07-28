@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite.inmem_messaging;
 
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 
@@ -25,12 +25,12 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     public void pauseUnpauseProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100,  false, 1);
+        StdMessaging sender = new StdMessaging(morphium, 100,  false, 1);
         sender.start();
         Thread.sleep(2500);
         gotMessage1 = false;
         gotMessage2 = false;
-        Messaging m1 = new Messaging(morphium, 100,  false, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100,  false, 1);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
@@ -66,12 +66,12 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
 
     @Test
     public void priorityPausedMessagingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.start();
         final AtomicInteger count = new AtomicInteger();
         final AtomicLong lastTS = new AtomicLong(0);
         list.clear();
-        Messaging receiver = new Messaging(morphium, 10,  true, 1);
+        StdMessaging receiver = new StdMessaging(morphium, 10,  true, 1);
         receiver.start();
         Thread.sleep(100);
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
@@ -140,9 +140,9 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     public void unpausingTest() throws Exception {
         list.clear();
         final AtomicInteger cnt = new AtomicInteger(0);
-        Messaging sender = new Messaging(morphium, 100, true, 1);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
         sender.start();
-        Messaging receiver = new Messaging(morphium, 10,  true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 10,  true, 10);
         receiver.start();
         Thread.sleep(1000);
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
@@ -204,13 +204,13 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
     private void testPausingUnpausingInListener(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, true, 1);
+        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
         sender.start();
         Thread.sleep(2500);
         log.info("Sender ID: " + sender.getSenderId());
         gotMessage1 = false;
         gotMessage2 = false;
-        Messaging m1 = new Messaging(morphium, 10, multithreadded, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 10, multithreadded, 1);
         m1.addListenerForMessageNamed("test", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("test");
 
@@ -266,8 +266,8 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
 
     @Test
     public void exclusiveMessageTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100,  true, 10);
-        Messaging receiver = new Messaging(morphium, 100,  true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100,  true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100,  true, 10);
         sender.start();
         receiver.start();
         Thread.sleep(1000);
@@ -297,20 +297,20 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
 
 
     private void testPausingUnpausingInListenerExclusive(boolean multithreadded) throws Exception {
-        Messaging sender = null;
-        Messaging m1 = null;
+        StdMessaging sender = null;
+        StdMessaging m1 = null;
 
         try {
             morphium.dropCollection(Msg.class);
             Thread.sleep(1000);
-            sender = new Messaging(morphium, 100, true, 1);
+            sender = new StdMessaging(morphium, 100, true, 1);
             sender.setSenderId("Sender");
             // sender.start();
             log.info("Sender ID: " + sender.getSenderId());
             gotMessage1 = false;
             gotMessage2 = false;
             boolean[] fail = {false};
-            m1 = new Messaging(morphium, 100,  multithreadded, 1);
+            m1 = new StdMessaging(morphium, 100,  multithreadded, 1);
             m1.setSenderId("m1");
             m1.addListenerForMessageNamed("test", (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("test");

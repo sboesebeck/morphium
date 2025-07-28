@@ -4,7 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -52,9 +52,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
         List<Morphium> morphiums = new ArrayList<>();
-        List<Messaging> messagings = new ArrayList<>();
-        Messaging sender = null;
-        sender = new Messaging(morphium, 50, true, 1);
+        List<StdMessaging> messagings = new ArrayList<>();
+        StdMessaging sender = null;
+        sender = new StdMessaging(morphium, 50, true, 1);
         sender.setSenderId("amsender");
 
         try {
@@ -89,7 +89,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
                 m.getConfig().getCache().setHouskeepingIntervalPause(100);
                 morphiums.add(m);
-                Messaging msg = new Messaging(m, 50,  true, (int)(1500 * Math.random()));
+                StdMessaging msg = new StdMessaging(m, 50,  true, (int)(1500 * Math.random()));
                 msg.setSenderId("msg" + i);
                 msg.setUseChangeStream(true).start();
                 messagings.add(msg);
@@ -127,8 +127,8 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         } finally {
             List<Thread> threads = new ArrayList<>();
             threads.add(new Thread() {
-                private Messaging msg;
-                public Thread setMessaging(Messaging m) {
+                private StdMessaging msg;
+                public Thread setMessaging(StdMessaging m) {
                     this.msg = m;
                     return this;
                 }
@@ -139,10 +139,10 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             threads.get(0).start();
             sender.terminate();
 
-            for (Messaging m : messagings) {
+            for (StdMessaging m : messagings) {
                 Thread t = new Thread() {
-                    private Messaging msg;
-                    public Thread setMessaging(Messaging m) {
+                    private StdMessaging msg;
+                    public Thread setMessaging(StdMessaging m) {
                         this.msg = m;
                         return this;
                     }
@@ -198,18 +198,18 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         counts.clear();
-        Messaging m1 = new Messaging(morphium, 100,  true, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100,  true, 1);
         m1.setUseChangeStream(false).start();
         Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m2 = new Messaging(morphium2, 100,  true, 1);
+        StdMessaging m2 = new StdMessaging(morphium2, 100,  true, 1);
         //        m2.setUseChangeStream(false);
         m2.setUseChangeStream(false).start();
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m3 = new Messaging(morphium3, 100,  true, 1);
+        StdMessaging m3 = new StdMessaging(morphium3, 100,  true, 1);
         //        m3.setUseChangeStream(false);
         m3.setUseChangeStream(false).start();
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        Messaging m4 = new Messaging(morphium4, 100,  true, 1);
+        StdMessaging m4 = new StdMessaging(morphium4, 100,  true, 1);
         //        m4.setUseChangeStream(false);
         m4.setUseChangeStream(false).start();
 
@@ -298,9 +298,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
     @Test
     public void answerWithDifferentNameTest() throws Exception {
         counts.clear();
-        Messaging producer = new Messaging(morphium, 100,  true, 1);
+        StdMessaging producer = new StdMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
-        Messaging consumer = new Messaging(morphium, 100, true, 1);
+        StdMessaging consumer = new StdMessaging(morphium, 100, true, 1);
         consumer.setUseChangeStream(false).start();
         Msg answer;
 
@@ -323,9 +323,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
     @Test
     public void ownAnsweringHandler() throws Exception {
-        Messaging producer = new Messaging(morphium, 100,  true, 1);
+        StdMessaging producer = new StdMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
-        Messaging consumer = new Messaging(morphium, 100,  true, 1);
+        StdMessaging consumer = new StdMessaging(morphium, 100,  true, 1);
         consumer.setUseChangeStream(false).start();
 
         try {

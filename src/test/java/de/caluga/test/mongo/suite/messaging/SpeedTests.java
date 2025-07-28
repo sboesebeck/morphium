@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.messaging;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,7 +21,7 @@ public class SpeedTests extends MultiDriverTestBase {
 
         try (morphium) {
             morphium.clearCollection(Msg.class);
-            Messaging msg = new Messaging(morphium, 100,  true, 1);
+            StdMessaging msg = new StdMessaging(morphium, 100,  true, 1);
             msg.start();
 
             try {
@@ -65,9 +66,9 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.clearCollection(Msg.class);
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-            Messaging sender = new Messaging(morphium, 100,  true, 1);
+            StdMessaging sender = new StdMessaging(morphium, 100,  true, 1);
             sender.start();
-            Messaging receiver = new Messaging(morphium, 100,  true, 100);
+            StdMessaging receiver = new StdMessaging(morphium, 100,  true, 100);
             receiver.start();
 
             try {
@@ -121,11 +122,11 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
             morphium.clearCollection(Msg.class);
-            Messaging sender = new Messaging(morphium, 100, true, 1);
+            StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
             sender.start();
-            Messaging receiver = new Messaging(morphium, 100,  true, 100);
+            StdMessaging receiver = new StdMessaging(morphium, 100,  true, 100);
             receiver.start();
-            Messaging receiver2 = new Messaging(morphium, 100,  true, 100);
+            StdMessaging receiver2 = new StdMessaging(morphium, 100,  true, 100);
             receiver2.start();
 
             try {

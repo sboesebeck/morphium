@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
@@ -29,10 +29,10 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.clearCollection(Msg.class);
-            final Messaging m1 = new Messaging(morphium, 1000, true, 10);
-            final Messaging m2 = new Messaging(morphium, 10, true, 10);
-            final Messaging m3 = new Messaging(morphium, 10, true, 10);
-            final Messaging m4 = new Messaging(morphium, 10, true, 10);
+            final StdMessaging m1 = new StdMessaging(morphium, 1000, true, 10);
+            final StdMessaging m2 = new StdMessaging(morphium, 10, true, 10);
+            final StdMessaging m3 = new StdMessaging(morphium, 10, true, 10);
+            final StdMessaging m4 = new StdMessaging(morphium, 10, true, 10);
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
@@ -129,14 +129,14 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             }
             .getClass().getEnclosingMethod().getName();
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
-            Messaging sender = new Messaging(morphium, 10000, true, 1);
+            StdMessaging sender = new StdMessaging(morphium, 10000, true, 1);
             sender.setSenderId("sender");
             sender.start();
             Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
-            List<Messaging> receivers = new ArrayList<Messaging>();
+            List<StdMessaging> receivers = new ArrayList<StdMessaging>();
 
             for (int i = 0; i < 10; i++) {
-                Messaging rec1 = new Messaging(morphium, 10, true, 10);
+                StdMessaging rec1 = new StdMessaging(morphium, 10, true, 10);
                 rec1.setSenderId("rec" + i);
                 receivers.add(rec1);
                 rec1.start();
@@ -245,7 +245,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             log.info("    exclusives : " + excl);
             log.info("    broadcasts : " + bcast);
 
-            for (Messaging m : receivers) {
+            for (StdMessaging m : receivers) {
                 m.terminate();
             }
             sender.terminate();
