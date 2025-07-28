@@ -166,7 +166,7 @@ public class MorphiumConfig {
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); // settings always convert camel
         // case
-        List<Field> flds = an.getAllFields(MorphiumConfig.Class);
+        List<Field> flds = an.getAllFields(MorphiumConfig.class);
 
         if (prefix != null) {
             prefix += ".";
