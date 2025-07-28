@@ -2,9 +2,9 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.Doc;
-import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -61,7 +61,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                     return answer;
                 }
             };
-            var rec = new ArrayList<Messaging>();
+            var rec = new ArrayList<StdMessaging>();
             morphium.getConfig().setIdleSleepTime(10);
 
             for (int i = 0; i < recipients; i++) {
@@ -69,7 +69,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                 var m2 = TestUtils.newMorphiumFrom(morphium);
                 //                var m2 = morphium; //TestUtils.newMorphiumFrom(morphium);
                 log.info("... messaging");
-                Messaging m = new Messaging(m2);
+                StdMessaging m = new StdMessaging(m2);
                 m.setUseChangeStream(true);
                 m.setSenderId("Rec" + i);
                 m.setWindowSize(120);
@@ -87,7 +87,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
 
             for (int t = 0; t < senderThreads; t++) {
                 Thread thr = new Thread(()->{
-                    var sender = new Messaging(morphium);
+                    var sender = new StdMessaging(morphium);
                     // var sender = new Messaging(TestUtils.newMorphiumFrom(morphium));
                     sender.setWindowSize(100);
                     sender.setMultithreadded(true);
@@ -179,7 +179,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             loggerThread.join();
             long dur = System.currentTimeMillis() - start;
 
-            for (Messaging m : rec) {
+            for (StdMessaging m : rec) {
                 new Thread(()->{
                     m.terminate();
                 });

@@ -7,6 +7,7 @@ import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
@@ -42,9 +43,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         morphium.createQueryFor(Msg.class).delete();
         TestUtils.waitForConditionToBecomeTrue(10000, "MsgClass not deleted", ()->morphium.createQueryFor(Msg.class).countAll() == 0);
         List<Morphium> morphiums = new ArrayList<>();
-        List<Messaging> messagings = new ArrayList<>();
-        Messaging sender;
-        sender = new Messaging(morphium, 50, false);
+        List<StdMessaging> messagings = new ArrayList<>();
+        StdMessaging sender;
+        sender = new StdMessaging(morphium, 50, false);
         sender.setSenderId("amsender");
         AtomicBoolean error = new AtomicBoolean(false);
 
@@ -90,7 +91,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     morphiums.add(m);
                 }
 
-                Messaging msg = new Messaging(m, 50, false, true, (int)(1500 * Math.random()));
+                StdMessaging msg = new StdMessaging(m, 50, false, true, (int)(1500 * Math.random()));
                 msg.setSenderId("msg" + i);
                 msg.setUseChangeStream(true).start();
                 messagings.add(msg);
@@ -148,8 +149,8 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         } finally {
             List<Thread> threads = new ArrayList<>();
             threads.add(new Thread() {
-                private Messaging msg;
-                public Thread setMessaging(Messaging m) {
+                private StdMessaging msg;
+                public Thread setMessaging(StdMessaging m) {
                     this.msg = m;
                     return this;
                 }
@@ -160,10 +161,10 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             threads.get(0).start();
             sender.terminate();
 
-            for (Messaging m : messagings) {
+            for (StdMessaging m : messagings) {
                 Thread t = new Thread() {
-                    private Messaging msg;
-                    public Thread setMessaging(Messaging m) {
+                    private StdMessaging msg;
+                    public Thread setMessaging(StdMessaging m) {
                         this.msg = m;
                         return this;
                     }
@@ -218,7 +219,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 threads.clear();
             }
 
-            for (Messaging m : messagings) {
+            for (StdMessaging m : messagings) {
                 while (m.isAlive()) {
                     //waiting
                     log.info("Waiting for messagin " + m.getSenderId() + " to quit!");
@@ -238,28 +239,28 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(Msg.class, "msg", null);
             counts.clear();
-            Messaging m1 = new Messaging(morphium, 100, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 100, false, true, 10);
             m1.start();
 
             MorphiumConfig cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg2.setCredentialsEncryptionKey("1234567890abcdef");
             cfg2.setCredentialsDecryptionKey("1234567890abcdef");
             Morphium morphium2 = new Morphium(cfg2);
-            Messaging m2 = new Messaging(morphium2, 100, false, true, 10);
+            StdMessaging m2 = new StdMessaging(morphium2, 100, false, true, 10);
             //        m2.setUseChangeStream(false);
             m2.start();
             cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg2.setCredentialsEncryptionKey("1234567890abcdef");
             cfg2.setCredentialsDecryptionKey("1234567890abcdef");
             Morphium morphium3 = new Morphium(cfg2);
-            Messaging m3 = new Messaging(morphium3, 100, false, true, 10);
+            StdMessaging m3 = new StdMessaging(morphium3, 100, false, true, 10);
             //        m3.setUseChangeStream(false);
             m3.start();
             cfg2 = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
             cfg2.setCredentialsEncryptionKey("1234567890abcdef");
             cfg2.setCredentialsDecryptionKey("1234567890abcdef");
             Morphium morphium4 = new Morphium(cfg2);
-            Messaging m4 = new Messaging(morphium4, 100, false, true, 10);
+            StdMessaging m4 = new StdMessaging(morphium4, 100, false, true, 10);
             //        m4.setUseChangeStream(false);
             m4.start();
             Thread.sleep(2000);
@@ -310,10 +311,10 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     public void answerWithDifferentNameTest(Morphium morphium) throws Exception {
         try (morphium) {
             counts.clear();
-            Messaging producer = new Messaging(morphium, 100, true, true, 10);
+            StdMessaging producer = new StdMessaging(morphium, 100, true, true, 10);
             producer.setUseChangeStream(true);
             producer.start();
-            Messaging consumer = new Messaging(morphium, 100, true, true, 10);
+            StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 10);
             consumer.setUseChangeStream(true);
             consumer.start();
             Thread.sleep(2000);
@@ -341,9 +342,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void ownAnsweringHandler(Morphium morphium) throws Exception {
         try (morphium) {
-            Messaging producer = new Messaging(morphium, 100, false, true, 10);
+            StdMessaging producer = new StdMessaging(morphium, 100, false, true, 10);
             producer.start();
-            Messaging consumer = new Messaging(morphium, 100, false, true, 10);
+            StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 10);
             consumer.start();
             Thread.sleep(2000); //waiting for messaging
             consumer.addListenerForMessageNamed("testAnswering", (msg, m)->{

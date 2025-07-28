@@ -15,7 +15,7 @@
     <logger name="de.caluga" level="info"/>
     <logger name="de.caluga.morphium.driver" level="DEBUG"/>
     <logger name="de.caluga.morphium.driver.inmem.InMemoryDriver" level="DEBUG"/>
-    <logger name="de.caluga.morphium.messaging.Messaging" level="DEBUG"/>
+    <logger name="de.caluga.morphium.messaging.StdMessaging" level="DEBUG"/>
     <logger name="de.caluga.test.mongo.suite" level="DEBUG"/>
 
     <root level="info">

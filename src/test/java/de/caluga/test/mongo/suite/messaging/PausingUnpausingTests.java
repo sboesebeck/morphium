@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +16,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
@@ -42,7 +42,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     public void pauseUnpauseProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, false, 1);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, false, 1);
         sender.start();
         Thread.sleep(2500);
         gotMessage1 = false;
@@ -50,7 +50,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        Messaging m1 = new Messaging(morphium, 100, false, false, 1);
+        StdMessaging m1 = new StdMessaging(morphium, 100, false, false, 1);
         m1.addMessageListener((msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
@@ -96,14 +96,14 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     @Test
     @Disabled
     public void priorityPausedMessagingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.start();
         Thread.sleep(2500);
         final AtomicInteger count = new AtomicInteger();
         final AtomicLong lastTS = new AtomicLong(0);
 
         list.clear();
-        Messaging receiver = new Messaging(morphium, 10, false, true, 100);
+        StdMessaging receiver = new StdMessaging(morphium, 10, false, true, 100);
 
         receiver.addListenerForMessageNamed("pause", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed(m.getName());
@@ -174,10 +174,10 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     public void unpausingTest() throws Exception {
         list.clear();
         final AtomicInteger cnt = new AtomicInteger(0);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.start();
 
-        Messaging receiver = new Messaging(morphium, 10, false, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 10, false, true, 10);
         receiver.start();
 
         Thread.sleep(2000);
@@ -242,7 +242,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     private void testPausingUnpausingInListener(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false);
+        StdMessaging sender = new StdMessaging(morphium, 100, false);
         sender.start();
         Thread.sleep(2500);
         log.info("Sender ID: " + sender.getSenderId());
@@ -250,7 +250,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         gotMessage1 = false;
         gotMessage2 = false;
 
-        Messaging m1 = new Messaging(morphium, 10, false, multithreadded, 10);
+        StdMessaging m1 = new StdMessaging(morphium, 10, false, multithreadded, 10);
         m1.addListenerForMessageNamed("test", (msg, m) -> {
             msg.pauseProcessingOfMessagesNamed("test");
             try {
@@ -331,12 +331,12 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
 
     private void testPausingUnpausingInListenerExclusive(boolean multithreadded) throws Exception {
-        Messaging sender = null;
-        Messaging m1 = null;
+        StdMessaging sender = null;
+        StdMessaging m1 = null;
         try {
             morphium.dropCollection(Msg.class);
             Thread.sleep(1000);
-            sender = new Messaging(morphium, 100, false);
+            sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("Sender");
             // sender.start();
             log.info("Sender ID: " + sender.getSenderId());
@@ -344,7 +344,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
             gotMessage1 = false;
             gotMessage2 = false;
             boolean[] fail = {false};
-            m1 = new Messaging(morphium, 100, true, multithreadded, 1);
+            m1 = new StdMessaging(morphium, 100, true, multithreadded, 1);
             m1.setSenderId("m1");
             m1.addListenerForMessageNamed("test", (msg, m) -> {
                 msg.pauseProcessingOfMessagesNamed("test");
@@ -407,7 +407,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     }
     @Test
     public void exclusivityPausedUnpausingTest() throws Exception {
-        Messaging sender = new Messaging(morphium, 1000, false);
+        StdMessaging sender = new StdMessaging(morphium, 1000, false);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         Thread.sleep(100);
@@ -420,7 +420,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         cfg.setThreadPoolAsyncOpMaxSize(10);
         Morphium morphium2 = new Morphium(cfg);
 
-        Messaging receiver = new Messaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
+        StdMessaging receiver = new StdMessaging(morphium2, (int) (50 + 100 * Math.random()), true, true, 15);
         receiver.setSenderId("r1");
         receiver.start();
 
@@ -432,7 +432,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         cfg.setThreadPoolAsyncOpMaxSize(10);
         Morphium morphium3 = new Morphium(cfg);
 
-        Messaging receiver2 = new Messaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
+        StdMessaging receiver2 = new StdMessaging(morphium3, (int) (50 + 100 * Math.random()), false, false, 15);
         receiver2.setSenderId("r2");
         receiver2.start();
 
@@ -443,7 +443,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         cfg.setThreadPoolMessagingCoreSize(5);
         cfg.setThreadPoolAsyncOpMaxSize(10);
         Morphium morphium4 = new Morphium(cfg);
-        Messaging receiver3 = new Messaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
+        StdMessaging receiver3 = new StdMessaging(morphium4, (int) (50 + 100 * Math.random()), true, false, 15);
         receiver3.setSenderId("r3");
         receiver3.start();
 
@@ -457,7 +457,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        Messaging receiver4 = new Messaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
+        StdMessaging receiver4 = new StdMessaging(morphium5, (int) (50 + 100 * Math.random()), false, true, 15);
         receiver4.setSenderId("r4");
         receiver4.start();
         Thread.sleep(2000);
@@ -523,7 +523,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 long messageCount = sender.getPendingMessagesCount();
 
                 log.info("Send excl: " + exclusiveAmount + "  brodadcast: " + broadcastAmount + " recieved: " + rec + " queue: " + messageCount + " currently processing: " + (exclusiveAmount + broadcastAmount * 4 - rec - messageCount));
-                for (Messaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
+                for (StdMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     assert (m.getRunningTasks() <= 10) : m.getSenderId() + " runs too many tasks! " + m.getRunningTasks();
                     m.triggerCheck();
                 }

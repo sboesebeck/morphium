@@ -1,10 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.StatusInfoListener;
+import de.caluga.morphium.messaging.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -20,16 +17,16 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void disablingEnablingStatusListener() throws Exception {
-        Messaging m1 = new Messaging(morphium, 100, true);
+        StdMessaging m1 = new StdMessaging(morphium, 100, true);
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
-        Messaging m2 = new Messaging(morphium, 100, true);
+        StdMessaging m2 = new StdMessaging(morphium, 100, true);
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
         addListeners(m1, m2);
-        Messaging sender = new Messaging(morphium, 100, true);
+        StdMessaging sender = new StdMessaging(morphium, 100, true);
         sender.start();
         Thread.sleep(5250);
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
@@ -51,17 +48,17 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void getStatusInfo() throws Exception {
-        Messaging m1 = new Messaging(morphium, 100, true);
+        StdMessaging m1 = new StdMessaging(morphium, 100, true);
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
-        Messaging m2 = new Messaging(morphium, 100, true);
+        StdMessaging m2 = new StdMessaging(morphium, 100, true);
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
         addListeners(m1, m2);
         Thread.sleep(1500);
-        Messaging sender = new Messaging(morphium, 100, true);
+        StdMessaging sender = new StdMessaging(morphium, 100, true);
         sender.start();
         log.info("Getting standard stauts (should be Messaging only)");
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", "value"), 2, 5000);
@@ -116,7 +113,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         sender.terminate();
     }
 
-    private void addListeners(Messaging m1, Messaging m2) {
+    private void addListeners(StdMessaging m1, Messaging m2) {
         m1.addMessageListener(new MessageListener() {
             @Override
             public Msg onMessage(Messaging msg, Msg m)  {
@@ -146,7 +143,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void testStatusInfoListener() throws Exception {
-        Messaging m = new Messaging(morphium);
+        StdMessaging m = new StdMessaging(morphium);
         m.setWindowSize(1);
         m.setMultithreadded(false);
         m.setUseChangeStream(false);
@@ -161,7 +158,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             }
             return null;
         });
-        Messaging sender = new Messaging(morphium);
+        StdMessaging sender = new StdMessaging(morphium);
         sender.start();
         Thread.sleep(3000);
         ArrayList<Msg> lst = new ArrayList<>();
@@ -194,18 +191,18 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void prioQueueTest() throws Exception {
-        PriorityBlockingQueue<Messaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
-        Messaging.ProcessingQueueElement el = new Messaging.ProcessingQueueElement(500, 123, new MorphiumId());
+        PriorityBlockingQueue<StdMessaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
+        StdMessaging.ProcessingQueueElement el = new StdMessaging.ProcessingQueueElement(500, 123, new MorphiumId());
         qu.add(el);
-        el = new Messaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        el = new StdMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
         qu.add(el);
-        el = new Messaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        el = new StdMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
         qu.add(el);
-        el = new Messaging.ProcessingQueueElement(500, 125, new MorphiumId());
+        el = new StdMessaging.ProcessingQueueElement(500, 125, new MorphiumId());
         qu.add(el);
-        el = new Messaging.ProcessingQueueElement(5, 128, new MorphiumId());
+        el = new StdMessaging.ProcessingQueueElement(5, 128, new MorphiumId());
         qu.add(el);
-        el = new Messaging.ProcessingQueueElement(5, 138, new MorphiumId());
+        el = new StdMessaging.ProcessingQueueElement(5, 138, new MorphiumId());
         qu.add(el);
         int sz = qu.size();
         log.info("Queue size: " + sz);

@@ -5,20 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.*;
 import org.junit.jupiter.api.Test;
 
-import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.MessageRejectedException;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
@@ -29,16 +24,16 @@ public class RejectTests extends MorphiumTestBase {
     private boolean gotMessage1 = false;
     @Test
     public void allRejectedTest() throws Exception {
-        Messaging sender = null;
-        Messaging rec1 = null;
-        Messaging rec2 = null;
+        StdMessaging sender = null;
+        StdMessaging rec1 = null;
+        StdMessaging rec2 = null;
 
         try {
-            sender = new Messaging(morphium, 100, false,true,10);
+            sender = new StdMessaging(morphium, 100, false,true,10);
             sender.setSenderId("sender");
-            rec1 = new Messaging(morphium, 100, false,true,10);
+            rec1 = new StdMessaging(morphium, 100, false,true,10);
             rec1.setSenderId("rec1");
-            rec2 = new Messaging(morphium, 100, false,true,10);
+            rec2 = new StdMessaging(morphium, 100, false,true,10);
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
@@ -83,15 +78,15 @@ public class RejectTests extends MorphiumTestBase {
 
     @Test
     public void lotsofclientsTest() throws Exception {
-        Messaging sender = null;
-        List<Messaging> clients = new ArrayList<>();
+        StdMessaging sender = null;
+        List<StdMessaging> clients = new ArrayList<>();
         AtomicInteger recs=new AtomicInteger();
         try {
-            sender = new Messaging(morphium, 100, false);
+            sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
             log.info("Creating listeners...");
             for (int i = 0; i < 10; i++) {
-                Messaging m = new Messaging(morphium, 100, false);
+                StdMessaging m = new StdMessaging(morphium, 100, false);
                 m.setSenderId("Rec" + i);
                 log.info(m.getSenderId());
                 m.start();
@@ -146,16 +141,16 @@ public class RejectTests extends MorphiumTestBase {
 
     @Test
     public void testRejectExclusiveMessage() throws Exception {
-        Messaging sender = null;
-        Messaging rec1 = null;
-        Messaging rec2 = null;
+        StdMessaging sender = null;
+        StdMessaging rec1 = null;
+        StdMessaging rec2 = null;
 
         try {
-            sender = new Messaging(morphium, 100, false);
+            sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
-            rec1 = new Messaging(morphium, 100, false);
+            rec1 = new StdMessaging(morphium, 100, false);
             rec1.setSenderId("rec1");
-            rec2 = new Messaging(morphium, 100, false);
+            rec2 = new StdMessaging(morphium, 100, false);
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
@@ -209,14 +204,14 @@ public class RejectTests extends MorphiumTestBase {
 
     @Test
     public void testRejectMessage() throws Exception {
-        Messaging sender = null;
-        Messaging rec1 = null;
-        Messaging rec2 = null;
+        StdMessaging sender = null;
+        StdMessaging rec1 = null;
+        StdMessaging rec2 = null;
 
         try {
-            sender = new Messaging(morphium, 100, false);
-            rec1 = new Messaging(morphium, 100, false);
-            rec2 = new Messaging(morphium, 500, false);
+            sender = new StdMessaging(morphium, 100, false);
+            rec1 = new StdMessaging(morphium, 100, false);
+            rec2 = new StdMessaging(morphium, 500, false);
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
             sender.start();

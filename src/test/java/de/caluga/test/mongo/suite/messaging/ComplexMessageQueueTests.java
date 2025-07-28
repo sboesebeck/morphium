@@ -6,16 +6,13 @@ import java.util.ArrayList;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.*;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.MessageRejectedException;
 import de.caluga.morphium.messaging.MessageRejectedException.RejectionHandler;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.MsgLock;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
@@ -23,11 +20,11 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
 
     @Test
     public void longRunningExclusivesWithIgnore() throws Exception {
-        Messaging sender = new Messaging(morphium);
+        StdMessaging sender = new StdMessaging(morphium);
         sender.setSenderId("sender");
         sender.start();
         Thread.sleep(2000);
-        Messaging rec = new Messaging(morphium);
+        StdMessaging rec = new StdMessaging(morphium);
         rec.setSenderId("rec");
         rec.start();
         AtomicInteger messageCount = new AtomicInteger();
@@ -70,11 +67,11 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
     @Test
     @Disabled
     public void releaseLockonMessage() throws Exception {
-        Messaging sender = new Messaging(morphium);
+        StdMessaging sender = new StdMessaging(morphium);
         sender.setSenderId("sender");
         sender.start();
         Thread.sleep(2000);
-        Vector<Messaging> clients = new Vector<>();
+        Vector<StdMessaging> clients = new Vector<>();
         Vector<MorphiumId> processedMessages = new Vector<>();
 
         try {
@@ -95,7 +92,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
             };
 
             for (int i = 0; i < 5; i++) {
-                Messaging cl = new Messaging(morphium);
+                StdMessaging cl = new StdMessaging(morphium);
                 cl.setSenderId("cl" + i);
                 cl.addMessageListener(lst);
                 cl.start();
@@ -114,12 +111,12 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
             assertEquals(0, processedMessages.size());
             var q = morphium.createQueryFor(MsgLock.class).setCollectionName("msg_lck").f("_id").eq(m.getMsgId());
             q.remove();
-            for (Messaging ms:clients) ms.triggerCheck();
+            for (StdMessaging ms:clients) ms.triggerCheck();
             //now it should be processed...
             Thread.sleep(3000);
             assertEquals(1, processedMessages.size(), "not processed");
         } finally {
-            for (Messaging m : clients) {
+            for (StdMessaging m : clients) {
                 m.terminate();
             }
 

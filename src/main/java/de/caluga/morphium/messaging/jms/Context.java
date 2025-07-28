@@ -2,6 +2,7 @@ package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 
 import javax.jms.*;
 import java.io.Serializable;
@@ -14,7 +15,7 @@ public class Context implements javax.jms.JMSContext {
 
     public Context(Morphium morphium, String name, int sessionMode) {
         this.morphium = morphium;
-        this.messaging = new Messaging(morphium, 100, true, 10);
+        this.messaging = new StdMessaging(morphium, 100, true, 10);
 
         if (name != null) this.messaging.setQueueName(name);
     }

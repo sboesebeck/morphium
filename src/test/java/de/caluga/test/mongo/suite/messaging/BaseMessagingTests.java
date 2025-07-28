@@ -9,15 +9,12 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.*;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.MsgLock;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
@@ -50,15 +47,15 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             log.info("----------------------> Running simple broadcast test with driver " + morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-            Messaging sender = new Messaging(morphium);
+            StdMessaging sender = new StdMessaging(morphium);
             sender.setSenderId("sender");
             sender.start();
-            Messaging rec1 = new Messaging(morphium);
+            StdMessaging rec1 = new StdMessaging(morphium);
             /* rec1.setUseChangeStream(false);
              * rec1.setPause(10); */
             rec1.setSenderId("rec1");
             rec1.start();
-            Messaging rec2 = new Messaging(morphium);
+            StdMessaging rec2 = new StdMessaging(morphium);
             // rec2.setUseChangeStream(false);
             // rec2.setPause(10);
             rec2.setSenderId("rec2");
@@ -101,14 +98,14 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     public void nonExMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info("---------> Running Tst nonExMessageTest with " + morphium.getDriver().getName());
-            Messaging sender = new Messaging(morphium, 100, true, true, 10);
+            StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
             // sender.start();
-            Messaging rec1 = new Messaging(morphium, 100, true, true, 13);
+            StdMessaging rec1 = new StdMessaging(morphium, 100, true, true, 13);
             rec1.setSenderId("rec1");
             rec1.setUseChangeStream(true).start();
-            Messaging rec2 = new Messaging(morphium, 100, true, true, 7);
+            StdMessaging rec2 = new StdMessaging(morphium, 100, true, true, 7);
             rec2.setSenderId("rec2");
             rec2.setUseChangeStream(true).start();
             AtomicInteger counts = new AtomicInteger(0);
@@ -155,14 +152,14 @@ public class BaseMessagingTests extends MultiDriverTestBase {
     public void exclusiveMessageTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info("---------> Running Tst  exclusiveMessageTest with " + morphium.getDriver().getName());
-            Messaging sender = new Messaging(morphium, 100, true, true, 10);
+            StdMessaging sender = new StdMessaging(morphium, 100, true, true, 10);
             sender.setUseChangeStream(true);
             sender.setSenderId("sender");
             // sender.start();
-            Messaging rec1 = new Messaging(morphium, 100, true, true, 13);
+            StdMessaging rec1 = new StdMessaging(morphium, 100, true, true, 13);
             rec1.setSenderId("rec1");
             rec1.setUseChangeStream(true).start();
-            Messaging rec2 = new Messaging(morphium, 100, true, true, 7);
+            StdMessaging rec2 = new StdMessaging(morphium, 100, true, true, 7);
             rec2.setSenderId("rec2");
             rec2.setUseChangeStream(true).start();
             Map<MorphiumId, Long> counts = new HashMap<>();
@@ -246,15 +243,15 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             morphium.dropCollection(Msg.class);
             morphium.dropCollection(MsgLock.class, "msg_lck", null);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-            Messaging sender = new Messaging(morphium);
+            StdMessaging sender = new StdMessaging(morphium);
             sender.setSenderId("sender");
             sender.start();
-            Messaging rec1 = new Messaging(morphium);
+            StdMessaging rec1 = new StdMessaging(morphium);
             /* rec1.setUseChangeStream(false);
              * rec1.setPause(10); */
             rec1.setSenderId("rec1");
             rec1.start();
-            Messaging rec2 = new Messaging(morphium);
+            StdMessaging rec2 = new StdMessaging(morphium);
             // rec2.setUseChangeStream(false);
             // rec2.setPause(10);
             rec2.setSenderId("rec2");
@@ -300,17 +297,17 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             log.info("---------------> Simple exclusive message test: " + morphium.getDriver().getName());
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
-            Messaging sender = new Messaging(morphium);
+            StdMessaging sender = new StdMessaging(morphium);
             sender.setSenderId("sender");
             sender.start();
-            Messaging rec1 = new Messaging(morphium);
+            StdMessaging rec1 = new StdMessaging(morphium);
             // rec1.setUseChangeStream(false);
             rec1.setMultithreadded(true);
             rec1.setWindowSize(10);
             rec1.setPause(100);
             rec1.setSenderId("rec1");
             rec1.start();
-            Messaging rec2 = new Messaging(morphium);
+            StdMessaging rec2 = new StdMessaging(morphium);
             // rec2.setUseChangeStream(false);
             rec2.setMultithreadded(true);
             rec2.setWindowSize(10);

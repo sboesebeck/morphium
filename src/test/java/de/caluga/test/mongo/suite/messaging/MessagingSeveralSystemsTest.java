@@ -2,11 +2,11 @@ package de.caluga.test.mongo.suite.messaging;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
@@ -28,10 +28,10 @@ public class MessagingSeveralSystemsTest extends MultiDriverTestBase {
             gotMessage3 = false;
             gotMessage4 = false;
             error = false;
-            final Messaging m1 = new Messaging(morphium, 10, true);
-            final Messaging m2 = new Messaging(morphium, 10, true);
-            final Messaging m3 = new Messaging(morphium, 10, true);
-            final Messaging m4 = new Messaging(morphium, 10, true);
+            final StdMessaging m1 = new StdMessaging(morphium, 10, true);
+            final StdMessaging m2 = new StdMessaging(morphium, 10, true);
+            final StdMessaging m3 = new StdMessaging(morphium, 10, true);
+            final StdMessaging m4 = new StdMessaging(morphium, 10, true);
             m4.start();
             m1.start();
             m2.start();

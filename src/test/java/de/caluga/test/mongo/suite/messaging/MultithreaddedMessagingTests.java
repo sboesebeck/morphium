@@ -7,14 +7,12 @@ import java.util.Map;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.Disabled;
+
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Test;
 import de.caluga.morphium.driver.MorphiumDriver;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import de.caluga.test.mongo.suite.data.UncachedObject;
-
 
 
 // @Disabled
@@ -23,8 +21,8 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
         AtomicInteger procCounter = new AtomicInteger(0);
-        final Messaging producer = new Messaging(morphium, 100, true, false, 10);
-        final Messaging consumer = new Messaging(morphium, 100, true, true, 100);
+        final StdMessaging producer = new StdMessaging(morphium, 100, true, false, 10);
+        final StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 100);
         producer.start();
         consumer.start();
         Thread.sleep(2000);
@@ -79,8 +77,8 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final Messaging producer = new Messaging(morphium, 100, true);
-        final Messaging consumer = new Messaging(morphium, 10, true, true, 2000);
+        final StdMessaging producer = new StdMessaging(morphium, 100, true);
+        final StdMessaging consumer = new StdMessaging(morphium, 10, true, true, 2000);
         consumer.start();
         producer.start();
         Thread.sleep(2500);
@@ -145,10 +143,10 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         final List<Msg> list = new ArrayList<>();
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, false, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, false, 10);
         sender.start();
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, false, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, false, false, 10);
         receiver.addMessageListener((msg, m) -> {
             list.add(m);
 
@@ -186,10 +184,10 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         morphium.getConfig().setThreadPoolMessagingCoreSize(5);
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
         Thread.sleep(1000);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
         sender.start();
         list.clear();
-        Messaging receiver = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging receiver = new StdMessaging(morphium, 100, false, true, 10);
         receiver.addMessageListener((msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
@@ -223,7 +221,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void multithreaddingTestSingle() throws Exception {
         int amount = 65;
-        Messaging producer = new Messaging(morphium, 500, false);
+        StdMessaging producer = new StdMessaging(morphium, 500, false);
         producer.start();
 
         for (int i = 0; i < amount; i++) {
@@ -236,7 +234,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         }
 
         final AtomicInteger count = new AtomicInteger();
-        Messaging consumer = new Messaging(morphium, 100, false, true, 1000);
+        StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 1000);
         consumer.addMessageListener((msg, m) -> {
             //            log.info("Got message!");
             count.incrementAndGet();
@@ -263,7 +261,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void multithreaddingTestMultiple() throws Exception {
         int amount = 650;
-        Messaging producer = new Messaging(morphium, 500, false);
+        StdMessaging producer = new StdMessaging(morphium, 500, false);
         producer.start();
         log.info("now multithreadded and multiprocessing");
 
@@ -278,7 +276,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
-        Messaging consumer = new Messaging(morphium, 100, true, true, 121);
+        StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 121);
         consumer.addMessageListener((msg, m) -> {
             //log.info("Got message!");
             count.incrementAndGet();

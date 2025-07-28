@@ -7,10 +7,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
@@ -19,10 +20,10 @@ public class MultithreaddingTests extends MorphiumTestBase {
     @Test
     public void multithreaddingMessagingTest() throws Exception {
         log.info("Starting test");
-        Messaging sender = new Messaging(morphium, 100,  false, 1); //no Multithreadding
+        StdMessaging sender = new StdMessaging(morphium, 100,  false, 1); //no Multithreadding
         sender.setSenderId("sender");
         sender.start();
-        Messaging rec = new Messaging(morphium, 100,  true, 4);
+        StdMessaging rec = new StdMessaging(morphium, 100,  true, 4);
         rec.setSenderId("rec");
         rec.start();
         AtomicInteger parallelThreads = new AtomicInteger(0);

@@ -5,6 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
@@ -47,12 +48,12 @@ public class AnsweringTests extends MultiDriverTestBase {
             gotMessage3 = false;
             error = false;
             morphium.clearCollection(Msg.class);
-            final Messaging m1;
-            final Messaging m2;
-            final Messaging onlyAnswers;
-            m1 = new Messaging(morphium, 100, true);
-            m2 = new Messaging(morphium, 100, true);
-            onlyAnswers = new Messaging(morphium, 100, true);
+            final StdMessaging m1;
+            final StdMessaging m2;
+            final StdMessaging onlyAnswers;
+            m1 = new StdMessaging(morphium, 100, true);
+            m2 = new StdMessaging(morphium, 100, true);
+            onlyAnswers = new StdMessaging(morphium, 100, true);
             m1.setSenderId("m1");
             m2.setSenderId("m2");
             onlyAnswers.setSenderId("onlyAnswers");
@@ -171,11 +172,11 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
             m1.setSenderId("m1");
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
             m2.setSenderId("m2");
-            Messaging m3 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
             m3.setSenderId("m3");
             m1.start();
             m2.start();
@@ -208,13 +209,13 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
             m1.setSenderId("m1");
             m1.setUseChangeStream(false);
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
             m2.setSenderId("m2");
             m2.setUseChangeStream(false);
-            Messaging mSrv = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging mSrv = new StdMessaging(morphium, 10, false, true, 10);
             mSrv.setSenderId("Srv");
             mSrv.setUseChangeStream(false);
             m1.start();
@@ -259,9 +260,9 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
-            Messaging mTst = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
+            StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
+            StdMessaging mTst = new StdMessaging(morphium, 10, false, true, 10);
             m1.start();
             m2.start();
             mTst.start();
@@ -314,8 +315,8 @@ public class AnsweringTests extends MultiDriverTestBase {
             cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
             cfg.setCredentialsEncrypted(morphium.getConfig().getCredentialsEncrypted());
             Morphium mor = new Morphium(cfg);
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
-            Messaging m2 = new Messaging(mor, 10, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
+            StdMessaging m2 = new StdMessaging(mor, 10, false, true, 10);
             m1.setSenderId("m1");
             m2.setSenderId("m2");
             m1.start();
@@ -356,8 +357,8 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging m1 = new Messaging(morphium, 10, false, true, 10);
-            Messaging m2 = new Messaging(morphium, 10, false, true, 10);
+            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
+            StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
             m1.start();
             m2.start();
             // Thread.sleep(2000);
@@ -388,8 +389,8 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging sender = new Messaging(morphium, 100, true);
-            Messaging recipient = new Messaging(morphium, 100, true);
+            StdMessaging sender = new StdMessaging(morphium, 100, true);
+            StdMessaging recipient = new StdMessaging(morphium, 100, true);
             sender.start();
             recipient.start();
             Thread.sleep(2000);
@@ -427,7 +428,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             assertThrows(RuntimeException.class, () -> {
-                Messaging m1 = new Messaging(morphium, 100, false);
+                StdMessaging m1 = new StdMessaging(morphium, 100, false);
                 log.info("Upcoming Errormessage is expected!");
 
                 try {
@@ -455,7 +456,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             //        morphium.dropCollection(Msg.class);
-            Messaging sender = new Messaging(morphium, 100, false);
+            StdMessaging sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
             sender.setUseChangeStream(true);;
             sender.start();
@@ -463,7 +464,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             gotMessage4 = false;
-            Messaging m1 = new Messaging(morphium, 100, false);
+            StdMessaging m1 = new StdMessaging(morphium, 100, false);
             m1.setSenderId("m1");
             m1.addMessageListener((msg, m) -> {
                 gotMessage1 = true;
@@ -491,13 +492,13 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            Messaging sender = new Messaging(morphium, 100, true, true, 100);
+            StdMessaging sender = new StdMessaging(morphium, 100, true, true, 100);
             sender.setSenderId("Sender");
             sender.start();
-            ArrayList<Messaging> msgs = new ArrayList<>();
+            ArrayList<StdMessaging> msgs = new ArrayList<>();
 
             for (int i = 0; i < 5; i++) {
-                Messaging rec = new Messaging(morphium, 100, true, true, 100);
+                StdMessaging rec = new StdMessaging(morphium, 100, true, true, 100);
                 rec.setSenderId("rec" + i);
                 rec.start();
                 rec.addMessageListener(new MessageListener<Msg>() {
@@ -536,7 +537,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             Thread.sleep(10000);
             sender.terminate();
 
-            for (Messaging m : msgs) {
+            for (StdMessaging m : msgs) {
                 m.terminate();
             }
         }
@@ -551,7 +552,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             //        morphium.dropCollection(Msg.class);
-            Messaging sender = new Messaging(morphium, 100, false);
+            StdMessaging sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
             sender.setUseChangeStream(false);;
             sender.start();
@@ -560,7 +561,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             gotMessage4 = false;
-            Messaging m1 = new Messaging(morphium, 100, false);
+            StdMessaging m1 = new StdMessaging(morphium, 100, false);
             m1.setSenderId("m1");
             m1.addMessageListener((msg, m) -> {
                 gotMessage1 = true;

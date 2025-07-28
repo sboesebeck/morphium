@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -15,7 +16,7 @@ public class SpeedNCTests extends MorphiumTestBase {
     @Test
     public void writeSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
-        Messaging msg = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging msg = new StdMessaging(morphium, 100, false, true, 10);
         msg.setUseChangeStream(false).start();
 
 
@@ -46,9 +47,9 @@ public class SpeedNCTests extends MorphiumTestBase {
     public void writeRecSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
         sender.setUseChangeStream(false).start();
-        Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 100);
         receiver.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
@@ -89,11 +90,11 @@ public class SpeedNCTests extends MorphiumTestBase {
     public void writeExclusiveRec() throws Exception {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         morphium.clearCollection(Msg.class);
-        Messaging sender = new Messaging(morphium, 100, false, true, 10);
+        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
         sender.setUseChangeStream(false).start();
-        Messaging receiver = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 100);
         receiver.setUseChangeStream(false).start();
-        Messaging receiver2 = new Messaging(morphium, 100, true, true, 100);
+        StdMessaging receiver2 = new StdMessaging(morphium, 100, true, true, 100);
         receiver2.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
