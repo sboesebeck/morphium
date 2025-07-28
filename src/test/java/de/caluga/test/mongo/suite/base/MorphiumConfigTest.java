@@ -49,8 +49,7 @@ public class MorphiumConfigTest extends MorphiumTestBase {
     @Test
     public void testDefaultProps() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
-
-        log.info("ReadPreference: "+cfg.getDefaultReadPreference().toString());
+        log.info("ReadPreference: " + cfg.getDefaultReadPreference().toString());
         Properties p = cfg.asProperties();
 
         for (Object k : p.keySet()) {
@@ -60,6 +59,13 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         p.store(System.out, "testproperties");
         String cfgStr = cfg.toString();
         log.info("Got: " + cfgStr);
+    }
+
+    @Test
+    public void testSystemOverrides() throws Exception {
+        System.getProperties().setProperty("morphium.database", "broken");
+        MorphiumConfig cfg = new MorphiumConfig();
+        log.info("Got db {} != {} ", cfg.getDatabase(), System.getProperty("morphium.database"));
     }
 
     @Test

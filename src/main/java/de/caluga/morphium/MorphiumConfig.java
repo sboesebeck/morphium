@@ -2,6 +2,7 @@ package de.caluga.morphium;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -165,7 +166,7 @@ public class MorphiumConfig {
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); // settings always convert camel
         // case
-        List<Field> flds = an.getAllFields(MorphiumConfig.class);
+        List<Field> flds = an.getAllFields(MorphiumConfig.Class);
 
         if (prefix != null) {
             prefix += ".";
@@ -214,20 +215,6 @@ public class MorphiumConfig {
             }
         }
 
-        if (resolver.resolveSetting(prefix + "driver_class") != null || resolver.resolveSetting(prefix + "driverClass") != null) {
-            var s = resolver.resolveSetting(prefix + "driver_class");
-
-            if (s == null) {
-                s = resolver.resolveSetting(prefix + "driverClass");
-            }
-
-            if (s.equals(InMemoryDriver.class.getName())) {
-                setDriverName(InMemoryDriver.driverName);
-            } else {
-                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
-            }
-        }
-
         if (hostSeed == null || hostSeed.isEmpty()) {
             String lst = (String) resolver.resolveSetting(prefix + "hosts");
 
@@ -237,6 +224,37 @@ public class MorphiumConfig {
                 for (String s : lst.split(",")) {
                     addHostToSeed(s);
                 }
+            }
+        }
+
+        if (resolver.resolveSetting(prefix + "driver_class") != null || resolver.resolveSetting(prefix + "driverClass") != null) {
+            String n = "driver_name";
+
+            if (resolver.resolveSetting("driverName") != null) {
+                n = "driverName";
+            }
+
+            if (resolver.resolveSetting(n) != null) {
+                LoggerFactory.getLogger(MorphiumConfig.class).error("not using driver_class - drivername is set {}", resolver.resolveSetting(n));
+                driverName = (String)resolver.resolveSetting(n);
+                return;
+            }
+
+            var s = resolver.resolveSetting(prefix + "driver_class");
+
+            if (s == null) {
+                s = resolver.resolveSetting(prefix + "driverClass");
+            }
+
+            String name = driverName;
+
+            try {
+                Class driverClass = Class.forName((String)s);
+                Method m = driverClass.getMethod("getName", null);
+                m.setAccessible(true);
+                driverName = (String)m.invoke(null);
+            } catch (Exception e) {
+                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
             }
         }
     }
@@ -374,7 +392,7 @@ public class MorphiumConfig {
 
     public MorphiumConfig setDriverName(String driverName) {
         if (driverName != null) {
-            this.driverName = driverName;
+            this.DriverName = driverName;
         }
 
         return this;
@@ -947,9 +965,6 @@ public class MorphiumConfig {
         return asProperties(null);
     }
 
-    public Properties asProperties(String prefix) {
-        return asProperties(prefix, true);
-    }
 
     /**
      * @param prefix prefix to use in property keys
@@ -957,7 +972,11 @@ public class MorphiumConfig {
      *        overrides from Environment
      * @return the properties
      */
+    @Deprecated
     public Properties asProperties(String prefix, boolean effectiveConfig) {
+        return asProperties(prefix);
+    }
+    public Properties asProperties(String prefix) {
         if (prefix == null) {
             prefix = "";
         } else {
@@ -985,20 +1004,17 @@ public class MorphiumConfig {
             }
         }
 
-        if (effectiveConfig) {
-            Properties sysprop = System.getProperties();
-
-            for (Object sysk : sysprop.keySet()) {
-                String k = (String) sysk;
-
-                if (k.startsWith("morphium.")) {
-                    String value = sysprop.get(k).toString();
-                    k = k.substring(9);
-                    p.put(prefix + k, value);
-                }
-            }
-        }
-
+        // if (effectiveConfig) {
+        //     Properties sysprop = System.getProperties();
+        //     for (Object sysk : sysprop.keySet()) {
+        //         String k = (String) sysk;
+        //         if (k.startsWith("morphium.")) {
+        //             String value = sysprop.get(k).toString();
+        //             k = k.substring(9);
+        //             p.put(prefix + k, value);
+        //         }
+        //     }
+        // }
         return p;
     }
 
@@ -1246,7 +1262,6 @@ public class MorphiumConfig {
         if (defaultTags == null) {
             return null;
         }
-
         List<Map<String, String >> tagList = new ArrayList<>();
 
         for (String t : defaultTags.split(",")) {
