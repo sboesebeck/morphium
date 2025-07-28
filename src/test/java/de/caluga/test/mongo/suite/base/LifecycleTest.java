@@ -34,66 +34,51 @@ public class LifecycleTest extends MorphiumTestBase {
         LfTestObj obj = new LfTestObj();
         obj.setValue("Ein Test");
         morphium.store(obj);
-        assertTrue (preStore,"Something went wrong: Prestore");
-        assertTrue(postStore,"Something went wrong: poststore");
-
+        assertTrue(preStore, "Something went wrong: Prestore");
+        assertTrue(postStore, "Something went wrong: poststore");
         Query<LfTestObj> q = morphium.createQueryFor(LfTestObj.class);
         q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
-
         assertTrue(postLoad, "Something went wrong: postload");
-
         morphium.set(obj, "value", "test beendet");
-        TestUtils.waitForWrites(morphium,log);
-        assertTrue (preUpdate);
-        assertTrue (postUpdate);
+        TestUtils.waitForWrites(morphium, log);
+        assertTrue(preUpdate);
+        assertTrue(postUpdate);
         morphium.delete(obj);
-        assertTrue (preRemove,"Pre remove not called");
-        assertTrue(postRemove,"Post remove not called");
-
+        assertTrue(preRemove, "Pre remove not called");
+        assertTrue(postRemove, "Post remove not called");
         preUpdate = false;
         postUpdate = false;
         morphium.set(q, "value", "a test - lifecycle won't be called");
-        assertFalse (preUpdate);
+        assertFalse(preUpdate);
         assertFalse(postUpdate);
-
     }
 
     @Test
-    public void testLazyLoading() {
-
+    public void testLazyLoading() throws Exception {
         Morphium m = morphium;
         m.clearCollection(EntityPostLoad.class);
-
         EntityPostLoad e = new EntityPostLoad("test");
         e.emb = new EmbeddedPostLoad("testEmb");
         m.store(e);
-
+        Thread.sleep(150);
         EntityPostLoad eFetched = m.createQueryFor(EntityPostLoad.class).get();
-
-
-        assertEquals("test",eFetched.value,"Value");
-        assertEquals( "test", eFetched.value,"value:");
-        assertEquals( "OK", eFetched.testPostLoad,"post load:");
-        assertEquals( eFetched.value, eFetched.testPostLoadValue,"post load: fields initiated:");
-
+        assertEquals("test", eFetched.value, "Value");
+        assertEquals("test", eFetched.value, "value:");
+        assertEquals("OK", eFetched.testPostLoad, "post load:");
+        assertEquals(eFetched.value, eFetched.testPostLoadValue, "post load: fields initiated:");
         EmbeddedPostLoad emb = eFetched.getEmb();
-        assertEquals( "testEmb", emb.value,"embedded: value:");
-        assertEquals( "OK", emb.testPostLoad,"embedded: post load:");
-        assertEquals( emb.value, emb.testPostLoadValue,"embedded: post load: fields initiated:");
-
+        assertEquals("testEmb", emb.value, "embedded: value:");
+        assertEquals("OK", emb.testPostLoad, "embedded: post load:");
+        assertEquals(emb.value, emb.testPostLoadValue, "embedded: post load: fields initiated:");
         eFetched.value = "newVal";
         m.store(eFetched);
-
-        assertEquals( "OK",eFetched.getEmb().testPreStore, "Embedded: preStore");
-        assertEquals( "OK",eFetched.getEmb().testPostStore, "Embedded: postStore");
-
+        assertEquals("OK", eFetched.getEmb().testPreStore, "Embedded: preStore");
+        assertEquals("OK", eFetched.getEmb().testPostStore, "Embedded: postStore");
         m.delete(eFetched);
-        assertEquals( "OK",eFetched.getEmb().testPreRemove, "Embedded: preDel");
-        assertEquals( "OK",eFetched.getEmb().testPostRemove, "Embedded: postDel");
-
-
+        assertEquals("OK", eFetched.getEmb().testPreRemove, "Embedded: preDel");
+        assertEquals("OK", eFetched.getEmb().testPostRemove, "Embedded: postDel");
     }
 
     @Entity
