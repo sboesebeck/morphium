@@ -29,24 +29,13 @@ public class RSMonitor {
     private final List<ReplicasetStatusListener> listeners = new Vector<>();
 
     public RSMonitor(Morphium morphium) {
-        // this.morphium = morphium;
-        // executorService = new ScheduledThreadPoolExecutor(1);
-        // executorService.setThreadFactory(new ThreadFactory() {
-        //     private final AtomicInteger num = new AtomicInteger(1);
-        //
-        //     @Override
-        //     public Thread newThread(Runnable r) {
-        //         Thread ret = new Thread(r, "rsMonitor " + num);
-        //         num.set(num.get() + 1);
-        //         ret.setDaemon(true);
-        //         return ret;
-        //     }
-        // });
+        this.morphium = morphium;
+        executorService = new ScheduledThreadPoolExecutor(1, Thread.ofVirtual().name("rsMonitor-", 0).factory());
     }
 
     public void start() {
-        // executorService.scheduleWithFixedDelay(this::execute, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
-        // execute();
+        executorService.scheduleWithFixedDelay(this::execute, 1000, morphium.getConfig().getReplicaSetMonitoringTimeout(), TimeUnit.MILLISECONDS);
+        execute();
     }
 
 
