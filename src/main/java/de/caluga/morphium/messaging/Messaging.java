@@ -9,8 +9,9 @@ import java.util.Map;
 public interface Messaging {
     List<StdMessaging> getAlternativeMessagings();
 
+    String getMessagingImplementation();
     void start();
-    String getName();
+
     void enableStatusInfoListener();
 
     void disableStatusInfoListener();
