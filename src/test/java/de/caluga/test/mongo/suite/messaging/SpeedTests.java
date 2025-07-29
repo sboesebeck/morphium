@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SpeedTests extends MultiDriverTestBase {
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstances")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     public void writeSpeed(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());

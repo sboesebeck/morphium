@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
 public class StdMessaging extends Thread implements ShutdownListener, Messaging {
+    public static String messagingImplementation = "StandardMessaging";
     private static final Logger log = LoggerFactory.getLogger(StdMessaging.class);
     private final StatusInfoListener statusInfoListener;
     private String statusInfoListenerName = "morphium.status_info";
@@ -81,6 +82,15 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
 
+
+    public StdMessaging() {
+        listeners = null;
+        decouplePool = null;
+        morphium = null;
+        running = false;
+        statusInfoListener = null;
+        log.info("Instanciating empty, unuseable messaging");
+    }
     /**
      * attaches to the default queue named "msg"
      *
@@ -205,6 +215,11 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
     }
 
     @Override
+    public String getMessagingImplementation() {
+        return messagingImplementation;
+    }
+
+    @Override
     public List<StdMessaging> getAlternativeMessagings() {
         List<StdMessaging> ret = new ArrayList<>(allMessagings);
         ret.remove(this);
@@ -310,19 +325,19 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
 
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-                .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-                .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-                morphium.getConfig().getThreadPoolMessagingCoreSize(),
-                morphium.getConfig().getThreadPoolMessagingMaxSize(),
-                morphium.getConfig().getThreadPoolMessagingKeepAliveTime(),
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(),
-                Thread.ofVirtual().name("msg-thr-", 0).factory()
+            morphium.getConfig().getThreadPoolMessagingCoreSize(),
+            morphium.getConfig().getThreadPoolMessagingMaxSize(),
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
 
@@ -362,7 +377,9 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
                     if (!msgs.isEmpty()) {
                         msg = msgs.get(0);
                     }
-                } finally {
+                }
+
+                finally {
                     fnd.releaseConnection();
                 }
                 if (msg == null) return running;
@@ -379,10 +396,14 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
                         processing.add(el);
                     }
                 }
-            } else {
+            }
+
+            else {
                 log.error("Some other id?!?!?" + id.getClass().getName());
             }
-        } catch (Exception e) {
+        }
+
+        catch (Exception e) {
             log.error("Error during event processing in changestream", e);
         }
         return running;
@@ -1032,7 +1053,7 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
     @Override
     public void addListenerForMessageNamed(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
+            HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<>());
             listenerByName = c;
         }
@@ -1052,7 +1073,7 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
             return;
         }
 
-        HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
+        HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
         c.get(n).remove(l);
         if (c.get(n).isEmpty()) {
             c.remove(n);
@@ -1191,7 +1212,6 @@ public class StdMessaging extends Thread implements ShutdownListener, Messaging 
                 @Override
                 public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
                 }
-
                 @Override
                 public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
                     log.error("Error storing msg", t);
