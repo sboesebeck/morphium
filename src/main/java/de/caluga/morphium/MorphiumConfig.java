@@ -47,110 +47,13 @@ import de.caluga.morphium.writer.MorphiumWriterImpl;
 public class MorphiumConfig {
     @AdditionalData(readOnly = false)
     private Map<String, Object> restoreData;
-    private int maxConnections = 250, housekeepingTimeout = 5000;
-    private int minConnections = 1;
-    private int idleSleepTime = 20;
-    private CompressionType compressionType = CompressionType.NONE;
 
-    private int globalCacheValidTime = 5000;
-    private int writeCacheTimeout = 5000;
-    private String database;
-    @Transient
-    private MorphiumWriter writer;
-    @Transient
-    private MorphiumWriter bufferedWriter;
-    @Transient
-    private MorphiumWriter asyncWriter;
-    private int connectionTimeout = 0;
-    private boolean globalFsync = false;
-    private boolean globalJ = false;
-    private boolean checkForNew = true;
-    private boolean replicaset = true;
-    private String atlasUrl = null;
 
-    // maximum number of tries to queue a write operation
-    private int maximumRetriesBufferedWriter = 10;
-    private int maximumRetriesWriter = 10;
-    private int maximumRetriesAsyncWriter = 10;
-    // wait bewteen tries
-    private int retryWaitTimeBufferedWriter = 200;
-    private int retryWaitTimeWriter = 200;
-    private int retryWaitTimeAsyncWriter = 200;
-    private int globalW = 1; // number of writes
-    private int maxWaitTime = 2000;
-    private int threadConnectionMultiplier = 5;
-    private int serverSelectionTimeout = 30000;
-    // default time for write buffer to be filled
-    private int writeBufferTime = 1000;
-    // ms for the pause of the main thread
-    private int writeBufferTimeGranularity = 100;
 
-    private boolean useSSL = false;
-    private SSLContext sslContext = null;
-    private boolean sslInvalidHostNameAllowed = false;
 
-    @Transient
-    private MorphiumCache cache;
-    private int replicaSetMonitoringTimeout = 5000;
-    private int retriesOnNetworkError = 1;
-    private int sleepBetweenNetworkErrorRetries = 1000;
-    /**
-     * login credentials for MongoDB - if necessary. If null, don't authenticate
-     */
-    private String mongoLogin = null, mongoPassword = null, mongoAuthDb = null;
-    @Transient
-    private String credentialsEncryptionKey;
-    @Transient
-    private String credentialsDecryptionKey;
-    private Boolean credentialsEncrypted;
 
-    private boolean autoValues = true;
-    private boolean readCacheEnabled = true;
-    private boolean asyncWritesEnabled = true;
-    private boolean bufferedWritesEnabled = true;
-    private boolean camelCaseConversionEnabled = true;
-    private boolean warnOnNoEntitySerialization = false;
-
-    @Transient
-    private ReadPreference defaultReadPreference = ReadPreference.nearest();
-    @Transient
-    private String defaultReadPreferenceType;
-    @Transient
-    private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
-    @Transient
-    private Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass = AESEncryptionProvider.class;
-    @Transient
-    private Class<? extends Messaging> messagingClass = StdMessaging.class;
-
-    private String driverName = PooledDriver.driverName;
-    private String messagingImplementation = StdMessaging.messagingImplementation;
-    private int threadPoolMessagingCoreSize = 0;
-    private int threadPoolMessagingMaxSize = 100;
-    private long threadPoolMessagingKeepAliveTime = 2000;
-    private int messagingWindowSize = 100;
-    private int threadPoolAsyncOpCoreSize = 1;
-    private int threadPoolAsyncOpMaxSize = 1000;
-    private long threadPoolAsyncOpKeepAliveTime = 1000;
-    private boolean objectSerializationEnabled = true;
-    private int heartbeatFrequency = 1000;
-    private int localThreshold = 15;
-    private int maxConnectionIdleTime = 30000;
-    private int maxConnectionLifeTime = 600000;
-
-    private List<String> hostSeed = new ArrayList<>();
-
-    private String defaultTags;
-    private String requiredReplicaSetName = null;
     private int cursorBatchSize = 1000;
-    private int readTimeout = 0;
-    private boolean retryReads = false;
-    private boolean retryWrites = false;
-    private String uuidRepresentation;
-    private IndexCheck indexCheck = IndexCheck.WARN_ON_STARTUP;
-    private CappedCheck cappedCheck = CappedCheck.WARN_ON_STARTUP;
 
-    private String messagingStatusInfoListenerName = null;
-    private boolean messagingStatusInfoListenerEnabled = true;
 
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingStatusInfoListenerEnabled;
