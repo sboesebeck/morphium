@@ -29,6 +29,8 @@ import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -117,8 +119,11 @@ public class MorphiumConfig {
     private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
     @Transient
     private Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass = AESEncryptionProvider.class;
+    @Transient
+    private Class<? extends Messaging> messagingClass = StdMessaging.class;
 
     private String driverName = PooledDriver.driverName;
+    private String messagingImplementation = StdMessaging.messagingImplementation;
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
@@ -390,9 +395,10 @@ public class MorphiumConfig {
         return driverName;
     }
 
+
     public MorphiumConfig setDriverName(String driverName) {
         if (driverName != null) {
-            this.DriverName = driverName;
+            this.driverName = driverName;
         }
 
         return this;
@@ -403,6 +409,16 @@ public class MorphiumConfig {
             driverName = InMemoryDriver.driverName;
         } else {
             throw new IllegalArgumentException("Cannot set driver class " + cls + " - please use setDriverName with the proper name.");
+        }
+
+        return this;
+    }
+    public String getMessagingImplementation() {
+        return messagingImplementation;
+    }
+    public MorphiumConfig setMessagingImplementation(String impl) {
+        if (impl != null) {
+            messagingImplementation = impl;
         }
 
         return this;

@@ -23,7 +23,9 @@ import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
+import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
@@ -42,7 +44,9 @@ import org.springframework.cglib.proxy.Enhancer;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -98,6 +102,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private JavaxValidationStorageListener lst;
     private ValueEncryptionProvider valueEncryptionProvider;
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
+
+    private Class<? extends Messaging> messagingClass;
 
     private static Vector<Morphium> instances = new Vector<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
@@ -181,10 +187,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         //     }
         // };
         asyncOperationsThreadPool = new ThreadPoolExecutor(
-            getConfig().getThreadPoolAsyncOpCoreSize(), 
-            getConfig().getThreadPoolAsyncOpMaxSize(), 
+            getConfig().getThreadPoolAsyncOpCoreSize(),
+            getConfig().getThreadPoolAsyncOpMaxSize(),
             getConfig().getThreadPoolAsyncOpKeepAliveTime(),
-            TimeUnit.MILLISECONDS, 
+            TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<>(),
             Thread.ofVirtual().name("asyncOp-", 0).factory()
         );
@@ -228,6 +234,39 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             stats.put(k, new StatisticValue());
         }
 
+        if (messagingClass == null) {
+            if (getConfig().getMessagingImplementation() == null) {
+                messagingClass = StdMessaging.class;
+            } else {
+                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
+                    .scan()) {
+                    ClassInfoList entities = scanResult.getClassesImplementing(Messaging.class.getName());
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("Found {} messaging implementations in classpath", entities.size());
+                    }
+
+                    for (String cn : entities.getNames()) {
+                        try {
+                            Class c = Class.forName(cn);
+                            Constructor con = c.getConstructor();
+                            var msg = con.newInstance();
+                            Method m = c.getMethod("getMessagingImplementation");
+                            String name = (String)m.invoke(msg);
+
+                            if (name == config.getMessagingImplementation()) {
+                                messagingClass = c;
+                                break;
+                            }
+                        } catch (Exception e) {
+                            log.error("Error handling messaging implementation {}", cn, e);
+                        }
+                    }
+                } catch (Exception e) {
+                }
+            }
+        }
+
         if (morphiumDriver == null) {
             Runtime.getRuntime().addShutdownHook(new Thread() {
                 @Override
@@ -242,18 +281,18 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 }
             });
 
-            try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
-                .scan()) {
-                ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
+            if (getConfig().getDriverName() == null) {
+                getConfig().setDriverName(SingleMongoConnectDriver.driverName);
+                morphiumDriver = new SingleMongoConnectDriver();
+            } else {
+                try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
+                    .scan()) {
+                    ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
 
-                if (log.isDebugEnabled()) {
-                    log.debug("Found " + entities.size() + " drivers in classpath");
-                }
+                    if (log.isDebugEnabled()) {
+                        log.debug("Found " + entities.size() + " drivers in classpath");
+                    }
 
-                if (getConfig().getDriverName() == null) {
-                    getConfig().setDriverName(SingleMongoConnectDriver.driverName);
-                    morphiumDriver = new SingleMongoConnectDriver();
-                } else {
                     for (String cn : entities.getNames()) {
                         try {
                             @SuppressWarnings("rawtypes")
@@ -290,13 +329,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             log.error("Could not load driver " + getConfig().getDriverName(), e);
                         }
                     }
-                }
 
-                if (morphiumDriver == null) {
-                    morphiumDriver = new SingleMongoConnectDriver(); // default
+                    if (morphiumDriver == null) {
+                        morphiumDriver = new SingleMongoConnectDriver(); // default
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
 
             morphiumDriver.setConnectionTimeout(getConfig().getConnectionTimeout());
@@ -501,6 +540,10 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
 
         getCache().setValidCacheTime(CollectionInfo.class, 15000);
+    }
+
+    public Messaging createMessaging() {
+        return null;
     }
 
     public ValueEncryptionProvider getValueEncrpytionProvider() {
