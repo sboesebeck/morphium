@@ -51,7 +51,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 try {
                     msg.terminate();
                 } catch (Exception e) {
-                    log.warn("Messageing termination failed!");
+                    log.warn("Messaging termination failed!");
                 }
             }
         }
