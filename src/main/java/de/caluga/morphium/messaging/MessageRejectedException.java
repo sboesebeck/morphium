@@ -33,7 +33,7 @@ public class MessageRejectedException extends RuntimeException {
         this.sendAnswer = sendAnswer;
         this.handler = (msg, m) -> {
             if (isSendAnswer()) {
-                Msg answer = new Msg(msg.getName(), "message rejected by listener", getMessage());
+                Msg answer = new Msg(m.getName(), "message rejected by listener", getMessage());
                 m.sendAnswer(msg, answer);
             }
 
@@ -49,7 +49,7 @@ public class MessageRejectedException extends RuntimeException {
                         //not exclusive message is marked as processed by me
                     } else {
                         //releasing lock when exclusive - should not be checked until processing is removed
-                        var ret=msg.getMorphium().createQueryFor(MsgLock.class,msg.getLockCollectionName()).f("_id").eq(m.getMsgId()).delete();
+                        var ret = msg.getMorphium().createQueryFor(MsgLock.class, msg.getLockCollectionName()).f("_id").eq(m.getMsgId()).delete();
                     }
                 } catch (MorphiumDriverException e) {
                     LoggerFactory.getLogger(msg.getClass()).error("Error unlocking message", e);
