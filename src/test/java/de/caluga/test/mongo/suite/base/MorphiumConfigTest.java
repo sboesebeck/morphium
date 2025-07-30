@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import org.junit.jupiter.api.Test;
 
@@ -84,7 +85,7 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         Properties p = new Properties();
         p.setProperty("morphium.indexCheck", "WARN_ON_STARTUP");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
-        assert(cfg.getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP));
+        assert(cfg.getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP));
         assert(cfg.isAutoValuesEnabled());
         assert(cfg.getHostSeed().size() == 0);
     }

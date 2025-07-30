@@ -1,9 +1,29 @@
 package de.caluga.test.mongo.suite.base;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.provider.Arguments;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumConfig.CappedCheck;
-import de.caluga.morphium.MorphiumConfig.IndexCheck;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
@@ -15,21 +35,6 @@ import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.params.provider.Arguments;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 
 // import de.caluga.morphium.driver.inmem.InMemoryDriver;
 // import de.caluga.morphium.driver.meta.MetaDriver;
@@ -330,11 +335,8 @@ public class MultiDriverTestBase {
             cfg.setThreadPoolMessagingKeepAliveTime(10000);
             //            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP);
             //            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_STARTUP);
-            cfg.setIndexCheck(MorphiumConfig.IndexCheck.CREATE_ON_WRITE_NEW_COL);
-            cfg.setCappedCheck(MorphiumConfig.CappedCheck.CREATE_ON_WRITE_NEW_COL);
-            cfg.setGlobalFsync(false);
-            cfg.setGlobalJ(false);
-            cfg.setGlobalW(1);
+            cfg.setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
+            cfg.setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
             cfg.setCheckForNew(true);
             //            cfg.setMongoAdminUser("adm");
             //            cfg.setMongoAdminPwd("adm");

@@ -38,22 +38,22 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class AnnotationAndReflectionHelper {
 
     private final Logger logger = getLogger(AnnotationAndReflectionHelper.class);
-    private final Map<Class<?>, Class<?>> realClassCache;
-    private final Map<Class<?>, List<Field>> fieldListCache;
-    private final ConcurrentHashMap<Class<?>, Map<Class<? extends Annotation>, Annotation>> annotationCache;
-    private final Map<Class<?>, Map<String, String>> fieldNameCache;
+    private final Map<Class<?>, Class<? >> realClassCache;
+    private final Map<Class<?>, List<Field >> fieldListCache;
+    private final ConcurrentHashMap<Class<?>, Map<Class<? extends Annotation>, Annotation >> annotationCache;
+    private final Map<Class<?>, Map<String, String >> fieldNameCache;
     private static ConcurrentHashMap<String, String> classNameByType;
     private Map<String, Field> fieldCache;
     private Map<String, List<String>> fieldAnnotationListCache;
-    private Map<Class<?>, Map<Class<? extends Annotation>, Method>> lifeCycleMethods;
+    private Map<Class<?>, Map<Class<? extends Annotation>, Method >> lifeCycleMethods;
     private Map<Class<?>, Boolean> hasAdditionalData;
-    private final boolean ccc;
+    private boolean ccc;
 
     public AnnotationAndReflectionHelper(boolean convertCamelCase) {
         this(convertCamelCase, new HashMap<>());
     }
 
-    public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<?>> realClassCache) {
+    public AnnotationAndReflectionHelper(boolean convertCamelCase, Map<Class<?>, Class<? >> realClassCache) {
         this.ccc = convertCamelCase;
         this.realClassCache = realClassCache;
         this.fieldListCache = new ConcurrentHashMap<>();
@@ -70,16 +70,28 @@ public class AnnotationAndReflectionHelper {
         }
     }
 
+    public void disableConvertCamelCase(boolean flag) {
+        ccc = flag;
+    }
+    public boolean isConvertCamelcase() {
+        return ccc;
+    }
+    public void enableConvertCamelCase() {
+        ccc = true;
+    }
+    public void disableConvertCamelCase() {
+        ccc = false;
+    }
     private void init() {
         //initializing type IDs
         try (ScanResult scanResult =
-         new ClassGraph()
-         //                     .verbose()             // Enable verbose logging
-         .enableAnnotationInfo()
-         //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
-         .scan()) {
+                    new ClassGraph()
+            //                     .verbose()             // Enable verbose logging
+            .enableAnnotationInfo()
+            //                             .enableAllInfo()       // Scan classes, methods, fields, annotations
+            .scan()) {
             ClassInfoList entities =
-             scanResult.getClassesWithAnnotation(Entity.class.getName());
+                scanResult.getClassesWithAnnotation(Entity.class.getName());
             entities.addAll(scanResult.getClassesWithAnnotation(Embedded.class.getName()));
             logger.info("Found " + entities.size() + " entities in classpath");
 
@@ -137,6 +149,7 @@ public class AnnotationAndReflectionHelper {
 
     public boolean isAnnotationOnAnyField(final Class<?> aClass, final Class<? extends Annotation>annotationClass) {
         if (aClass == null || Map.class.isAssignableFrom(aClass)) return false;
+
         for (Field f : getAllFields(aClass)) {
             if (f.getAnnotation(annotationClass) != null) { return true; }
         }
@@ -205,7 +218,6 @@ public class AnnotationAndReflectionHelper {
                 Collections.addAll(interfaces, anInterface.getInterfaces());
             }
         }
-
         return null;
     }
 
@@ -262,7 +274,8 @@ public class AnnotationAndReflectionHelper {
         return getMongoFieldName(clz, field, isAnnotationOnAnyField(clz, AdditionalData.class));
     }
     public String getMongoFieldName(Class clz, String field, boolean ignoreUnknownField) {
-        if (clz==null || Map.class.isAssignableFrom(clz)) return field;
+        if (clz == null || Map.class.isAssignableFrom(clz)) return field;
+
         Class cls = getRealClass(clz);
 
         if (field.contains(".") || field.contains("(") || field.contains("$")) {
@@ -325,7 +338,7 @@ public class AnnotationAndReflectionHelper {
             Embedded emb = getAnnotationFromHierarchy(cls, Embedded.class);
 
             if ((ccc && ent != null && ent.translateCamelCase())
-             || (ccc && emb != null && emb.translateCamelCase())) {
+                || (ccc && emb != null && emb.translateCamelCase())) {
                 ret = convertCamelCase(ret);
             }
         }
@@ -396,7 +409,8 @@ public class AnnotationAndReflectionHelper {
      * @return list of fields in that class
      */
     public List<Field> getAllFields(Class clz) {
-        if (clz==null || Map.class.isAssignableFrom(clz)) return new ArrayList<Field>();
+        if (clz == null || Map.class.isAssignableFrom(clz)) return new ArrayList<Field>();
+
         if (fieldListCache.containsKey(clz)) {
             return fieldListCache.get(clz);
         }
@@ -411,6 +425,7 @@ public class AnnotationAndReflectionHelper {
             hierachy.add(sc);
             sc = sc.getSuperclass();
         }
+
         Collections.addAll(hierachy, cls.getInterfaces());
 
         //now we have a list of all classed up to Object
@@ -441,7 +456,8 @@ public class AnnotationAndReflectionHelper {
      * @return field, if found, null else
      */
     public Field getField(Class clz, String fld) {
-        if (clz==null || Map.class.isAssignableFrom(clz)) return null;
+        if (clz == null || Map.class.isAssignableFrom(clz)) return null;
+
         String key = clz.toString() + "->" + fld;
         Field val = fieldCache.get(key);
 
@@ -849,7 +865,6 @@ public class AnnotationAndReflectionHelper {
         if (embedded != null && entity != null && !ignoreEntity) {
             logger.warn("Class " + cls.getName() + " does have both @Entity and @Embedded Annotations - not allowed! Assuming @Entity is right");
         }
-
         //
         //        if (embedded == null && entity == null && !ignoreEntity) {
         //            throw new IllegalArgumentException("This class " + cls.getName() + " does not have @Entity or @Embedded set, not even in hierachy - illegal!");
@@ -859,9 +874,7 @@ public class AnnotationAndReflectionHelper {
         if (embedded != null) {
             tcc = embedded.translateCamelCase();
         }
-
         if (entity != null) { tcc = entity.translateCamelCase(); }
-
         IgnoreFields ignoreFields = getAnnotationFromHierarchy(sc, IgnoreFields.class);
         LimitToFields limitToFields = getAnnotationFromHierarchy(sc, LimitToFields.class);
         List<String> fieldsToIgnore = new ArrayList<>();
@@ -883,13 +896,11 @@ public class AnnotationAndReflectionHelper {
                 fieldsToIgnore.add(f);
             }
         }
-
         List<String> fieldsToLimitTo = new ArrayList<>();
 
         if (limitToFields != null && limitToFields.value().length != 0) {
             fieldsToLimitTo.addAll(Arrays.asList(limitToFields.value()));
         }
-
         if (limitToFields != null && !limitToFields.type().equals(Object.class)) {
             List<Field> flds = getAllFields(limitToFields.type());
 
@@ -897,7 +908,6 @@ public class AnnotationAndReflectionHelper {
                 fieldsToLimitTo.add(getMongoFieldName(limitToFields.type(), f.getName()));
             }
         }
-
         //getting class hierachy
         List<Field> fld = getAllFields(cls);
 
@@ -969,7 +979,6 @@ public class AnnotationAndReflectionHelper {
                 ret.add(conv);
             }
         }
-
         fa.put(stringBuilder.toString(), ret);
         fieldAnnotationListCache = fa;
         return ret;
@@ -1164,7 +1173,7 @@ public class AnnotationAndReflectionHelper {
             Field field = getField(on.getClass(), f);
 
             if ((isAnnotationPresentInHierarchy(field.getType(), Entity.class) || isAnnotationPresentInHierarchy(field.getType(), Embedded.class)) &&
-             isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
+                isAnnotationPresentInHierarchy(field.getType(), Lifecycle.class)) {
                 field.setAccessible(true);
 
                 try {
@@ -1203,9 +1212,8 @@ public class AnnotationAndReflectionHelper {
             }
         }
 
-        Map<Class<?>, Map<Class<? extends Annotation>, Method>> lc = lifeCycleMethods;
+        Map<Class<?>, Map<Class<? extends Annotation>, Method >> lc = lifeCycleMethods;
         lc.put(cls, methods);
-
         if (methods.get(type) != null) {
             try {
                 methods.get(type).invoke(on);
@@ -1213,7 +1221,6 @@ public class AnnotationAndReflectionHelper {
                 throw AnnotationAndReflectionException.of(e);
             }
         }
-
         lifeCycleMethods = lc;
     }
 

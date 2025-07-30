@@ -96,10 +96,6 @@ public class Query<T> implements Cloneable {
         this(m);
         setType(type);
         this.executor = executor;
-
-        if (m != null && m.getConfig() != null && m.getConfig().getDefaultTagSet() != null) {
-            tags = m.getConfig().getDefaultTags();
-        }
     }
 
     public Query(Morphium m) {
@@ -568,7 +564,6 @@ public class Query<T> implements Cloneable {
         } finally {
             morphium.getDriver().releaseConnection(settings.getConnection());
         }
-
         for (Map<String, Object> in : obj) {
             T unmarshall = morphium.getMapper().deserialize(type, in);
 
@@ -576,7 +571,6 @@ public class Query<T> implements Cloneable {
                 ret.add(unmarshall);
             }
         }
-
         srv = (String) findMetaData.get("server");
 
         // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
@@ -584,7 +578,6 @@ public class Query<T> implements Cloneable {
         if (useCache) {
             morphium.getCache().addToCache(ck, type, ret);
         }
-
         return ret;
     }
 
@@ -882,11 +875,10 @@ public class Query<T> implements Cloneable {
         return this;
     }
 
-    public Query<T> or (List<Query<T>> qs) {
+    public Query<T> or (List<Query<T >> qs) {
         if (rawQuery != null) {
             throw new IllegalArgumentException("Cannot add or queries when raw query is defined!");
         }
-
         orQueries.addAll(qs);
         return this;
     }
@@ -1066,9 +1058,10 @@ public class Query<T> implements Cloneable {
                 settings.setCollation(getCollation().toQueryObject());
             }
 
-            if (morphium.getReadConcernForClass(getType())!=null){
-                settings.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getType()).name()));
+            if (morphium.getReadConcernForClass(getType()) != null) {
+                settings.setReadConcern(Map.of("level", morphium.getReadConcernForClass(getType()).name()));
             }
+
             return settings;
             // .setReadConcern(getRP().);
         } else {
@@ -1077,8 +1070,9 @@ public class Query<T> implements Cloneable {
             if (getCollation() != null) {
                 cmd.setCollation(getCollation().toQueryObject());
             }
-            if (morphium.getReadConcernForClass(getType())!=null){
-                cmd.setReadConcern(Map.of("level",morphium.getReadConcernForClass(getType()).name()));
+
+            if (morphium.getReadConcernForClass(getType()) != null) {
+                cmd.setReadConcern(Map.of("level", morphium.getReadConcernForClass(getType()).name()));
             }
 
             return cmd;
@@ -1124,11 +1118,9 @@ public class Query<T> implements Cloneable {
         if (andExpr.size() == 1 && onlyAnd) {
             return andExpr.get(0).dbObject();
         }
-
         if (andExpr.isEmpty() && onlyAnd) {
             return o;
         }
-
         if (!andExpr.isEmpty()) {
             for (FilterExpression ex : andExpr) {
                 lst.add(ex.dbObject());
@@ -1137,7 +1129,6 @@ public class Query<T> implements Cloneable {
             o.put("$and", lst);
             lst = new ArrayList<>();
         }
-
         if (!orQueries.isEmpty()) {
             for (Query<T> ex : orQueries) {
                 lst.add(ex.toQueryObject());
@@ -1146,11 +1137,12 @@ public class Query<T> implements Cloneable {
             if (o.get("$and") != null) {
                 // noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$or", lst));
-            } else {
+            }
+
+            else {
                 o.put("$or", lst);
             }
         }
-
         if (!norQueries.isEmpty()) {
             for (Query<T> ex : norQueries) {
                 lst.add(ex.toQueryObject());
@@ -1159,11 +1151,12 @@ public class Query<T> implements Cloneable {
             if (o.get("$and") != null) {
                 // noinspection unchecked
                 ((List<Map<String, Object>>) o.get("$and")).add(UtilsMap.of("$nor", lst));
-            } else {
+            }
+
+            else {
                 o.put("$nor", lst);
             }
         }
-
         return o;
     }
 
@@ -1250,25 +1243,22 @@ public class Query<T> implements Cloneable {
 
     public List<Map<String, Object>> asMapList() {
         morphium.inc(StatisticKeys.READS);
-
         if (type != null) {
             Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
             boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
             Class type = Map.class;
             String ck = morphium.getCache().getCacheKey(this);
-
             if (useCache) {
                 if (morphium.getCache().isCached(type, ck)) {
                     morphium.inc(StatisticKeys.CHITS);
                     // noinspection unchecked
                     return morphium.getCache().getFromCache(type, ck);
                 }
-
                 morphium.inc(StatisticKeys.CMISS);
-            } else {
+            }
+            else {
                 morphium.inc(StatisticKeys.NO_CACHED_READS);
             }
-
             long start = System.currentTimeMillis();
             Map<String, Object> lst = getFieldListForQuery();
             List<Map<String, Object>> ret = new ArrayList<>();
@@ -1289,14 +1279,12 @@ public class Query<T> implements Cloneable {
                 // noinspection unchecked
                 morphium.getCache().addToCache(ck, type, ret);
             }
-
             morphium.firePostLoad(ret);
             List<Map<String, Object>> result = new ArrayList<>();
 
             for (var o : ret) {
                 result.add(new HashMap<>(o));
             }
-
             return result;
         } else {
             morphium.inc(StatisticKeys.NO_CACHED_READS);
@@ -1313,7 +1301,6 @@ public class Query<T> implements Cloneable {
             } finally {
                 settings.releaseConnection();
             }
-
             // morphium.fireProfilingReadEvent(this, System.currentTimeMillis() - start,
             // ReadAccessType.AS_LIST);
             return new ArrayList<>(ret);
@@ -1476,7 +1463,7 @@ public class Query<T> implements Cloneable {
                         Object id = getARHelper().getId(unmarshall);
                         // Cannot use store, as this would trigger an update of last changed...
                         settings = new UpdateMongoCommand(con).setDb(getDB()).setColl(getCollectionName()).setUpdates(Arrays.asList(Doc.of("q", Doc.of("_id", id), "u",
-                                    Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
+                            Doc.of("$set", Doc.of(ctf, currentTime)), "multi", false, "collation", collation != null ? Doc.of(collation.toQueryObject()) : null)));
                         settings.execute();
                     } catch (Exception e) {
                         log.error("Could not set modification time");
@@ -1581,21 +1568,19 @@ public class Query<T> implements Cloneable {
         int lim = getLimit();
         limit(1);
         FindCommand settings = null;
-
         try {
             settings = getFindCmd();
             srch = settings.execute();
         } catch (MorphiumDriverException e) {
             // TODO: Implement Handling
             throw new RuntimeException(e);
-        } finally {
+        }
+        finally {
             if (settings != null) {
                 settings.releaseConnection();
             }
         }
-
         limit(lim);
-
         if (srch.isEmpty()) {
             List<T> lst = new ArrayList<>(0);
 
@@ -1605,7 +1590,6 @@ public class Query<T> implements Cloneable {
 
             return null;
         }
-
         Map<String, Object> ret;
         ret = srch.get(0);
         srv = (String) findMetaData.get("server");
@@ -1628,11 +1612,9 @@ public class Query<T> implements Cloneable {
 
             return unmarshall;
         }
-
         if (useCache) {
             morphium.getCache().addToCache(ck, type, lst);
         }
-
         return null;
     }
 
@@ -1684,7 +1666,6 @@ public class Query<T> implements Cloneable {
         // Object>("_id", 1)); //only get IDs
         List<Map<String, Object>> query;
         FindCommand settings = null;
-
         try {
             settings = getFindCmd();
             settings.setProjection(Doc.of("_id", 1));
@@ -1693,12 +1674,12 @@ public class Query<T> implements Cloneable {
         } catch (MorphiumDriverException e) {
             // TODO: Implement Handling
             throw new RuntimeException(e);
-        } finally {
+        }
+        finally {
             if (settings != null) {
                 settings.releaseConnection();
             }
         }
-
         // noinspection unchecked
         List<R> ret = query.stream().map(o->(R) o.get("_id")).collect(Collectors.toList());
         long dur = System.currentTimeMillis() - start;
@@ -1708,7 +1689,6 @@ public class Query<T> implements Cloneable {
             // noinspection unchecked
             morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
         }
-
         return ret;
     }
 
@@ -2245,7 +2225,7 @@ public class Query<T> implements Cloneable {
         }
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> lst = (List<Map<String, Object>>) result.get("results");
+        List<Map<String, Object>> lst = (List<Map<String, Object >>) result.get("results");
         List<T> ret = new ArrayList<>();
 
         for (Object o : lst) {
@@ -2257,7 +2237,6 @@ public class Query<T> implements Cloneable {
                 ret.add(unmarshall);
             }
         }
-
         return ret;
     }
 
@@ -2348,13 +2327,13 @@ public class Query<T> implements Cloneable {
         try {
             FindCommand cmd = new FindCommand(con).setTailable(true).setFilter(toQueryObject()).setSort(getSort()).setHint(hint).setLimit(getLimit()).setBatchSize(batchSize).setMaxTimeMS(maxWait)
             .setDb(morphium.getDatabase()).setColl(getCollectionName());
+
             if (collation != null) {
                 cmd.setCollation(collation.toQueryObject());
             }
 
             long start = System.currentTimeMillis();
             var msgId = cmd.executeAsync();
-
             long cursorId = 0;
 
             while (running) {
@@ -2366,15 +2345,14 @@ public class Query<T> implements Cloneable {
                     log.warn("No cursor in result");
                     break;
                 }
-
                 if (cursor.containsKey("firstBatch")) {
                     batch = (List<Map<String, Object>>) cursor.get("firstBatch");
-                } else if (cursor.containsKey("nextBatch")) {
+                }
+                else if (cursor.containsKey("nextBatch")) {
                     batch = (List<Map<String, Object>>) cursor.get("nextBatch");
                 } else {
                     batch = new ArrayList<>();
                 }
-
                 for (Map<String, Object> doc : batch) {
                     try {
                         cb.onOperationSucceeded(AsyncOperationType.READ, this, System.currentTimeMillis() - start, null, morphium.getMapper().deserialize(type, doc));
@@ -2383,7 +2361,6 @@ public class Query<T> implements Cloneable {
                         break;
                     }
                 }
-
                 cursorId = ((Number) cursor.get("id")).longValue();
                 GetMoreMongoCommand more = new GetMoreMongoCommand(con).setBatchSize(batchSize).setColl(getCollectionName()).setDb(cmd.getDb()).setCursorId(cursorId);
                 msgId = more.executeAsync();
@@ -2528,7 +2505,7 @@ public class Query<T> implements Cloneable {
         return orQueries;
     }
 
-    public Query<T> setOrQueries(List<Query<T>> orQueries) {
+    public Query<T> setOrQueries(List<Query<T >> orQueries) {
         this.orQueries = orQueries;
         return this;
     }
@@ -2537,7 +2514,7 @@ public class Query<T> implements Cloneable {
         return norQueries;
     }
 
-    public Query<T> setNorQueries(List<Query<T>> norQueries) {
+    public Query<T> setNorQueries(List<Query<T >> norQueries) {
         this.norQueries = norQueries;
         return this;
     }
@@ -2611,7 +2588,7 @@ public class Query<T> implements Cloneable {
         return additionalFields;
     }
 
-    public Query<T> setAdditionalFields(UtilsMap<String, UtilsMap<String, String>> additionalFields) {
+    public Query<T> setAdditionalFields(UtilsMap<String, UtilsMap<String, String >> additionalFields) {
         this.additionalFields = additionalFields;
         return this;
     }

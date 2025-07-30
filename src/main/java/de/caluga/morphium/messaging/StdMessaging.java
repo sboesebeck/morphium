@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - Message listeners may return a Message as answer. Or throw a
  * MessageRejectedException.c
  */
+
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
 public class StdMessaging extends Thread implements ShutdownListener, Messaging {
     public static String messagingImplementation = "StandardMessaging";
