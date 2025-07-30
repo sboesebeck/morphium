@@ -120,7 +120,7 @@ public class PooledDriver extends DriverBase {
 
 
     private ScheduledFuture<?> heartbeat;
-    private final Integer waitCounterSignal = 0;
+    private final Object waitCounterSignal = new Object();
     private final Map<String, AtomicInteger> waitCounter = new ConcurrentHashMap<>();
     private List<String> lastHostsFromHello = null;
 
