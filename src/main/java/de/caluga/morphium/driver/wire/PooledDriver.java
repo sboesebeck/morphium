@@ -63,6 +63,7 @@ public class PooledDriver extends DriverBase {
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     private final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
+    private int serverSelectionTimeout = -1;
 
     public PooledDriver() {
         connectionPool = new HashMap<>();
@@ -73,6 +74,19 @@ public class PooledDriver extends DriverBase {
             stats.put(e, new AtomicDecimal(0));
         }
     }
+
+
+    @Override
+    public int getServerSelectionTimeout() {
+        return serverSelectionTimeout;
+    }
+
+
+    @Override
+    public void setServerSelectionTimeout(int timeoutInMS) {
+        this.serverSelectionTimeout = timeoutInMS;
+    }
+
 
     @Override
     public void connect(String replSet) throws MorphiumDriverException {
@@ -272,7 +286,6 @@ public class PooledDriver extends DriverBase {
                     }
                 }
             } .start();
-
             heartbeat = executor.scheduleWithFixedDelay(() -> {
                 //check every host in pool if available
                 // create NEW Connection to host -> if error, remove host from connectionPool
@@ -547,7 +560,11 @@ public class PooledDriver extends DriverBase {
             }
 
             do {
-                bc = queue.poll(getMaxWaitTime(), TimeUnit.MILLISECONDS);
+                if (getServerSelectionTimeout() < 0) {
+                    bc = queue.poll(Integer.MAX_VALUE, TimeUnit.SECONDS);
+                } else {
+                    bc = queue.poll(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);
+                }
 
                 if (bc == null) {
                     log.error("Connection timeout");
@@ -1032,7 +1049,6 @@ public class PooledDriver extends DriverBase {
             log.error("Error", e);
             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
         }
-
         return false;
     }
 
@@ -1114,19 +1130,16 @@ public class PooledDriver extends DriverBase {
 
                 return new Doc();
             }
-
             public UpdateBulkRequest addUpdateBulkRequest() {
                 UpdateBulkRequest up = new UpdateBulkRequest();
                 requests.add(up);
                 return up;
             }
-
             public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object >> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
             }
-
             public DeleteBulkRequest addDeleteBulkRequest() {
                 DeleteBulkRequest del = new DeleteBulkRequest();
                 requests.add(del);
