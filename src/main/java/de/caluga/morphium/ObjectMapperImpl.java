@@ -215,6 +215,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         }
     }
 
+    public AnnotationAndReflectionHelper getARHelper() {
+        return annotationHelper;
+    }
     @SuppressWarnings("CommentedOutCode")
     public Object marshallIfNecessary(Object o) {
         if (o == null) {
@@ -458,7 +461,6 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                                     lst.add(null);
                                 }
                             }
-
                             v = lst;
                         } else if (Map.class.isAssignableFrom(fld.getType())) {
                             //trying to store references

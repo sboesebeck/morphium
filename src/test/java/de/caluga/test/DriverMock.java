@@ -25,6 +25,24 @@ public class DriverMock implements MorphiumDriver {
 
 
     @Override
+    public int getLocalThreshold() {
+        return 0;
+    }
+
+    @Override
+    public int getServerSelectionTimeout() {
+        return 0;
+    }
+
+    @Override
+    public void setLocalThreshold(int threshold) {
+    }
+
+    @Override
+    public void setServerSelectionTimeout(int timeoutInMS) {
+    }
+
+    @Override
     public int getCompression() {
         return 0;
     }

@@ -3,9 +3,9 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumConfig.CappedCheck;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
@@ -28,8 +28,9 @@ public class TailableQueryTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void tailableTest(Morphium m) throws Exception {
-        var orig=m.getConfig().getCappedCheck();
+        var orig = m.getConfig().getCappedCheck();
         m.getConfig().setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
+
         try (m) {
             Morphium m2 = m;
 
@@ -46,7 +47,7 @@ public class TailableQueryTests extends MultiDriverTestBase {
             m.store(o);
             m.store(new CappedCol("Test 2", 2));
             Thread.sleep(100);
-            new Thread(()->{
+            new Thread(()-> {
                 Query<CappedCol> q = m.createQueryFor(CappedCol.class);
                 q.tail(10, 0, new AsyncCallbackAdapter<>() {
                     @Override
@@ -67,9 +68,10 @@ public class TailableQueryTests extends MultiDriverTestBase {
             log.info("Stored... waiting for event");
             TestUtils.waitForConditionToBecomeTrue(2500, "3rd result not coming in", ()->found.get() == 3);
 
-            if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)){
+            if (m.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
                 m2.close();
             }
+
             m.getConfig().setCappedCheck(orig);
         }
     }

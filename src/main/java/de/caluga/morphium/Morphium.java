@@ -14,6 +14,7 @@ import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.cache.MorphiumCacheImpl;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.*;
 import de.caluga.morphium.driver.commands.*;
 import de.caluga.morphium.driver.commands.ExplainCommand.ExplainVerbosity;
@@ -29,7 +30,6 @@ import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
-import de.caluga.morphium.replicaset.RSMonitor;
 import de.caluga.morphium.validation.JavaxValidationStorageListener;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
@@ -95,7 +95,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private AnnotationAndReflectionHelper annotationHelper;
     private MorphiumObjectMapper objectMapper;
     private EncryptionKeyProvider encryptionKeyProvider;
-    private RSMonitor rsMonitor;
     private ThreadPoolExecutor asyncOperationsThreadPool;
     private MorphiumDriver morphiumDriver;
 
@@ -349,8 +348,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             morphiumDriver.setMaxConnectionLifetime(getConfig().getMaxConnectionLifeTime());
             morphiumDriver.setMaxWaitTime(getConfig().getMaxWaitTime());
             morphiumDriver.setIdleSleepTime(getConfig().getIdleSleepTime());
-            morphiumDriver.setUseSSL(getConfig().isUseSSL());
             morphiumDriver.setCompression(getConfig().getCompressionType().getCode());
+            morphiumDriver.setDefaultBatchSize(getConfig().getCursorBatchSize());
+            morphiumDriver.setHeartbeatFrequency(getConfig().getHeartbeatFrequency());
 
             if (getConfig().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
                 throw new RuntimeException("Error - no server address specified!");
@@ -512,8 +512,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             }
         }
 
-        if (!getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.NO_CHECK) && (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP) ||
-            getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP))) {
+        if (!getConfig().getIndexCheck().equals(IndexCheck.NO_CHECK) && (getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_STARTUP) ||
+            getConfig().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP))) {
             Map<Class<?>, List<IndexDescription >> missing = checkIndices(classInfo->!classInfo.getPackageName().startsWith("de.caluga.morphium"));
             if (missing != null && !missing.isEmpty()) {
                 for (Class<?> cls : missing.keySet()) {
@@ -524,9 +524,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         }
 
                         try {
-                            if (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.WARN_ON_STARTUP)) {
+                            if (getConfig().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP)) {
                                 log.warn("Missing indices for entity " + cls.getName() + ": " + missing.get(cls).size());
-                            } else if (getConfig().getIndexCheck().equals(MorphiumConfig.IndexCheck.CREATE_ON_STARTUP)) {
+                            } else if (getConfig().getIndexCheck().equals(IndexCheck.CREATE_ON_STARTUP)) {
                                 log.warn("Creating missing indices for entity " + cls.getName());
                                 // noinspection unchecked
                                 ensureIndicesFor(cls);
@@ -1442,7 +1442,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (isReplicaSet() && w > 2) {
             var hostSeed = getDriver().getHostSeed(); //list of available hosts
-            // de.caluga.morphium.replicaset.ReplicaSetStatus s = rsMonitor.getCurrentStatus();
+            // de.caluga.morphium.replicaset.ReplicaSetStatus s = RsMonitor.getCurrentStatus();
 
             if (log.isDebugEnabled()) {
                 log.debug("Active nodes now: " + hostSeed.size());
@@ -2532,11 +2532,6 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         }
 
         asyncOperationsThreadPool = null;
-
-        if (rsMonitor != null) {
-            rsMonitor.terminate();
-            rsMonitor = null;
-        }
 
         if (config != null) {
             getConfig().getAsyncWriter().close();

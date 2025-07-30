@@ -55,6 +55,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private boolean retryWrites = true;
     private int readTimeout = 30000;
     private int compressionType = 0;
+    private int localThreshold = -1;
 
     private ThreadLocal<MorphiumTransactionContext> transactionContext = new ThreadLocal<>();
 
@@ -596,4 +597,72 @@ public abstract class DriverBase implements MorphiumDriver {
 
 
     public abstract boolean isCapped(String db, String coll) throws MorphiumDriverException;
+
+    public Logger getLog() {
+        return log;
+    }
+
+    public AtomicInteger getRqid() {
+        return rqid;
+    }
+
+    public void setRqid(AtomicInteger rqid) {
+        this.rqid = rqid;
+    }
+
+    public int getMaxWait() {
+        return maxWait;
+    }
+
+    public void setMaxWait(int maxWait) {
+        this.maxWait = maxWait;
+    }
+
+    public ReadPreference getDefaultRP() {
+        return defaultRP;
+    }
+
+    public void setDefaultRP(ReadPreference defaultRP) {
+        this.defaultRP = defaultRP;
+    }
+
+    public int getSleepBetweenRetries() {
+        return sleepBetweenRetries;
+    }
+
+    public void setSleepBetweenRetries(int sleepBetweenRetries) {
+        this.sleepBetweenRetries = sleepBetweenRetries;
+    }
+
+    public void setHostSeed(Set<String> hostSeed) {
+        this.hostSeed = hostSeed;
+    }
+
+    public int getBatchSize() {
+        return batchSize;
+    }
+
+    public void setBatchSize(int batchSize) {
+        this.batchSize = batchSize;
+    }
+
+    public int getCompressionType() {
+        return compressionType;
+    }
+
+    public void setCompressionType(int compressionType) {
+        this.compressionType = compressionType;
+    }
+
+    public int getLocalThreshold() {
+        return localThreshold;
+    }
+
+    public void setLocalThreshold(int localThreshold) {
+        this.localThreshold = localThreshold;
+    }
+
+    public void setTransactionContext(ThreadLocal<MorphiumTransactionContext> transactionContext) {
+        this.transactionContext = transactionContext;
+    }
 }

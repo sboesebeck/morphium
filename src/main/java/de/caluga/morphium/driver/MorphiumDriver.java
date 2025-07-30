@@ -59,6 +59,8 @@ public interface MorphiumDriver extends Closeable {
     void setDefaultWriteTimeout(int wt);
 
     int getMaxWaitTime();
+    int getServerSelectionTimeout();
+    void setServerSelectionTimeout(int timeoutInMS);
 
     void setMaxWaitTime(int maxWaitTime);
 
@@ -259,6 +261,8 @@ public interface MorphiumDriver extends Closeable {
     BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc);
 
     Map<DriverStatsKey, Double> getDriverStats();
+    void setLocalThreshold(int threshold);
+    int getLocalThreshold();
 
 
     enum DriverStatsKey {

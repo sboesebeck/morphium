@@ -57,6 +57,7 @@ public class PooledDriver extends DriverBase {
     private long fastestTime = 10000;
     private int idleSleepTime = 5;
     private String fastestHost = null;
+    private Map<String, Long> pingTimesPerHost = new ConcurrentHashMap<>();
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
     private String primaryNode;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5, Thread.ofVirtual().name("MCon-", 0).factory());
@@ -107,6 +108,7 @@ public class PooledDriver extends DriverBase {
     @Override
     public synchronized void removeFromHostSeed(String host) {
         super.removeFromHostSeed(host);
+        pingTimesPerHost.remove(host);
 
         if (getNumHostsInSeed() == 0) {
             if (lastHostsFromHello == null) {
@@ -361,6 +363,7 @@ public class PooledDriver extends DriverBase {
                                     fastestHost = hst;
                                 }
 
+                                pingTimesPerHost.put(hst, dur);
                                 // container.touch();
                                 handleHelloResult(result, getHost(hst) + ":" + getPortFromHost(hst));
 
@@ -623,7 +626,17 @@ public class PooledDriver extends DriverBase {
             switch (type) {
                 case PRIMARY:
                     if (primaryNode == null) {
-                        throw new MorphiumDriverException("No primary node defined - not connected yet?");
+                        if (getServerSelectionTimeout() > 0) {
+                            try {
+                                Thread.sleep(getServerSelectionTimeout());
+                            } catch (InterruptedException e) {
+                                //swallow
+                            }
+                        }
+
+                        if (primaryNode == null) {
+                            throw new MorphiumDriverException("No primary node defined - not connected yet?");
+                        }
                     }
 
                     return borrowConnection(primaryNode);
@@ -678,7 +691,15 @@ public class PooledDriver extends DriverBase {
                                 }
                             }
 
-                            host = hostSeed.get(lastSecondaryNode.get());
+                            if (getLocalThreshold() > 0) {
+                                if (!pingTimesPerHost.containsValue(host) || pingTimesPerHost.containsKey(host) && pingTimesPerHost.get(host) <= fastestTime + getLocalThreshold()) {
+                                    host = hostSeed.get(lastSecondaryNode.get());
+                                } else {
+                                    continue;
+                                }
+                            } else {
+                                host = hostSeed.get(lastSecondaryNode.get());
+                            }
                         }
 
                         try {

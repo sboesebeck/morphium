@@ -18,10 +18,10 @@ import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
-import de.caluga.morphium.MorphiumConfig.CappedCheck;
-import de.caluga.morphium.MorphiumConfig.IndexCheck;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamListener;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.messaging.MessageListener;
@@ -173,7 +173,6 @@ public class MorphiumServerTest {
                     return null;
                 }
             });
-
             long start = System.currentTimeMillis();
             msg1.sendMessage(new Msg("tstmsg", "hello", "value"));
 
@@ -221,7 +220,6 @@ public class MorphiumServerTest {
                     return null;
                 }
             });
-
             long start = System.currentTimeMillis();
             msg1.sendMessage(new Msg("tstmsg", "hello", "value"));
 
@@ -315,7 +313,6 @@ public class MorphiumServerTest {
                     return null;
                 }
             });
-
             long start = System.currentTimeMillis();
 
             for (int i = 0; i < 100; i++) {

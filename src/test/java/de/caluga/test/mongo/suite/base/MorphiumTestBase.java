@@ -161,9 +161,6 @@ public class MorphiumTestBase {
                 cfg.setThreadPoolMessagingCoreSize(50);
                 cfg.setThreadPoolMessagingMaxSize(1500);
                 cfg.setThreadPoolMessagingKeepAliveTime(10000);
-                cfg.setGlobalFsync(false);
-                cfg.setGlobalJ(false);
-                cfg.setGlobalW(1);
                 cfg.setCheckForNew(true);
                 //            cfg.setMongoAdminUser("adm");
                 //            cfg.setMongoAdminPwd("adm");

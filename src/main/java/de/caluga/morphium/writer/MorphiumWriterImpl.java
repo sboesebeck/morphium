@@ -26,8 +26,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import de.caluga.morphium.Collation;
 import de.caluga.morphium.IndexDescription;
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.MorphiumConfig.CappedCheck;
-import de.caluga.morphium.MorphiumConfig.IndexCheck;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.StatisticKeys;
@@ -42,6 +40,8 @@ import de.caluga.morphium.annotations.LastChange;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
@@ -127,10 +127,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             executor = new ThreadPoolExecutor(
-                core, 
-                max, 
-                60L, 
-                TimeUnit.SECONDS, 
+                core,
+                max,
+                60L,
+                TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(),
                 Thread.ofVirtual().name("writer-", 0).factory()
             );
@@ -207,7 +207,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 public void setCallback(AsyncOperationCallback cb) {
                     callback = cb;
                 }
-
                 @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
@@ -251,7 +250,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                             morphium.inc(StatisticKeys.WRITES);
                         }
-
                         checkIndexAndCaps(lst.get(0).getClass(), collectionName, callback);
                         long start = System.currentTimeMillis();
                         // int cnt = 0;
@@ -260,7 +258,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         for (Object o : lst) {
                             dbLst.add(morphium.getMapper().serialize(o));
                         }
-
                         // long dur = System.currentTimeMillis() - start;
                         // WriteAccessType.BULK_UPDATE);
                         // start = System.currentTimeMillis();
@@ -301,7 +298,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 settings.releaseConnection();
                             }
                         }
-
                         // dur = System.currentTimeMillis() - start;
                         List<Class> cleared = new ArrayList<>();
 
@@ -313,7 +309,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             cleared.add(o.getClass());
                             morphium.getCache().clearCacheIfNecessary(o.getClass());
                         }
-
                         morphium.firePostStore(isNew);
 
                         if (callback != null) {
@@ -333,7 +328,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     }
                 }
             };
-
             submitAndBlockIfNecessary(callback, r);
         }
     }
@@ -429,7 +423,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 public void setCallback(AsyncOperationCallback cb) {
                     callback = cb;
                 }
-
                 @SuppressWarnings("CommentedOutCode")
                 @Override
                 public void run() {
@@ -476,7 +469,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 toUpdate.get(o.getClass()).add(morphium.getMapper().serialize(o));
                             }
                         }
-
                         for (Map.Entry<Class, List<Map<String, Object>>> es : toUpdate.entrySet()) {
                             Class c = es.getKey();
                             // bulk insert... check if something already exists
@@ -527,7 +519,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                 }
                             }
                         }
-
                         for (Map.Entry<Class, List<Map<String, Object>>> es : newElementsToInsert.entrySet()) {
                             Class c = es.getKey();
                             // bulk insert... check if something already exists
@@ -546,7 +537,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             checkIndexAndCaps(c, coll, null);
                             long start = System.currentTimeMillis();
                             InsertMongoCommand insert = null;
-
                             try {
                                 var con = morphium.getDriver().getPrimaryConnection(wc);
                                 insert = new InsertMongoCommand(con);
@@ -572,7 +562,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                                     insert.releaseConnection();
                                 }
                             }
-
                             // morphium.getDriver().getConnection().insert(morphium.getConfig().getDatabase(),
                             // coll, es.getValue(), wc);
                             morphium.getCache().clearCacheIfNecessary(c);
@@ -582,36 +571,31 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                             // c, toUpdate, dur, true, WriteAccessType.BULK_INSERT);
                             // null because key changed => mongo _id
                         }
-
                         if (callback != null) {
                             callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                         }
-
                         lst.forEach(record-> {                                // null because key changed => mongo
                             // _id
                             morphium.firePostStore(record, true);
                         });
-                    } catch (Exception e) {
+                    }
+
+                    catch (Exception e) {
                         if (e instanceof RuntimeException) {
                             throw(RuntimeException) e;
                         }
-
                         if (callback == null) {
                             if (e instanceof RuntimeException) {
                                 throw(RuntimeException) e;
                             }
-
                             throw new RuntimeException(e);
                         }
-
                         callback.onOperationError(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, e.getMessage(), e, null, lst);
                     }
-
                     // System.out.println(System.currentTimeMillis()+" -
                     // finish" );
                 }
             };
-
             submitAndBlockIfNecessary(callback, r);
         }
     }
@@ -949,7 +933,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1090,7 +1073,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1103,23 +1085,19 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public void run() {
                 HashMap<Class<T>, List<Query<T>>> sortedMap = new HashMap<>();
-
                 for (T o : lst) {
                     if (sortedMap.get(o.getClass()) == null) {
                         @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
                         List<Query<T>> queries = new ArrayList<>();
                         sortedMap.put((Class<T>) o.getClass(), queries);
                     }
-
                     Query<T> q = (Query<T>) morphium.createQueryFor(o.getClass());
                     q.f(morphium.getARHelper().getIdFieldName(o)).eq(morphium.getARHelper().getId(o));
                     sortedMap.get(o.getClass()).add(q);
                 }
-
                 morphium.firePreRemove(lst);
                 long start = System.currentTimeMillis();
 
@@ -1145,7 +1123,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1190,12 +1167,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public void run() {
                 morphium.firePreRemoveEvent(q);
@@ -1253,7 +1228,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1297,7 +1271,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public void run() {
                 Object id = morphium.getARHelper().getId(o);
@@ -1351,7 +1324,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1374,7 +1346,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1489,7 +1460,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1526,12 +1496,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public Map getReturnObject() {
                 return ret;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1609,7 +1577,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1657,12 +1624,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1763,7 +1728,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -1854,12 +1818,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -1964,12 +1926,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -2046,7 +2006,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2097,7 +2056,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 doUpdate(cls, toSet, coll, field, query, f, update, wc);
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2137,7 +2095,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 doUpdate(cls, obj, coll, field, query, f, update, wc);
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2156,12 +2113,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @Override
             public void run() {
                 Class<?> cls = query.getType();
@@ -2229,7 +2184,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2346,12 +2300,10 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             public Map getReturnObject() {
                 return ret;
             }
-
             @Override
             public void setCallback(AsyncOperationCallback cb) {
                 callback = cb;
             }
-
             @SuppressWarnings("CommentedOutCode")
             @Override
             public void run() {
@@ -2478,7 +2430,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 }
             }
         };
-
         return submitAndBlockIfNecessary(callback, r);
     }
 
@@ -2489,7 +2440,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 @Override
                 public void setCallback(AsyncOperationCallback cb) {
                 }
-
                 public void run() {
                     morphium.firePreDrop(cls);
                     long start = System.currentTimeMillis();
@@ -2524,7 +2474,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     morphium.firePostDropEvent(cls);
                 }
             };
-
             submitAndBlockIfNecessary(callback, r);
         } else {
             throw new RuntimeException("No entity class: " + cls.getName());
@@ -2537,7 +2486,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             @Override
             public void setCallback(AsyncOperationCallback cb) {
             }
-
             @Override
             public void run() {
                 List<String> fields = morphium.getARHelper().getFields(cls);
@@ -2595,7 +2543,6 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 // cls, keys, dur, false, WriteAccessType.ENSURE_INDEX);
             }
         };
-
         submitAndBlockIfNecessary(callback, r);
     }
 

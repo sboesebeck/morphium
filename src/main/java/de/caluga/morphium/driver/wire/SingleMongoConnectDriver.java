@@ -55,6 +55,17 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
  */
 public class SingleMongoConnectDriver extends DriverBase {
 
+    @Override
+    public int getServerSelectionTimeout() {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
+    public void setServerSelectionTimeout(int timeoutInMS) {
+        // TODO Auto-generated method stub
+    }
+
     private ScheduledFuture<?> heartbeat;
     public static final String driverName = "SingleMongoConnectDriver";
 
@@ -602,19 +613,16 @@ public class SingleMongoConnectDriver extends DriverBase {
 
                 return new Doc();
             }
-
             public UpdateBulkRequest addUpdateBulkRequest() {
                 UpdateBulkRequest up = new UpdateBulkRequest();
                 requests.add(up);
                 return up;
             }
-
             public InsertBulkRequest addInsertBulkRequest(List<Map<String, Object>> toInsert) {
                 InsertBulkRequest in = new InsertBulkRequest(toInsert);
                 requests.add(in);
                 return in;
             }
-
             public DeleteBulkRequest addDeleteBulkRequest() {
                 DeleteBulkRequest del = new DeleteBulkRequest();
                 requests.add(del);
@@ -677,7 +685,6 @@ public class SingleMongoConnectDriver extends DriverBase {
                 if (reply.getFirstDoc().containsKey("results")) {
                     return (List<Map<String, Object>>) reply.getFirstDoc().get("results");
                 }
-
                 throw new MorphiumDriverException("Mongo Error: " + reply.getFirstDoc().get("codeName") + " - " + reply.getFirstDoc().get("errmsg"));
             }
 

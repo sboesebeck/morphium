@@ -125,6 +125,15 @@ import io.github.classgraph.ScanResult;
 public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Logger log = LoggerFactory.getLogger(InMemoryDriver.class);
     public final static String driverName = "InMemDriver";
+    @Override
+    public int getLocalThreshold() {
+        return 0;
+    }
+
+    @Override
+    public void setLocalThreshold(int threshold) {
+    }
+
     // DBName => Collection => List of documents
     private final Map<String, Map<String, List<Map<String, Object >> >> database = new ConcurrentHashMap<>();
     private int idleSleepTime = 20;

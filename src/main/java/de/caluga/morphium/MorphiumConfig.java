@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -21,6 +22,17 @@ import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
+import de.caluga.morphium.config.CacheSettings;
+import de.caluga.morphium.config.CollectionCheckSettings;
+import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
+import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
+import de.caluga.morphium.config.ConnectionSettings;
+import de.caluga.morphium.config.DriverSettings;
+import de.caluga.morphium.config.EncryptionSettings;
+import de.caluga.morphium.config.MessagingSettings;
+import de.caluga.morphium.config.ObjectMappingSettings;
+import de.caluga.morphium.config.ThreadPoolSettings;
+import de.caluga.morphium.config.WriterSettings;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
@@ -31,6 +43,7 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.Messaging;
 import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.ecc.ECCrypt;
 import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.writer.AsyncWriterImpl;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
@@ -49,18 +62,33 @@ public class MorphiumConfig {
     private Map<String, Object> restoreData;
 
 
+    private MessagingSettings messagingSettings = new MessagingSettings();
+    private CollectionCheckSettings collectionCheckSettings = new CollectionCheckSettings();
+    private ConnectionSettings connectionSettings = new ConnectionSettings();
+    private DriverSettings driverSettings = new DriverSettings();
+    private EncryptionSettings encryptionSettings = new EncryptionSettings();
+    private ObjectMappingSettings objectMappingSettings = new ObjectMappingSettings();
+    private ThreadPoolSettings threadPoolSettings = new ThreadPoolSettings();
+    private WriterSettings writerSettings = new WriterSettings();
+    private CacheSettings cacheSettings = new CacheSettings();
 
 
-
-    private int cursorBatchSize = 1000;
 
 
     public boolean isMessagingStatusInfoListenerEnabled() {
-        return messagingStatusInfoListenerEnabled;
+        return messagingSettings.isMessagingStatusInfoListenerEnabled();
     }
 
-    public void setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
-        this.messagingStatusInfoListenerEnabled = messagingStatusInfoListenerEnabled;
+    public MorphiumConfig setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
+        this.messagingSettings.setMessagingStatusInfoListenerEnabled(messagingStatusInfoListenerEnabled);
+        return this;
+    }
+    public String getMessagingStatusInfoListenerName() {
+        return messagingSettings.getMessagingStatusInfoListenerName();
+    }
+    public MorphiumConfig setMessagingStatusInfoListenerName(String name) {
+        messagingSettings.setMessagingStatusInfoListenerName(name);
+        return this;
     }
 
     public MorphiumConfig(final Properties prop) {
@@ -123,7 +151,7 @@ public class MorphiumConfig {
             }
         }
 
-        if (hostSeed == null || hostSeed.isEmpty()) {
+        if (!connectionSettings.hostSeedIsSet()) {
             String lst = (String) resolver.resolveSetting(prefix + "hosts");
 
             if (lst != null) {
@@ -144,7 +172,7 @@ public class MorphiumConfig {
 
             if (resolver.resolveSetting(n) != null) {
                 LoggerFactory.getLogger(MorphiumConfig.class).error("not using driver_class - drivername is set {}", resolver.resolveSetting(n));
-                driverName = (String)resolver.resolveSetting(n);
+                driverSettings.setDriverName((String)resolver.resolveSetting(n));
                 return;
             }
 
@@ -154,13 +182,11 @@ public class MorphiumConfig {
                 s = resolver.resolveSetting(prefix + "driverClass");
             }
 
-            String name = driverName;
-
             try {
                 Class driverClass = Class.forName((String)s);
                 Method m = driverClass.getMethod("getName", null);
                 m.setAccessible(true);
-                driverName = (String)m.invoke(null);
+                driverSettings.setDriverName((String)m.invoke(null));
             } catch (Exception e) {
                 LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
             }
@@ -172,10 +198,10 @@ public class MorphiumConfig {
     }
 
     public MorphiumConfig(String db, int maxConnections, int globalCacheValidTime, int housekeepingTimeout) {
-        database = db;
-        this.maxConnections = maxConnections;
-        this.globalCacheValidTime = globalCacheValidTime;
-        this.housekeepingTimeout = housekeepingTimeout;
+        connectionSettings.setDatabase(db);
+        connectionSettings.setMaxConnections(maxConnections);
+        cacheSettings.setGlobalCacheValidTime(globalCacheValidTime);
+        cacheSettings.setHousekeepingTimeout(housekeepingTimeout);
     }
 
     public static List<String> getPropertyNames(String prefix) {
@@ -214,11 +240,11 @@ public class MorphiumConfig {
     }
 
     public int getMessagingWindowSize() {
-        return messagingWindowSize;
+        return messagingSettings.getMessagingWindowSize();
     }
 
     public void setMessagingWindowSize(int messagingWindowSize) {
-        this.messagingWindowSize = messagingWindowSize;
+        messagingSettings.setMessagingWindowSize(messagingWindowSize);
     }
 
     public static MorphiumConfig fromProperties(String prefix, Properties p) {
@@ -229,128 +255,97 @@ public class MorphiumConfig {
         return new MorphiumConfig(p);
     }
 
-    public boolean isAtlas() {
-        return atlasUrl != null;
-    }
-
-    public String getAtlasUrl() {
-        return atlasUrl;
-    }
-
-    public void setAtlasUrl(String atlasUrl) {
-        this.atlasUrl = atlasUrl;
-    }
 
     public boolean isReplicaset() {
-        return replicaset;
+        return connectionSettings.isReplicaset();
     }
 
     public CompressionType getCompressionType() {
-        return compressionType;
+        return driverSettings.getCompressionType();
     }
 
     public MorphiumConfig setCompressionType(CompressionType t) {
-        compressionType = t;
+        driverSettings.setCompressionType(t);
         return this;
     }
 
     public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
-        this.replicaset = replicaset;
+        connectionSettings.setReplicaset(replicaset);
         return this;
     }
 
     public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
-        return valueEncryptionProviderClass;
+        return encryptionSettings.getValueEncryptionProviderClass();
     }
 
     public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
-        this.valueEncryptionProviderClass = valueEncryptionProviderClass;
+        encryptionSettings.setValueEncryptionProviderClass(valueEncryptionProviderClass);
         return this;
     }
 
     public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
-        return encryptionKeyProviderClass;
+        return encryptionSettings.getEncryptionKeyProviderClass();
     }
 
-    public void setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
-        this.encryptionKeyProviderClass = encryptionKeyProviderClass;
+    public MorphiumConfig setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
+        encryptionSettings.setEncryptionKeyProviderClass(encryptionKeyProviderClass);
+        return this;
     }
 
     public String getCredentialsEncryptionKey() {
-        return credentialsEncryptionKey;
+        return encryptionSettings.getCredentialsEncryptionKey();
     }
 
     public MorphiumConfig setCredentialsEncryptionKey(String credentialsEncryptionKey) {
-        this.credentialsEncryptionKey = credentialsEncryptionKey;
+        encryptionSettings.setCredentialsEncryptionKey(credentialsEncryptionKey);
         return this;
     }
 
     public String getCredentialsDecryptionKey() {
-        return credentialsDecryptionKey;
+        return encryptionSettings.getCredentialsDecryptionKey();
     }
 
     public MorphiumConfig setCredentialsDecryptionKey(String credentialsDecryptionKey) {
-        this.credentialsDecryptionKey = credentialsDecryptionKey;
+        encryptionSettings.setCredentialsDecryptionKey(credentialsDecryptionKey);
         return this;
     }
 
     public String getDriverName() {
-        return driverName;
+        return driverSettings.getDriverName();
     }
 
 
     public MorphiumConfig setDriverName(String driverName) {
-        if (driverName != null) {
-            this.driverName = driverName;
-        }
-
+        driverSettings.setDriverName(driverName);
         return this;
     }
 
-    public MorphiumConfig setDriverClass(String cls) {
-        if (cls.equals(InMemoryDriver.class.getName())) {
-            driverName = InMemoryDriver.driverName;
-        } else {
-            throw new IllegalArgumentException("Cannot set driver class " + cls + " - please use setDriverName with the proper name.");
-        }
-
-        return this;
-    }
-    public String getMessagingImplementation() {
-        return messagingImplementation;
-    }
-    public MorphiumConfig setMessagingImplementation(String impl) {
-        if (impl != null) {
-            messagingImplementation = impl;
-        }
-
-        return this;
-    }
 
     public boolean isAutoIndexAndCappedCreationOnWrite() {
-        return indexCheck.equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
+        return collectionCheckSettings.getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
     }
 
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
-            indexCheck = IndexCheck.CREATE_ON_WRITE_NEW_COL;
+            collectionCheckSettings.setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
         } else {
-            indexCheck = IndexCheck.NO_CHECK;
+            collectionCheckSettings.setIndexCheck(IndexCheck.NO_CHECK);
         }
 
         return this;
     }
 
     public boolean isWarnOnNoEntitySerialization() {
-        return warnOnNoEntitySerialization;
+        return objectMappingSettings.isWarnOnNoEntitySerialization();
     }
 
-    public void setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
-        this.warnOnNoEntitySerialization = warnOnNoEntitySerialization;
+    public MorphiumConfig setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
+        objectMappingSettings.setWarnOnNoEntitySerialization(warnOnNoEntitySerialization);
+        return this;
     }
 
     public boolean isCheckForNew() {
-        return checkForNew;
+        return objectMappingSettings.isCheckForNew();
     }
 
     /**
@@ -363,141 +358,84 @@ public class MorphiumConfig {
      * @param checkForNew boolean, check if object is really not stored yet
      */
     public MorphiumConfig setCheckForNew(boolean checkForNew) {
-        this.checkForNew = checkForNew;
+        objectMappingSettings.setCheckForNew(checkForNew);
         return this;
     }
 
     public int getRetriesOnNetworkError() {
-        return retriesOnNetworkError;
+        return connectionSettings.getRetriesOnNetworkError();
     }
 
     public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
-        if (retriesOnNetworkError == 0) {
-            LoggerFactory.getLogger(MorphiumConfig.class).warn("Cannot set retries on network error to 0 - minimum is 1");
-            retriesOnNetworkError = 1;
-        }
-
-        this.retriesOnNetworkError = retriesOnNetworkError;
+        connectionSettings.setRetriesOnNetworkError(retriesOnNetworkError);
         return this;
     }
 
     public int getSleepBetweenNetworkErrorRetries() {
-        return sleepBetweenNetworkErrorRetries;
+        return connectionSettings.getSleepBetweenNetworkErrorRetries();
     }
 
     public MorphiumConfig setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
-        this.sleepBetweenNetworkErrorRetries = sleepBetweenNetworkErrorRetries;
+        connectionSettings.setSleepBetweenNetworkErrorRetries(sleepBetweenNetworkErrorRetries);
         return this;
     }
 
-    public int getReplicaSetMonitoringTimeout() {
-        return replicaSetMonitoringTimeout;
-    }
-
-    public MorphiumConfig setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
-        this.replicaSetMonitoringTimeout = replicaSetMonitoringTimeout;
-        return this;
-    }
 
     public int getWriteBufferTimeGranularity() {
-        return writeBufferTimeGranularity;
+        return writerSettings.getWriteBufferTimeGranularity();
     }
 
     public MorphiumConfig setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
-        this.writeBufferTimeGranularity = writeBufferTimeGranularity;
+        writerSettings.setWriteBufferTimeGranularity(writeBufferTimeGranularity);
         return this;
     }
 
     public MorphiumCache getCache() {
-        return cache;
+        return cacheSettings.getCache();
     }
 
     public MorphiumConfig setCache(MorphiumCache cache) {
-        this.cache = cache;
+        cacheSettings.setCache(cache);
         return this;
     }
 
     public int getWriteBufferTime() {
-        return writeBufferTime;
+        return writerSettings.getWriteBufferTime();
     }
 
     public MorphiumConfig setWriteBufferTime(int writeBufferTime) {
-        this.writeBufferTime = writeBufferTime;
+        writerSettings.setWriteBufferTime(writeBufferTime);
         return this;
     }
-
-    public int getGlobalW() {
-        return globalW;
-    }
-
-    public MorphiumConfig setGlobalW(int globalW) {
-        this.globalW = globalW;
-        return this;
-    }
-
-    public int getThreadConnectionMultiplier() {
-        return threadConnectionMultiplier;
-    }
-
-    public void setThreadConnectionMultiplier(int threadConnectionMultiplier) {
-        this.threadConnectionMultiplier = threadConnectionMultiplier;
-    }
-
-    public boolean isGlobalJ() {
-        return globalJ;
-    }
-
-    public MorphiumConfig setGlobalJ(boolean globalJ) {
-        this.globalJ = globalJ;
-        return this;
-    }
-
-    public boolean isGlobalFsync() {
-        return globalFsync;
-    }
-
-    public MorphiumConfig setGlobalFsync(boolean globalFsync) {
-        this.globalFsync = globalFsync;
-        return this;
-    }
-
     public MorphiumWriter getBufferedWriter() {
-        if (bufferedWriter == null) {
-            bufferedWriter = new BufferedMorphiumWriterImpl();
-        }
-
-        return bufferedWriter;
+        return writerSettings.getBufferedWriter();
     }
 
     public MorphiumConfig setBufferedWriter(MorphiumWriter bufferedWriter) {
-        this.bufferedWriter = bufferedWriter;
+        writerSettings.setBufferedWriter(bufferedWriter);
         return this;
     }
 
     public MorphiumWriter getWriter() {
-        if (writer == null) {
-            writer = new MorphiumWriterImpl();
-        }
-
-        return writer;
+        return writerSettings.getWriter();
     }
 
     public MorphiumConfig setWriter(MorphiumWriter writer) {
-        this.writer = writer;
+        writerSettings.setWriter(writer);
         return this;
     }
 
     public int getConnectionTimeout() {
-        return connectionTimeout;
+        return connectionSettings.getConnectionTimeout();
     }
 
     public MorphiumConfig setConnectionTimeout(int connectionTimeout) {
-        this.connectionTimeout = connectionTimeout;
+        connectionSettings.setConnectionTimeout(connectionTimeout);
         return this;
     }
 
     public int getMaxWaitTime() {
-        return maxWaitTime;
+        return connectionSettings.getMaxWaitTime();
     }
 
     /**
@@ -507,12 +445,12 @@ public class MorphiumConfig {
      * @return {@code this}
      */
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
-        this.maxWaitTime = maxWaitTime;
+        connectionSettings.setMaxWaitTime(maxWaitTime);
         return this;
     }
 
     public int getServerSelectionTimeout() {
-        return serverSelectionTimeout;
+        return driverSettings.getServerSelectionTimeout();
     }
 
     /**
@@ -531,112 +469,112 @@ public class MorphiumConfig {
      * @return {@code this}
      */
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
-        this.serverSelectionTimeout = serverSelectionTimeout;
+        driverSettings.setServerSelectionTimeout(serverSelectionTimeout);
         return this;
     }
 
     public Boolean getCredentialsEncrypted() {
-        return credentialsEncrypted;
+        return encryptionSettings.getCredentialsEncrypted();
     }
 
     public MorphiumConfig setCredentialsEncrypted(Boolean credentialsEncrypted) {
-        this.credentialsEncrypted = credentialsEncrypted;
+        encryptionSettings.setCredentialsEncrypted(credentialsEncrypted);
         return this;
     }
 
     public String getMongoAuthDb() {
-        return mongoAuthDb;
+        return  driverSettings.getMongoPassword();
     }
 
-    public String decryptAuthDb() {
-        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-            return getMongoAuthDb();
-        }
+    // public String decryptAuthDb() {
+    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+    //         return getMongoAuthDb();
+    //     }
 
-        try {
-            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-            var authdb = "admin";
+    //     try {
+    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         var authdb = "admin";
 
-            if (getMongoAuthDb() != null) {
-                authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
-            }
+    //         if (getMongoAuthDb() != null) {
+    //             authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
+    //         }
 
-            return authdb;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    //         return authdb;
+    //     } catch (Exception e) {
+    //         throw new RuntimeException(e);
+    //     }
+    // }
 
-    public String decryptMongoLogin() {
-        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-            return getMongoLogin();
-        }
+    // public String decryptMongoLogin() {
+    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+    //         return getMongoLogin();
+    //     }
 
-        try {
-            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-            return new String(ve.decrypt(Base64.getDecoder().decode(getMongoLogin())));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    //     try {
+    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoLogin())));
+    //     } catch (Exception e) {
+    //         throw new RuntimeException(e);
+    //     }
+    // }
 
-    public String decryptMongoPassword() {
-        if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-            return getMongoLogin();
-        }
+    // public String decryptMongoPassword() {
+    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+    //         return getMongoLogin();
+    //     }
 
-        try {
-            var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-            ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-            ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-            return new String(ve.decrypt(Base64.getDecoder().decode(getMongoPassword())));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
+    //     try {
+    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+    //         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoPassword())));
+    //     } catch (Exception e) {
+    //         throw new RuntimeException(e);
+    //     }
+    // }
 
     public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
-        this.mongoAuthDb = mongoAuthDb;
+        driverSettings.setMongoAuthDb(mongoAuthDb);
         return this;
     }
 
     public String getMongoLogin() {
-        return mongoLogin;
+        return driverSettings.getMongoLogin();
     }
 
     public MorphiumConfig setMongoLogin(String mongoLogin) {
-        this.mongoLogin = mongoLogin;
+        driverSettings.setMongoLogin(mongoLogin);
         return this;
     }
 
     public String getMongoPassword() {
-        return mongoPassword;
+        return driverSettings.getMongoPassword();
     }
 
     public MorphiumConfig setMongoPassword(String mongoPassword) {
-        this.mongoPassword = mongoPassword;
+        driverSettings.setMongoPassword(mongoPassword);
         return this;
     }
 
     public ReadPreference getDefaultReadPreference() {
-        return defaultReadPreference;
+        return driverSettings.getDefaultReadPreference();
     }
 
     public MorphiumConfig setDefaultReadPreference(ReadPreference defaultReadPreference) {
-        this.defaultReadPreference = defaultReadPreference;
+        driverSettings.setDefaultReadPreference(defaultReadPreference);
         return this;
     }
 
     public String getDefaultReadPreferenceType() {
-        return defaultReadPreferenceType;
+        return driverSettings.getDefaultReadPreferenceType();
     }
 
     public MorphiumConfig setDefaultReadPreferenceType(String stringDefaultReadPreference) {
-        this.defaultReadPreferenceType = stringDefaultReadPreference;
+        driverSettings.setDefaultReadPreferenceType(stringDefaultReadPreference);
         ReadPreferenceType readPreferenceType;
 
         try {
@@ -651,113 +589,134 @@ public class MorphiumConfig {
 
         ReadPreference defaultReadPreference = new ReadPreference();
         defaultReadPreference.setType(readPreferenceType);
-        this.defaultReadPreference = defaultReadPreference;
+        driverSettings.setDefaultReadPreference(defaultReadPreference);
         return this;
     }
 
     public int getWriteCacheTimeout() {
-        return writeCacheTimeout;
+        return cacheSettings.getWriteCacheTimeout();
     }
 
     public MorphiumConfig setWriteCacheTimeout(int writeCacheTimeout) {
-        this.writeCacheTimeout = writeCacheTimeout;
+        cacheSettings.setWriteCacheTimeout(writeCacheTimeout);
         return this;
     }
 
+
+    public ConnectionSettings getConnectionSettings() {
+        return connectionSettings;
+    }
     /**
      * setting hosts as Host:Port
      *
      * @param str list of hosts, with or without port
      */
+    @Deprecated
     public MorphiumConfig setHostSeed(List<String> str) {
-        hostSeed = str;
+        connectionSettings.setHostSeed(str);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
-        hostSeed.clear();
-
-        for (int i = 0; i < str.size(); i++) {
-            String host = str.get(i).replaceAll(" ", "") + ":" + ports.get(i);
-            hostSeed.add(host);
-        }
-
+        connectionSettings.setHostSeed(str, ports);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public List<String> getHostSeed() {
-        return hostSeed;
+        return connectionSettings.getHostSeed();
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig setHostSeed(String... hostPorts) {
-        hostSeed.clear();
-
-        for (String h : hostPorts) {
-            addHostToSeed(h);
-        }
-
+        connectionSettings.setHostSeed(hostPorts);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig setHostSeed(String hostPorts) {
-        hostSeed.clear();
-        String[] h = hostPorts.split(",");
-
-        for (String host : h) {
-            addHostToSeed(host);
-        }
-
+        connectionSettings.setHostSeed(hostPorts);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig setHostSeed(String hosts, String ports) {
-        hostSeed.clear();
-        hosts = hosts.replaceAll(" ", "");
-        ports = ports.replaceAll(" ", "");
-        String[] h = hosts.split(",");
-        String[] p = ports.split(",");
-
-        for (int i = 0; i < h.length; i++) {
-            if (p.length < i) {
-                addHostToSeed(h[i], 27017);
-            } else {
-                addHostToSeed(h[i], Integer.parseInt(p[i]));
-            }
-        }
-
+        connectionSettings.setHostSeed(hosts, ports);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig addHostToSeed(String host, int port) {
-        host = host.replaceAll(" ", "") + ":" + port;
-
-        if (hostSeed == null) {
-            hostSeed = new ArrayList<>();
-        }
-
-        hostSeed.add(host);
+        connectionSettings.addHostToSeed(host, port);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig addHostToSeed(String host) {
-        host = host.replaceAll(" ", "");
-
-        if (host.contains(":")) {
-            String[] h = host.split(":");
-            addHostToSeed(h[0], Integer.parseInt(h[1]));
-        } else {
-            addHostToSeed(host, 27017);
-        }
-
+        connectionSettings.addHostToSeed(host);
         return this;
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public int getMaxConnections() {
-        return maxConnections;
+        return connectionSettings.getMaxConnections();
     }
 
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
     public MorphiumConfig setMaxConnections(int maxConnections) {
-        this.maxConnections = maxConnections;
+        connectionSettings.setMaxConnections(maxConnections);
+        return this;
+    }
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
+    public String getDatabase() {
+        return connectionSettings.getDatabase();
+    }
+
+    /**
+     * @Deprecated use getConnectionSettings().METHOD
+     */
+    @Deprecated
+    public MorphiumConfig setDatabase(String database) {
+        connectionSettings.setDatabase(database);
+        return this;
+    }
+    public int getHousekeepingTimeout() {
+        return cacheSettings.getHousekeepingTimeout();
+    }
+
+    public MorphiumConfig setHousekeepingTimeout(int housekeepingTimeout) {
+        cacheSettings.setHousekeepingTimeout(housekeepingTimeout);
         return this;
     }
 
@@ -767,31 +726,15 @@ public class MorphiumConfig {
      * @return the global cache valid time
      */
     public int getGlobalCacheValidTime() {
-        return globalCacheValidTime;
+        return cacheSettings.getGlobalCacheValidTime();
     }
 
     public MorphiumConfig setGlobalCacheValidTime(int globalCacheValidTime) {
-        this.globalCacheValidTime = globalCacheValidTime;
+        cacheSettings.setGlobalCacheValidTime(globalCacheValidTime);
         return this;
     }
 
-    public String getDatabase() {
-        return database;
-    }
 
-    public MorphiumConfig setDatabase(String database) {
-        this.database = database;
-        return this;
-    }
-
-    public int getHousekeepingTimeout() {
-        return housekeepingTimeout;
-    }
-
-    public MorphiumConfig setHousekeepingTimeout(int housekeepingTimeout) {
-        this.housekeepingTimeout = housekeepingTimeout;
-        return this;
-    }
 
 
     /**
@@ -802,76 +745,94 @@ public class MorphiumConfig {
     @Override
     public String toString() {
         try {
+            var om = new ObjectMapperImpl();
+            om.getARHelper().enableConvertCamelCase();
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.putAll(om.serialize(cacheSettings));
+            data.putAll(om.serialize(connectionSettings));
+            data.putAll(om.serialize(encryptionSettings));
+            data.putAll(om.serialize(driverSettings));
+            data.putAll(om.serialize(writerSettings));
+            data.putAll(om.serialize(objectMappingSettings));
+            data.putAll(om.serialize(threadPoolSettings));
+            data.putAll(om.serialize(collectionCheckSettings));
+            data.putAll(om.serialize(messagingSettings));
             return Utils.toJsonString(new ObjectMapperImpl().serialize(this));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    public MorphiumWriter getAsyncWriter() {
-        if (asyncWriter == null) {
-            asyncWriter = new AsyncWriterImpl();
-        }
+    public MorphiumConfig setThreadConnectionMultiplier(int mp) {
+        writerSettings.setThreadConnectionMultiplier(mp);
+        return this;
+    }
 
-        return asyncWriter;
+    public int getThreadConnectionMultiplier() {
+        return writerSettings.getThreadConnectionMultiplier();
+    }
+
+
+    public MorphiumWriter getAsyncWriter() {
+        return writerSettings.getAsyncWriter();
     }
 
     public MorphiumConfig setAsyncWriter(MorphiumWriter asyncWriter) {
-        this.asyncWriter = asyncWriter;
+        writerSettings.setAsyncWriter(asyncWriter);
         return this;
     }
 
     public int getMaximumRetriesBufferedWriter() {
-        return maximumRetriesBufferedWriter;
+        return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
     public MorphiumConfig setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
-        this.maximumRetriesBufferedWriter = maximumRetriesBufferedWriter;
+        writerSettings.setMaximumRetriesBufferedWriter(maximumRetriesBufferedWriter);
         return this;
     }
 
     public int getMaximumRetriesWriter() {
-        return maximumRetriesWriter;
+        return writerSettings.getMaximumRetriesWriter();
     }
 
     public MorphiumConfig setMaximumRetriesWriter(int maximumRetriesWriter) {
-        this.maximumRetriesWriter = maximumRetriesWriter;
+        writerSettings.setMaximumRetriesWriter(maximumRetriesWriter);
         return this;
     }
 
     public int getMaximumRetriesAsyncWriter() {
-        return maximumRetriesAsyncWriter;
+        return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
     public MorphiumConfig setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
-        this.maximumRetriesAsyncWriter = maximumRetriesAsyncWriter;
+        writerSettings.setMaximumRetriesAsyncWriter(maximumRetriesAsyncWriter);
         return this;
     }
 
     public int getRetryWaitTimeBufferedWriter() {
-        return retryWaitTimeBufferedWriter;
+        return writerSettings.getRetryWaitTimeBufferedWriter();
     }
 
     public MorphiumConfig setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
-        this.retryWaitTimeBufferedWriter = retryWaitTimeBufferedWriter;
+        writerSettings.setRetryWaitTimeBufferedWriter(retryWaitTimeBufferedWriter);
         return this;
     }
 
     public int getRetryWaitTimeWriter() {
-        return retryWaitTimeWriter;
+        return writerSettings.getRetryWaitTimeWriter();
     }
 
     public MorphiumConfig setRetryWaitTimeWriter(int retryWaitTimeWriter) {
-        this.retryWaitTimeWriter = retryWaitTimeWriter;
+        writerSettings.setRetryWaitTimeWriter(retryWaitTimeWriter);
         return this;
     }
 
     public int getRetryWaitTimeAsyncWriter() {
-        return retryWaitTimeAsyncWriter;
+        return writerSettings.getRetryWaitTimeAsyncWriter();
     }
 
     public MorphiumConfig setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
-        this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
+        writerSettings.setRetryWaitTimeAsyncWriter(retryWaitTimeAsyncWriter);
         return this;
     }
 
@@ -938,170 +899,177 @@ public class MorphiumConfig {
     }
 
     public boolean isReadCacheEnabled() {
-        return readCacheEnabled;
+        return cacheSettings.isReadCacheEnabled();
     }
 
     public MorphiumConfig setReadCacheEnabled(boolean readCacheEnabled) {
-        this.readCacheEnabled = readCacheEnabled;
+        cacheSettings.setReadCacheEnabled(readCacheEnabled);
         return this;
     }
 
     public MorphiumConfig disableReadCache() {
-        this.readCacheEnabled = false;
+        cacheSettings.setReadCacheEnabled(false);
         return this;
     }
 
     public MorphiumConfig enableReadCache() {
-        this.readCacheEnabled = true;
+        cacheSettings.setReadCacheEnabled(true);
         return this;
     }
 
     public boolean isAsyncWritesEnabled() {
-        return asyncWritesEnabled;
+        return cacheSettings.isAsyncWritesEnabled();
     }
 
     public MorphiumConfig setAsyncWritesEnabled(boolean asyncWritesEnabled) {
-        this.asyncWritesEnabled = asyncWritesEnabled;
+        cacheSettings.setAsyncWritesEnabled(asyncWritesEnabled);
         return this;
     }
 
     public MorphiumConfig disableAsyncWrites() {
-        asyncWritesEnabled = false;
+        cacheSettings.setAsyncWritesEnabled(false);
         return this;
     }
 
     public MorphiumConfig enableAsyncWrites() {
-        asyncWritesEnabled = true;
+        cacheSettings.setAsyncWritesEnabled(true);
         return this;
     }
 
     public boolean isBufferedWritesEnabled() {
-        return bufferedWritesEnabled;
+        return cacheSettings.isBufferedWritesEnabled();
     }
 
     public MorphiumConfig setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
-        this.bufferedWritesEnabled = bufferedWritesEnabled;
+        cacheSettings.setBufferedWritesEnabled(bufferedWritesEnabled);
         return this;
     }
 
     public MorphiumConfig disableBufferedWrites() {
-        bufferedWritesEnabled = false;
+        cacheSettings.setBufferedWritesEnabled(false);
         return this;
     }
 
     public MorphiumConfig enableBufferedWrites() {
-        bufferedWritesEnabled = true;
+        cacheSettings.setBufferedWritesEnabled(true);
         return this;
     }
 
     public boolean isAutoValuesEnabled() {
-        return autoValues;
+        return objectMappingSettings.isAutoValues();
     }
 
     public MorphiumConfig setAutoValuesEnabled(boolean enabled) {
-        autoValues = enabled;
+        objectMappingSettings.setAutoValues(enabled);
         return this;
     }
 
     public MorphiumConfig enableAutoValues() {
-        autoValues = true;
+        objectMappingSettings.setAutoValues(true);
         return this;
     }
 
     public MorphiumConfig disableAutoValues() {
-        autoValues = false;
+        objectMappingSettings.setAutoValues(false);
         return this;
     }
 
     public boolean isCamelCaseConversionEnabled() {
-        return camelCaseConversionEnabled;
+        return objectMappingSettings.isCamelCaseConversionEnabled();
     }
 
     public MorphiumConfig setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
-        this.camelCaseConversionEnabled = camelCaseConversionEnabled;
+        objectMappingSettings.setCamelCaseConversionEnabled(camelCaseConversionEnabled);
         return this;
     }
 
+    public String getMessagingImplementation() {
+        return messagingSettings.getMessagingImplementation();
+    }
+    public MorphiumConfig setMessagingImplementation(String implementation) {
+        messagingSettings.setMessagingImplementation(implementation);
+        return this;
+    }
     public int getThreadPoolMessagingCoreSize() {
-        return threadPoolMessagingCoreSize;
+        return messagingSettings.getThreadPoolMessagingCoreSize();
     }
 
     public MorphiumConfig setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
-        this.threadPoolMessagingCoreSize = threadPoolMessagingCoreSize;
+        messagingSettings.setThreadPoolMessagingCoreSize(threadPoolMessagingCoreSize);
         return this;
     }
 
     public int getThreadPoolMessagingMaxSize() {
-        return threadPoolMessagingMaxSize;
+        return messagingSettings.getThreadPoolMessagingMaxSize();
     }
 
     public MorphiumConfig setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
-        this.threadPoolMessagingMaxSize = threadPoolMessagingMaxSize;
+        messagingSettings.setThreadPoolMessagingMaxSize(threadPoolMessagingMaxSize);
         return this;
     }
 
     public long getThreadPoolMessagingKeepAliveTime() {
-        return threadPoolMessagingKeepAliveTime;
+        return messagingSettings.getThreadPoolMessagingKeepAliveTime();
     }
 
     public MorphiumConfig setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
-        this.threadPoolMessagingKeepAliveTime = threadPoolMessagingKeepAliveTime;
+        messagingSettings.setThreadPoolMessagingKeepAliveTime(threadPoolMessagingKeepAliveTime);
         return this;
     }
 
     public int getThreadPoolAsyncOpCoreSize() {
-        return threadPoolAsyncOpCoreSize;
+        return threadPoolSettings.getThreadPoolAsyncOpCoreSize();
     }
 
     public MorphiumConfig setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
-        this.threadPoolAsyncOpCoreSize = threadPoolAsyncOpCoreSize;
+        threadPoolSettings.setThreadPoolAsyncOpCoreSize(threadPoolAsyncOpCoreSize);
         return this;
     }
 
     public int getThreadPoolAsyncOpMaxSize() {
-        return threadPoolAsyncOpMaxSize;
+        return threadPoolSettings.getThreadPoolAsyncOpMaxSize();
     }
 
     public MorphiumConfig setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
-        this.threadPoolAsyncOpMaxSize = threadPoolAsyncOpMaxSize;
+        threadPoolSettings.setThreadPoolAsyncOpMaxSize(threadPoolAsyncOpMaxSize);
         return this;
     }
 
     public long getThreadPoolAsyncOpKeepAliveTime() {
-        return threadPoolAsyncOpKeepAliveTime;
+        return threadPoolSettings.getThreadPoolAsyncOpKeepAliveTime();
     }
 
     public MorphiumConfig setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
-        this.threadPoolAsyncOpKeepAliveTime = threadPoolAsyncOpKeepAliveTime;
+        threadPoolSettings.setThreadPoolAsyncOpKeepAliveTime(threadPoolAsyncOpKeepAliveTime);
         return this;
     }
 
     public boolean isObjectSerializationEnabled() {
-        return objectSerializationEnabled;
+        return objectMappingSettings.isObjectSerializationEnabled();
     }
 
     public MorphiumConfig setObjectSerializationEnabled(boolean objectSerializationEnabled) {
-        this.objectSerializationEnabled = objectSerializationEnabled;
+        objectMappingSettings.setObjectSerializationEnabled(objectSerializationEnabled);
         return this;
     }
 
     public int getHeartbeatFrequency() {
-        return heartbeatFrequency;
+        return driverSettings.getHeartbeatFrequency();
     }
 
     public MorphiumConfig setHeartbeatFrequency(int heartbeatFrequency) {
-        this.heartbeatFrequency = heartbeatFrequency;
+        driverSettings.setHeartbeatFrequency(heartbeatFrequency);
         return this;
     }
 
 
     public MorphiumConfig setMinConnections(int minConnections) {
-        this.minConnections = minConnections;
+        connectionSettings.setMinConnections(minConnections);
         return this;
     }
 
     public int getLocalThreshold() {
-        return localThreshold;
+        return driverSettings.getLocalThreshold();
     }
 
     /**
@@ -1131,124 +1099,126 @@ public class MorphiumConfig {
      * @since 2.13.0
      */
     public MorphiumConfig setLocalThreshold(int localThreshold) {
-        this.localThreshold = localThreshold;
+        driverSettings.setLocalThreshold(localThreshold);
         return this;
     }
 
     public int getMaxConnectionIdleTime() {
-        return maxConnectionIdleTime;
+        return driverSettings.getMaxConnectionIdleTime();
     }
 
     public MorphiumConfig setMaxConnectionIdleTime(int maxConnectionIdleTime) {
-        this.maxConnectionIdleTime = maxConnectionIdleTime;
+        driverSettings.setMaxConnectionIdleTime(maxConnectionIdleTime);
         return this;
     }
 
     public int getMaxConnectionLifeTime() {
-        return maxConnectionLifeTime;
+        return driverSettings.getMaxConnectionLifeTime();
     }
 
     public MorphiumConfig setMaxConnectionLifeTime(int maxConnectionLifeTime) {
-        this.maxConnectionLifeTime = maxConnectionLifeTime;
+        driverSettings.setMaxConnectionLifeTime(maxConnectionLifeTime);
         return this;
     }
 
     public String getRequiredReplicaSetName() {
-        return requiredReplicaSetName;
+        return connectionSettings.getRequiredReplicaSetName();
     }
 
     public MorphiumConfig setRequiredReplicaSetName(String requiredReplicaSetName) {
-        this.requiredReplicaSetName = requiredReplicaSetName;
+        connectionSettings.setRequiredReplicaSetName(requiredReplicaSetName);
         return this;
     }
 
-    public String getDefaultTags() {
-        return defaultTags;
-    }
+    // public String getDefaultTags() {
+    //     driverSettings.settag
+    //     return defaultTags;
+    // }
 
-    public MorphiumConfig addDefaultTag(String name, String value) {
-        if (defaultTags != null) {
-            defaultTags += ",";
-        } else {
-            defaultTags = "";
-        }
+    // public MorphiumConfig addDefaultTag(String name, String value) {
+    //     if (defaultTags != null) {
+    //         defaultTags += ",";
+    //     } else {
+    //         defaultTags = "";
+    //     }
 
-        defaultTags += name + ":" + value;
-        return this;
-    }
+    //     defaultTags += name + ":" + value;
+    //     return this;
+    // }
 
-    public List<Map<String, String >> getDefaultTagSet() {
-        if (defaultTags == null) {
-            return null;
-        }
-        List<Map<String, String >> tagList = new ArrayList<>();
+    // public List<Map<String, String >> getDefaultTagSet() {
+    //     if (defaultTags == null) {
+    //         return null;
+    //     }
+    //     List<Map<String, String >> tagList = new ArrayList<>();
 
-        for (String t : defaultTags.split(",")) {
-            String[] tag = t.split(":");
-            tagList.add(UtilsMap.of(tag[0], tag[1]));
-        }
-        return tagList;
-    }
+    //     for (String t : defaultTags.split(",")) {
+    //         String[] tag = t.split(":");
+    //         tagList.add(UtilsMap.of(tag[0], tag[1]));
+    //     }
+    //     return tagList;
+    // }
 
     public int getCursorBatchSize() {
-        return cursorBatchSize;
+        return driverSettings.getCursorBatchSize();
     }
 
     public MorphiumConfig setCursorBatchSize(int cursorBatchSize) {
-        this.cursorBatchSize = cursorBatchSize;
+        driverSettings.setCursorBatchSize(cursorBatchSize);
         return this;
     }
 
-    public SSLContext getSslContext() {
-        return sslContext;
-    }
+    // public SSLContext getSslContext() {
+    //     return sslContext;
+    // }
 
-    public void setSslContext(SSLContext sslContext) {
-        this.sslContext = sslContext;
-    }
+    // public void setSslContext(SSLContext sslContext) {
+    //     this.sslContext = sslContext;
+    // }
 
-    public boolean isUseSSL() {
-        return useSSL;
-    }
+    // public boolean isUseSSL() {
+    //     return useSSL;
+    // }
 
-    public void setUseSSL(boolean useSSL) {
-        this.useSSL = useSSL;
-    }
+    // public void setUseSSL(boolean useSSL) {
+    //     this.useSSL = useSSL;
+    // }
 
-    public boolean isSslInvalidHostNameAllowed() {
-        return sslInvalidHostNameAllowed;
-    }
+    // public boolean isSslInvalidHostNameAllowed() {
+    //     return sslInvalidHostNameAllowed;
+    // }
 
-    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
-        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
-    }
+    // public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+    //     this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+    // }
 
     public int getReadTimeout() {
-        return readTimeout;
+        return driverSettings.getReadTimeout();
     }
 
-    public void setReadTimeout(int readTimeout) {
-        this.readTimeout = readTimeout;
+    public MorphiumConfig setReadTimeout(int readTimeout) {
+        driverSettings.setReadTimeout(readTimeout);
+        return this;
     }
 
     public boolean isRetryReads() {
-        return retryReads;
+        return driverSettings.isRetryReads();
     }
 
     public void setRetryReads(boolean retryReads) {
-        this.retryReads = retryReads;
+        driverSettings.setRetryReads(retryReads);
     }
 
     public boolean isRetryWrites() {
-        return retryWrites;
+        return driverSettings.isRetryWrites();
     }
 
     public void setRetryWrites(boolean retryWrites) {
-        this.retryWrites = retryWrites;
+        driverSettings.setRetryWrites(retryWrites);
     }
 
     public String getUuidRepresentation() {
-        return uuidRepresentation;
+        return driverSettings.getUuidRepresentation();
     }
 
     /**
@@ -1272,33 +1242,26 @@ public class MorphiumConfig {
      * @since 3.12
      */
     public void setUuidRepresentation(String uuidRepresentation) {
-        this.uuidRepresentation = uuidRepresentation;
+        driverSettings.setUuidRepresentation(uuidRepresentation);
     }
 
     public IndexCheck getIndexCheck() {
-        return indexCheck;
+        return collectionCheckSettings.getIndexCheck();
     }
 
     public void setIndexCheck(IndexCheck indexCheck) {
-        this.indexCheck = indexCheck;
+        collectionCheckSettings.setIndexCheck(indexCheck);
     }
 
     public CappedCheck getCappedCheck() {
-        return cappedCheck;
+        return collectionCheckSettings.getCappedCheck();
     }
 
     public MorphiumConfig setCappedCheck(CappedCheck cappedCheck) {
-        this.cappedCheck = cappedCheck;
+        collectionCheckSettings.setCappedCheck(cappedCheck);
         return this;
     }
 
-    public enum IndexCheck {
-        NO_CHECK, WARN_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CREATE_ON_STARTUP,
-    }
-
-    public enum CappedCheck {
-        NO_CHECK, WARN_ON_STARTUP, CREATE_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CONVERT_EXISTING_ON_STARTUP,
-    }
 
     public enum CompressionType {
         NONE(0), ZLIB(2), SNAPPY(1); //ZSTD(3) - not supported
@@ -1314,11 +1277,11 @@ public class MorphiumConfig {
     }
 
     public int getIdleSleepTime() {
-        return idleSleepTime;
+        return connectionSettings.getIdleSleepTime();
     }
 
     public void setIdleSleepTime(int idleSleepTime) {
-        this.idleSleepTime = idleSleepTime;
+        connectionSettings.setIdleSleepTime(idleSleepTime);
     }
 
     public Map<String, Object> getRestoreData() {
@@ -1330,31 +1293,7 @@ public class MorphiumConfig {
     }
 
     public int getMinConnections() {
-        return minConnections;
-    }
-
-    public void setReplicaset(boolean replicaset) {
-        this.replicaset = replicaset;
-    }
-
-    public boolean isAutoValues() {
-        return autoValues;
-    }
-
-    public void setAutoValues(boolean autoValues) {
-        this.autoValues = autoValues;
-    }
-
-    public void setDefaultTags(String defaultTags) {
-        this.defaultTags = defaultTags;
-    }
-
-    public String getMessagingStatusInfoListenerName() {
-        return messagingStatusInfoListenerName;
-    }
-
-    public void setMessagingStatusInfoListenerName(String messagingStatusInfoListenerName) {
-        this.messagingStatusInfoListenerName = messagingStatusInfoListenerName;
+        return connectionSettings.getMinConnections();
     }
 
 }
