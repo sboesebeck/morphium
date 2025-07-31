@@ -5,6 +5,8 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -20,11 +22,26 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
-public class MorphiumConfigTest extends MorphiumTestBase {
+public class MorphiumConfigTest {
 
+
+    private Logger log = LoggerFactory.getLogger(MorphiumConfigTest.class);
+    public MorphiumConfigTest() {
+    }
+
+    private MorphiumConfig getConfig() {
+        MorphiumConfig cfg = new MorphiumConfig();
+        cfg.setDatabase("test");
+        cfg.setHostSeed("localhost:27017");
+        cfg.setMongoAuthDb("admin");
+        cfg.setMongoLogin("login");
+        cfg.setMongoPassword("12345");
+        return cfg;
+    }
     @Test
     public void credentialsEncrypted() {
-        var cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
+        MorphiumConfig def = getConfig();
+        var cfg = MorphiumConfig.fromProperties(def.asProperties());
         cfg.setCredentialsEncrypted(true);
         cfg.setCredentialsEncryptionKey("1234567890abcdef");
         cfg.setCredentialsDecryptionKey("1234567890abcdef");
@@ -40,9 +57,12 @@ public class MorphiumConfigTest extends MorphiumTestBase {
 
     @Test
     public void testToString() throws Exception {
-        String cfg = morphium.getConfig().toString();
+        MorphiumConfig def = getConfig();
+        def.getConnectionSettings().addHostToSeed("localhost:27018");
+        String cfg = def.toString();
         log.info("Config: " + cfg);
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
+        log.info("Host-Seed: {}", c.getHostSeed());
         assert(c.getHostSeed().size() >= 1);
     }
 
@@ -119,9 +139,17 @@ public class MorphiumConfigTest extends MorphiumTestBase {
         assertEquals(120, cfg.getMaxConnections());
     }
 
+
+    @Test
+    public void testMorphiumConfig() {
+        MorphiumConfig cfg = getConfig();
+        assertNotNull(cfg.getDatabase());
+        assertEquals(cfg.getDatabase(), cfg.getConnectionSettings().getDatabase());
+    }
+
     @Test
     public void testToProperties() throws Exception {
-        Properties p = morphium.getConfig().asProperties();
+        Properties p = getConfig().asProperties();
 
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
@@ -129,13 +157,14 @@ public class MorphiumConfigTest extends MorphiumTestBase {
 
         p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assert(cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assertNotNull(cfg.getDatabase());
+        assert(cfg.getDatabase().equals(getConfig().getDatabase()));
         assert(cfg.getHostSeed().size() != 0);
     }
 
     @Test
     public void testToPropertiesPrefix() throws Exception {
-        Properties p = morphium.getConfig().asProperties("prefix");
+        Properties p = getConfig().asProperties("prefix");
 
         for (Object k : p.keySet()) {
             log.info("Key: " + k + " Value: " + p.get(k));
@@ -144,7 +173,7 @@ public class MorphiumConfigTest extends MorphiumTestBase {
 
         p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
-        assert(cfg.getDatabase().equals(morphium.getConfig().getDatabase()));
+        assert(cfg.getDatabase().equals(getConfig().getDatabase()));
         assert(cfg.getHostSeed().size() != 0);
     }
 
