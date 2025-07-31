@@ -1,7 +1,9 @@
 package de.caluga.morphium.config;
 
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.annotations.Embedded;
 
+@Embedded
 public class CollectionCheckSettings {
 
     private IndexCheck indexCheck = IndexCheck.WARN_ON_STARTUP;
