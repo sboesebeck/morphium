@@ -6,6 +6,10 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.wire.PooledDriver;
 
+import javax.net.ssl.SSLContext;
+import java.util.ArrayList;
+import java.util.List;
+
 @Embedded
 public class DriverSettings {
 
