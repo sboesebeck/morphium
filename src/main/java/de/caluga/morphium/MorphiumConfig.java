@@ -1,22 +1,25 @@
 package de.caluga.morphium;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
-import javax.net.ssl.SSLContext;
-
 import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
@@ -35,20 +38,10 @@ import de.caluga.morphium.config.ThreadPoolSettings;
 import de.caluga.morphium.config.WriterSettings;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
-import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
-import de.caluga.morphium.encryption.AESEncryptionProvider;
-import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.messaging.Messaging;
-import de.caluga.morphium.messaging.StdMessaging;
-import de.caluga.ecc.ECCrypt;
-import de.caluga.morphium.ObjectMapperImpl;
-import de.caluga.morphium.writer.AsyncWriterImpl;
-import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.morphium.writer.MorphiumWriter;
-import de.caluga.morphium.writer.MorphiumWriterImpl;
 
 /**
  * Stores the configuration for the MongoDBLayer.
@@ -62,19 +55,60 @@ public class MorphiumConfig {
     private Map<String, Object> restoreData;
 
 
+    @Transient
+    private static Logger log = LoggerFactory.getLogger(MorphiumConfig.class);
+    @Transient
     private MessagingSettings messagingSettings = new MessagingSettings();
+    @Transient
     private CollectionCheckSettings collectionCheckSettings = new CollectionCheckSettings();
+    @Transient
     private ConnectionSettings connectionSettings = new ConnectionSettings();
+    @Transient
     private DriverSettings driverSettings = new DriverSettings();
+    @Transient
     private EncryptionSettings encryptionSettings = new EncryptionSettings();
+    @Transient
     private ObjectMappingSettings objectMappingSettings = new ObjectMappingSettings();
+    @Transient
     private ThreadPoolSettings threadPoolSettings = new ThreadPoolSettings();
+    @Transient
     private WriterSettings writerSettings = new WriterSettings();
+    @Transient
     private CacheSettings cacheSettings = new CacheSettings();
 
 
 
+    @Transient
+    private List<Object> settings = List.of(cacheSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings, messagingSettings);
 
+
+    public MessagingSettings getMessagingSettings() {
+        return messagingSettings;
+    }
+    public CollectionCheckSettings getCollectionCheckSettings() {
+        return collectionCheckSettings;
+    }
+    public EncryptionSettings getEncryptionSettings() {
+        return encryptionSettings;
+    }
+    public ObjectMappingSettings getObjectMappingSettings() {
+        return objectMappingSettings;
+    }
+    public ThreadPoolSettings getThreadPoolSettings() {
+        return threadPoolSettings;
+    }
+    public WriterSettings getWriterSettings() {
+        return writerSettings;
+    }
+    public CacheSettings getCacheSettings() {
+        return cacheSettings;
+    }
+    public ConnectionSettings getConnectionSettings() {
+        return connectionSettings;
+    }
+    public DriverSettings getDriverSettings() {
+        return driverSettings;
+    }
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingSettings.isMessagingStatusInfoListenerEnabled();
     }
@@ -101,53 +135,74 @@ public class MorphiumConfig {
 
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); // settings always convert camel
-        // case
-        List<Field> flds = an.getAllFields(MorphiumConfig.class);
 
-        if (prefix != null) {
-            prefix += ".";
-        } else {
-            prefix = "";
-        }
+        for (var settingObject : settings) {
+            // case
+            List<Field> flds = an.getAllFields(settingObject.getClass());
 
-        for (Field f : flds) {
-            String fName = prefix + f.getName();
-            Object setting = resolver.resolveSetting(fName);
-
-            if (setting == null) {
-                continue;
+            if (prefix != null && !prefix.isEmpty()) {
+                prefix += ".";
+            } else {
+                prefix = "";
             }
 
-            f.setAccessible(true);
+            for (Field f : flds) {
+                String fName = prefix + f.getName();
+                Object setting = resolver.resolveSetting(fName);
+                // LoggerFactory.getLogger(MorphiumConfig.class).debug("fname {} = {}", fName, setting);
 
-            try {
-                if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                    f.set(this, Integer.parseInt((String) setting));
-                } else if (f.getType().isEnum()) {
-                    @SuppressWarnings("unchecked")
-                    Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
-                    f.set(this, value);
-                } else if (f.getType().equals(String.class)) {
-                    f.set(this, setting);
-                } else if (List.class.isAssignableFrom(f.getType())) {
-                    String lst = (String) setting;
-                    List<String> l = new ArrayList<>();
-                    lst = lst.replaceAll("[\\[\\]]", "");
-                    Collections.addAll(l, lst.split(","));
-                    List<String> ret = new ArrayList<>();
+                if (setting == null) {
+                    //check camelcase
+                    fName = prefix + an.convertCamelCase(f.getName());
+                    setting = resolver.resolveSetting(fName);
 
-                    for (String n : l) {
-                        ret.add(n.trim());
+                    if (setting == null) {
+                        fName = prefix + an.createCamelCase(f.getName(), false);
+                        setting = resolver.resolveSetting(fName);
+
+                        if (setting == null) {
+                            continue;
+                        }
+                    }
+                }
+
+                f.setAccessible(true);
+
+                try {
+                    if (f.getType().isEnum()) {
+                        @SuppressWarnings("unchecked")
+                        Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                        f.set(settingObject, value);
+                    } else {
+                        f.set(settingObject, setting);
                     }
 
-                    f.set(this, ret);
-                } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                    f.set(this, setting.equals("true"));
-                } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                    f.set(this, Long.parseLong((String) setting));
+                    // if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
+                    //     f.set(settingObject, Integer.parseInt((String) setting));
+                    // } else if (f.getType().isEnum()) {
+                    //     @SuppressWarnings("unchecked")
+                    //     Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                    //     f.set(settingObject, value);
+                    // } else if (f.getType().equals(String.class)) {
+                    //     f.set(settingObject, setting);
+                    // } else if (List.class.isAssignableFrom(f.getType())) {
+                    //     String lst = (String) setting;
+                    //     List<String> l = new ArrayList<>();
+                    //     lst = lst.replaceAll("[\\[\\]]", "");
+                    //     Collections.addAll(l, lst.split(","));
+                    //     List<String> ret = new ArrayList<>();
+                    //     for (String n : l) {
+                    //         ret.add(n.trim());
+                    //     }
+                    //     f.set(settingObject, ret);
+                    // } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                    //     f.set(settingObject, setting.equals("true"));
+                    // } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                    //     f.set(settingObject, Long.parseLong((String) setting));
+                    // }
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
                 }
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
             }
         }
 
@@ -158,7 +213,7 @@ public class MorphiumConfig {
                 lst = lst.replaceAll("[\\[\\]]", "");
 
                 for (String s : lst.split(",")) {
-                    addHostToSeed(s);
+                    connectionSettings.addHostToSeed(s);
                 }
             }
         }
@@ -171,24 +226,24 @@ public class MorphiumConfig {
             }
 
             if (resolver.resolveSetting(n) != null) {
-                LoggerFactory.getLogger(MorphiumConfig.class).error("not using driver_class - drivername is set {}", resolver.resolveSetting(n));
+                log.error("not using driver_class - drivername is set {}", resolver.resolveSetting(n));
                 driverSettings.setDriverName((String)resolver.resolveSetting(n));
-                return;
-            }
+            } else {
+                var s = resolver.resolveSetting(prefix + "driver_class");
 
-            var s = resolver.resolveSetting(prefix + "driver_class");
+                if (s == null) {
+                    s = resolver.resolveSetting(prefix + "driverClass");
+                }
 
-            if (s == null) {
-                s = resolver.resolveSetting(prefix + "driverClass");
-            }
-
-            try {
-                Class driverClass = Class.forName((String)s);
-                Method m = driverClass.getMethod("getName", null);
-                m.setAccessible(true);
-                driverSettings.setDriverName((String)m.invoke(null));
-            } catch (Exception e) {
-                LoggerFactory.getLogger(MorphiumConfig.class).error("Cannot set driver class - using default driver instead!");
+                try {
+                    Class driverClass = Class.forName((String)s);
+                    Method m = driverClass.getMethod("getName", null);
+                    m.setAccessible(true);
+                    driverSettings.setDriverName((String)m.invoke(null));
+                } catch (Exception e) {
+                    log.error("Cannot set driver class - using default driver instead!");
+                    driverSettings.setDriverName(PooledDriver.driverName);
+                }
             }
         }
     }
@@ -219,23 +274,23 @@ public class MorphiumConfig {
     @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
     public static MorphiumConfig createFromJson(String json)
     throws NoSuchFieldException, ClassNotFoundException, IllegalAccessException, InstantiationException, ParseException, NoSuchMethodException, InvocationTargetException {
-        MorphiumConfig cfg = new ObjectMapperImpl().deserialize(MorphiumConfig.class, json);
+        ObjectMapper jacksonOM = new ObjectMapper();
+        HashMap<String, Object> obj;
 
-        for (Object ko : cfg.restoreData.keySet()) {
-            @SuppressWarnings("CastCanBeRemovedNarrowingVariableType")
-            String k = (String) ko;
-            String value = cfg.restoreData.get(k).toString();
-
-            if (k.equals("hosts") || k.equals("hostSeed")) {
-                value = value.replaceAll("\\[", "").replaceAll("]", "");
-
-                for (String adr : value.split(",")) {
-                    String[] a = adr.split(":");
-                    cfg.addHostToSeed(a[0].trim(), Integer.parseInt(a[1].trim()));
-                }
-            }
+        try {
+            obj = (HashMap<String, Object>) jacksonOM.readValue(json.getBytes(), Map.class);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
+        Properties p = new Properties();
+
+        for (var e : obj.entrySet()) {
+            p.put(e.getKey(), e.getValue());
+            log.info("Adding {} = {}", e.getKey(), e.getValue());
+        }
+
+        MorphiumConfig cfg = fromProperties(p);
         return cfg;
     }
 
@@ -603,9 +658,6 @@ public class MorphiumConfig {
     }
 
 
-    public ConnectionSettings getConnectionSettings() {
-        return connectionSettings;
-    }
     /**
      * setting hosts as Host:Port
      *
@@ -757,7 +809,7 @@ public class MorphiumConfig {
             data.putAll(om.serialize(threadPoolSettings));
             data.putAll(om.serialize(collectionCheckSettings));
             data.putAll(om.serialize(messagingSettings));
-            return Utils.toJsonString(new ObjectMapperImpl().serialize(this));
+            return Utils.toJsonString(data);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -863,38 +915,42 @@ public class MorphiumConfig {
             prefix = prefix + ".";
         }
 
-        MorphiumConfig defaults = new MorphiumConfig();
         Properties p = new Properties();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
-        List<Field> flds = an.getAllFields(MorphiumConfig.class);
 
-        for (Field f : flds) {
-            if (f.isAnnotationPresent(Transient.class)) {
-                continue;
-            }
+        for (var setting : settings) {
+            List<Field> flds = an.getAllFields(setting.getClass());
 
-            f.setAccessible(true);
-
-            try {
-                if (f.get(this) != null && !f.get(this).equals(f.get(defaults)) || f.getName().equals("database")) {
-                    p.put(prefix + f.getName(), f.get(this).toString());
+            for (Field f : flds) {
+                if (f.isAnnotationPresent(Transient.class)) {
+                    continue;
                 }
-            } catch (IllegalAccessException e) {
-                throw new RuntimeException(e);
+
+                try {
+                    var defaults = setting.getClass().getConstructor().newInstance();
+                    f.setAccessible(true);
+
+                    if (f.get(setting) != null && !f.get(setting).equals(f.get(defaults)) || f.getName().equals("database")) {
+                        p.put(prefix + f.getName(), f.get(setting).toString());
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
+
+            // if (effectiveConfig) {
+            //     Properties sysprop = System.getProperties();
+            //     for (Object sysk : sysprop.keySet()) {
+            //         String k = (String) sysk;
+            //         if (k.startsWith("morphium.")) {
+            //             String value = sysprop.get(k).toString();
+            //             k = k.substring(9);
+            //             p.put(prefix + k, value);
+            //         }
+            //     }
+            // }
         }
 
-        // if (effectiveConfig) {
-        //     Properties sysprop = System.getProperties();
-        //     for (Object sysk : sysprop.keySet()) {
-        //         String k = (String) sysk;
-        //         if (k.startsWith("morphium.")) {
-        //             String value = sysprop.get(k).toString();
-        //             k = k.substring(9);
-        //             p.put(prefix + k, value);
-        //         }
-        //     }
-        // }
         return p;
     }
 
