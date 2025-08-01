@@ -109,17 +109,33 @@ public class MorphiumConfig {
     public DriverSettings getDriverSettings() {
         return driverSettings;
     }
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingSettings.isMessagingStatusInfoListenerEnabled();
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
         this.messagingSettings.setMessagingStatusInfoListenerEnabled(messagingStatusInfoListenerEnabled);
         return this;
     }
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public String getMessagingStatusInfoListenerName() {
         return messagingSettings.getMessagingStatusInfoListenerName();
     }
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setMessagingStatusInfoListenerName(String name) {
         messagingSettings.setMessagingStatusInfoListenerName(name);
         return this;
@@ -136,70 +152,71 @@ public class MorphiumConfig {
     public MorphiumConfig(String prefix, MorphiumConfigResolver resolver) {
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true); // settings always convert camel
 
+        if (prefix != null && !prefix.isEmpty()) {
+            prefix += ".";
+        } else {
+            prefix = "";
+        }
+
         for (var settingObject : settings) {
+            log.info("======> Settings {} <======", settingObject.getClass().getName());
             // case
             List<Field> flds = an.getAllFields(settingObject.getClass());
-
-            if (prefix != null && !prefix.isEmpty()) {
-                prefix += ".";
-            } else {
-                prefix = "";
-            }
 
             for (Field f : flds) {
                 String fName = prefix + f.getName();
                 Object setting = resolver.resolveSetting(fName);
-                // LoggerFactory.getLogger(MorphiumConfig.class).debug("fname {} = {}", fName, setting);
+                log.info("fname {} = {}", fName, setting);
 
                 if (setting == null) {
                     //check camelcase
                     fName = prefix + an.convertCamelCase(f.getName());
                     setting = resolver.resolveSetting(fName);
+                    log.info("  camel {} = {}", fName, setting);
 
                     if (setting == null) {
                         fName = prefix + an.createCamelCase(f.getName(), false);
                         setting = resolver.resolveSetting(fName);
+                        log.info("  decamel {} = {}", fName, setting);
 
                         if (setting == null) {
+                            log.debug("Setting {} is null - continueing", f.getName());
                             continue;
                         }
                     }
                 }
 
                 f.setAccessible(true);
+                log.info("Setting {} in class {} to value {}", f.getName(), settingObject.getClass().getName(), setting);
 
                 try {
                     if (f.getType().isEnum()) {
                         @SuppressWarnings("unchecked")
                         Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
                         f.set(settingObject, value);
+                    } else if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
+                        f.set(settingObject, Integer.parseInt((String) setting));
+                    } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
+                        f.set(settingObject, Long.parseLong((String) setting));
+                    } else if (f.getType().equals(String.class)) {
+                        f.set(settingObject, setting);
+                    } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
+                        f.set(settingObject, setting.equals("true"));
+                    } else if (List.class.isAssignableFrom(f.getType())) {
+                        String lst = (String) setting;
+                        List<String> l = new ArrayList<>();
+                        lst = lst.replaceAll("[\\[\\]]", "");
+                        Collections.addAll(l, lst.split(","));
+                        List<String> ret = new ArrayList<>();
+
+                        for (String n : l) {
+                            ret.add(n.trim());
+                        }
+
+                        f.set(settingObject, ret);
                     } else {
                         f.set(settingObject, setting);
                     }
-
-                    // if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
-                    //     f.set(settingObject, Integer.parseInt((String) setting));
-                    // } else if (f.getType().isEnum()) {
-                    //     @SuppressWarnings("unchecked")
-                    //     Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
-                    //     f.set(settingObject, value);
-                    // } else if (f.getType().equals(String.class)) {
-                    //     f.set(settingObject, setting);
-                    // } else if (List.class.isAssignableFrom(f.getType())) {
-                    //     String lst = (String) setting;
-                    //     List<String> l = new ArrayList<>();
-                    //     lst = lst.replaceAll("[\\[\\]]", "");
-                    //     Collections.addAll(l, lst.split(","));
-                    //     List<String> ret = new ArrayList<>();
-                    //     for (String n : l) {
-                    //         ret.add(n.trim());
-                    //     }
-                    //     f.set(settingObject, ret);
-                    // } else if (f.getType().equals(boolean.class) || f.getType().equals(Boolean.class)) {
-                    //     f.set(settingObject, setting.equals("true"));
-                    // } else if (f.getType().equals(long.class) || f.getType().equals(Long.class)) {
-                    //     f.set(settingObject, Long.parseLong((String) setting));
-                    // }
                 } catch (IllegalAccessException e) {
                     throw new RuntimeException(e);
                 }
@@ -286,7 +303,10 @@ public class MorphiumConfig {
         Properties p = new Properties();
 
         for (var e : obj.entrySet()) {
-            p.put(e.getKey(), e.getValue());
+            if (e.getValue() != null) {
+                p.put(e.getKey(), e.getValue().toString());
+            }
+
             log.info("Adding {} = {}", e.getKey(), e.getValue());
         }
 
@@ -294,10 +314,18 @@ public class MorphiumConfig {
         return cfg;
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public int getMessagingWindowSize() {
         return messagingSettings.getMessagingWindowSize();
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public void setMessagingWindowSize(int messagingWindowSize) {
         messagingSettings.setMessagingWindowSize(messagingWindowSize);
     }
@@ -311,75 +339,139 @@ public class MorphiumConfig {
     }
 
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public boolean isReplicaset() {
         return connectionSettings.isReplicaset();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public CompressionType getCompressionType() {
         return driverSettings.getCompressionType();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setCompressionType(CompressionType t) {
         driverSettings.setCompressionType(t);
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
         connectionSettings.setReplicaset(replicaset);
         return this;
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
         return encryptionSettings.getValueEncryptionProviderClass();
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
         encryptionSettings.setValueEncryptionProviderClass(valueEncryptionProviderClass);
         return this;
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
         return encryptionSettings.getEncryptionKeyProviderClass();
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public MorphiumConfig setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
         encryptionSettings.setEncryptionKeyProviderClass(encryptionKeyProviderClass);
         return this;
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public String getCredentialsEncryptionKey() {
         return encryptionSettings.getCredentialsEncryptionKey();
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public MorphiumConfig setCredentialsEncryptionKey(String credentialsEncryptionKey) {
         encryptionSettings.setCredentialsEncryptionKey(credentialsEncryptionKey);
         return this;
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public String getCredentialsDecryptionKey() {
         return encryptionSettings.getCredentialsDecryptionKey();
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public MorphiumConfig setCredentialsDecryptionKey(String credentialsDecryptionKey) {
         encryptionSettings.setCredentialsDecryptionKey(credentialsDecryptionKey);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public String getDriverName() {
         return driverSettings.getDriverName();
     }
 
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setDriverName(String driverName) {
         driverSettings.setDriverName(driverName);
         return this;
     }
 
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public boolean isAutoIndexAndCappedCreationOnWrite() {
         return collectionCheckSettings.getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
     }
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
             collectionCheckSettings.setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);
@@ -390,15 +482,27 @@ public class MorphiumConfig {
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public boolean isWarnOnNoEntitySerialization() {
         return objectMappingSettings.isWarnOnNoEntitySerialization();
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
         objectMappingSettings.setWarnOnNoEntitySerialization(warnOnNoEntitySerialization);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public boolean isCheckForNew() {
         return objectMappingSettings.isCheckForNew();
     }
@@ -411,84 +515,154 @@ public class MorphiumConfig {
      * default false
      *
      * @param checkForNew boolean, check if object is really not stored yet
+     * use ObjectMappingSettings
      */
+    @Deprecated
     public MorphiumConfig setCheckForNew(boolean checkForNew) {
         objectMappingSettings.setCheckForNew(checkForNew);
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getRetriesOnNetworkError() {
         return connectionSettings.getRetriesOnNetworkError();
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setRetriesOnNetworkError(int retriesOnNetworkError) {
         connectionSettings.setRetriesOnNetworkError(retriesOnNetworkError);
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getSleepBetweenNetworkErrorRetries() {
         return connectionSettings.getSleepBetweenNetworkErrorRetries();
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
         connectionSettings.setSleepBetweenNetworkErrorRetries(sleepBetweenNetworkErrorRetries);
         return this;
     }
 
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getWriteBufferTimeGranularity() {
         return writerSettings.getWriteBufferTimeGranularity();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
         writerSettings.setWriteBufferTimeGranularity(writeBufferTimeGranularity);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumCache getCache() {
         return cacheSettings.getCache();
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig setCache(MorphiumCache cache) {
         cacheSettings.setCache(cache);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getWriteBufferTime() {
         return writerSettings.getWriteBufferTime();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setWriteBufferTime(int writeBufferTime) {
         writerSettings.setWriteBufferTime(writeBufferTime);
         return this;
     }
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumWriter getBufferedWriter() {
         return writerSettings.getBufferedWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setBufferedWriter(MorphiumWriter bufferedWriter) {
         writerSettings.setBufferedWriter(bufferedWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumWriter getWriter() {
         return writerSettings.getWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setWriter(MorphiumWriter writer) {
         writerSettings.setWriter(writer);
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getConnectionTimeout() {
         return connectionSettings.getConnectionTimeout();
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setConnectionTimeout(int connectionTimeout) {
         connectionSettings.setConnectionTimeout(connectionTimeout);
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getMaxWaitTime() {
         return connectionSettings.getMaxWaitTime();
     }
@@ -499,11 +673,19 @@ public class MorphiumConfig {
      * @param maxWaitTime the maximum wait time, in milliseconds
      * @return {@code this}
      */
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setMaxWaitTime(int maxWaitTime) {
         connectionSettings.setMaxWaitTime(maxWaitTime);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public int getServerSelectionTimeout() {
         return driverSettings.getServerSelectionTimeout();
     }
@@ -523,20 +705,36 @@ public class MorphiumConfig {
      * @param serverSelectionTimeout the server selection timeout, in milliseconds
      * @return {@code this}
      */
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setServerSelectionTimeout(int serverSelectionTimeout) {
         driverSettings.setServerSelectionTimeout(serverSelectionTimeout);
         return this;
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public Boolean getCredentialsEncrypted() {
         return encryptionSettings.getCredentialsEncrypted();
     }
 
+    /**
+     * use encryptionSettings
+     */
+    @Deprecated
     public MorphiumConfig setCredentialsEncrypted(Boolean credentialsEncrypted) {
         encryptionSettings.setCredentialsEncrypted(credentialsEncrypted);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public String getMongoAuthDb() {
         return  driverSettings.getMongoPassword();
     }
@@ -592,42 +790,78 @@ public class MorphiumConfig {
     //     }
     // }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
         driverSettings.setMongoAuthDb(mongoAuthDb);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public String getMongoLogin() {
         return driverSettings.getMongoLogin();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setMongoLogin(String mongoLogin) {
         driverSettings.setMongoLogin(mongoLogin);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public String getMongoPassword() {
         return driverSettings.getMongoPassword();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setMongoPassword(String mongoPassword) {
         driverSettings.setMongoPassword(mongoPassword);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public ReadPreference getDefaultReadPreference() {
         return driverSettings.getDefaultReadPreference();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setDefaultReadPreference(ReadPreference defaultReadPreference) {
         driverSettings.setDefaultReadPreference(defaultReadPreference);
         return this;
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public String getDefaultReadPreferenceType() {
         return driverSettings.getDefaultReadPreferenceType();
     }
 
+    /**
+     * use driverSettings
+     */
+    @Deprecated
     public MorphiumConfig setDefaultReadPreferenceType(String stringDefaultReadPreference) {
         driverSettings.setDefaultReadPreferenceType(stringDefaultReadPreference);
         ReadPreferenceType readPreferenceType;
@@ -648,10 +882,18 @@ public class MorphiumConfig {
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public int getWriteCacheTimeout() {
         return cacheSettings.getWriteCacheTimeout();
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig setWriteCacheTimeout(int writeCacheTimeout) {
         cacheSettings.setWriteCacheTimeout(writeCacheTimeout);
         return this;
@@ -815,74 +1057,138 @@ public class MorphiumConfig {
         }
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadConnectionMultiplier(int mp) {
         writerSettings.setThreadConnectionMultiplier(mp);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getThreadConnectionMultiplier() {
         return writerSettings.getThreadConnectionMultiplier();
     }
 
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumWriter getAsyncWriter() {
         return writerSettings.getAsyncWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setAsyncWriter(MorphiumWriter asyncWriter) {
         writerSettings.setAsyncWriter(asyncWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getMaximumRetriesBufferedWriter() {
         return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
         writerSettings.setMaximumRetriesBufferedWriter(maximumRetriesBufferedWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getMaximumRetriesWriter() {
         return writerSettings.getMaximumRetriesWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setMaximumRetriesWriter(int maximumRetriesWriter) {
         writerSettings.setMaximumRetriesWriter(maximumRetriesWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getMaximumRetriesAsyncWriter() {
         return writerSettings.getMaximumRetriesAsyncWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
         writerSettings.setMaximumRetriesAsyncWriter(maximumRetriesAsyncWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getRetryWaitTimeBufferedWriter() {
         return writerSettings.getRetryWaitTimeBufferedWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
         writerSettings.setRetryWaitTimeBufferedWriter(retryWaitTimeBufferedWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getRetryWaitTimeWriter() {
         return writerSettings.getRetryWaitTimeWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setRetryWaitTimeWriter(int retryWaitTimeWriter) {
         writerSettings.setRetryWaitTimeWriter(retryWaitTimeWriter);
         return this;
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public int getRetryWaitTimeAsyncWriter() {
         return writerSettings.getRetryWaitTimeAsyncWriter();
     }
 
+    /**
+     * use writerSettings
+     */
+    @Deprecated
     public MorphiumConfig setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
         writerSettings.setRetryWaitTimeAsyncWriter(retryWaitTimeAsyncWriter);
         return this;
@@ -954,156 +1260,292 @@ public class MorphiumConfig {
         return p;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public boolean isReadCacheEnabled() {
         return cacheSettings.isReadCacheEnabled();
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig setReadCacheEnabled(boolean readCacheEnabled) {
         cacheSettings.setReadCacheEnabled(readCacheEnabled);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig disableReadCache() {
         cacheSettings.setReadCacheEnabled(false);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig enableReadCache() {
         cacheSettings.setReadCacheEnabled(true);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public boolean isAsyncWritesEnabled() {
         return cacheSettings.isAsyncWritesEnabled();
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig setAsyncWritesEnabled(boolean asyncWritesEnabled) {
         cacheSettings.setAsyncWritesEnabled(asyncWritesEnabled);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig disableAsyncWrites() {
         cacheSettings.setAsyncWritesEnabled(false);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig enableAsyncWrites() {
         cacheSettings.setAsyncWritesEnabled(true);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public boolean isBufferedWritesEnabled() {
         return cacheSettings.isBufferedWritesEnabled();
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
         cacheSettings.setBufferedWritesEnabled(bufferedWritesEnabled);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig disableBufferedWrites() {
         cacheSettings.setBufferedWritesEnabled(false);
         return this;
     }
 
+    /**
+     * use CacheSettings
+     */
+    @Deprecated
     public MorphiumConfig enableBufferedWrites() {
         cacheSettings.setBufferedWritesEnabled(true);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public boolean isAutoValuesEnabled() {
         return objectMappingSettings.isAutoValues();
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig setAutoValuesEnabled(boolean enabled) {
         objectMappingSettings.setAutoValues(enabled);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig enableAutoValues() {
         objectMappingSettings.setAutoValues(true);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig disableAutoValues() {
         objectMappingSettings.setAutoValues(false);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public boolean isCamelCaseConversionEnabled() {
         return objectMappingSettings.isCamelCaseConversionEnabled();
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         objectMappingSettings.setCamelCaseConversionEnabled(camelCaseConversionEnabled);
         return this;
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public String getMessagingImplementation() {
         return messagingSettings.getMessagingImplementation();
     }
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setMessagingImplementation(String implementation) {
         messagingSettings.setMessagingImplementation(implementation);
         return this;
     }
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public int getThreadPoolMessagingCoreSize() {
         return messagingSettings.getThreadPoolMessagingCoreSize();
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
         messagingSettings.setThreadPoolMessagingCoreSize(threadPoolMessagingCoreSize);
         return this;
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public int getThreadPoolMessagingMaxSize() {
         return messagingSettings.getThreadPoolMessagingMaxSize();
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
         messagingSettings.setThreadPoolMessagingMaxSize(threadPoolMessagingMaxSize);
         return this;
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public long getThreadPoolMessagingKeepAliveTime() {
         return messagingSettings.getThreadPoolMessagingKeepAliveTime();
     }
 
+    /**
+     * use messagingSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
         messagingSettings.setThreadPoolMessagingKeepAliveTime(threadPoolMessagingKeepAliveTime);
         return this;
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public int getThreadPoolAsyncOpCoreSize() {
         return threadPoolSettings.getThreadPoolAsyncOpCoreSize();
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
         threadPoolSettings.setThreadPoolAsyncOpCoreSize(threadPoolAsyncOpCoreSize);
         return this;
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public int getThreadPoolAsyncOpMaxSize() {
         return threadPoolSettings.getThreadPoolAsyncOpMaxSize();
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
         threadPoolSettings.setThreadPoolAsyncOpMaxSize(threadPoolAsyncOpMaxSize);
         return this;
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public long getThreadPoolAsyncOpKeepAliveTime() {
         return threadPoolSettings.getThreadPoolAsyncOpKeepAliveTime();
     }
 
+    /**
+     * use threadPoolSettings
+     */
+    @Deprecated
     public MorphiumConfig setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
         threadPoolSettings.setThreadPoolAsyncOpKeepAliveTime(threadPoolAsyncOpKeepAliveTime);
         return this;
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public boolean isObjectSerializationEnabled() {
         return objectMappingSettings.isObjectSerializationEnabled();
     }
 
+    /**
+     * use ObjectMappingSettings
+     */
+    @Deprecated
     public MorphiumConfig setObjectSerializationEnabled(boolean objectSerializationEnabled) {
         objectMappingSettings.setObjectSerializationEnabled(objectSerializationEnabled);
         return this;
@@ -1119,6 +1561,10 @@ public class MorphiumConfig {
     }
 
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setMinConnections(int minConnections) {
         connectionSettings.setMinConnections(minConnections);
         return this;
@@ -1177,10 +1623,18 @@ public class MorphiumConfig {
         return this;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public String getRequiredReplicaSetName() {
         return connectionSettings.getRequiredReplicaSetName();
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public MorphiumConfig setRequiredReplicaSetName(String requiredReplicaSetName) {
         connectionSettings.setRequiredReplicaSetName(requiredReplicaSetName);
         return this;
@@ -1301,18 +1755,34 @@ public class MorphiumConfig {
         driverSettings.setUuidRepresentation(uuidRepresentation);
     }
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public IndexCheck getIndexCheck() {
         return collectionCheckSettings.getIndexCheck();
     }
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public void setIndexCheck(IndexCheck indexCheck) {
         collectionCheckSettings.setIndexCheck(indexCheck);
     }
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public CappedCheck getCappedCheck() {
         return collectionCheckSettings.getCappedCheck();
     }
 
+    /**
+     * use collectionCheckSettings
+     */
+    @Deprecated
     public MorphiumConfig setCappedCheck(CappedCheck cappedCheck) {
         collectionCheckSettings.setCappedCheck(cappedCheck);
         return this;
@@ -1332,10 +1802,18 @@ public class MorphiumConfig {
 
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getIdleSleepTime() {
         return connectionSettings.getIdleSleepTime();
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public void setIdleSleepTime(int idleSleepTime) {
         connectionSettings.setIdleSleepTime(idleSleepTime);
     }
@@ -1348,6 +1826,10 @@ public class MorphiumConfig {
         this.restoreData = restoreData;
     }
 
+    /**
+     * use ConnectionSettings
+     */
+    @Deprecated
     public int getMinConnections() {
         return connectionSettings.getMinConnections();
     }

@@ -13,31 +13,36 @@ public class ObjectMappingSettings {
     public boolean isCheckForNew() {
         return checkForNew;
     }
-    public void setCheckForNew(boolean checkForNew) {
+    public ObjectMappingSettings setCheckForNew(boolean checkForNew) {
         this.checkForNew = checkForNew;
+        return this;
     }
     public boolean isAutoValues() {
         return autoValues;
     }
-    public void setAutoValues(boolean autoValues) {
+    public ObjectMappingSettings setAutoValues(boolean autoValues) {
         this.autoValues = autoValues;
+        return this;
     }
     public boolean isObjectSerializationEnabled() {
         return objectSerializationEnabled;
     }
-    public void setObjectSerializationEnabled(boolean objectSerializationEnabled) {
+    public ObjectMappingSettings setObjectSerializationEnabled(boolean objectSerializationEnabled) {
         this.objectSerializationEnabled = objectSerializationEnabled;
+        return this;
     }
     public boolean isCamelCaseConversionEnabled() {
         return camelCaseConversionEnabled;
     }
-    public void setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
+    public ObjectMappingSettings setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         this.camelCaseConversionEnabled = camelCaseConversionEnabled;
+        return this;
     }
     public boolean isWarnOnNoEntitySerialization() {
         return warnOnNoEntitySerialization;
     }
-    public void setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
+    public ObjectMappingSettings setWarnOnNoEntitySerialization(boolean warnOnNoEntitySerialization) {
         this.warnOnNoEntitySerialization = warnOnNoEntitySerialization;
+        return this;
     }
 }

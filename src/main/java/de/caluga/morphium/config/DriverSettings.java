@@ -38,104 +38,121 @@ public class DriverSettings {
     public int getServerSelectionTimeout() {
         return serverSelectionTimeout;
     }
-    public void setServerSelectionTimeout(int serverSelectionTimeout) {
+    public DriverSettings setServerSelectionTimeout(int serverSelectionTimeout) {
         this.serverSelectionTimeout = serverSelectionTimeout;
+        return this;
     }
 
     public MorphiumConfig.CompressionType getCompressionType() {
         return compressionType;
     }
-    public void setCompressionType(MorphiumConfig.CompressionType compressionType) {
+    public DriverSettings setCompressionType(MorphiumConfig.CompressionType compressionType) {
         this.compressionType = compressionType;
+        return this;
     }
     public String getUuidRepresentation() {
         return uuidRepresentation;
     }
-    public void setUuidRepresentation(String uuidRepresentation) {
+    public DriverSettings setUuidRepresentation(String uuidRepresentation) {
         this.uuidRepresentation = uuidRepresentation;
+        return this;
     }
     public boolean isRetryReads() {
         return retryReads;
     }
-    public void setRetryReads(boolean retryReads) {
+    public DriverSettings setRetryReads(boolean retryReads) {
         this.retryReads = retryReads;
+        return this;
     }
     public boolean isRetryWrites() {
         return retryWrites;
     }
-    public void setRetryWrites(boolean retryWrites) {
+    public DriverSettings setRetryWrites(boolean retryWrites) {
         this.retryWrites = retryWrites;
+        return this;
     }
     public int getReadTimeout() {
         return readTimeout;
     }
-    public void setReadTimeout(int readTimeout) {
+    public DriverSettings setReadTimeout(int readTimeout) {
         this.readTimeout = readTimeout;
+        return this;
     }
     public int getLocalThreshold() {
         return localThreshold;
     }
-    public void setLocalThreshold(int localThreshold) {
+    public DriverSettings setLocalThreshold(int localThreshold) {
         this.localThreshold = localThreshold;
+        return this;
     }
     public int getMaxConnectionIdleTime() {
         return maxConnectionIdleTime;
     }
-    public void setMaxConnectionIdleTime(int maxConnectionIdleTime) {
+    public DriverSettings setMaxConnectionIdleTime(int maxConnectionIdleTime) {
         this.maxConnectionIdleTime = maxConnectionIdleTime;
+        return this;
     }
     public int getMaxConnectionLifeTime() {
         return maxConnectionLifeTime;
     }
-    public void setMaxConnectionLifeTime(int maxConnectionLifeTime) {
+    public DriverSettings setMaxConnectionLifeTime(int maxConnectionLifeTime) {
         this.maxConnectionLifeTime = maxConnectionLifeTime;
+        return this;
     }
     public int getCursorBatchSize() {
         return cursorBatchSize;
     }
-    public void setCursorBatchSize(int cursorBatchSize) {
+    public DriverSettings setCursorBatchSize(int cursorBatchSize) {
         this.cursorBatchSize = cursorBatchSize;
+        return this;
     }
     public String getDriverName() {
         return driverName;
     }
-    public void setDriverName(String driverName) {
+    public DriverSettings setDriverName(String driverName) {
         this.driverName = driverName;
+        return this;
     }
     public String getMongoLogin() {
         return mongoLogin;
     }
-    public void setMongoLogin(String mongoLogin) {
+    public DriverSettings setMongoLogin(String mongoLogin) {
         this.mongoLogin = mongoLogin;
+        return this;
     }
     public String getMongoPassword() {
         return mongoPassword;
     }
-    public void setMongoPassword(String mongoPassword) {
+    public DriverSettings setMongoPassword(String mongoPassword) {
         this.mongoPassword = mongoPassword;
+        return this;
     }
     public String getMongoAuthDb() {
         return mongoAuthDb;
     }
-    public void setMongoAuthDb(String mongoAuthDb) {
+    public DriverSettings setMongoAuthDb(String mongoAuthDb) {
         this.mongoAuthDb = mongoAuthDb;
+        return this;
     }
     public ReadPreference getDefaultReadPreference() {
         return defaultReadPreference;
     }
-    public void setDefaultReadPreference(ReadPreference defaultReadPreference) {
+    public DriverSettings setDefaultReadPreference(ReadPreference defaultReadPreference) {
         this.defaultReadPreference = defaultReadPreference;
+        return this;
     }
     public String getDefaultReadPreferenceType() {
         return defaultReadPreferenceType;
     }
-    public void setDefaultReadPreferenceType(String defaultReadPreferenceType) {
+    public DriverSettings setDefaultReadPreferenceType(String defaultReadPreferenceType) {
         this.defaultReadPreferenceType = defaultReadPreferenceType;
+        return this;
     }
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
+    public DriverSettings setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
+        return this;
     }
 }

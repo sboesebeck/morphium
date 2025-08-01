@@ -11,14 +11,16 @@ public class CollectionCheckSettings {
     public IndexCheck getIndexCheck() {
         return indexCheck;
     }
-    public void setIndexCheck(IndexCheck indexCheck) {
+    public CollectionCheckSettings setIndexCheck(IndexCheck indexCheck) {
         this.indexCheck = indexCheck;
+        return this;
     }
     public CappedCheck getCappedCheck() {
         return cappedCheck;
     }
-    public void setCappedCheck(CappedCheck cappedCheck) {
+    public CollectionCheckSettings setCappedCheck(CappedCheck cappedCheck) {
         this.cappedCheck = cappedCheck;
+        return this;
     }
     public enum IndexCheck {
         NO_CHECK, WARN_ON_STARTUP, CREATE_ON_WRITE_NEW_COL, CREATE_ON_STARTUP,

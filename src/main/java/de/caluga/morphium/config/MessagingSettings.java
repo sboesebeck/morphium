@@ -21,49 +21,57 @@ public class MessagingSettings {
     public String getMessagingStatusInfoListenerName() {
         return messagingStatusInfoListenerName;
     }
-    public void setMessagingStatusInfoListenerName(String messagingStatusInfoListenerName) {
+    public MessagingSettings setMessagingStatusInfoListenerName(String messagingStatusInfoListenerName) {
         this.messagingStatusInfoListenerName = messagingStatusInfoListenerName;
+        return this;
     }
     public boolean isMessagingStatusInfoListenerEnabled() {
         return messagingStatusInfoListenerEnabled;
     }
-    public void setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
+    public MessagingSettings setMessagingStatusInfoListenerEnabled(boolean messagingStatusInfoListenerEnabled) {
         this.messagingStatusInfoListenerEnabled = messagingStatusInfoListenerEnabled;
+        return this;
     }
     public String getMessagingImplementation() {
         return messagingImplementation;
     }
-    public void setMessagingImplementation(String messagingImplementation) {
+    public MessagingSettings setMessagingImplementation(String messagingImplementation) {
         this.messagingImplementation = messagingImplementation;
+        return this;
     }
     public int getThreadPoolMessagingCoreSize() {
         return threadPoolMessagingCoreSize;
     }
-    public void setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
+    public MessagingSettings setThreadPoolMessagingCoreSize(int threadPoolMessagingCoreSize) {
         this.threadPoolMessagingCoreSize = threadPoolMessagingCoreSize;
+        return this;
     }
     public int getThreadPoolMessagingMaxSize() {
         return threadPoolMessagingMaxSize;
     }
-    public void setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
+    public MessagingSettings setThreadPoolMessagingMaxSize(int threadPoolMessagingMaxSize) {
         this.threadPoolMessagingMaxSize = threadPoolMessagingMaxSize;
+        return this;
     }
     public long getThreadPoolMessagingKeepAliveTime() {
         return threadPoolMessagingKeepAliveTime;
     }
-    public void setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
+    public MessagingSettings setThreadPoolMessagingKeepAliveTime(long threadPoolMessagingKeepAliveTime) {
         this.threadPoolMessagingKeepAliveTime = threadPoolMessagingKeepAliveTime;
+        return this;
     }
     public int getMessagingWindowSize() {
         return messagingWindowSize;
     }
-    public void setMessagingWindowSize(int messagingWindowSize) {
+    public MessagingSettings setMessagingWindowSize(int messagingWindowSize) {
         this.messagingWindowSize = messagingWindowSize;
+        return this;
     }
     public Class<? extends Messaging> getMessagingClass() {
         return messagingClass;
     }
-    public void setMessagingClass(Class<? extends Messaging> messagingClass) {
+    public MessagingSettings setMessagingClass(Class<? extends Messaging> messagingClass) {
         this.messagingClass = messagingClass;
+        return this;
     }
 }

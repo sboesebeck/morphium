@@ -37,8 +37,9 @@ public class WriterSettings {
 
         return writer;
     }
-    public void setWriter(MorphiumWriter writer) {
+    public WriterSettings setWriter(MorphiumWriter writer) {
         this.writer = writer;
+        return this;
     }
     public MorphiumWriter getBufferedWriter() {
         if (bufferedWriter == null) {
@@ -47,8 +48,9 @@ public class WriterSettings {
 
         return bufferedWriter;
     }
-    public void setBufferedWriter(MorphiumWriter bufferedWriter) {
+    public WriterSettings setBufferedWriter(MorphiumWriter bufferedWriter) {
         this.bufferedWriter = bufferedWriter;
+        return this;
     }
     public MorphiumWriter getAsyncWriter() {
         if (asyncWriter == null) {
@@ -57,61 +59,71 @@ public class WriterSettings {
 
         return asyncWriter;
     }
-    public void setAsyncWriter(MorphiumWriter asyncWriter) {
+    public WriterSettings setAsyncWriter(MorphiumWriter asyncWriter) {
         this.asyncWriter = asyncWriter;
+        return this;
     }
     public int getMaximumRetriesBufferedWriter() {
         return maximumRetriesBufferedWriter;
     }
-    public void setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
+    public WriterSettings setMaximumRetriesBufferedWriter(int maximumRetriesBufferedWriter) {
         this.maximumRetriesBufferedWriter = maximumRetriesBufferedWriter;
+        return this;
     }
     public int getMaximumRetriesWriter() {
         return maximumRetriesWriter;
     }
-    public void setMaximumRetriesWriter(int maximumRetriesWriter) {
+    public WriterSettings setMaximumRetriesWriter(int maximumRetriesWriter) {
         this.maximumRetriesWriter = maximumRetriesWriter;
+        return this;
     }
     public int getMaximumRetriesAsyncWriter() {
         return maximumRetriesAsyncWriter;
     }
-    public void setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
+    public WriterSettings setMaximumRetriesAsyncWriter(int maximumRetriesAsyncWriter) {
         this.maximumRetriesAsyncWriter = maximumRetriesAsyncWriter;
+        return this;
     }
     public int getRetryWaitTimeBufferedWriter() {
         return retryWaitTimeBufferedWriter;
     }
-    public void setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
+    public WriterSettings setRetryWaitTimeBufferedWriter(int retryWaitTimeBufferedWriter) {
         this.retryWaitTimeBufferedWriter = retryWaitTimeBufferedWriter;
+        return this;
     }
     public int getRetryWaitTimeWriter() {
         return retryWaitTimeWriter;
     }
-    public void setRetryWaitTimeWriter(int retryWaitTimeWriter) {
+    public WriterSettings setRetryWaitTimeWriter(int retryWaitTimeWriter) {
         this.retryWaitTimeWriter = retryWaitTimeWriter;
+        return this;
     }
     public int getRetryWaitTimeAsyncWriter() {
         return retryWaitTimeAsyncWriter;
     }
-    public void setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
+    public WriterSettings setRetryWaitTimeAsyncWriter(int retryWaitTimeAsyncWriter) {
         this.retryWaitTimeAsyncWriter = retryWaitTimeAsyncWriter;
+        return this;
     }
     public int getWriteBufferTime() {
         return writeBufferTime;
     }
-    public void setWriteBufferTime(int writeBufferTime) {
+    public WriterSettings setWriteBufferTime(int writeBufferTime) {
         this.writeBufferTime = writeBufferTime;
+        return this;
     }
     public int getWriteBufferTimeGranularity() {
         return writeBufferTimeGranularity;
     }
-    public void setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
+    public WriterSettings setWriteBufferTimeGranularity(int writeBufferTimeGranularity) {
         this.writeBufferTimeGranularity = writeBufferTimeGranularity;
+        return this;
     }
     public int getThreadConnectionMultiplier() {
         return threadConnectionMultiplier;
     }
-    public void setThreadConnectionMultiplier(int threadConnectionMultiplier) {
+    public WriterSettings setThreadConnectionMultiplier(int threadConnectionMultiplier) {
         this.threadConnectionMultiplier = threadConnectionMultiplier;
+        return this;
     }
 }
