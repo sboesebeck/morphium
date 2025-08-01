@@ -111,7 +111,7 @@ public class SingleMongoConnection implements MongoConnection {
             msg.setFirstDoc(cmd.asMap());
             result = sendAndWaitForReply(msg);
 
-            if (System.currentTimeMillis() - start > getDriver().getMaxWaitTime()) {
+            if (result == null && System.currentTimeMillis() - start > getDriver().getMaxWaitTime()) {
                 throw new MorphiumDriverException("Hello result is null");
             }
 
@@ -595,7 +595,6 @@ public class SingleMongoConnection implements MongoConnection {
                     command.getCb().incomingData(o, System.currentTimeMillis() - start);
                     docsProcessed++;
                 }
-
                 // } else {
                 // log.info("No/empty result");
             }

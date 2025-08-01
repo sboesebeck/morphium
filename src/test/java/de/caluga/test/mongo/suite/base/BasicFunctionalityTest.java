@@ -154,7 +154,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void subObjectQueryTest(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -176,7 +175,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void subObjectQueryTestUnknownField(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -193,7 +191,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void sortTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -228,7 +225,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void arrayOfPrimitivesTest(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -299,7 +295,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void updateBinaryDataTest(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -337,7 +332,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void binaryDataTest(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -367,7 +361,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
         try (morphium) {
             String tstName = new Object() {
             }
-
             .getClass().getEnclosingMethod().getName();
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             createUncachedObjects(morphium, 100);
@@ -381,7 +374,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void idTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -418,7 +410,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void orTest(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -462,7 +453,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void uncachedSingeTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -493,7 +483,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void uncachedListTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -572,7 +561,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void cachedWritingTest(Morphium m) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + m.getDriver().getName());
 
@@ -614,7 +602,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void checkListWriting(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -639,7 +626,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void checkToStringUniqueness(Morphium morphium) {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -671,7 +657,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void cachedObjectWriting(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -708,7 +693,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void mixedListWritingTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("----------------> Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -756,7 +740,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void listOfIdsTest(Morphium morphium) throws InterruptedException {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -799,7 +782,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void insertTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -840,7 +822,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void insertListTest(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -887,7 +868,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void testFindOneAndDelete(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
@@ -906,7 +886,6 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void testFindOneAndUpdate(Morphium morphium) throws Exception {
         String tstName = new Object() {
         }
-
         .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
