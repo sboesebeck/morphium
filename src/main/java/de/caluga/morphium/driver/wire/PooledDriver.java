@@ -314,7 +314,7 @@ public class PooledDriver extends DriverBase {
                                 long now = System.currentTimeMillis();
 
                                 if ((connection.getLastUsed() < now - getMaxConnectionIdleTime()) || connection.getCreated() < now - getMaxConnectionLifetime()) {
-                                    log.debug("connection to host:{} too long idle or just too old -> remove", connection.getCon().getConnectedToHost());
+                                    log.debug("connection to host:{} too long idle {}ms or just too old {}ms -> remove", connection.getCon().getConnectedToHost(), getMaxConnectionIdleTime(), getMaxConnectionLifetime());
 
                                     try {
                                         connection.getCon().close();

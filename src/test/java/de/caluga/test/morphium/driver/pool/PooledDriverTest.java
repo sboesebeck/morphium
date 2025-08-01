@@ -235,7 +235,7 @@ public class PooledDriverTest {
     }
 
     @Test
-    @Disabled
+    // @Disabled
     public void testMultithreaddedConnectionPool() throws Exception {
         var drv = getDriver();
         drv.connect();
