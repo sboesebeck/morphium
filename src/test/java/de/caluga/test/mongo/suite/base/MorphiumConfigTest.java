@@ -30,44 +30,44 @@ public class MorphiumConfigTest {
 
     private MorphiumConfig getConfig() {
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.getConnectionSettings().setDatabase("test");
-        cfg.getClusterSettings()
-        .setHostSeed("localhost:27017");
-        cfg.getAuthSettings().setMongoAuthDb("admin")
-        .setMongoLogin("login")
-        .setMongoPassword("12345");
+        cfg.connectionSettings().setDatabase("test");
+        cfg.clusterSettings()
+           .setHostSeed("localhost:27017");
+        cfg.authSettings().setMongoAuthDb("admin")
+           .setMongoLogin("login")
+           .setMongoPassword("12345");
         return cfg;
     }
     @Test
     public void credentialsEncrypted() {
         MorphiumConfig def = getConfig();
         var cfg = MorphiumConfig.fromProperties(def.asProperties());
-        cfg.getEncryptionSettings().setCredentialsEncrypted(true)
-        .setCredentialsEncryptionKey("1234567890abcdef")
-        .setCredentialsDecryptionKey("1234567890abcdef");
+        cfg.encryptionSettings().setCredentialsEncrypted(true)
+           .setCredentialsEncryptionKey("1234567890abcdef")
+           .setCredentialsDecryptionKey("1234567890abcdef");
         var enc = new AESEncryptionProvider();
         enc.setEncryptionKey("1234567890abcdef".getBytes());
-        cfg.getAuthSettings().setMongoAuthDb(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getAuthSettings().getMongoAuthDb().getBytes(StandardCharsets.UTF_8))))
-        .setMongoPassword(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getAuthSettings().getMongoPassword().getBytes(StandardCharsets.UTF_8))))
-        .setMongoLogin(Base64.getEncoder().encodeToString(enc.encrypt(cfg.getAuthSettings().getMongoLogin().getBytes(StandardCharsets.UTF_8))));
+        cfg.authSettings().setMongoAuthDb(Base64.getEncoder().encodeToString(enc.encrypt(cfg.authSettings().getMongoAuthDb().getBytes(StandardCharsets.UTF_8))))
+           .setMongoPassword(Base64.getEncoder().encodeToString(enc.encrypt(cfg.authSettings().getMongoPassword().getBytes(StandardCharsets.UTF_8))))
+           .setMongoLogin(Base64.getEncoder().encodeToString(enc.encrypt(cfg.authSettings().getMongoLogin().getBytes(StandardCharsets.UTF_8))));
     }
 
     @Test
     public void testToString() throws Exception {
         MorphiumConfig def = getConfig();
-        def.getClusterSettings().addHostToSeed("localhost:27018");
+        def.clusterSettings().addHostToSeed("localhost:27018");
         String cfg = def.toString();
         log.info("Config: " + cfg);
         MorphiumConfig c = MorphiumConfig.createFromJson(cfg);
-        log.info("Host-Seed: {}", c.getClusterSettings().getHostSeed());
-        assert(!c.getClusterSettings().getHostSeed().isEmpty());
+        log.info("Host-Seed: {}", c.clusterSettings().getHostSeed());
+        assert(!c.clusterSettings().getHostSeed().isEmpty());
     }
 
 
     @Test
     public void testDefaultProps() throws Exception {
         MorphiumConfig cfg = new MorphiumConfig();
-        log.info("ReadPreference: " + cfg.getDriverSettings().getDefaultReadPreference().toString());
+        log.info("ReadPreference: " + cfg.driverSettings().getDefaultReadPreference().toString());
         Properties p = cfg.asProperties();
 
         for (Object k : p.keySet()) {
@@ -83,17 +83,17 @@ public class MorphiumConfigTest {
     public void testSystemOverrides() throws Exception {
         System.getProperties().setProperty("morphium.database", "broken");
         MorphiumConfig cfg = new MorphiumConfig();
-        log.info("Got db {} != {} ", cfg.getConnectionSettings().getDatabase(), System.getProperty("morphium.database"));
+        log.info("Got db {} != {} ", cfg.connectionSettings().getDatabase(), System.getProperty("morphium.database"));
     }
 
     @Test
     public void partialJsonTest() throws Exception {
         String json = "{ \"hosts\":\"localhost:27018, localhost:27099\", \"database\" : \"testdb\", \"safe_mode\" : true , \"global_fsync\" : false , \"globalJ\" : false , \"write_timeout\" : 9990 }";
         MorphiumConfig cfg = MorphiumConfig.createFromJson(json);
-        assert(cfg.getConnectionSettings().getDatabase().equals("testdb"));
-        assert(cfg.getClusterSettings().getHostSeed().size() == 2);
-        assert(cfg.getClusterSettings().getHostSeed().get(0).endsWith(":27018"));
-        assert(cfg.getClusterSettings().getHostSeed().get(1).endsWith(":27099"));
+        assert(cfg.connectionSettings().getDatabase().equals("testdb"));
+        assert(cfg.clusterSettings().getHostSeed().size() == 2);
+        assert(cfg.clusterSettings().getHostSeed().get(0).endsWith(":27018"));
+        assert(cfg.clusterSettings().getHostSeed().get(1).endsWith(":27099"));
     }
 
 
@@ -102,20 +102,20 @@ public class MorphiumConfigTest {
         Properties p = new Properties();
         p.setProperty("morphium.indexCheck", "WARN_ON_STARTUP");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("morphium", p);
-        assert(cfg.getCollectionCheckSettings().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP));
-        assert(cfg.getObjectMappingSettings().isAutoValues());
-        assert(cfg.getClusterSettings().getHostSeed().size() == 0);
+        assert(cfg.collectionCheckSettings().getIndexCheck().equals(IndexCheck.WARN_ON_STARTUP));
+        assert(cfg.objectMappingSettings().isAutoValues());
+        assert(cfg.clusterSettings().getHostSeed().size() == 0);
     }
 
     @Test
     public void testHosts() {
         MorphiumConfig cfg = new MorphiumConfig();
-        cfg.getClusterSettings().addHostToSeed("localhost:9999").addHostToSeed("localhost", 1000);
-        assert(cfg.getClusterSettings().getHostSeed().size() == 2);
-        cfg.getClusterSettings().setHostSeed("localhost:9999,localhost:2222,localhost:2344");
-        assert(cfg.getClusterSettings().getHostSeed().size() == 3);
-        cfg.getClusterSettings().setHostSeed("localhost,localhost,localhost,localhost", "1, 2,   3,4");
-        assert(cfg.getClusterSettings().getHostSeed().size() == 4);
+        cfg.clusterSettings().addHostToSeed("localhost:9999").addHostToSeed("localhost", 1000);
+        assert(cfg.clusterSettings().getHostSeed().size() == 2);
+        cfg.clusterSettings().setHostSeed("localhost:9999,localhost:2222,localhost:2344");
+        assert(cfg.clusterSettings().getHostSeed().size() == 3);
+        cfg.clusterSettings().setHostSeed("localhost,localhost,localhost,localhost", "1, 2,   3,4");
+        assert(cfg.clusterSettings().getHostSeed().size() == 4);
     }
 
 
@@ -129,18 +129,18 @@ public class MorphiumConfigTest {
         p.put("maxConnections", "120");
         p.put("minConnections", "11");
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assertEquals(1, cfg.getClusterSettings().getHostSeed().size());
-        assertEquals("thingy", cfg.getConnectionSettings().getDatabase());
-        assertEquals(11, cfg.getConnectionSettings().getMinConnections());
-        assertEquals(120, cfg.getConnectionSettings().getMaxConnections());
+        assertEquals(1, cfg.clusterSettings().getHostSeed().size());
+        assertEquals("thingy", cfg.connectionSettings().getDatabase());
+        assertEquals(11, cfg.connectionSettings().getMinConnections());
+        assertEquals(120, cfg.connectionSettings().getMaxConnections());
     }
 
 
     @Test
     public void testMorphiumConfig() {
         MorphiumConfig cfg = getConfig();
-        assertNotNull(cfg.getConnectionSettings().getDatabase());
-        assertEquals(cfg.getConnectionSettings().getDatabase(), cfg.getConnectionSettings().getDatabase());
+        assertNotNull(cfg.connectionSettings().getDatabase());
+        assertEquals(cfg.connectionSettings().getDatabase(), cfg.connectionSettings().getDatabase());
     }
 
     @Test
@@ -154,9 +154,9 @@ public class MorphiumConfigTest {
 
         p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
-        assertNotNull(cfg.getConnectionSettings().getDatabase());
-        assert(cfg.getConnectionSettings().getDatabase().equals(cg.getConnectionSettings().getDatabase()));
-        assert(cfg.getClusterSettings().getHostSeed().size() != 0);
+        assertNotNull(cfg.connectionSettings().getDatabase());
+        assert(cfg.connectionSettings().getDatabase().equals(cg.connectionSettings().getDatabase()));
+        assert(cfg.clusterSettings().getHostSeed().size() != 0);
     }
 
     @Test
@@ -170,8 +170,8 @@ public class MorphiumConfigTest {
 
         p.store(System.out, "testproperties");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
-        assert(cfg.getConnectionSettings().getDatabase().equals(getConfig().getConnectionSettings().getDatabase()));
-        assert(cfg.getClusterSettings().getHostSeed().size() != 0);
+        assert(cfg.connectionSettings().getDatabase().equals(getConfig().connectionSettings().getDatabase()));
+        assert(cfg.clusterSettings().getHostSeed().size() != 0);
     }
 
     @Test
@@ -183,9 +183,9 @@ public class MorphiumConfigTest {
         p.put("prefix.database", "thingy");
         p.put("prefix.retryReads", "true");
         MorphiumConfig cfg = MorphiumConfig.fromProperties("prefix", p);
-        assert(cfg.getClusterSettings().getHostSeed().size() == 1);
-        assert(cfg.getConnectionSettings().getDatabase().equals("thingy"));
-        assert(cfg.getDriverSettings().isRetryReads());
+        assert(cfg.clusterSettings().getHostSeed().size() == 1);
+        assert(cfg.connectionSettings().getDatabase().equals("thingy"));
+        assert(cfg.driverSettings().isRetryReads());
     }
 
 

@@ -67,7 +67,7 @@ public class MorphiumConfig {
     @Transient
     private AuthSettings authSettings = new AuthSettings();
     @Transient
-    private ClusterSettings clusterSettings=new ClusterSettings();
+    private ClusterSettings clusterSettings = new ClusterSettings();
 
 
 
@@ -75,35 +75,35 @@ public class MorphiumConfig {
     private List<Object> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings, messagingSettings);
 
 
-    public MessagingSettings getMessagingSettings() {
+    public MessagingSettings messagingSettings() {
         return messagingSettings;
     }
-    public CollectionCheckSettings getCollectionCheckSettings() {
+    public CollectionCheckSettings collectionCheckSettings() {
         return collectionCheckSettings;
     }
-    public EncryptionSettings getEncryptionSettings() {
+    public EncryptionSettings encryptionSettings() {
         return encryptionSettings;
     }
-    public ObjectMappingSettings getObjectMappingSettings() {
+    public ObjectMappingSettings objectMappingSettings() {
         return objectMappingSettings;
     }
-    public ThreadPoolSettings getThreadPoolSettings() {
+    public ThreadPoolSettings threadPoolSettings() {
         return threadPoolSettings;
     }
-    public WriterSettings getWriterSettings() {
+    public WriterSettings writerSettings() {
         return writerSettings;
     }
-    public CacheSettings getCacheSettings() {
+    public CacheSettings cacheSettings() {
         return cacheSettings;
     }
-    public ConnectionSettings getConnectionSettings() {
+    public ConnectionSettings connectionSettings() {
         return connectionSettings;
     }
-    public DriverSettings getDriverSettings() {
+    public DriverSettings driverSettings() {
         return driverSettings;
     }
-    public AuthSettings getAuthSettings() {return authSettings;}
-    public ClusterSettings getClusterSettings() {return clusterSettings;}
+    public AuthSettings authSettings() {return authSettings;}
+    public ClusterSettings clusterSettings() {return clusterSettings;}
     /**
      * use messagingSettings
      */
@@ -187,7 +187,7 @@ public class MorphiumConfig {
                 try {
                     if (f.getType().isEnum()) {
                         @SuppressWarnings("unchecked")
-                        Enum value = Enum.valueOf((Class<? extends Enum>) f.getType(), (String) setting);
+                        Enum value = Enum.valueOf((Class <? extends Enum > ) f.getType(), (String) setting);
                         f.set(settingObject, value);
                     } else if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                         f.set(settingObject, Integer.parseInt((String) setting));
@@ -372,7 +372,7 @@ public class MorphiumConfig {
      * use encryptionSettings
      */
     @Deprecated
-    public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
+    public Class <? extends ValueEncryptionProvider > getValueEncryptionProviderClass() {
         return encryptionSettings.getValueEncryptionProviderClass();
     }
 
@@ -380,7 +380,7 @@ public class MorphiumConfig {
      * use encryptionSettings
      */
     @Deprecated
-    public MorphiumConfig setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+    public MorphiumConfig setValueEncryptionProviderClass(Class <? extends ValueEncryptionProvider > valueEncryptionProviderClass) {
         encryptionSettings.setValueEncryptionProviderClass(valueEncryptionProviderClass);
         return this;
     }
@@ -389,7 +389,7 @@ public class MorphiumConfig {
      * use encryptionSettings
      */
     @Deprecated
-    public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
+    public Class <? extends EncryptionKeyProvider > getEncryptionKeyProviderClass() {
         return encryptionSettings.getEncryptionKeyProviderClass();
     }
 
@@ -397,7 +397,7 @@ public class MorphiumConfig {
      * use encryptionSettings
      */
     @Deprecated
-    public MorphiumConfig setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
+    public MorphiumConfig setEncryptionKeyProviderClass(Class <? extends EncryptionKeyProvider > encryptionKeyProviderClass) {
         encryptionSettings.setEncryptionKeyProviderClass(encryptionKeyProviderClass);
         return this;
     }
@@ -458,7 +458,6 @@ public class MorphiumConfig {
     /**
      * use collectionCheckSettings
      */
-    @Deprecated
     public boolean isAutoIndexAndCappedCreationOnWrite() {
         return collectionCheckSettings.getIndexCheck().equals(IndexCheck.CREATE_ON_WRITE_NEW_COL);
     }
@@ -466,7 +465,6 @@ public class MorphiumConfig {
     /**
      * use collectionCheckSettings
      */
-    @Deprecated
     public MorphiumConfig setAutoIndexAndCappedCreationOnWrite(boolean autoIndexAndCappedCreationOnWrite) {
         if (autoIndexAndCappedCreationOnWrite) {
             collectionCheckSettings.setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL);

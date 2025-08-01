@@ -478,7 +478,7 @@ public abstract class MorphiumBase {
     }
 
     public <T> Map<String, Object> explainRemove(Query<T> q) {
-        return getConfig().getWriter().explainRemove(null, q);
+        return getConfig().writerSettings().getWriter().explainRemove(null, q);
     }
 
     public <T> Map<String, Object> remove(Query<T> o) {
@@ -493,17 +493,14 @@ public abstract class MorphiumBase {
         return getWriterForClass(o.getType()).remove(o, callback);
     }
 
-    @SuppressWarnings("unused")
     public <T> Map<String, Object> pushPull(boolean push, Query<T> query, String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPull(push ? MorphiumStorageListener.UpdateTypes.PUSH : MorphiumStorageListener.UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
-    @SuppressWarnings("unused")
     public <T> Map<String, Object> pushPullAll(boolean push, Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPullAll(push ? UpdateTypes.PUSH : UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
 
-    @SuppressWarnings("unused")
     public <T> Map<String, Object> pullAll(Query<T> query, String field, List<?> value, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         return getWriterForClass(query.getType()).pushPullAll(UpdateTypes.PULL, query, field, value, upsert, multiple, callback);
     }
@@ -546,11 +543,11 @@ public abstract class MorphiumBase {
         }
 
         for (T o : bufferedDel) {
-            getConfig().getBufferedWriter().remove(o, forceCollectionName, callback);
+            getConfig().writerSettings().getBufferedWriter().remove(o, forceCollectionName, callback);
         }
 
         for (T o : directDel) {
-            getConfig().getWriter().remove(o, forceCollectionName, callback);
+            getConfig().writerSettings().getWriter().remove(o, forceCollectionName, callback);
         }
     }
 
@@ -571,8 +568,8 @@ public abstract class MorphiumBase {
             }
         }
 
-        getConfig().getBufferedWriter().remove(bufferedDel, callback);
-        getConfig().getWriter().remove(directDel, callback);
+        getConfig().writerSettings().getBufferedWriter().remove(bufferedDel, callback);
+        getConfig().writerSettings().getWriter().remove(directDel, callback);
     }
 
     public <T> void remove(final T lo, final AsyncOperationCallback<T> callback) {
@@ -819,7 +816,7 @@ public abstract class MorphiumBase {
     }
 
     public <T> Map<String, Object> explainRemove(ExplainVerbosity verbosity, T o) {
-        return getConfig().getWriter().explainRemove(verbosity, o, getMapper().getCollectionName(o.getClass()));
+        return getConfig().writerSettings().getWriter().explainRemove(verbosity, o, getMapper().getCollectionName(o.getClass()));
     }
 
     /**
@@ -1072,7 +1069,7 @@ public abstract class MorphiumBase {
         return inc(query, field.name(), amount, upsert, multiple);
     }
 
-    public <T> T findById(Class<? extends T> type, Object id) {
+    public <T> T findById(Class <? extends T > type, Object id) {
         return findById(type, id, null);
     }
 
@@ -1469,7 +1466,7 @@ public abstract class MorphiumBase {
      * @return statistics
      * @throws MorphiumDriverException
      */
-    public Map<String, Integer> storeMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException {
+    public Map<String, Integer> storeMaps(Class type, List<Map<String, Object >> lst) throws MorphiumDriverException {
         return saveMaps(type, lst);
     }
 
@@ -1593,11 +1590,11 @@ public abstract class MorphiumBase {
     }
 
     public abstract <T> void ensureIndicesFor(Class<T> type, String onCollection, AsyncOperationCallback<T> callback, MorphiumWriter wr);
-    public abstract Map<String, Integer> saveMaps(Class type, List<Map<String, Object>> lst) throws MorphiumDriverException;
+    public abstract Map<String, Integer> saveMaps(Class type, List<Map<String, Object >> lst) throws MorphiumDriverException;
     public abstract <T> void insertList(List lst, String collection, AsyncOperationCallback<T> callback);
-    public abstract <T> T findById(Class<? extends T> type, Object id, String collection);
+    public abstract <T> T findById(Class <? extends T > type, Object id, String collection);
 
-    public abstract <T> void findById(Class<? extends T> type, Object id, String collection, AsyncOperationCallback callback);
+    public abstract <T> void findById(Class <? extends T > type, Object id, String collection, AsyncOperationCallback callback);
 
     public abstract List<Object> distinct(String key, Query q);
 

@@ -52,14 +52,14 @@ import java.util.stream.Collectors;
 public class ObjectMapperImpl implements MorphiumObjectMapper {
     private final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
     private final ReflectionFactory reflection = ReflectionFactory.getReflectionFactory();
-    private final Map<Class<?>, NameProvider> nameProviders;
+    private final Map < Class<?>, NameProvider > nameProviders;
     //private final JSONParser jsonParser = new JSONParser();
     private final ObjectMapper jacksonOM = new ObjectMapper();
 
-    private final ArrayList<Class<?>> mongoTypes;
+    private final ArrayList < Class<?>> mongoTypes;
     private AnnotationAndReflectionHelper annotationHelper = new AnnotationAndReflectionHelper(true);
-    private final Map<Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
-    private final Map<String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
+    private final Map < Class<?>, MorphiumTypeMapper> customMappers = new ConcurrentHashMap<>();
+    private final Map < String, Class<?>> classByCollectionName = new ConcurrentHashMap<>();
     private Morphium morphium;
 
     public ObjectMapperImpl() {
@@ -302,8 +302,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         Entity e = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
         Embedded emb = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);
         boolean objectIsEntity = e != null || emb != null;
-        boolean warnOnNoEntitySerialization = morphium != null && morphium.getConfig() != null && morphium.getConfig().isWarnOnNoEntitySerialization();
-        boolean objectSerializationEnabled = morphium == null || morphium.getConfig() == null || morphium.getConfig().isObjectSerializationEnabled();
+        boolean warnOnNoEntitySerialization = morphium != null && morphium.getConfig() != null && morphium.getConfig().objectMappingSettings().isWarnOnNoEntitySerialization();
+        boolean objectSerializationEnabled = morphium == null || morphium.getConfig() == null || morphium.getConfig().objectMappingSettings().isObjectSerializationEnabled();
 
         if (!objectIsEntity && !warnOnNoEntitySerialization) {
             if (objectSerializationEnabled) {
@@ -790,7 +790,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
     }
 
     @Override
-    public <T> T deserialize(Class<? extends T> cls, String jsonString) throws RuntimeException {
+    public <T> T deserialize(Class <? extends T > cls, String jsonString) throws RuntimeException {
         try {
             if (jsonString.startsWith("{")) {
                 HashMap<String, Object> obj = (HashMap<String, Object>) jacksonOM.readValue(jsonString.getBytes(), Map.class); //jsonParser.parse(jsonString, containerFactory);
@@ -799,14 +799,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                 return (T)(jacksonOM.readValue(("{\"value\":" + jsonString + "}").getBytes(), Map.class).get("value"));
             }
         } catch (
-                Exception e) {
+                            Exception e) {
             throw new RuntimeException("Parsing failed", e);
         }
     }
 
     @SuppressWarnings({"unchecked", "CastCanBeRemovedNarrowingVariableType", "CommentedOutCode"})
     @Override
-    public <T> T deserialize(Class<? extends T> theClass, Map<String, Object> objectMap) {
+    public <T> T deserialize(Class <? extends T> theClass, Map<String, Object> objectMap) {
         if (objectMap == null) {
             return null;
         }
@@ -821,8 +821,8 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             Entity entity = annotationHelper.getAnnotationFromHierarchy(cls, Entity.class);
             Embedded embedded = annotationHelper.getAnnotationFromHierarchy(cls, Embedded.class);
             boolean objectIsEntity = entity != null || embedded != null;
-            boolean warnOnNoEntitySerialization = morphium != null && morphium.getConfig() != null && morphium.getConfig().isWarnOnNoEntitySerialization();
-            boolean objectSerializationEnabled = morphium == null || morphium.getConfig() == null || morphium.getConfig().isObjectSerializationEnabled();
+            boolean warnOnNoEntitySerialization = morphium != null && morphium.getConfig() != null && morphium.getConfig().objectMappingSettings().isWarnOnNoEntitySerialization();
+            boolean objectSerializationEnabled = morphium == null || morphium.getConfig() == null || morphium.getConfig().objectMappingSettings().isObjectSerializationEnabled();
 
             if (!warnOnNoEntitySerialization && objectSerializationEnabled && !objectIsEntity) {
                 cls = BinarySerializedObject.class;
@@ -852,14 +852,14 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
             }
 
             if (cls.isEnum()) {
-                return (T) Enum.valueOf((Class<? extends Enum>) cls, (String) objectMap.get("name"));
+                return (T) Enum.valueOf((Class <? extends Enum > ) cls, (String) objectMap.get("name"));
             }
 
             {
                 Class<?> superclass = cls.getSuperclass();
 
                 if (superclass != null && superclass.isEnum()) {
-                    return (T) Enum.valueOf((Class<? extends Enum>) superclass, (String) objectMap.get("name"));
+                    return (T) Enum.valueOf((Class <? extends Enum > ) superclass, (String) objectMap.get("name"));
                 }
             }
 
@@ -965,7 +965,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
 
                     //encrypted field
                     Encrypted enc = fld.getAnnotation(Encrypted.class);
-                    Class<? extends ValueEncryptionProvider> encCls = enc.provider();
+                    Class <? extends ValueEncryptionProvider > encCls = enc.provider();
                     ValueEncryptionProvider ep = encCls.newInstance();
                     String key = enc.keyName();
 
@@ -1200,9 +1200,9 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
                     Class<?> superclass = fldType.getSuperclass();
 
                     if (fldType.isEnum()) {
-                        value = Enum.valueOf((Class<? extends Enum>) fldType, (String) valueFromDb);
+                        value = Enum.valueOf((Class <? extends Enum > ) fldType, (String) valueFromDb);
                     } else if (superclass != null && superclass.isEnum()) {
-                        value = Enum.valueOf((Class<? extends Enum>) superclass, (String) valueFromDb);
+                        value = Enum.valueOf((Class <? extends Enum > ) superclass, (String) valueFromDb);
                     } else if (valueFromDb instanceof ObjectId) {
                         if (fldType.equals(MorphiumId.class)) {
                             if (valueFromDb instanceof ObjectId) {
@@ -1698,7 +1698,7 @@ public class ObjectMapperImpl implements MorphiumObjectMapper {
         Map toFill;
 
         if (useEnumMap) {
-            toFill = new EnumMap<>((Class<? extends Enum>) keyClass);
+            toFill = new EnumMap<>((Class <? extends Enum > ) keyClass);
         } else {
             toFill = new HashMap();
         }
