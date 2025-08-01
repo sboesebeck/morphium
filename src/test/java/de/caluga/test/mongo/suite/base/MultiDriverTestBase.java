@@ -200,43 +200,43 @@ public class MultiDriverTestBase {
         //Diferent Drivers
         if (includePooled) {
             MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
-            pooled.getEncryptionSettings().setCredentialsEncrypted(true)
+            pooled.encryptionSettings().setCredentialsEncrypted(true)
                   .setCredentialsEncryptionKey("1234567890abcdef")
                   .setCredentialsDecryptionKey("1234567890abcdef");
 
             if (authDb != null) {
-                pooled.getAuthSettings().setMongoAuthDb(authDb)
+                pooled.authSettings().setMongoAuthDb(authDb)
                       .setMongoPassword(password)
                       .setMongoLogin(user);
             }
 
-            pooled.getDriverSettings().setDriverName(PooledDriver.driverName);
-            pooled.getConnectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            pooled.getCollectionCheckSettings()
+            pooled.driverSettings().setDriverName(PooledDriver.driverName);
+            pooled.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            pooled.collectionCheckSettings()
                   .setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.getDriverSettings().getDriverName());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.driverSettings().getDriverName());
             Morphium pooledMorphium = new Morphium(pooled);
             morphiums.add(Arguments.of(pooledMorphium));
         }
 
         if (includeSingle) {
             MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-            singleConnection.getDriverSettings().setDriverName(SingleMongoConnectDriver.driverName);
-            singleConnection.getEncryptionSettings().setCredentialsEncrypted(true)
+            singleConnection.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
+            singleConnection.encryptionSettings().setCredentialsEncrypted(true)
                             .setCredentialsEncryptionKey("1234567890abcdef")
                             .setCredentialsDecryptionKey("1234567890abcdef");
 
             if (authDb != null) {
-                singleConnection.getAuthSettings().setMongoAuthDb(authDb)
+                singleConnection.authSettings().setMongoAuthDb(authDb)
                                 .setMongoPassword(password)
                                 .setMongoLogin(user);
             }
 
-            singleConnection.getConnectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            singleConnection.getCollectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
+            singleConnection.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            singleConnection.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                             .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.getDriverSettings().getDriverName());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.driverSettings().getDriverName());
             Morphium singleConMorphium = new Morphium(singleConnection);
             morphiums.add(Arguments.of(singleConMorphium));
         }
@@ -250,17 +250,17 @@ public class MultiDriverTestBase {
         //
         if (includeInMem) {
             MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
-            inMemDriver.getDriverSettings().setDriverName(InMemoryDriver.driverName);
-            inMemDriver.getAuthSettings().setMongoAuthDb(null);
-            inMemDriver.getAuthSettings().setMongoLogin(null);
-            inMemDriver.getAuthSettings().setMongoPassword(null);
-            inMemDriver.getConnectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            inMemDriver.getCollectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            inMemDriver.getCollectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+            inMemDriver.driverSettings().setDriverName(InMemoryDriver.driverName);
+            inMemDriver.authSettings().setMongoAuthDb(null);
+            inMemDriver.authSettings().setMongoLogin(null);
+            inMemDriver.authSettings().setMongoPassword(null);
+            inMemDriver.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            inMemDriver.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
+            inMemDriver.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
             var inMem = new Morphium(inMemDriver);
             ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500); //speed up expiry check
             morphiums.add(Arguments.of(inMem));
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.getDriverSettings().getDriverName());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.driverSettings().getDriverName());
         }
 
         //dropping all existing test-dbs
@@ -301,21 +301,21 @@ public class MultiDriverTestBase {
             MorphiumConfig cfg;
             //creating default config
             cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
-            cfg.getClusterSettings().addHostToSeed("localhost", 27017)
+            cfg.clusterSettings().addHostToSeed("localhost", 27017)
                .addHostToSeed("localhost", 27018)
                .addHostToSeed("localhost", 27019);
-            cfg.getConnectionSettings()
+            cfg.connectionSettings()
                .setMaxWaitTime(2000)
                .setMaxConnections(100)
                .setConnectionTimeout(2000)
                .setMinConnections(1);
-            cfg.getEncryptionSettings().setCredentialsEncrypted(true)
+            cfg.encryptionSettings().setCredentialsEncrypted(true)
                .setValueEncryptionProviderClass(AESEncryptionProvider.class)
                .setEncryptionKeyProviderClass(DefaultEncryptionKeyProvider.class);
-            cfg.getCacheSettings().setWriteCacheTimeout(1000)
+            cfg.cacheSettings().setWriteCacheTimeout(1000)
                .setGlobalCacheValidTime(1000)
                .setHousekeepingTimeout(500);
-            cfg.getDriverSettings().setRetryReads(false)
+            cfg.driverSettings().setRetryReads(false)
                .setRetryWrites(false)
                .setReadTimeout(1000)
                .setDriverName(PooledDriver.driverName)
@@ -323,23 +323,23 @@ public class MultiDriverTestBase {
                .setMaxConnectionIdleTime(30000)
                .setHeartbeatFrequency(500)
                .setDefaultReadPreference(ReadPreference.nearest());
-            cfg.getAuthSettings()
+            cfg.authSettings()
                .setMongoLogin("test")
                .setMongoPassword("test")
                .setMongoAuthDb("admin");
-            cfg.getWriterSettings().setMaximumRetriesBufferedWriter(1000)
+            cfg.writerSettings().setMaximumRetriesBufferedWriter(1000)
                .setMaximumRetriesWriter(1000)
                .setMaximumRetriesAsyncWriter(1000)
                .setRetryWaitTimeAsyncWriter(1000)
                .setRetryWaitTimeWriter(1000)
                .setRetryWaitTimeBufferedWriter(1000)
                .setThreadConnectionMultiplier(2);
-            cfg.getMessagingSettings().setThreadPoolMessagingCoreSize(50)
+            cfg.messagingSettings().setThreadPoolMessagingCoreSize(50)
                .setThreadPoolMessagingMaxSize(1500)
                .setThreadPoolMessagingKeepAliveTime(10000);
-            cfg.getCollectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
+            cfg.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
                .setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
-            cfg.getObjectMappingSettings().setCheckForNew(true);
+            cfg.objectMappingSettings().setCheckForNew(true);
             p.putAll(cfg.asProperties());
             p.put("failovertest", "false");
             storeProps();

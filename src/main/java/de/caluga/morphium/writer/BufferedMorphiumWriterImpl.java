@@ -41,8 +41,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     private static final Logger logger = LoggerFactory.getLogger(BufferedMorphiumWriterImpl.class);
     // needs to be securely stored
-    private final Map<Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); // synced
-    private final Map<Class<?>, Long> lastRun = new ConcurrentHashMap<>();
+    private final Map < Class<?>, List<WriteBufferEntry>> opLog = new ConcurrentHashMap<>(); // synced
+    private final Map < Class<?>, Long> lastRun = new ConcurrentHashMap<>();
     private Morphium morphium;
     private MorphiumWriter directWriter;
     private Thread housekeeping;
@@ -70,9 +70,6 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
         this.orderedExecution = orderedExecution;
     }
 
-    private void createCappedColl(Class c) {
-        createCappedColl(c, null);
-    }
 
     private void createCappedColl(Class c, String n) {
         if (logger.isDebugEnabled()) {
@@ -92,7 +89,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
             cmd = new CreateCommand(primaryConnection);
             cmd.setCapped(true);
             cmd.setSize(capped.maxSize()).setMax(capped.maxEntries());
-            cmd.setDb(morphium.getConfig().getDatabase());
+            cmd.setDb(morphium.getConfig().connectionSettings().getDatabase());
             //primaryConnection.sendCommand(cmd);
             cmd.execute();
         } catch (MorphiumDriverException e) {
@@ -118,7 +115,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         try {
             for (WriteBufferEntry entry : localQueue) {
-                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.exists(morphium.getConfig().getDatabase(), entry.getCollectionName())) {
+                if (morphium.getConfig().isAutoIndexAndCappedCreationOnWrite() && !morphium.exists(morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName())) {
                     createCappedColl(entry.getEntityType(), entry.getCollectionName());
                     //noinspection unchecked,unchecked
                     morphium.ensureIndicesFor(entry.getEntityType(), entry.getCollectionName(), entry.getCb(), directWriter);
@@ -127,8 +124,8 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                 try {
                     if (bulkByCollectionName.get(entry.getCollectionName()) == null) {
                         WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(entry.getEntityType(), WriteBuffer.class);
-                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), entry.getCollectionName(), w.ordered(),
-                                morphium.getWriteConcernForClass(entry.getEntityType())));
+                        bulkByCollectionName.put(entry.getCollectionName(), morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), entry.getCollectionName(), w.ordered(),
+                                                 morphium.getWriteConcernForClass(entry.getEntityType())));
                     }
 
                     //                logger.info("Queueing a request of type "+entry.getType());
@@ -193,7 +190,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
         if (size > 0 && opLog.get(type) != null && opLog.get(type).size() > size) {
             logger.warn("WARNING: Write buffer for type " + type.getName() + " maximum exceeded: " + opLog.get(type).size() + " entries now, max is " + size);
-            BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
+            BulkRequestContext ctx = morphium.getDriver().createBulkContext(morphium, morphium.getConfig().connectionSettings().getDatabase(), collectionName, ordered, morphium.getWriteConcernForClass(type));
 
             synchronized (opLog) {
                 if (opLog.get(type) == null) {
@@ -207,17 +204,17 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         while (true) {
                             int timeout = w.timeout();
 
-                            if (morphium.getConfig().getMaxWaitTime() > 0 && morphium.getConfig().getMaxWaitTime() > timeout) {
-                                timeout = morphium.getConfig().getMaxWaitTime();
+                            if (morphium.getConfig().connectionSettings().getMaxWaitTime() > 0 && morphium.getConfig().connectionSettings().getMaxWaitTime() > timeout) {
+                                timeout = morphium.getConfig().connectionSettings().getMaxWaitTime();
                             }
 
                             if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
                                 logger.error("Could not write - maxWaitTime/timeout exceeded!");
-                                throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().getMaxWaitTime() + "ms");
+                                throw new RuntimeException("could now write - maxWaitTimeExceded " + morphium.getConfig().connectionSettings().getMaxWaitTime() + "ms");
                             }
 
                             try {
-                                Thread.sleep(morphium.getConfig().getIdleSleepTime());
+                                Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                             } catch (InterruptedException e1) {
                             }
 
@@ -714,7 +711,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     @Override
     public void setMorphium(Morphium m) {
         morphium = m;
-        directWriter = m.getConfig().getWriter();
+        directWriter = m.getConfig().writerSettings().getWriter();
 
         if (housekeeping == null) {
             housekeeping = new Thread() {
@@ -727,7 +724,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                         try {
                             // processing and clearing write cache...
                             //                        synchronized (opLog) {
-                            List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
+                            List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
                             for (Class<?> clz : localBuffer) {
                                 if (!running) {
@@ -739,7 +736,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
                                 WriteBuffer w = morphium.getARHelper().getAnnotationFromHierarchy(clz, WriteBuffer.class);
                                 int size = 0;
-                                int timeout = morphium.getConfig().getWriteBufferTime();
+                                int timeout = morphium.getConfig().writerSettings().getWriteBufferTime();
                                 //                                WriteBuffer.STRATEGY
                                 // strategy = WriteBuffer.STRATEGY.JUST_WARN;
 
@@ -779,7 +776,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
                                 }
 
                                 //noinspection BusyWait
-                                Thread.sleep(morphium.getConfig().getWriteBufferTimeGranularity());
+                                Thread.sleep(morphium.getConfig().writerSettings().getWriteBufferTimeGranularity());
                             } else {
                                 logger.warn("Morphium not set - assuming timeout of 1sec");
                                 //noinspection BusyWait
@@ -922,7 +919,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
 
     @Override
     public <T> Map<String, Object> pushPullAll(final MorphiumStorageListener.UpdateTypes type, final Query<T> q, final String field, final List<?> value, final boolean upsert, final boolean multiple,
-                                               AsyncOperationCallback<T> c) {
+            AsyncOperationCallback<T> c) {
         if (c == null) {
             c = new AsyncOpAdapter<>();
         }
@@ -1112,7 +1109,7 @@ public class BufferedMorphiumWriterImpl implements MorphiumWriter, ShutdownListe
     @Override
     public void flush() {
         //        synchronized (opLog) {
-        List<Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
+        List < Class<?>> localBuffer = new ArrayList<>(opLog.keySet());
 
         for (Class<?> clz : localBuffer) {
             if (opLog.get(clz) == null || opLog.get(clz).isEmpty()) {
