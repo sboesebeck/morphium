@@ -563,7 +563,7 @@ public class PooledDriver extends DriverBase {
             }
 
             do {
-                if (getServerSelectionTimeout() < 0) {
+                if (getServerSelectionTimeout() <= 0) {
                     bc = queue.poll(Integer.MAX_VALUE, TimeUnit.SECONDS);
                 } else {
                     bc = queue.poll(getServerSelectionTimeout(), TimeUnit.MILLISECONDS);

@@ -736,7 +736,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public String getMongoAuthDb() {
-        return  driverSettings.getMongoPassword();
+        return  driverSettings.getMongoAuthDb();
     }
 
     // public String decryptAuthDb() {
