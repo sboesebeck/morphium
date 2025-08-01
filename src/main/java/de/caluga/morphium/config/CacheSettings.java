@@ -17,43 +17,50 @@ public class CacheSettings {
     public int getHousekeepingTimeout() {
         return housekeepingTimeout;
     }
-    public void setHousekeepingTimeout(int housekeepingTimeout) {
+    public CacheSettings setHousekeepingTimeout(int housekeepingTimeout) {
         this.housekeepingTimeout = housekeepingTimeout;
+        return this;
     }
     public MorphiumCache getCache() {
         return cache;
     }
-    public void setCache(MorphiumCache cache) {
+    public CacheSettings setCache(MorphiumCache cache) {
         this.cache = cache;
+        return this;
     }
     public int getGlobalCacheValidTime() {
         return globalCacheValidTime;
     }
-    public void setGlobalCacheValidTime(int globalCacheValidTime) {
+    public CacheSettings setGlobalCacheValidTime(int globalCacheValidTime) {
         this.globalCacheValidTime = globalCacheValidTime;
+        return this;
     }
     public int getWriteCacheTimeout() {
         return writeCacheTimeout;
     }
-    public void setWriteCacheTimeout(int writeCacheTimeout) {
+    public CacheSettings setWriteCacheTimeout(int writeCacheTimeout) {
         this.writeCacheTimeout = writeCacheTimeout;
+        return this;
     }
     public boolean isReadCacheEnabled() {
         return readCacheEnabled;
     }
-    public void setReadCacheEnabled(boolean readCacheEnabled) {
+    public CacheSettings setReadCacheEnabled(boolean readCacheEnabled) {
         this.readCacheEnabled = readCacheEnabled;
+        return this;
     }
     public boolean isAsyncWritesEnabled() {
         return asyncWritesEnabled;
     }
-    public void setAsyncWritesEnabled(boolean asyncWritesEnabled) {
+    public CacheSettings setAsyncWritesEnabled(boolean asyncWritesEnabled) {
         this.asyncWritesEnabled = asyncWritesEnabled;
+        return this;
     }
     public boolean isBufferedWritesEnabled() {
         return bufferedWritesEnabled;
     }
-    public void setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
+    public CacheSettings setBufferedWritesEnabled(boolean bufferedWritesEnabled) {
         this.bufferedWritesEnabled = bufferedWritesEnabled;
+        return this;
     }
 }

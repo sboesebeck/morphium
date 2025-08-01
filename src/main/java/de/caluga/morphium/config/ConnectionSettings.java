@@ -120,100 +120,117 @@ public class ConnectionSettings {
     public int getReplicaSetMonitoringTimeout() {
         return replicaSetMonitoringTimeout;
     }
-    public void setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
+    public ConnectionSettings setReplicaSetMonitoringTimeout(int replicaSetMonitoringTimeout) {
         this.replicaSetMonitoringTimeout = replicaSetMonitoringTimeout;
+        return this;
     }
-    public void setHostSeed(List<String> hostSeed) {
+    public ConnectionSettings setHostSeed(List<String> hostSeed) {
         this.hostSeed = hostSeed;
+        return this;
     }
     public String getRequiredReplicaSetName() {
         return requiredReplicaSetName;
     }
-    public void setRequiredReplicaSetName(String requiredReplicaSetName) {
+    public ConnectionSettings setRequiredReplicaSetName(String requiredReplicaSetName) {
         this.requiredReplicaSetName = requiredReplicaSetName;
+        return this;
     }
     public int getMaxWaitTime() {
         return maxWaitTime;
     }
-    public void setMaxWaitTime(int maxWaitTime) {
+    public ConnectionSettings setMaxWaitTime(int maxWaitTime) {
         this.maxWaitTime = maxWaitTime;
+        return this;
     }
     public int getConnectionTimeout() {
         return connectionTimeout;
     }
-    public void setConnectionTimeout(int connectionTimeout) {
+    public ConnectionSettings setConnectionTimeout(int connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
+        return this;
     }
     public boolean isReplicaset() {
         return replicaset;
     }
-    public void setReplicaset(boolean replicaset) {
+    public ConnectionSettings setReplicaset(boolean replicaset) {
         this.replicaset = replicaset;
+        return this;
     }
     public String getAtlasUrl() {
         return atlasUrl;
     }
-    public void setAtlasUrl(String atlasUrl) {
+    public ConnectionSettings setAtlasUrl(String atlasUrl) {
         this.atlasUrl = atlasUrl;
+        return this;
     }
     public int getHeartbeatFrequency() {
         return heartbeatFrequency;
     }
-    public void setHeartbeatFrequency(int heartbeatFrequency) {
+    public ConnectionSettings setHeartbeatFrequency(int heartbeatFrequency) {
         this.heartbeatFrequency = heartbeatFrequency;
+        return this;
     }
     public int getMaxConnections() {
         return maxConnections;
     }
-    public void setMaxConnections(int maxConnections) {
+    public ConnectionSettings setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+        return this;
     }
     public int getMinConnections() {
         return minConnections;
     }
-    public void setMinConnections(int minConnections) {
+    public ConnectionSettings setMinConnections(int minConnections) {
         this.minConnections = minConnections;
+        return this;
     }
     public int getIdleSleepTime() {
         return idleSleepTime;
     }
-    public void setIdleSleepTime(int idleSleepTime) {
+    public ConnectionSettings setIdleSleepTime(int idleSleepTime) {
         this.idleSleepTime = idleSleepTime;
+        return this;
     }
     public String getDatabase() {
         return database;
     }
-    public void setDatabase(String database) {
+    public ConnectionSettings setDatabase(String database) {
         this.database = database;
+        return this;
     }
     public int getRetriesOnNetworkError() {
         return retriesOnNetworkError;
     }
-    public void setRetriesOnNetworkError(int retriesOnNetworkError) {
+    public ConnectionSettings setRetriesOnNetworkError(int retriesOnNetworkError) {
         this.retriesOnNetworkError = retriesOnNetworkError;
+        return this;
     }
     public int getSleepBetweenNetworkErrorRetries() {
         return sleepBetweenNetworkErrorRetries;
     }
-    public void setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
+    public ConnectionSettings setSleepBetweenNetworkErrorRetries(int sleepBetweenNetworkErrorRetries) {
         this.sleepBetweenNetworkErrorRetries = sleepBetweenNetworkErrorRetries;
+        return this;
     }
     public boolean isUseSSL() {
         return useSSL;
     }
-    public void setUseSSL(boolean useSSL) {
+    public ConnectionSettings setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
+        return this;
     }
     public SSLContext getSslContext() {
         return sslContext;
     }
-    public void setSslContext(SSLContext sslContext) {
+    public ConnectionSettings setSslContext(SSLContext sslContext) {
         this.sslContext = sslContext;
+        return this;
     }
     public boolean isSslInvalidHostNameAllowed() {
         return sslInvalidHostNameAllowed;
     }
-    public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+    public ConnectionSettings setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+        return this;
     }
 }

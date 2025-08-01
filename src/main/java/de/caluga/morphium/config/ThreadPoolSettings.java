@@ -11,19 +11,22 @@ public class ThreadPoolSettings {
     public int getThreadPoolAsyncOpCoreSize() {
         return threadPoolAsyncOpCoreSize;
     }
-    public void setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
+    public ThreadPoolSettings setThreadPoolAsyncOpCoreSize(int threadPoolAsyncOpCoreSize) {
         this.threadPoolAsyncOpCoreSize = threadPoolAsyncOpCoreSize;
+        return this;
     }
     public int getThreadPoolAsyncOpMaxSize() {
         return threadPoolAsyncOpMaxSize;
     }
-    public void setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
+    public ThreadPoolSettings setThreadPoolAsyncOpMaxSize(int threadPoolAsyncOpMaxSize) {
         this.threadPoolAsyncOpMaxSize = threadPoolAsyncOpMaxSize;
+        return this;
     }
     public long getThreadPoolAsyncOpKeepAliveTime() {
         return threadPoolAsyncOpKeepAliveTime;
     }
-    public void setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
+    public ThreadPoolSettings setThreadPoolAsyncOpKeepAliveTime(long threadPoolAsyncOpKeepAliveTime) {
         this.threadPoolAsyncOpKeepAliveTime = threadPoolAsyncOpKeepAliveTime;
+        return this;
     }
 }

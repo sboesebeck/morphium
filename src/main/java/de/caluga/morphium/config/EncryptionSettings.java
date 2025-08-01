@@ -24,32 +24,37 @@ public class EncryptionSettings {
     public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
         return encryptionKeyProviderClass;
     }
-    public void setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
+    public EncryptionSettings setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
         this.encryptionKeyProviderClass = encryptionKeyProviderClass;
+        return this;
     }
     public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
         return valueEncryptionProviderClass;
     }
-    public void setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+    public EncryptionSettings setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
         this.valueEncryptionProviderClass = valueEncryptionProviderClass;
+        return this;
     }
     public String getCredentialsEncryptionKey() {
         return credentialsEncryptionKey;
     }
-    public void setCredentialsEncryptionKey(String credentialsEncryptionKey) {
+    public EncryptionSettings setCredentialsEncryptionKey(String credentialsEncryptionKey) {
         this.credentialsEncryptionKey = credentialsEncryptionKey;
+        return this;
     }
     public String getCredentialsDecryptionKey() {
         return credentialsDecryptionKey;
     }
-    public void setCredentialsDecryptionKey(String credentialsDecryptionKey) {
+    public EncryptionSettings setCredentialsDecryptionKey(String credentialsDecryptionKey) {
         this.credentialsDecryptionKey = credentialsDecryptionKey;
+        return this;
     }
     public Boolean getCredentialsEncrypted() {
         return credentialsEncrypted;
     }
-    public void setCredentialsEncrypted(Boolean credentialsEncrypted) {
+    public EncryptionSettings setCredentialsEncrypted(Boolean credentialsEncrypted) {
         this.credentialsEncrypted = credentialsEncrypted;
+        return this;
     }
 
 }
