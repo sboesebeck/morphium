@@ -50,7 +50,6 @@ public class SingleMongoConnection implements MongoConnection {
     private String authDb = null;
     private String user = null;
     private String password = null;
-    private long lastRead;
 
     public SingleMongoConnection() {
         stats = new HashMap<>();
@@ -224,7 +223,6 @@ public class SingleMongoConnection implements MongoConnection {
     }
 
     public boolean isDataAvailable() {
-        lastRead = System.currentTimeMillis();
 
         if (in == null) {
             return false;
@@ -274,16 +272,6 @@ public class SingleMongoConnection implements MongoConnection {
             }
 
             stats.get(REPLY_RECEIVED).incrementAndGet();
-            // incoming.put(msg.getResponseTo(), msg);
-            //
-            // synchronized (incomingTimes) {
-            //     incomingTimes.put(msg.getResponseTo(), System.currentTimeMillis());
-            // }
-            //
-            // synchronized (incoming) {
-            //     incoming.notifyAll();
-            // }
-            //
             return msg;
         } catch (Exception e) {
             close();
@@ -291,59 +279,6 @@ public class SingleMongoConnection implements MongoConnection {
         }
     }
 
-    // private void startReaderThread() {
-    //     running = true;
-    // readerThread = new Thread(()->{
-    //     while (running) {
-    //         try {
-    //             if (!s.isConnected() || s.isClosed()) {
-    //                 log.error("Connection died!");
-    //                 close();
-    //                 return;
-    //             }
-    //
-    //             //reading in data
-    //             readNextMsg();
-    //         } catch (Exception e) {
-    //             log.error("Reader-Thread error", e);
-    //         }
-    //     }
-    //     //                log.info("Reader Thread terminated");
-    //     synchronized (incoming) {
-    //         incoming.notifyAll();
-    //     }
-    // });
-    // readerThread.start();
-    // new Thread(()->{
-    //     while (running){
-    //          doHouseKeeping();
-    //     }
-    //     try {
-    //         Thread.sleep(getDriver().getMaxWaitTime() / 2);
-    //     } catch (InterruptedException e) {
-    //         //swallow
-    //     }
-    // }).start();
-    // }
-    //
-    // public void doHouseKeeping() {
-    //     var s = new HashSet(incomingTimes.keySet());
-    //
-    //     for (var k : s) {
-    //         synchronized (incomingTimes) {
-    //             if (incomingTimes.get(k) == null) {
-    //                 continue;
-    //             }
-    //
-    //             if (System.currentTimeMillis() - incomingTimes.get(k) > getDriver().getMaxWaitTime()) {
-    //                 // log.warn("Discarding unused answer " + k);
-    //                 incoming.remove(k);
-    //                 incomingTimes.remove(k);
-    //             }
-    //         }
-    //     }
-    // }
-    //
     @Override
     public void close() {
         running = false;
@@ -391,7 +326,7 @@ public class SingleMongoConnection implements MongoConnection {
     //     while (!incoming.containsKey(msgid)) {
     //         if (lastRead == 0) {
     //             log.error(this+": never read?");
-    //         } else if (System.currentTimeMillis() - lastRead > 1000) {
+    //         } else if (System.currentTimeMillis() - LastRead > 1000) {
     //             log.error(this+": No reader thread?");
     //         }
     //         try {
@@ -467,7 +402,7 @@ public class SingleMongoConnection implements MongoConnection {
             out.flush();
         } catch (MorphiumDriverException e) {
             close();
-            throw(e);
+            throw (e);
         } catch (Exception e) {
             //                log.error("Error sending request", e);
             close();
@@ -477,7 +412,7 @@ public class SingleMongoConnection implements MongoConnection {
             //                    //swallow
             //                }
             //                connect(driver, connectedTo, connectedToPort);
-            throw(new MorphiumDriverException("Error sending Request: ", e));
+            throw (new MorphiumDriverException("Error sending Request: ", e));
         }
     }
 
@@ -565,7 +500,7 @@ public class SingleMongoConnection implements MongoConnection {
                     continue;
                 }
 
-                throw(e);
+                throw (e);
             }
 
             //log.info("got answer for watch!");
@@ -585,7 +520,7 @@ public class SingleMongoConnection implements MongoConnection {
             // log.debug("CursorID:" + cursor.get("id").toString());
             long cursorId = Long.parseLong(cursor.get("id").toString());
             command.setMetaData("cursor", cursorId);
-            List<Map<String, Object >> result = (List<Map<String, Object >>) cursor.get("firstBatch");
+            List<Map<String, Object >> result = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (result == null) {
                 result = (List<Map<String, Object >>) cursor.get("nextBatch");
@@ -706,13 +641,13 @@ public class SingleMongoConnection implements MongoConnection {
         Map<String, Object> ret = null;
 
         if (cursor.containsKey("firstBatch")) {
-            List<Map<String, Object >> lst = (List<Map<String, Object >>) cursor.get("firstBatch");
+            List<Map<String, Object >> lst = (List<Map<String, Object >> ) cursor.get("firstBatch");
 
             if (lst != null && !lst.isEmpty()) {
                 ret = lst.get(0);
             }
         } else {
-            List<Map<String, Object >> lst = (List<Map<String, Object >>) cursor.get("nextBatch");
+            List<Map<String, Object >> lst = (List<Map<String, Object >> ) cursor.get("nextBatch");
 
             if (lst != null && !lst.isEmpty()) {
                 ret = lst.get(0);

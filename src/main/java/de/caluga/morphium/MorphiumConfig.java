@@ -1,6 +1,5 @@
 package de.caluga.morphium;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -13,29 +12,19 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 
+import de.caluga.morphium.config.*;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.exc.StreamReadException;
-import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import de.caluga.morphium.annotations.AdditionalData;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
-import de.caluga.morphium.config.CacheSettings;
-import de.caluga.morphium.config.CollectionCheckSettings;
 import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
-import de.caluga.morphium.config.ConnectionSettings;
-import de.caluga.morphium.config.DriverSettings;
-import de.caluga.morphium.config.EncryptionSettings;
-import de.caluga.morphium.config.MessagingSettings;
-import de.caluga.morphium.config.ObjectMappingSettings;
-import de.caluga.morphium.config.ThreadPoolSettings;
-import de.caluga.morphium.config.WriterSettings;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.ReadPreferenceType;
 import de.caluga.morphium.driver.wire.PooledDriver;
@@ -75,11 +64,15 @@ public class MorphiumConfig {
     private WriterSettings writerSettings = new WriterSettings();
     @Transient
     private CacheSettings cacheSettings = new CacheSettings();
+    @Transient
+    private AuthSettings authSettings = new AuthSettings();
+    @Transient
+    private ClusterSettings clusterSettings=new ClusterSettings();
 
 
 
     @Transient
-    private List<Object> settings = List.of(cacheSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings, messagingSettings);
+    private List<Object> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings, messagingSettings);
 
 
     public MessagingSettings getMessagingSettings() {
@@ -109,6 +102,8 @@ public class MorphiumConfig {
     public DriverSettings getDriverSettings() {
         return driverSettings;
     }
+    public AuthSettings getAuthSettings() {return authSettings;}
+    public ClusterSettings getClusterSettings() {return clusterSettings;}
     /**
      * use messagingSettings
      */
@@ -223,14 +218,14 @@ public class MorphiumConfig {
             }
         }
 
-        if (!connectionSettings.hostSeedIsSet()) {
+        if (!clusterSettings.hostSeedIsSet()) {
             String lst = (String) resolver.resolveSetting(prefix + "hosts");
 
             if (lst != null) {
                 lst = lst.replaceAll("[\\[\\]]", "");
 
                 for (String s : lst.split(",")) {
-                    connectionSettings.addHostToSeed(s);
+                    clusterSettings.addHostToSeed(s);
                 }
             }
         }
@@ -344,7 +339,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public boolean isReplicaset() {
-        return connectionSettings.isReplicaset();
+        return clusterSettings.isReplicaset();
     }
 
     /**
@@ -369,7 +364,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setReplicasetMonitoring(boolean replicaset) {
-        connectionSettings.setReplicaset(replicaset);
+        clusterSettings.setReplicaset(replicaset);
         return this;
     }
 
@@ -736,7 +731,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public String getMongoAuthDb() {
-        return  driverSettings.getMongoAuthDb();
+        return  authSettings.getMongoAuthDb();
     }
 
     // public String decryptAuthDb() {
@@ -795,7 +790,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setMongoAuthDb(String mongoAuthDb) {
-        driverSettings.setMongoAuthDb(mongoAuthDb);
+        authSettings.setMongoAuthDb(mongoAuthDb);
         return this;
     }
 
@@ -804,7 +799,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public String getMongoLogin() {
-        return driverSettings.getMongoLogin();
+        return authSettings.getMongoLogin();
     }
 
     /**
@@ -812,7 +807,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setMongoLogin(String mongoLogin) {
-        driverSettings.setMongoLogin(mongoLogin);
+        authSettings.setMongoLogin(mongoLogin);
         return this;
     }
 
@@ -821,7 +816,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public String getMongoPassword() {
-        return driverSettings.getMongoPassword();
+        return authSettings.getMongoPassword();
     }
 
     /**
@@ -829,7 +824,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setMongoPassword(String mongoPassword) {
-        driverSettings.setMongoPassword(mongoPassword);
+        authSettings.setMongoPassword(mongoPassword);
         return this;
     }
 
@@ -907,7 +902,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setHostSeed(List<String> str) {
-        connectionSettings.setHostSeed(str);
+        clusterSettings.setHostSeed(str);
         return this;
     }
 
@@ -916,7 +911,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setHostSeed(List<String> str, List<Integer> ports) {
-        connectionSettings.setHostSeed(str, ports);
+        clusterSettings.setHostSeed(str, ports);
         return this;
     }
 
@@ -925,7 +920,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public List<String> getHostSeed() {
-        return connectionSettings.getHostSeed();
+        return clusterSettings.getHostSeed();
     }
 
     /**
@@ -933,7 +928,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String... hostPorts) {
-        connectionSettings.setHostSeed(hostPorts);
+        clusterSettings.setHostSeed(hostPorts);
         return this;
     }
 
@@ -942,7 +937,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hostPorts) {
-        connectionSettings.setHostSeed(hostPorts);
+        clusterSettings.setHostSeed(hostPorts);
         return this;
     }
 
@@ -951,7 +946,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setHostSeed(String hosts, String ports) {
-        connectionSettings.setHostSeed(hosts, ports);
+        clusterSettings.setHostSeed(hosts, ports);
         return this;
     }
 
@@ -960,7 +955,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host, int port) {
-        connectionSettings.addHostToSeed(host, port);
+        clusterSettings.addHostToSeed(host, port);
         return this;
     }
 
@@ -969,7 +964,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig addHostToSeed(String host) {
-        connectionSettings.addHostToSeed(host);
+        clusterSettings.addHostToSeed(host);
         return this;
     }
 
@@ -1005,10 +1000,12 @@ public class MorphiumConfig {
         connectionSettings.setDatabase(database);
         return this;
     }
+    @Deprecated
     public int getHousekeepingTimeout() {
         return cacheSettings.getHousekeepingTimeout();
     }
 
+    @Deprecated
     public MorphiumConfig setHousekeepingTimeout(int housekeepingTimeout) {
         cacheSettings.setHousekeepingTimeout(housekeepingTimeout);
         return this;
@@ -1019,10 +1016,12 @@ public class MorphiumConfig {
      *
      * @return the global cache valid time
      */
+    @Deprecated
     public int getGlobalCacheValidTime() {
         return cacheSettings.getGlobalCacheValidTime();
     }
 
+    @Deprecated
     public MorphiumConfig setGlobalCacheValidTime(int globalCacheValidTime) {
         cacheSettings.setGlobalCacheValidTime(globalCacheValidTime);
         return this;
@@ -1551,10 +1550,12 @@ public class MorphiumConfig {
         return this;
     }
 
+    @Deprecated
     public int getHeartbeatFrequency() {
         return driverSettings.getHeartbeatFrequency();
     }
 
+    @Deprecated
     public MorphiumConfig setHeartbeatFrequency(int heartbeatFrequency) {
         driverSettings.setHeartbeatFrequency(heartbeatFrequency);
         return this;
@@ -1570,6 +1571,7 @@ public class MorphiumConfig {
         return this;
     }
 
+    @Deprecated
     public int getLocalThreshold() {
         return driverSettings.getLocalThreshold();
     }
@@ -1600,24 +1602,29 @@ public class MorphiumConfig {
      *                        Local Threshold
      * @since 2.13.0
      */
+    @Deprecated
     public MorphiumConfig setLocalThreshold(int localThreshold) {
         driverSettings.setLocalThreshold(localThreshold);
         return this;
     }
 
+    @Deprecated
     public int getMaxConnectionIdleTime() {
         return driverSettings.getMaxConnectionIdleTime();
     }
 
+    @Deprecated
     public MorphiumConfig setMaxConnectionIdleTime(int maxConnectionIdleTime) {
         driverSettings.setMaxConnectionIdleTime(maxConnectionIdleTime);
         return this;
     }
 
+    @Deprecated
     public int getMaxConnectionLifeTime() {
         return driverSettings.getMaxConnectionLifeTime();
     }
 
+    @Deprecated
     public MorphiumConfig setMaxConnectionLifeTime(int maxConnectionLifeTime) {
         driverSettings.setMaxConnectionLifeTime(maxConnectionLifeTime);
         return this;
@@ -1628,7 +1635,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public String getRequiredReplicaSetName() {
-        return connectionSettings.getRequiredReplicaSetName();
+        return clusterSettings.getRequiredReplicaSetName();
     }
 
     /**
@@ -1636,7 +1643,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public MorphiumConfig setRequiredReplicaSetName(String requiredReplicaSetName) {
-        connectionSettings.setRequiredReplicaSetName(requiredReplicaSetName);
+        clusterSettings.setRequiredReplicaSetName(requiredReplicaSetName);
         return this;
     }
 
@@ -1701,32 +1708,38 @@ public class MorphiumConfig {
     // public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
     //     this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
     // }
-
+    @Deprecated
     public int getReadTimeout() {
         return driverSettings.getReadTimeout();
     }
 
+    @Deprecated
     public MorphiumConfig setReadTimeout(int readTimeout) {
         driverSettings.setReadTimeout(readTimeout);
         return this;
     }
 
+    @Deprecated
     public boolean isRetryReads() {
         return driverSettings.isRetryReads();
     }
 
+    @Deprecated
     public void setRetryReads(boolean retryReads) {
         driverSettings.setRetryReads(retryReads);
     }
 
+    @Deprecated
     public boolean isRetryWrites() {
         return driverSettings.isRetryWrites();
     }
 
+    @Deprecated
     public void setRetryWrites(boolean retryWrites) {
         driverSettings.setRetryWrites(retryWrites);
     }
 
+    @Deprecated
     public String getUuidRepresentation() {
         return driverSettings.getUuidRepresentation();
     }
@@ -1807,7 +1820,7 @@ public class MorphiumConfig {
      */
     @Deprecated
     public int getIdleSleepTime() {
-        return connectionSettings.getIdleSleepTime();
+        return driverSettings.getIdleSleepTime();
     }
 
     /**
@@ -1815,7 +1828,8 @@ public class MorphiumConfig {
      */
     @Deprecated
     public void setIdleSleepTime(int idleSleepTime) {
-        connectionSettings.setIdleSleepTime(idleSleepTime);
+        driverSettings.setIdleSleepTime(idleSleepTime);
+
     }
 
     public Map<String, Object> getRestoreData() {

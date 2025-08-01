@@ -17,6 +17,9 @@ public class ObjectMappingSettings {
         this.checkForNew = checkForNew;
         return this;
     }
+    public boolean isAutoValuesEnabled() {
+        return autoValues;
+    }
     public boolean isAutoValues() {
         return autoValues;
     }

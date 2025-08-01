@@ -23,10 +23,10 @@ public class DriverSettings {
     private int maxConnectionLifeTime = 600000;
     private int cursorBatchSize = 1000;
     private int heartbeatFrequency = 1000;
+    private int idleSleepTime = 20;
 
 
     private String driverName = PooledDriver.driverName;
-    private String mongoLogin = null, mongoPassword = null, mongoAuthDb = null;
     @Transient
     private ReadPreference defaultReadPreference = ReadPreference.nearest();
     @Transient
@@ -34,6 +34,14 @@ public class DriverSettings {
 
     private int serverSelectionTimeout = -1;
 
+    public int getIdleSleepTime() {
+        return idleSleepTime;
+    }
+
+    public DriverSettings setIdleSleepTime(int idleSleepTime) {
+        this.idleSleepTime = idleSleepTime;
+        return this;
+    }
 
     public int getServerSelectionTimeout() {
         return serverSelectionTimeout;
@@ -111,27 +119,6 @@ public class DriverSettings {
     }
     public DriverSettings setDriverName(String driverName) {
         this.driverName = driverName;
-        return this;
-    }
-    public String getMongoLogin() {
-        return mongoLogin;
-    }
-    public DriverSettings setMongoLogin(String mongoLogin) {
-        this.mongoLogin = mongoLogin;
-        return this;
-    }
-    public String getMongoPassword() {
-        return mongoPassword;
-    }
-    public DriverSettings setMongoPassword(String mongoPassword) {
-        this.mongoPassword = mongoPassword;
-        return this;
-    }
-    public String getMongoAuthDb() {
-        return mongoAuthDb;
-    }
-    public DriverSettings setMongoAuthDb(String mongoAuthDb) {
-        this.mongoAuthDb = mongoAuthDb;
         return this;
     }
     public ReadPreference getDefaultReadPreference() {
