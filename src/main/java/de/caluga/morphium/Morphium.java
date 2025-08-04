@@ -686,30 +686,30 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         return null;
     }
 
-    public <T> Query<T> createQueryByTemplate(T template, String ... fields) {
-        @SuppressWarnings("rawtypes")
-        Class cls = template.getClass();
-        List<String> flds;
+    // public <T> Query<T> createQueryByTemplate(T template, String ... fields) {
+    //     @SuppressWarnings("rawtypes")
+    //     Class cls = template.getClass();
+    //     List<String> flds;
 
-        if (fields.length > 0) {
-            flds = new ArrayList<>(Arrays.asList(fields));
-        } else {
-            // noinspection unchecked
-            flds = annotationHelper.getFields(cls);
-        }
+    //     if (fields.length > 0) {
+    //         flds = new ArrayList<>(Arrays.asList(fields));
+    //     } else {
+    //         // noinspection unchecked
+    //         flds = annotationHelper.getFields(cls);
+    //     }
 
-        Query<T> q = createQueryFor((Class<T>) cls);
+    //     Query<T> q = createQueryFor((Class<T>) cls);
 
-        for (String f : flds) {
-            try {
-                q.f(f).eq(annotationHelper.getValue(template, f));
-            } catch (Exception e) {
-                log.error("Could not read field " + f + " of object " + cls.getName());
-            }
-        }
+    //     for (String f : flds) {
+    //         try {
+    //             q.f(f).eq(annotationHelper.getValue(template, f));
+    //         } catch (Exception e) {
+    //             log.error("Could not read field " + f + " of object " + cls.getName());
+    //         }
+    //     }
 
-        return q;
-    }
+    //     return q;
+    // }
 
     /**
      * search for objects similar to template concerning all given fields. If no
@@ -722,19 +722,19 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
      * @param <T> - type
      * @return result of search
      */
-    @Deprecated
-    public <T> List<T> findByTemplate(T template, String... fields) {
-        return createQueryByTemplate(template, fields).asList();
-    }
+    // @Deprecated
+    // public <T> List<T> findByTemplate(T template, String... fields) {
+    //     return createQueryByTemplate(template, fields).asList();
+    // }
 
     /**
      * This method unsets a field
      * @deprecated use {Morphium{@link #unsetInEntity(Object, String, String, AsyncOperationCallback)} instead.
      */
-    @Deprecated
-    public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
-        unsetInEntity(toSet, collection, field, callback);
-    }
+    // @Deprecated
+    // public <T> void unset(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
+    //     unsetInEntity(toSet, collection, field, callback);
+    // }
 
     public <T> void unsetInEntity(final T toSet, String collection, final String field, final AsyncOperationCallback<T> callback) {
         if (toSet == null) {
@@ -1006,6 +1006,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         setInEntity(toSet, collection, values, upserts, callback);
     }
 
+    @Override
     public <T> void setInEntity(final T entity, String collection, final Map<String, Object> values, boolean upserts, AsyncOperationCallback<T> callback) {
         if (entity == null) {
             throw new RuntimeException("Cannot update null!");

@@ -17,8 +17,8 @@ public class DefaultValuesTest extends MorphiumTestBase {
         assert(read.v == e.v);
         assert(read.value.equals("value"));
         assert(read.value2.equals("value2"));
-        morphium.set(read, "value", (Object) null);
-        morphium.unset(read, "value2");
+        morphium.setInEntity(read, "value", (Object) null);
+        morphium.unsetInEntity(read, "value2");
         Thread.sleep(500);
         read = morphium.findById(DefaultsTestEntitiy.class, e.id);
         assert(read.value == null);

@@ -155,7 +155,7 @@ public class MorphiumTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
-        morphium.unset(uc, UncachedObject.Fields.strValue);
+        morphium.unsetInEntity(uc, UncachedObject.Fields.strValue);
         assert (uc.getStrValue() == null);
         Thread.sleep(500);
         morphium.reread(uc);
@@ -167,7 +167,7 @@ public class MorphiumTest extends MorphiumTestBase {
         UncachedObject uc = new UncachedObject("val", 123);
         morphium.store(uc);
         Thread.sleep(50);
-        morphium.set(uc, UncachedObject.Fields.strValue, "other");
+        morphium.setInEntity(uc, UncachedObject.Fields.strValue, "other");
         assert (uc.getStrValue().equals("other"));
         Thread.sleep(500);
         morphium.reread(uc);
