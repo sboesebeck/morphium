@@ -47,7 +47,7 @@ public class AutoVariableTest extends MorphiumTestBase {
                 assert(lc.lastChange == 0);
                 assert(lc.lastChangeDate == null);
                 assert(lc.lastChangeString == null);
-                morphium.set(lc, "value", "set", false, null);
+                morphium.setInEntity(lc, "value", "set", false, null);
 
                 try {
                     Thread.sleep(150);
@@ -59,7 +59,7 @@ public class AutoVariableTest extends MorphiumTestBase {
                 assert(lc.lastChangeDate == null);
                 assert(lc.lastChangeString == null);
                 assert(lc.value.equals("set"));
-                morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
+                morphium.setInEntity(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
 
                 try {
                     Thread.sleep(150);
@@ -113,7 +113,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         ;
         assertNotNull(lc.lastChangeString);
         ;
-        morphium.set(lc, "value", "set", false, null);
+        morphium.setInEntity(lc, "value", "set", false, null);
         Thread.sleep(150);
         morphium.reread(lc);
         assert(lc.lastChange != 0);
@@ -122,7 +122,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         assertNotNull(lc.lastChangeString);
         ;
         assert(lc.value.equals("set"));
-        morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
+        morphium.setInEntity(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
         Thread.sleep(150);
         morphium.reread(lc);
         assert(lc.lastChange != 0);
@@ -167,13 +167,13 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert(lc.lastChange == 0);
         assert(lc.lastChangeDate == null);
         assert(lc.lastChangeString == null);
-        morphium.set(lc, "value", "set", false, null);
+        morphium.setInEntity(lc, "value", "set", false, null);
         morphium.reread(lc);
         assert(lc.lastChange == 0);
         assert(lc.lastChangeDate == null);
         assert(lc.lastChangeString == null);
         assert(lc.value.equals("set"));
-        morphium.set(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
+        morphium.setInEntity(morphium.createQueryFor(LCTest.class).f("_id").eq(lc.morphiumId), "value", "set");
         morphium.reread(lc);
         assert(lc.lastChange == 0);
         assert(lc.lastChangeDate == null);
@@ -198,7 +198,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         assertNotNull(ct.created);
         assert(ct.timestamp != 0);
         Query<CTimeTest> q = morphium.createQueryFor(CTimeTest.class).f("value").eq("annother test");
-        morphium.set(q, "additional", "value", true, true);
+        q.set("additional", "value", true, true, null);
         Thread.sleep(100);
         assert(q.countAll() == 1) : "Count wrong: " + q.countAll();
         assert(q.get().timestamp != 0);

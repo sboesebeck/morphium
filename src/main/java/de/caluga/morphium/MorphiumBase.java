@@ -789,14 +789,7 @@ public abstract class MorphiumBase {
      *              entry in mongo)
      * @param field - the field to change
      * @param value - the value to set
-     *              *
-     * Please use {@link Morphium#setInEntity(String, Object, String, Object)} instead.
-     // */
-    // @Deprecated
-    // public <T> void set(final T toSet, final String field, final Object value) {
-    //    set(toSet, field, value, null);
-    // }
-
+     */
     public <T> void setInEntity(final T toSet, final String field, final Object value) {
         setInEntity(toSet, field, value, null);
     }
@@ -805,13 +798,8 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object,String, Object, boolean, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
-    public <T> void set(final T toSet, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, callback);
-    }
 
     public <T> void setInEntity(final T toSet, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         setInEntity(toSet, getMapper().getCollectionName(toSet.getClass()), field, value, upserts, callback);
@@ -883,7 +871,7 @@ public abstract class MorphiumBase {
      */
     @Deprecated
     public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
-        set(toSet, field, value, false, callback);
+        setInEntity(toSet, field, value, false, callback);
     }
     public <T> void setInEntity(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
         setInEntity(toSet, field, value, false, callback);
