@@ -285,12 +285,13 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             } else {
                 try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
                     .scan()) {
-                    ClassInfoList entities = scanResult.getClassesImplementing(MorphiumDriver.class.getName());
+                    ClassInfoList entities = scanResult.getClassesWithAnnotation(Driver.class.getName());
 
                     if (log.isDebugEnabled()) {
                         log.debug("Found " + entities.size() + " drivers in classpath");
                     }
 
+                    String driverName = getConfig().driverSettings().getDriverName();
                     for (String cn : entities.getNames()) {
                         try {
                             @SuppressWarnings("rawtypes")
@@ -299,30 +300,26 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                             if (Modifier.isAbstract(c.getModifiers())) {
                                 continue;
                             }
-
-                            var flds = annotationHelper.getAllFields(c);
-
-                            for (var f : flds) {
-                                if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
-                                    String dn = (String) f.get(c);
-                                    log.debug("Found driverName: " + dn);
-
-                                    if (dn.equals(getConfig().driverSettings().getDriverName())) {
-                                        morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
-                                    }
-
-                                    break;
-                                }
+                            var driverAnnotation = (Driver)c.getAnnotation(Driver.class);
+                            if (driverAnnotation.name().equals(driverName)) {
+                                log.debug("Found driverName: {} - {} " + driverName, driverAnnotation.description());
+                                morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
                             }
+                            // var flds = annotationHelper.getAllFields(c);
 
-                            if (morphiumDriver == null) {
-                                var drv = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                            // for (var f : flds) {
+                            //     if (Modifier.isStatic(f.getModifiers()) && Modifier.isFinal(f.getModifiers()) && Modifier.isPublic(f.getModifiers()) && f.getName().equals("driverName")) {
+                            //         String dn = (String) f.get(c);
+                            //         log.debug("Found driverName: " + dn);
 
-                                if (drv.getName().equals(getConfig().driverSettings().getDriverName())) {
-                                    morphiumDriver = drv;
-                                    break;
-                                }
-                            }
+                            //         if (dn.equals(getConfig().driverSettings().getDriverName())) {
+                            //             morphiumDriver = (MorphiumDriver) c.getDeclaredConstructor().newInstance();
+                            //         }
+
+                            //         break;
+                            //     }
+                            // }
+
                         } catch (Throwable e) {
                             log.error("Could not load driver " + getConfig().driverSettings().getDriverName(), e);
                         }
