@@ -1802,15 +1802,15 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> set(Map<String, Object> map, boolean upsert, boolean multiple) {
-        return morphium.set(this, map, upsert, multiple);
+        return morphium.getWriterForClass(getType()).set(this, map, upsert, multiple, null);
     }
 
     public Map<String, Object> set(String field, Object value) {
-        return morphium.set(this, field, value);
+        return morphium.getWriterForClass(getType()).set(this, Map.of( field, value), false, false, null);
     }
 
     public Map<String, Object> set(Enum field, Object value) {
-        return morphium.set(this, field, value);
+        return morphium.getWriterForClass(getType()).set(this, Map.of(field.toString(), value), false, false, null);
     }
 
     public Map<String, Object> setEnum(Map<Enum, Object> map) {
