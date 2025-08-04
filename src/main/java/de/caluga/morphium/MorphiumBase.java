@@ -52,13 +52,12 @@ public abstract class MorphiumBase {
     /**
      * This method unsets a property.
      *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#unsetInEntity(Object, Enum, AsyncOperationCallback)} instead.
      */
-    @Deprecated
-    public <T> void unset(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
-        unsetInEntity(toSet, field, callback);
-    }
+    // @Deprecated
+    // public <T> void unset(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
+    //     unsetInEntity(toSet, field, callback);
+    // }
 
     public <T> void unsetInEntity(final T toSet, final Enum<?> field, final AsyncOperationCallback<T> callback) {
         unsetInEntity(toSet, field.name(), callback);
@@ -67,13 +66,12 @@ public abstract class MorphiumBase {
     /**
      * This method unsets a property.
      *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#unsetInEntity(Object, String, Enum)} instead.
      */
-    @Deprecated
-    public <T> void unset(final T toSet, String collection, final Enum<?> field) {
-        unsetInEntity(toSet, collection, field);
-    }
+    // @Deprecated
+    // public <T> void unset(final T toSet, String collection, final Enum<?> field) {
+    //     unsetInEntity(toSet, collection, field);
+    // }
     public <T> void unsetInEntity(final T toSet, String collection, final Enum<?> field) {
         unsetInEntity(toSet, collection, field.name(), null);
     }
@@ -752,16 +750,15 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, Enum, Object, AsyncOperationCallback)} instead.
      */
-    @Deprecated
-    @SuppressWarnings("unused")
-    public <T> void set(T toSet, String collection, Enum<?> field, Object value) {
-        setInEntity(toSet, collection, field, value);
-    }
+    // @Deprecated
+    // @SuppressWarnings("unused")
+    // public <T> void set(T toSet, String collection, Enum<?> field, Object value) {
+    //     setInEntity(toSet, collection, field, value);
+    // }
     public <T> void setInEntity(T toSet, String collection, Enum<?> field, Object value) {
-        set(toSet, collection, field.name(), value, false, null);
+        setInEntity(toSet, collection, field.name(), value, false, null);
     }
 
     /**
