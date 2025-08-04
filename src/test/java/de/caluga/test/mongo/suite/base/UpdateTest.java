@@ -335,7 +335,8 @@ public class UpdateTest extends MultiDriverTestBase {
             createUncachedObjects(morphium, 100);
             Query<UncachedObject> q =
             morphium.createQueryFor(UncachedObject.class).f("counter").eq(50);
-            morphium.unsetQ(q, "strValue");
+            // morphium.unsetQ(q, "strValue");
+            q.unset( "strValue");
             Thread.sleep(300);
             UncachedObject uc = q.get();
             assert(uc.getStrValue() == null);
@@ -353,7 +354,9 @@ public class UpdateTest extends MultiDriverTestBase {
             }
 
             assert(found);
-            morphium.unsetQ(q, true, "binary_data", "bool_data", "str_value");
+            // morphium.unsetQ(q, true, "binary_data", "bool_data", "str_value");
+            q.unset(true, "binary_data", "bool_data", "str_value");
+
             Thread.sleep(300);
             lst = q.asList();
 
@@ -474,12 +477,12 @@ public class UpdateTest extends MultiDriverTestBase {
             morphium.reread(uc);
             assert(uc.theString.equals("not set"));
             // uc.theString="it is set";
-            morphium.set(uc,
-                         morphium.getMapper().getCollectionName(UncachedSubClass.class),
-                         "THE_STRING",
-                         "it is set",
-                         false,
-                         null);
+            morphium.setInEntity(uc,
+                                 morphium.getMapper().getCollectionName(UncachedSubClass.class),
+                                 "THE_STRING",
+                                 "it is set",
+                                 false,
+                                 null);
             Thread.sleep(100);
             assert(uc.theString.equals("it is set"));
             morphium.reread(uc);
