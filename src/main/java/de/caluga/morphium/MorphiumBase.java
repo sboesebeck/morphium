@@ -1284,7 +1284,7 @@ public abstract class MorphiumBase {
     public <T> Map<String, Object> set(Query<T> query, String field, Object val, boolean upsert, boolean multiple, AsyncOperationCallback<T> callback) {
         Map<String, Object> map = new HashMap<>();
         map.put(field, val);
-        return set(query, map, upsert, multiple, callback);
+        return query.set( map, upsert, multiple, callback);
     }
 
     /**
@@ -1295,23 +1295,23 @@ public abstract class MorphiumBase {
      */
     @Deprecated
     public Map<String, Object> set(final Query<?> query, final Map<String, Object> map, final boolean upsert, final boolean multiple) {
-        return set(query, map, upsert, multiple, null);
+        return query.set( map, upsert, multiple, null);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
-     */
-    @Deprecated
-    public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
-        if (query == null) {
-            throw new RuntimeException("Cannot update null!");
-        }
+    // /**
+    //  * This method sets a property.
+    //  *
+    //  * @deprecated There is a newer implementation.
+    //  * Please use {@link Query#set(Map, boolean, boolean, AsyncOperationCallback)}  instead.
+    //  */
+    // @Deprecated
+    // public <T> Map<String, Object> set(final Query<T> query, final Map<String, Object> map, final boolean upsert, final boolean multiple, AsyncOperationCallback<T> callback) {
+    //     if (query == null) {
+    //         throw new RuntimeException("Cannot update null!");
+    //     }
 
-        return getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
-    }
+    //     return getWriterForClass(query.getType()).set(query, map, upsert, multiple, callback);
+    // }
 
     /**
      * set current date into one field

@@ -1740,11 +1740,11 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> set(String field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        return morphium.set(this, field, value, upsert, multiple, cb);
+        return morphium.getWriterForClass(getType()).set(this, Map.of(field, value), upsert, multiple, cb);
     }
 
     public Map<String, Object> set(Enum field, Object value, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        return morphium.set(this, field, value, upsert, multiple, cb);
+        return morphium.getWriterForClass(getType()).set(this, Map.of(field.toString(), value), upsert, multiple, cb);
     }
 
     public Map<String, Object> setEnum(Map<Enum, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
@@ -1758,15 +1758,15 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> set(Map<String, Object> map, boolean upsert, boolean multiple, AsyncOperationCallback<T> cb) {
-        return morphium.set(this, map, upsert, multiple, cb);
+        return morphium.getWriterForClass(getType()).set(this, map, upsert, multiple, cb);
     }
 
     public Map<String, Object> set(String field, Object value, AsyncOperationCallback<T> cb) {
-        return morphium.set(this, field, value, cb);
+        return morphium.getWriterForClass(getType()).set(this, Map.of(field, value), false, false, cb);
     }
 
     public Map<String, Object> set(Enum field, Object value, AsyncOperationCallback<T> cb) {
-        return morphium.set(this, field, value, cb);
+        return morphium.getWriterForClass(getType()).set( this, field, value, false, false, cb);
     }
 
     public Map<String, Object> setEnum(Map<Enum, Object> map, AsyncOperationCallback<T> cb) {
