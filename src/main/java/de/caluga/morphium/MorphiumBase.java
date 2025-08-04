@@ -747,16 +747,6 @@ public abstract class MorphiumBase {
         setInEntity(toSet, field.name(), value, null);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * Please use {@link Morphium#setInEntity(Object, Enum, Object, AsyncOperationCallback)} instead.
-     */
-    // @Deprecated
-    // @SuppressWarnings("unused")
-    // public <T> void set(T toSet, String collection, Enum<?> field, Object value) {
-    //     setInEntity(toSet, collection, field, value);
-    // }
     public <T> void setInEntity(T toSet, String collection, Enum<?> field, Object value) {
         setInEntity(toSet, collection, field.name(), value, false, null);
     }
@@ -764,31 +754,18 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, Enum, Object, boolean, AsyncOperationCallback)} instead.
      */
-    @Deprecated
-    public <T> void set(final T toSet, final Enum<?> field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, field.name(), value, upserts, callback);
-    }
-
     public <T> void setInEntity(final T toSet, final Enum<?> field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, field.name(), value, upserts, callback);
+        setInEntity(toSet, field.name(), value, upserts, callback);
     }
 
     /**
      * This method sets properties.
      *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object, Map)} instead.
      */
-    @Deprecated
-    public <T> void set(final T toSet, final Map<Enum, Object> values) {
-        set(toSet, getMapper().getCollectionName(toSet.getClass()), false, values, null);
-    }
-
     public <T> void setInEntity(final T toSet, final Map<Enum, Object> values) {
-        set(toSet, getMapper().getCollectionName(toSet.getClass()), false, values, null);
+        setInEntity(toSet, getMapper().getCollectionName(toSet.getClass()), false, values, null);
     }
 
 
