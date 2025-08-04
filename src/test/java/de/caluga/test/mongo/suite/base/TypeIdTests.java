@@ -60,7 +60,7 @@ public class TypeIdTests extends MorphiumTestBase {
         Query<UncachedObject> eq = morphium.createQueryFor(UncachedObject.class).f("_id").eq(uc.getMorphiumId());
         TestUtils.waitForConditionToBecomeTrue(5000, "Did not store?", ()->eq.countAll() == 1);
         assertNull(eq.asMapList().get(0)
-            .get("class_name"));
+                   .get("class_name"));
     }
 
     @Test
@@ -117,7 +117,7 @@ public class TypeIdTests extends MorphiumTestBase {
         assertTrue(getMapForEntity(co).get("embed") instanceof Map);
         assertFalse(((Map) getMapForEntity(co).get("embed")).containsKey("class_name"));
         //updating SETs type ID, as during update we do not know if the field has java representation that matches.
-        morphium.set(co, ComplexObject.Fields.embed, new EmbeddedObject("new", "Value", 123123));
+        morphium.setInEntity(co, ComplexObject.Fields.embed, new EmbeddedObject("new", "Value", 123123));
         Thread.sleep(150);
         assertTrue(getMapForEntity(co).get("embed") instanceof Map);
         checkTypeId(EmbeddedObject.class, co, "embed");
