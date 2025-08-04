@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -56,14 +56,14 @@ public class TestSkipChecks extends MorphiumTestBase {
         m.start();
         m.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+            public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 return null;
             }
         });
         StdMessaging m2 = new StdMessaging(morphium, 100, true, true, 100);
         m2.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+            public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 return null;
             }
         });

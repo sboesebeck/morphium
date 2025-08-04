@@ -72,7 +72,7 @@ public class StatusInfoListener implements MessageListener<Msg> {
     }
 
     @Override
-    public Msg onMessage(Messaging msg, Msg m) {
+    public Msg onMessage(MorphiumMessaging msg, Msg m) {
         if (m.isAnswer()) {
             return null;
         }
@@ -222,6 +222,6 @@ public class StatusInfoListener implements MessageListener<Msg> {
         }
 
 
-        public abstract void exec(Messaging msg, Msg answer, Object params);
+        public abstract void exec(MorphiumMessaging msg, Msg answer, Object params);
     }
 }

@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
-public class StdMessaging extends Thread implements ShutdownListener, Messaging {
+public class StdMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
     public static String messagingImplementation = "StandardMessaging";
     private static final Logger log = LoggerFactory.getLogger(StdMessaging.class);
     private final StatusInfoListener statusInfoListener;

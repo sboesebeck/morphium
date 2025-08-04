@@ -4,7 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -330,7 +330,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage1 = false;
         recipient.addListenerForMessageNamed("query", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 gotMessage1 = true;
                 Msg answer = m.createAnswerMsg();
                 answer.setName("queryAnswer");
@@ -342,7 +342,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage2 = false;
         sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 gotMessage2 = true;
                 assertNotNull(m.getInAnswerTo());
                 ;
@@ -365,7 +365,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void sendAndWaitforAnswerTestFailing() {
-        assertThrows(RuntimeException.class,()-> {
+        assertThrows(RuntimeException.class, ()-> {
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
             try {

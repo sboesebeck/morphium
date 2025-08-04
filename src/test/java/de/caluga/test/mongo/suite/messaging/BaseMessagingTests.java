@@ -63,7 +63,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             AtomicInteger count = new AtomicInteger(0);
             MessageListener ml = new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     count.incrementAndGet();
                     return null;
                 }
@@ -259,7 +259,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             AtomicInteger count = new AtomicInteger(0);
             MessageListener ml = new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     count.incrementAndGet();
 
                     try {
@@ -317,7 +317,7 @@ public class BaseMessagingTests extends MultiDriverTestBase {
             AtomicInteger count = new AtomicInteger(0);
             MessageListener<Msg> ml = new MessageListener<Msg>() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     count.incrementAndGet();
 
                     try {

@@ -4,7 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -503,7 +503,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 rec.start();
                 rec.addMessageListener(new MessageListener<Msg>() {
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) {
+                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
 
                         try {

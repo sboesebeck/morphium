@@ -42,7 +42,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         m3.setSenderId("m3");
         m3.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+            public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 return null;
             }
         });
@@ -504,7 +504,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 int rec = received.get();
                 long messageCount = receiver.getPendingMessagesCount();
                 log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
-                    (amount + broadcastAmount * 4 - rec - messageCount)));
+                                       (amount + broadcastAmount * 4 - rec - messageCount)));
                 log.info(String.format("Number of ids: %d", ids.size()));
                 assert(dups.get() == 0) : "got duplicate message";
 

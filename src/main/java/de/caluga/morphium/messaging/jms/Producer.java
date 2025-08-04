@@ -1,7 +1,7 @@
 package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Producer implements JMSProducer {
 
-    private final Messaging messaging;
+    private final MorphiumMessaging messaging;
     private final Map<String, Object> properties;
     private long ttl = 30000;
     private int priority = 500;
@@ -27,7 +27,7 @@ public class Producer implements JMSProducer {
     private final Logger log = LoggerFactory.getLogger(Producer.class);
 
 
-    public Producer(Messaging messaging) {
+    public Producer(MorphiumMessaging messaging) {
         this.messaging = messaging;
         messaging.start();
         properties = new ConcurrentHashMap<>();

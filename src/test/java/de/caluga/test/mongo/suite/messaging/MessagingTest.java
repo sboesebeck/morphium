@@ -551,7 +551,7 @@ public class MessagingTest extends MultiDriverTestBase {
                         StdMessaging msg;
                         final List<String> ids = Collections.synchronizedList(new ArrayList<>());
                         @Override
-                        public Msg onMessage(Messaging msg, Msg m) {
+                        public Msg onMessage(MorphiumMessaging msg, Msg m) {
                             if (ids.contains(msg.getSenderId() + "/" + m.getMsgId())) {
                                 failed[0] = true;
                             }
@@ -623,7 +623,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 for (MorphiumId id : processedMessages.keySet()) {
                     log.info(id + "---- ok!");
                     assert(processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by "
-                    + processedMessages.get(id);
+                        + processedMessages.get(id);
                 }
 
                 assert(procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
@@ -1026,7 +1026,7 @@ public class MessagingTest extends MultiDriverTestBase {
                     receivers.add(receiver1);
                     receiver1.addMessageListener(new MessageListener() {
                         @Override
-                        public Msg onMessage(Messaging msg, Msg m) {
+                        public Msg onMessage(MorphiumMessaging msg, Msg m) {
                             receivedBy.add(msg.getSenderId());
                             return null;
                         }

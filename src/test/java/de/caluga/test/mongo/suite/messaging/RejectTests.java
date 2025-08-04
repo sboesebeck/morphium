@@ -29,11 +29,11 @@ public class RejectTests extends MorphiumTestBase {
         StdMessaging rec2 = null;
 
         try {
-            sender = new StdMessaging(morphium, 100, false,true,10);
+            sender = new StdMessaging(morphium, 100, false, true, 10);
             sender.setSenderId("sender");
-            rec1 = new StdMessaging(morphium, 100, false,true,10);
+            rec1 = new StdMessaging(morphium, 100, false, true, 10);
             rec1.setSenderId("rec1");
-            rec2 = new StdMessaging(morphium, 100, false,true,10);
+            rec2 = new StdMessaging(morphium, 100, false, true, 10);
             rec2.setSenderId("rec2");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             Thread.sleep(10);
@@ -43,14 +43,14 @@ public class RejectTests extends MorphiumTestBase {
             Thread.sleep(2000);
             rec1.addMessageListener(new MessageListener<Msg>() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m)  {
+                public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                     gotMessage1 = true;
                     throw new MessageRejectedException("rec1 rejected", true);
                 }
             });
             rec2.addMessageListener(new MessageListener<Msg>() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m)  {
+                public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                     gotMessage2 = true;
                     throw new MessageRejectedException("rec2 rejected", true);
                 }
@@ -80,7 +80,7 @@ public class RejectTests extends MorphiumTestBase {
     public void lotsofclientsTest() throws Exception {
         StdMessaging sender = null;
         List<StdMessaging> clients = new ArrayList<>();
-        AtomicInteger recs=new AtomicInteger();
+        AtomicInteger recs = new AtomicInteger();
         try {
             sender = new StdMessaging(morphium, 100, false);
             sender.setSenderId("sender");
@@ -91,13 +91,13 @@ public class RejectTests extends MorphiumTestBase {
                 log.info(m.getSenderId());
                 m.start();
                 m.addMessageListener(new MessageListener<Msg>() {
-                    Map<MorphiumId,AtomicInteger> cnt=new HashMap<>();
+                    Map<MorphiumId, AtomicInteger> cnt = new HashMap<>();
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) {
+                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         recs.incrementAndGet();
-                        cnt.putIfAbsent(m.getMsgId(),new AtomicInteger());
-                        if (cnt.get(m.getMsgId()).incrementAndGet()==1){
-                            throw new MessageRejectedException("rejecting at first: "+msg.getSenderId(),true);
+                        cnt.putIfAbsent(m.getMsgId(), new AtomicInteger());
+                        if (cnt.get(m.getMsgId()).incrementAndGet() == 1) {
+                            throw new MessageRejectedException("rejecting at first: " + msg.getSenderId(), true);
                         }
                         return null;
                     }
@@ -107,7 +107,7 @@ public class RejectTests extends MorphiumTestBase {
             }
             Thread.sleep(2500);
             log.info("done - sending message");
-            Msg m=new Msg("Test","value","msg");
+            Msg m = new Msg("Test", "value", "msg");
             m.setDeleteAfterProcessing(true);
             m.setDeleteAfterProcessingTime(0);
             m.setExclusive(true);
@@ -120,7 +120,7 @@ public class RejectTests extends MorphiumTestBase {
 
         } finally {
             sender.terminate();
-            for (var m:clients) m.terminate();
+            for (var m : clients) m.terminate();
         }
     }
 
@@ -160,7 +160,7 @@ public class RejectTests extends MorphiumTestBase {
             Thread.sleep(2000);
             final AtomicInteger recFirst = new AtomicInteger(0);
             gotMessage = false;
-            rec1.addMessageListener((msg, m)->{
+            rec1.addMessageListener((msg, m)-> {
                 if (recFirst.get() == 0) {
                     recFirst.set(1);
                     throw new MessageRejectedException("rejected", true, true);
@@ -168,7 +168,7 @@ public class RejectTests extends MorphiumTestBase {
                 gotMessage = true;
                 return null;
             });
-            rec2.addMessageListener((msg, m)->{
+            rec2.addMessageListener((msg, m)-> {
                 if (recFirst.get() == 0) {
                     recFirst.set(1);
                     throw new MessageRejectedException("rejected", true, true);
@@ -176,7 +176,7 @@ public class RejectTests extends MorphiumTestBase {
                 gotMessage = true;
                 return null;
             });
-            sender.addMessageListener((msg, m)->{
+            sender.addMessageListener((msg, m)-> {
                 if (m.getInAnswerTo() == null) {
                     log.error("Message is not an answer! ERROR!");
                     return null;
@@ -221,16 +221,16 @@ public class RejectTests extends MorphiumTestBase {
             gotMessage1 = false;
             gotMessage2 = false;
             gotMessage3 = false;
-            rec1.addMessageListener((msg, m)->{
+            rec1.addMessageListener((msg, m)-> {
                 gotMessage1 = true;
                 throw new MessageRejectedException("rejected", true, true);
             });
-            rec2.addMessageListener((msg, m)->{
+            rec2.addMessageListener((msg, m)-> {
                 gotMessage2 = true;
                 log.info("Processing message " + m.getValue());
                 return null;
             });
-            sender.addMessageListener((msg, m)->{
+            sender.addMessageListener((msg, m)-> {
                 if (m.getInAnswerTo() == null) {
                     log.error("Message is not an answer! ERROR!");
                     return null;

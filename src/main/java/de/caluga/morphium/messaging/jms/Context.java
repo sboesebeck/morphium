@@ -1,7 +1,7 @@
 package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.Morphium;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 
 import javax.jms.*;
@@ -10,7 +10,7 @@ import java.io.Serializable;
 public class Context implements javax.jms.JMSContext {
 
     private final Morphium morphium;
-    private final Messaging messaging;
+    private final MorphiumMessaging messaging;
     private boolean startOnCosumerCreate = true;
 
     public Context(Morphium morphium, String name, int sessionMode) {

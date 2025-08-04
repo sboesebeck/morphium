@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -33,7 +33,7 @@ public class SpeedNCTests extends MorphiumTestBase {
                         m.setMsgId(null);
                     }
                 }
-            }.start();
+            } .start();
         }
         while (System.currentTimeMillis() < start + dur) {
             Thread.sleep(10);
@@ -55,7 +55,7 @@ public class SpeedNCTests extends MorphiumTestBase {
 
         receiver.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
@@ -74,7 +74,7 @@ public class SpeedNCTests extends MorphiumTestBase {
                         m.setMsgId(null);
                     }
                 }
-            }.start();
+            } .start();
         }
 
         while (System.currentTimeMillis() < start + dur) {
@@ -100,14 +100,14 @@ public class SpeedNCTests extends MorphiumTestBase {
 
         receiver.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
         });
         receiver2.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
@@ -127,7 +127,7 @@ public class SpeedNCTests extends MorphiumTestBase {
                         m.setMsgId(null);
                     }
                 }
-            }.start();
+            } .start();
         }
 
         while (System.currentTimeMillis() < start + dur) {

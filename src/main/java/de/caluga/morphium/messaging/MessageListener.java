@@ -14,7 +14,7 @@ public interface MessageListener<T extends Msg> {
      * if null is returned, no answer is sent
      */
     @SuppressWarnings("UnusedParameters")
-    T onMessage(Messaging msg, T m) ;
+    T onMessage(MorphiumMessaging msg, T m) ;
 
     default boolean markAsProcessedBeforeExec() {
         return false;

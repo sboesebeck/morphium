@@ -6,7 +6,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -52,7 +52,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
         try {
             log.info("Running Exclusive message test - sending " + amount + " exclusive messages, received by " + receivers);
             counts.clear();
-            MessageListener<Msg> msgMessageListener = (msg, m)->{
+            MessageListener<Msg> msgMessageListener = (msg, m)-> {
                 //log.info(msg.getSenderId() + ": Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 counts.putIfAbsent(m.getMsgId(), 0);
                 counts.put(m.getMsgId(), counts.get(m.getMsgId()) + 1);
@@ -104,12 +104,12 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                     log.info("Sending message " + i + "/" + amount);
                     log.info("           :  OPEN BORROWED IN_USE");
                     log.info("Sender     : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED) + " "
-                     + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                             + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
 
                     for (int j = 0; j < receivers; j++) {
                         log.info("Morphium " + j + ": " + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED) + " "
-                         + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " "
-                         + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                                 + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " "
+                                 + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
                     }
                 }
 
@@ -126,12 +126,12 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 log.info("-----> Messages processed so far: " + counts.size() + "/" + amount + " with " + receivers + " receivers");
                 log.info("           :  OPEN BORROWED IN_USE");
                 log.info("Sender     : " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED) + " "
-                 + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                         + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " " + morphium.getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
 
                 for (int j = 0; j < receivers; j++) {
                     log.info("Morphium " + j + ": " + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_OPENED) + " "
-                     + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " "
-                     + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
+                             + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_BORROWED) + " "
+                             + morphiums.get(j).getDriver().getDriverStats().get(DriverStatsKey.CONNECTIONS_IN_USE));
                 }
 
                 for (MorphiumId id : counts.keySet()) {
@@ -157,7 +157,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 public void run() {
                     msg.terminate();
                 }
-            }.setMessaging(sender));
+            } .setMessaging(sender));
             threads.get(0).start();
             sender.terminate();
 
@@ -264,7 +264,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             //        m4.setUseChangeStream(false);
             m4.start();
             Thread.sleep(2000);
-            MessageListener<Msg> msgMessageListener = (msg, m)->{
+            MessageListener<Msg> msgMessageListener = (msg, m)-> {
                 log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 Msg answer = m.createAnswerMsg();
                 answer.setName("test_answer");
@@ -321,7 +321,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             try {
                 consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) {
+                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         log.info("incoming message, replying with answer");
                         Msg answer = m.createAnswerMsg();
                         answer.setName("answer");
@@ -347,14 +347,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 10);
             consumer.start();
             Thread.sleep(2000); //waiting for messaging
-            consumer.addListenerForMessageNamed("testAnswering", (msg, m)->{
+            consumer.addListenerForMessageNamed("testAnswering", (msg, m)-> {
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
                 answer.setName("answerForTestAnswering");
                 return answer;
             });
             MorphiumId msgId = new MorphiumId();
-            producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m)->{
+            producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m)-> {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
                 assertTrue(msgId.equals(m.getInAnswerTo()));
                 counts.put(msgId, 1);

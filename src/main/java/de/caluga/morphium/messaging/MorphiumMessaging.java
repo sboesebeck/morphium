@@ -6,7 +6,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-public interface Messaging {
+public interface MorphiumMessaging {
     List<StdMessaging> getAlternativeMessagings();
 
     String getMessagingImplementation();

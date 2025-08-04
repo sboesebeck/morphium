@@ -3,7 +3,7 @@ package de.caluga.test.mongo.suite.messaging;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -44,7 +44,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             var recipients = 3;
             var senderThreads = 20;
             var listener = new MessageListener<Msg>() {
-                public Msg onMessage(Messaging m, Msg msg) {
+                public Msg onMessage(MorphiumMessaging m, Msg msg) {
                     messagesReceived.incrementAndGet();
                     long tm = Long.valueOf(msg.getValue());
                     //                    log.info(m.getSenderId()+": Received after "+(System.currentTimeMillis()-tm)+" - "+msg.getMsgId());
@@ -86,7 +86,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             // Thread.sleep(5000);
 
             for (int t = 0; t < senderThreads; t++) {
-                Thread thr = new Thread(()->{
+                Thread thr = new Thread(()-> {
                     var sender = new StdMessaging(morphium);
                     // var sender = new Messaging(TestUtils.newMorphiumFrom(morphium));
                     sender.setWindowSize(100);
@@ -146,7 +146,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             }
 
             AtomicBoolean running = new AtomicBoolean(true);
-            Thread loggerThread = new Thread(()->{
+            Thread loggerThread = new Thread(()-> {
                 while (running.get()) {
                     double averageAnswerTime = ((double) runtimeTotal.get()) / ((double) answersReceived.get());
                     long movingAverageTm = 0;
@@ -180,7 +180,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
             long dur = System.currentTimeMillis() - start;
 
             for (StdMessaging m : rec) {
-                new Thread(()->{
+                new Thread(()-> {
                     m.terminate();
                 });
             }
@@ -207,7 +207,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
 
         for (int i = 0; i < threads; i++) {
             int thrNum = i;
-            var t = new Thread(()->{
+            var t = new Thread(()-> {
                 try {
                     long start = System.currentTimeMillis();
                     var c = morphium.getDriver().getPrimaryConnection(null);

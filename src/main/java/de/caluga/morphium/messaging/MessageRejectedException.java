@@ -93,6 +93,6 @@ public class MessageRejectedException extends RuntimeException {
     }
 
     public static interface RejectionHandler {
-        public void handleRejection(Messaging msg, Msg m) throws Exception;
+        public void handleRejection(MorphiumMessaging msg, Msg m) throws Exception;
     }
 }

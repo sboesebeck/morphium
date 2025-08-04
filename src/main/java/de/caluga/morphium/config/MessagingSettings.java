@@ -2,7 +2,7 @@ package de.caluga.morphium.config;
 
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 
 @Embedded
@@ -17,7 +17,7 @@ public class MessagingSettings {
 
 
     @Transient
-    private Class<? extends Messaging> messagingClass = StdMessaging.class;
+    private Class <? extends MorphiumMessaging > messagingClass = StdMessaging.class;
     public String getMessagingStatusInfoListenerName() {
         return messagingStatusInfoListenerName;
     }
@@ -67,10 +67,10 @@ public class MessagingSettings {
         this.messagingWindowSize = messagingWindowSize;
         return this;
     }
-    public Class<? extends Messaging> getMessagingClass() {
+    public Class <? extends MorphiumMessaging > getMessagingClass() {
         return messagingClass;
     }
-    public MessagingSettings setMessagingClass(Class<? extends Messaging> messagingClass) {
+    public MessagingSettings setMessagingClass(Class <? extends MorphiumMessaging > messagingClass) {
         this.messagingClass = messagingClass;
         return this;
     }
