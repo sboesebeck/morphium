@@ -770,16 +770,6 @@ public abstract class MorphiumBase {
 
 
 
-    /**
-     * This method sets properties.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object,String, boolean, Map)} instead.
-     */
-    @Deprecated
-    public <T> void set(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
-        set(toSet, collection, upserts, values, null);
-    }
     public <T> void setInEntity(final T toSet, String collection, boolean upserts, final Map<Enum, Object> values) {
         set(toSet, collection, upserts, values, null);
     }
@@ -800,16 +790,15 @@ public abstract class MorphiumBase {
      * @param field - the field to change
      * @param value - the value to set
      *              *
-     * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(String, Object, String, Object)} instead.
-     */
-    @Deprecated
-    public <T> void set(final T toSet, final String field, final Object value) {
-        set(toSet, field, value, null);
-    }
+     // */
+    // @Deprecated
+    // public <T> void set(final T toSet, final String field, final Object value) {
+    //    set(toSet, field, value, null);
+    // }
 
     public <T> void setInEntity(final T toSet, final String field, final Object value) {
-        set(toSet, field, value, null);
+        setInEntity(toSet, field, value, null);
     }
 
 

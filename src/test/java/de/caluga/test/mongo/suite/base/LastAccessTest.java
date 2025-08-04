@@ -118,7 +118,7 @@ public class LastAccessTest extends MorphiumTestBase {
         morphium.reread(la);
         long lc = la.getLastChange();
         assert(la.getCreationTime() != la.getLastChange());
-        morphium.set(la, "value", "set");
+        morphium.setInEntity(la, "value", "set");
         morphium.reread(la);
         assert(lc != la.getLastChange());
         lc = la.getLastChange();

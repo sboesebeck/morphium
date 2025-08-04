@@ -216,7 +216,7 @@ public class UpdateTest extends MultiDriverTestBase {
             u.setCounter(1);
             u.setStrValue("something");
             morphium.store(u);
-            morphium.set(u, "val", Value.v2);
+            morphium.setInEntity(u, "val", Value.v2);
         }
     }
 
