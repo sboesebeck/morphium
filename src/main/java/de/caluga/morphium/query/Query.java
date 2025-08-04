@@ -1832,17 +1832,15 @@ public class Query<T> implements Cloneable {
     }
 
     public Map<String, Object> unset(boolean multiple, String ... field) {
-        return this.unset(multiple, field);
-
-        // return morphium.unsetQ(this, multiple, field);
+        return morphium.getWriterForClass(getType()).unset(this, null, multiple, field);
     }
 
     public Map<String, Object> unset(Enum ... fields) {
-        return morphium.unsetQ(this, fields);
+        return morphium.getWriterForClass(getType()).unset(this, null, false, fields);
     }
 
     public Map<String, Object> unset(String ... fields) {
-        return morphium.unsetQ(this, fields);
+        return morphium.getWriterForClass(getType()).unset(this, null, false, fields);
     }
 
     public Map<String, Object> push(String field, Object value) {
