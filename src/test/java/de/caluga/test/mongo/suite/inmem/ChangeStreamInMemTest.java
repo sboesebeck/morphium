@@ -59,7 +59,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         try {
             final int[] count = {0};
             final int[] written = {0};
-            new Thread(()->{
+            new Thread(()-> {
                 while (run[0]) {
                     try {
                         Thread.sleep(2500);
@@ -69,14 +69,15 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
                     morphium.store(new UncachedObject("value", (int)(1 + (Math.random() * 100.0))));
                     log.info("Written");
                     written[0]++;
-                    morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), UncachedObject.Fields.strValue, "newVal");
+                    morphium.createQueryFor(UncachedObject.class).f("counter").lt(50).set(UncachedObject.Fields.strValue, "newVal");
+                    // morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").lt(50), UncachedObject.Fields.strValue, "newVal");
                     log.info("updated");
                     written[0]++;
                 }
                 log.info("Thread finished");
             }).start();
             start = System.currentTimeMillis();
-            morphium.watchAsync(UncachedObject.class, true, evt->{
+            morphium.watchAsync(UncachedObject.class, true, evt-> {
                 if (evt.getOperationType().equals("drop")) return true;
                 count[0]++;
                 printevent(evt);
@@ -179,7 +180,7 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             }
             return true;
         });
-        assertEquals(50,count.get());
+        assertEquals(50, count.get());
         log.info("Quitting");
         run.set(false);
         Thread.sleep(500);

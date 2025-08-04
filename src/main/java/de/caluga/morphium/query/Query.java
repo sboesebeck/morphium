@@ -64,7 +64,7 @@ public class Query<T> implements Cloneable {
     private static final Logger log = LoggerFactory.getLogger(Query.class);
     private String where;
     private Map<String, Object> rawQuery;
-    private Class<? extends T> type;
+    private Class <? extends T > type;
     private List<FilterExpression> andExpr;
     private List<Query<T>> orQueries;
     private List<Query<T>> norQueries;
@@ -92,7 +92,7 @@ public class Query<T> implements Cloneable {
     private UtilsMap<String, UtilsMap<String, String>> additionalFields;
     private Integer maxTimeMS = null;
 
-    public Query(Morphium m, Class<? extends T> type, ThreadPoolExecutor executor) {
+    public Query(Morphium m, Class <? extends T> type, ThreadPoolExecutor executor) {
         this(m);
         setType(type);
         this.executor = executor;
@@ -834,7 +834,7 @@ public class Query<T> implements Cloneable {
                     clz = field.getType();
 
                     if (List.class.isAssignableFrom(clz) || Collection.class.isAssignableFrom(clz) || Array.class.isAssignableFrom(clz) || Set.class.isAssignableFrom(clz)
-                        || Map.class.isAssignableFrom(clz)) {
+                            || Map.class.isAssignableFrom(clz)) {
                         if (log.isDebugEnabled()) {
                             log.debug("Cannot check fields in generic lists or maps");
                         }
@@ -1198,11 +1198,11 @@ public class Query<T> implements Cloneable {
         }
     }
 
-    public Class<? extends T> getType() {
+    public Class <? extends T > getType() {
         return type;
     }
 
-    public Query<T> setType(Class<? extends T> type) {
+    public Query<T> setType(Class <? extends T > type) {
         this.type = type;
 
         if (morphium == null) {
@@ -1687,7 +1687,7 @@ public class Query<T> implements Cloneable {
         // morphium.fireProfilingReadEvent(this, dur, ReadAccessType.ID_LIST);
         if (useCache) {
             // noinspection unchecked
-            morphium.getCache().addToCache(ck, (Class<? extends R>) type, ret);
+            morphium.getCache().addToCache(ck, (Class <? extends R > ) type, ret);
         }
         return ret;
     }
@@ -1820,19 +1820,21 @@ public class Query<T> implements Cloneable {
             m.put(e.getKey().name(), e.getValue());
         }
 
-        return set(m, false, false, null);
+        return morphium.getWriterForClass(getType()).set(this, m, false, false, null);
     }
 
     public Map<String, Object> set(Map<String, Object> map) {
-        return morphium.set(this, map, false, false);
+        return morphium.getWriterForClass(getType()).set(this, map, false, false, null);
     }
 
     public Map<String, Object> unset(boolean multiple, Enum ... field) {
-        return morphium.unsetQ(this, multiple, field);
+        return morphium.getWriterForClass(getType()).unset(this, null, multiple, field);
     }
 
     public Map<String, Object> unset(boolean multiple, String ... field) {
-        return morphium.unsetQ(this, multiple, field);
+        return this.unset(multiple, field);
+
+        // return morphium.unsetQ(this, multiple, field);
     }
 
     public Map<String, Object> unset(Enum ... fields) {
@@ -2225,7 +2227,7 @@ public class Query<T> implements Cloneable {
         }
 
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> lst = (List<Map<String, Object >>) result.get("results");
+        List<Map<String, Object>> lst = (List<Map<String, Object >> ) result.get("results");
         List<T> ret = new ArrayList<>();
 
         for (Object o : lst) {
@@ -2431,7 +2433,7 @@ public class Query<T> implements Cloneable {
         }
 
         String ret = "Query{ " + "collectionName='" + collectionName + '\'' + ", type=" + type.getName() + ", skip=" + skip + ", limit=" + limit + ", andExpr=" + and + ", orQueries=" + ors
-            + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
+                     + ", norQueries=" + nors + ", sort=" + sort + ", readPreferenceLevel=" + readPreferenceLevel + ", additionalDataPresent=" + additionalDataPresent + ", where='" + where + '\'' + '}';
 
         if (fieldList != null) {
             ret += " Fields " + fieldList;

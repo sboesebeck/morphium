@@ -36,7 +36,6 @@ public abstract class MorphiumBase {
     // /**
     //  * This method unsets a property.
     //  *
-    //  * @deprecated There is a newer implementation.
     //  * Please use {@link Morphium#unsetInEntity(Object, String)} ()} ()} instead.
     //  */
     // @Deprecated
@@ -717,31 +716,10 @@ public abstract class MorphiumBase {
     //
     // SET with object
     //
-    @SuppressWarnings("unused")
-    /**
-     * This method sets a property.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object, Enum, Object, AsyncOperationCallback)} instead.
-     */
-    // @Deprecated
-    // public <T> void set(T toSet, Enum<?> field, Object value, AsyncOperationCallback<T> callback) {
-    //     setInEntity(toSet, field, value, callback);
-    // }
-
     public <T> void setInEntity(T toSet, Enum<?> field, Object value, AsyncOperationCallback<T> callback) {
         setInEntity(toSet, field.name(), value, callback);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * Please use {@link Query#setInEntity(Object,Enum,Object)} instead.
-     */
-    // @Deprecated
-    // public <T> void set(T toSet, Enum<?> field, Object value) {
-    //     setInEntity(toSet, field, value);
-    // }
 
     public <T> void setInEntity(T toSet, Enum<?> field, Object value) {
         setInEntity(toSet, field.name(), value, null);
@@ -809,56 +787,56 @@ public abstract class MorphiumBase {
     /**
      * This method sets properties.
      *
-     * @deprecated There is a newer implementation.
+     // * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object, String, Map)
      */
-    @Deprecated
-    public <T> void set(final T toSet, String collection, final Map<String, Object> values) {
-        set(toSet, collection, values, false, null);
-    }
+    // @Deprecated
+    // public <T> void set(final T toSet, String collection, final Map<String, Object> values) {
+    //     set(toSet, collection, values, false, null);
+    // }
 
     public <T> void setInEntity(final T toSet, String collection, final Map<String, Object> values) {
-        set(toSet, collection, values, false, null);
+        setInEntity(toSet, collection, values, false, null);
     }
 
-    /**
-     * This method sets properties.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object, String,Map,boolean)} instead.
-     */
-    @Deprecated
-    public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
-        set(toSet, collection, values, upserts, null);
-    }
+    // /**
+    //  * This method sets properties.
+    //  *
+    //  * @deprecated There is a newer implementation.
+    //  * Please use {@link Morphium#setInEntity(Object, String,Map,boolean)} instead.
+    //  */
+    // @Deprecated
+    // public <T> void set(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
+    //     set(toSet, collection, values, upserts, null);
+    // }
     public <T> void setInEntity(final T toSet, String collection, final Map<String, Object> values, boolean upserts) {
-        set(toSet, collection, values, upserts, null);
+        setInEntity(toSet, collection, values, upserts, null);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object,String,Enum,Object, boolean, AsyncOperationCallback)} instead.
-     */
-    @Deprecated
-    public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
-    }
+    // /**
+    //  * This method sets a property.
+    //  *
+    //  * @deprecated There is a newer implementation.
+    //  * Please use {@link Morphium#setInEntity(Object,String,Enum,Object, boolean, AsyncOperationCallback)} instead.
+    //  */
+    // @Deprecated
+    // public <T> void set(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+    //     set(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
+    // }
     public <T> void setInEntity(final T toSet, String collection, final Enum field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
+        setInEntity(toSet, collection, UtilsMap.of(field.name(), value), upserts, callback);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Morphium#setInEntity(Object, String, String,Object, boolean, AsyncOperationCallback)}  instead.
-     */
-    @Deprecated
-    public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
-        set(toSet, collection, UtilsMap.of(field, value), upserts, callback);
-    }
+    // /**
+    //  * This method sets a property.
+    //  *
+    //  * @deprecated There is a newer implementation.
+    //  * Please use {@link Morphium#setInEntity(Object, String, String,Object, boolean, AsyncOperationCallback)}  instead.
+    //  */
+    // @Deprecated
+    // public <T> void set(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
+    //     set(toSet, collection, UtilsMap.of(field, value), upserts, callback);
+    // }
     public <T> void setInEntity(final T toSet, String collection, final String field, final Object value, boolean upserts, AsyncOperationCallback<T> callback) {
         setInEntity(toSet, collection, UtilsMap.of(field, value), upserts, callback);
     }
@@ -866,13 +844,13 @@ public abstract class MorphiumBase {
     /**
      * This method sets a property.
      *
-     * @deprecated There is a newer implementation.
+     // * @deprecated There is a newer implementation.
      * Please use {@link Morphium#setInEntity(Object,String, Object, AsyncOperationCallback)}  instead.
      */
-    @Deprecated
-    public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
-        setInEntity(toSet, field, value, false, callback);
-    }
+    // @Deprecated
+    // public <T> void set(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
+    //     setInEntity(toSet, field, value, false, callback);
+    // }
     public <T> void setInEntity(final T toSet, final String field, final Object value, final AsyncOperationCallback<T> callback) {
         setInEntity(toSet, field, value, false, callback);
     }
@@ -1142,16 +1120,16 @@ public abstract class MorphiumBase {
         push(entity, getMapper().getCollectionName(entity.getClass()), field, value, upsert);
     }
 
-    /**
-     * This method sets a property.
-     *
-     * @deprecated There is a newer implementation.
-     * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
-     */
-    @Deprecated
-    public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val) {
-        return set(query, field, val, (AsyncOperationCallback<T>) null);
-    }
+    // /**
+    //  * This method sets a property.
+    //  *
+    //  * @deprecated There is a newer implementation.
+    //  * Please use {@link Query#set(Enum, Object, boolean, boolean, AsyncOperationCallback)}  instead.
+    //  */
+    // @Deprecated
+    // public <T> Map<String, Object> set(Query<T> query, Enum<?> field, Object val) {
+    //     return set(query, field, val, (AsyncOperationCallback<T>) null);
+    // }
 
     /**
      * This method sets a property.

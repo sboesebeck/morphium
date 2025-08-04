@@ -52,7 +52,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         cs.sendClearMessage(CachedObject.class, "test");
         Thread.sleep(2000);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         cnt = q.countAll();
         assert (cnt == 1) : "there should be one msg, there are " + cnt;
         msg.terminate();
@@ -72,7 +72,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             o.setValue("a value");
             morphium.store(o);
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         for (int i = 0; i < 100; i++) {
             Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
             c = c.f("counter").eq(i);
@@ -108,7 +108,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             o.setValue("a value");
             morphium.store(o);
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         for (int i = 0; i < 100; i++) {
             Query<CachedObject> c = morphium.createQueryFor(CachedObject.class);
             c = c.f("counter").eq(i);
@@ -146,8 +146,8 @@ public class CacheSyncTest extends MorphiumTestBase {
         o.setValue("a value");
         morphium.store(o);
         waitForAsyncOperationsToStart(morphium, 6000);
-        TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(25000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==1);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(25000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll() == 1);
         long start = System.currentTimeMillis();
         for (int i = 1; i < 100; i++) {
             o = new IdCachedObject();
@@ -155,12 +155,12 @@ public class CacheSyncTest extends MorphiumTestBase {
             o.setValue("a value");
             morphium.store(o);
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         Thread.sleep(5000);
-        var qu=morphium.createQueryFor(IdCachedObject.class);
-        var e=qu.q().sort(IdCachedObject.Fields.counter).get();
-        log.info("First: "+e.getCounter());
-        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll()==100);
+        var qu = morphium.createQueryFor(IdCachedObject.class);
+        var e = qu.q().sort(IdCachedObject.Fields.counter).get();
+        log.info("First: " + e.getCounter());
+        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).countAll() == 100);
         long dur = System.currentTimeMillis() - start;
         log.info("Storing without synchronizer: " + dur + " ms");
 
@@ -171,8 +171,8 @@ public class CacheSyncTest extends MorphiumTestBase {
             obj.setCounter(i + 1000);
             morphium.store(obj);
         }
-        TestUtils.waitForWrites(morphium,log);
-        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: "+morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll()==100);
+        TestUtils.waitForWrites(morphium, log);
+        TestUtils.waitForConditionToBecomeTrue(5000, "did not write: " + morphium.createQueryFor(IdCachedObject.class).countAll(), ()->morphium.createQueryFor(IdCachedObject.class).f(IdCachedObject.Fields.counter).gt(999).countAll() == 100);
         dur = System.currentTimeMillis() - start;
         log.info("Updating without synchronizer: " + dur + " ms");
 
@@ -189,7 +189,7 @@ public class CacheSyncTest extends MorphiumTestBase {
             o.setValue("a value");
             morphium.store(o);
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         dur = System.currentTimeMillis() - start;
         log.info("Storing with synchronizer: " + dur + " ms");
 
@@ -216,7 +216,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         }
         dur = System.currentTimeMillis() - start;
         log.info("Updates queued... " + dur + "ms");
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         dur = System.currentTimeMillis() - start;
         log.info("Updating with synchronizer: " + dur + " ms");
 
@@ -299,7 +299,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         new Thread(() -> {
             morphium.store(new CachedObject());
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             try {
                 Thread.sleep(4500);
             } catch (InterruptedException e) {
@@ -347,7 +347,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, m1);
         MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, m2);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         cs1.addSyncListener(new MessagingCacheSyncListener() {
             @Override
             public void preSendClearMsg(Class cls, Msg m) throws CacheSyncVetoException {
@@ -382,7 +382,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         log.info("Storing to m1 - should trigger veto, no clear on m2");
         m1.store(new CachedObject("value", 100000));
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") != 0);
         assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
 
@@ -390,7 +390,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         fillCache(m1, m2);
         log.info("Storing to m2 - should trigger veto, no clear on m1");
         m2.store(new CachedObject("value2", 102828));
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         assert (m2.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") == 0);
         assert (m1.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") != 0);
 
@@ -421,9 +421,9 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         Morphium m2 = new Morphium(cfg2);
 
-        WatchingCacheSynchronizer ws1=new WatchingCacheSynchronizer(m1);
-        WatchingCacheSynchronizer ws2=new WatchingCacheSynchronizer(m1);
-        TestUtils.waitForWrites(morphium,log);
+        WatchingCacheSynchronizer ws1 = new WatchingCacheSynchronizer(m1);
+        WatchingCacheSynchronizer ws2 = new WatchingCacheSynchronizer(m1);
+        TestUtils.waitForWrites(morphium, log);
         Thread.sleep(1000);
 
         //fill caches
@@ -438,14 +438,14 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         log.info("Storing to m1 - waiting for m2's cache to be cleared...");
         m1.store(new CachedObject("value", 100000));
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         checkForClearedCache(m1, m2);
 
         log.info("Filling cache again...");
         fillCache(m1, m2);
         log.info("other way round");
         m2.store(new CachedObject("value", 100200));
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         checkForClearedCache(m1, m2);
 
 
@@ -454,15 +454,15 @@ public class CacheSyncTest extends MorphiumTestBase {
         log.info("doing a delete");
         Query<CachedObject> q = m1.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).lt(10);
         m1.delete(q);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         checkForClearedCache(m1, m2);
 
         log.info("Filling cache again...");
         fillCache(m1, m2);
         log.info("doing an update");
         q = m1.createQueryFor(CachedObject.class).f(CachedObject.Fields.counter).lt(15);
-        m1.set(q, CachedObject.Fields.value, 9999);
-        TestUtils.waitForWrites(morphium,log);
+        q.set( CachedObject.Fields.value, 9999);
+        TestUtils.waitForWrites(morphium, log);
         checkForClearedCache(m1, m2);
 
         ws1.terminate();
@@ -523,9 +523,9 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         Morphium m2 = new Morphium(cfg2);
 
-        WatchingCacheSynchronizer ws1=new WatchingCacheSynchronizer(m1);
-        WatchingCacheSynchronizer ws2=new WatchingCacheSynchronizer(m2);
-        TestUtils.waitForWrites(morphium,log);
+        WatchingCacheSynchronizer ws1 = new WatchingCacheSynchronizer(m1);
+        WatchingCacheSynchronizer ws2 = new WatchingCacheSynchronizer(m2);
+        TestUtils.waitForWrites(morphium, log);
 
         //fill caches
         log.info("Filling caches...");
@@ -548,7 +548,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
             @Override
             public void preClear(Class cls) {
-                preClear=true;
+                preClear = true;
             }
 
             @Override
@@ -603,7 +603,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
         createCachedObjects(100);
         waitForWriteToStart(1000);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         //filling cache
         for (int i = 0; i < 10; i++) {
@@ -625,7 +625,7 @@ public class CacheSyncTest extends MorphiumTestBase {
         //stored some object avoiding cache handling in morphium
         //now cache should be empty
         waitForWriteToStart(1000);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         Thread.sleep(1200);
         long start = System.currentTimeMillis();
