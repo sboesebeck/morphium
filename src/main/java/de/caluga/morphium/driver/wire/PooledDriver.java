@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
+import de.caluga.morphium.annotations.Driver;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriverException;
@@ -48,7 +49,7 @@ import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.commands.WatchCommand;
 import de.caluga.morphium.driver.wireprotocol.OpMsg;
-
+@Driver(name = "PooledDriver", description = "Driver with connection pool")
 public class PooledDriver extends DriverBase {
     public static final String driverName = "PooledDriver";
     private final Map<String, BlockingQueue<ConnectionContainer >> connectionPool;
@@ -269,7 +270,7 @@ public class PooledDriver extends DriverBase {
                                     int loopCounter = 0;
 
                                     while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                        (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                            (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
                                         loopCounter++;
                                         log.debug("Creating connection to {} - WaitCounter is {}", hst, getWaitCounterForHost(hst));
                                         // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
@@ -386,7 +387,7 @@ public class PooledDriver extends DriverBase {
                             int loopCounter = 0;
 
                             while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                    ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                                 // log.info("Creating new connection to {}", hst);
                                 // System.out.println("Creating new connection to " + hst);
                                 loopCounter++;
@@ -471,7 +472,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             if (connectionPool.containsKey(hst) && (connectionPool.get(hst).size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                                    getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                 var cont = new ConnectionContainer(con);
                 connectionPool.get(hst).add(cont);
             } else {
@@ -708,7 +709,7 @@ public class PooledDriver extends DriverBase {
                             if (retry > getRetriesOnNetworkError()) {
                                 log.error("Could not get Connection - abort");
                                 stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                                throw(e);
+                                throw (e);
                             }
 
                             log.warn("could not get connection to secondary node '{}'- trying other replicaset node", host, e);
@@ -844,7 +845,7 @@ public class PooledDriver extends DriverBase {
     }
 
     @Override
-    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T > type, Class <? extends R > resultType) {
         return new AggregatorImpl<>(morphium, type, resultType);
     }
 

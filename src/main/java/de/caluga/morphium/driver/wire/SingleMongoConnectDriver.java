@@ -18,6 +18,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.AggregatorImpl;
+import de.caluga.morphium.annotations.Driver;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumDriver;
@@ -53,6 +54,7 @@ import de.caluga.morphium.driver.wireprotocol.OpMsg;
  * <p>
  * connects to one node only!
  */
+@Driver(name = "SingleMongoConnectDriver", description = "simple driver only handling one connection")
 public class SingleMongoConnectDriver extends DriverBase {
 
     @Override
@@ -91,7 +93,7 @@ public class SingleMongoConnectDriver extends DriverBase {
     }
 
     @Override
-    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T> type, Class<? extends R> resultType) {
+    public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T > type, Class <? extends R > resultType) {
         return new AggregatorImpl<>(morphium, type, resultType);
     }
 
@@ -331,7 +333,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                 retries++;
 
                 if (retries > getRetriesOnNetworkError()) {
-                    throw(new MorphiumDriverException("max retries exceeded", e));
+                    throw (new MorphiumDriverException("max retries exceeded", e));
                 }
 
                 try {
@@ -372,7 +374,7 @@ public class SingleMongoConnectDriver extends DriverBase {
                         }
 
                         if (connectionType.equals(ConnectionType.PRIMARY) && !Boolean.TRUE.equals(hello.getWritablePrimary())
-                            || (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary()))) {
+                                || (connectionType.equals(ConnectionType.SECONDARY) && !Boolean.TRUE.equals(hello.getSecondary()))) {
                             log.warn("state change -> wanted {}, but changed, retrying", connectionType.name());
                             connection.close();
                             connection = null;
