@@ -7,7 +7,7 @@ import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<MessagingCacheSyncListener> implements MessageListener, MorphiumStorageListener<Object> {
     public static final String CACHE_SYNC_TYPE = "cacheSyncType";
     public static final String CACHE_SYNC_RECORD = "cacheSyncRecord";
-    private final Messaging messaging;
+    private final MorphiumMessaging messaging;
     private boolean attached;
     private final AnnotationAndReflectionHelper annotationHelper;
 
@@ -50,7 +50,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
      * @param msg      - primary messaging, will attach to and send messages over
      * @param morphium - the underlying morphium instance
      */
-    public MessagingCacheSynchronizer(Messaging msg, Morphium morphium) {
+    public MessagingCacheSynchronizer(MorphiumMessaging msg, Morphium morphium) {
         super(morphium);
         messaging = msg;
         annotationHelper = morphium.getARHelper();
@@ -68,7 +68,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
         //        long start = System.currentTimeMillis();
 
 
-        Map<Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<>();
+        Map < Class<?>, Map<Boolean, List<Object>>> sorted = new HashMap<>();
 
         for (Object record : isNew.keySet()) {
             Cache c = annotationHelper.getAnnotationFromHierarchy(record.getClass(), Cache.class); //(Cache) type.getAnnotation(Cache.class);
@@ -298,7 +298,7 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
     }
 
     @Override
-    public Msg onMessage(Messaging msg, Msg m) {
+    public Msg onMessage(MorphiumMessaging msg, Msg m) {
         if (m.isAnswer()) return null;
         Msg answer = new Msg("clearCacheAnswer", "processed", messaging.getSenderId());
         try {
@@ -357,15 +357,15 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
 //                                Map<Class<?>, Map<Object, Object>> idCache = morphium.getCache().getIdCache();
                                 for (Object id : m.getAdditional()) {
                                     Object toUpdate = morphium.getCache().getFromIDCache(cls, id);//idCache.get(cls).get(id);
-                                        if (toUpdate != null) {
-                                            //Object is updated in place!
-                                            if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
-                                                morphium.getCache().removeEntryFromCache(cls, id);
-                                            } else {
-                                                morphium.reread(morphium.getCache().getFromIDCache(cls, id));
+                                    if (toUpdate != null) {
+                                        //Object is updated in place!
+                                        if (c.syncCache().equals(Cache.SyncCacheStrategy.REMOVE_ENTRY_FROM_TYPE_CACHE)) {
+                                            morphium.getCache().removeEntryFromCache(cls, id);
+                                        } else {
+                                            morphium.reread(morphium.getCache().getFromIDCache(cls, id));
 
-                                            }
                                         }
+                                    }
                                 }
                                 answer.setMsg("cache cleared for type: " + m.getValue());
                                 firePostClearEvent(cls);

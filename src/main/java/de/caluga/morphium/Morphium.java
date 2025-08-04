@@ -24,7 +24,7 @@ import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.driver.wireprotocol.OpCompressed;
 import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
@@ -102,7 +102,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private ValueEncryptionProvider valueEncryptionProvider;
     private String CREDENTIAL_ENCRYPT_KEY_NAME;
 
-    private Class <? extends Messaging > messagingClass;
+    private Class <? extends MorphiumMessaging > messagingClass;
 
     private static Vector<Morphium> instances = new Vector<>();
     private static AtomicInteger maxInstances = new AtomicInteger();
@@ -238,7 +238,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             } else {
                 try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
                     .scan()) {
-                    ClassInfoList entities = scanResult.getClassesImplementing(Messaging.class.getName());
+                    ClassInfoList entities = scanResult.getClassesImplementing(MorphiumMessaging.class.getName());
 
                     if (log.isDebugEnabled()) {
                         log.debug("Found {} messaging implementations in classpath", entities.size());
@@ -537,7 +537,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         getCache().setValidCacheTime(CollectionInfo.class, 15000);
     }
 
-    public Messaging createMessaging() {
+    public MorphiumMessaging createMessaging() {
         return null;
     }
 

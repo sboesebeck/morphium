@@ -361,22 +361,22 @@ public class Msg {
     @Override
     public String toString() {
         return "Msg{" +
-            " msgId='" + msgId + '\'' +
-            ", inAnswerTo='" + inAnswerTo + '\'' +
-            ", exclusive='" + exclusive + "'" +
-            // ", lockedBy='" + lockedBy + '\'' +
-            // ", locked=" + locked +
-            ", ttl=" + ttl +
-            ", sender='" + sender + '\'' +
-            ", name='" + name + '\'' +
-            ", msg='" + msg + '\'' +
-            ", value='" + value + '\'' +
-            ", timestamp=" + timestamp +
-            ", additional='" + additional + '\'' +
-            ", mapValue='" + mapValue + '\'' +
-            ", recipient='" + recipients + '\'' +
-            ", processedBy=" + processedBy +
-            '}';
+               " msgId='" + msgId + '\'' +
+               ", inAnswerTo='" + inAnswerTo + '\'' +
+               ", exclusive='" + exclusive + "'" +
+               // ", lockedBy='" + lockedBy + '\'' +
+               // ", locked=" + locked +
+               ", ttl=" + ttl +
+               ", sender='" + sender + '\'' +
+               ", name='" + name + '\'' +
+               ", msg='" + msg + '\'' +
+               ", value='" + value + '\'' +
+               ", timestamp=" + timestamp +
+               ", additional='" + additional + '\'' +
+               ", mapValue='" + mapValue + '\'' +
+               ", recipient='" + recipients + '\'' +
+               ", processedBy=" + processedBy +
+               '}';
     }
 
     @PreStore
@@ -428,7 +428,7 @@ public class Msg {
         return ret;
     }
 
-    public void sendAnswer(Messaging messaging, Msg m) {
+    public void sendAnswer(MorphiumMessaging messaging, Msg m) {
         m.setInAnswerTo(this.msgId);
         //m.addRecipient(this.getSender());
         m.addRecipient(this.getSender());

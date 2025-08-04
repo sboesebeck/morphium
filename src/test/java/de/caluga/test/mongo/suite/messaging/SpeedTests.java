@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
@@ -75,7 +75,7 @@ public class SpeedTests extends MultiDriverTestBase {
                 final AtomicInteger recCount = new AtomicInteger();
                 receiver.addMessageListener(new MessageListener() {
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) {
+                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         recCount.incrementAndGet();
                         return null;
                     }

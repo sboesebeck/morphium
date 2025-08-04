@@ -35,7 +35,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                 var ex = new MessageRejectedException("nah.. not now", true);
                 ex.setCustomRejectionHandler(new RejectionHandler() {
                     @Override
-                    public void handleRejection(Messaging msg, Msg m) throws Exception {
+                    public void handleRejection(MorphiumMessaging msg, Msg m) throws Exception {
                         m.setProcessedBy(new ArrayList<>());
                         morphium.save(m);
                     }
@@ -61,7 +61,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
         }
 
         TestUtils.waitForConditionToBecomeTrue(110000, "did not get all messages?", () -> totalCount.get() == 10,
-            () -> log.info("Not there yet: " + totalCount.get()));
+                                               () -> log.info("Not there yet: " + totalCount.get()));
     }
 
     @Test
@@ -81,7 +81,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
                     return true;
                 }
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     if (processedMessages.contains(m.getMsgId())) {
                         log.error("Duplicate processing!");
                     }
@@ -103,15 +103,15 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
             Msg m = new Msg("test", "msg", "value", 1000, true);
             m.setMsgId(new MorphiumId());
             m.setTimingOut(false);
-            MsgLock l=new MsgLock(m);
+            MsgLock l = new MsgLock(m);
             l.setLockId("someone");
-            morphium.save(l,"msg_lck",null);
+            morphium.save(l, "msg_lck", null);
             sender.sendMessage(m);
             Thread.sleep(2000);
             assertEquals(0, processedMessages.size());
             var q = morphium.createQueryFor(MsgLock.class).setCollectionName("msg_lck").f("_id").eq(m.getMsgId());
             q.remove();
-            for (StdMessaging ms:clients) ms.triggerCheck();
+            for (StdMessaging ms : clients) ms.triggerCheck();
             //now it should be processed...
             Thread.sleep(3000);
             assertEquals(1, processedMessages.size(), "not processed");

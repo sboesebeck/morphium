@@ -1,6 +1,6 @@
 package de.caluga.morphium.messaging.jms;
 
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,13 +11,13 @@ import java.util.Stack;
 public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
 
     private final String selector;
-    private final Messaging messaging;
+    private final MorphiumMessaging messaging;
     private MessageListener listener;
     private final Stack<JMSMessage> incomingQueue = new Stack<>();
 
     private final Logger log = LoggerFactory.getLogger(Consumer.class);
 
-    public Consumer(Messaging messaging, Destination dst) {
+    public Consumer(MorphiumMessaging messaging, Destination dst) {
         this.messaging = messaging;
         try {
             if (dst instanceof JMSTopic) {
@@ -102,7 +102,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     @SuppressWarnings("RedundantThrows")
     @Override
-    public JMSMessage onMessage(Messaging msg, JMSMessage m) {
+    public JMSMessage onMessage(MorphiumMessaging msg, JMSMessage m) {
         log.info("Incoming message...");
         if (getMessageListener() != null) {
             getMessageListener().onMessage(m);

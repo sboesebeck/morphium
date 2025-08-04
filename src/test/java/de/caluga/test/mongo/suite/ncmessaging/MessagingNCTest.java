@@ -547,7 +547,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             error = false;
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             Thread.sleep(2500);
             assert (!gotMessage1) : "Message recieved again by m1?!?!?";
             assert (!gotMessage2) : "Message recieved again by m2?!?!?";
@@ -638,7 +638,7 @@ public class MessagingNCTest extends MorphiumTestBase {
         m3.setSenderId("m3");
         m3.addMessageListener(new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m)  {
+            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 return null;
             }
         });
@@ -696,7 +696,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                         ;
                         procCounter.incrementAndGet();
                     }
-                }.start();
+                } .start();
 
             }
             while (procCounter.get() < 10) {
@@ -736,7 +736,7 @@ public class MessagingNCTest extends MorphiumTestBase {
                     StdMessaging msg;
 
                     @Override
-                    public Msg onMessage(Messaging msg, Msg m) {
+                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         if (ids.contains(msg.getSenderId() + "/" + m.getMsgId())) failed[0] = true;
                         assert (!ids.contains(msg.getSenderId() + "/" + m.getMsgId())) : "Re-getting message?!?!? " + m.getMsgId() + " MyId: " + msg.getSenderId();
                         ids.add(msg.getSenderId() + "/" + m.getMsgId());
@@ -769,7 +769,7 @@ public class MessagingNCTest extends MorphiumTestBase {
 
             long dur = System.currentTimeMillis() - start;
             log.info("Queueing " + numberOfMessages + " messages took " + dur + " ms - now waiting for writes..");
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             log.info("...all messages persisted!");
             int last = 0;
             assert (!failed[0]);
@@ -1965,7 +1965,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             receivers.add(receiver1);
             receiver1.addMessageListener(new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m)  {
+                public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                     if (receivedBy.contains(msg.getSenderId())) {
                         log.error("Receiving msg twice: " + m.getMsgId());
                     }

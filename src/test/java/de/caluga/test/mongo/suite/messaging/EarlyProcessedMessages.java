@@ -1,7 +1,7 @@
 package de.caluga.test.mongo.suite.messaging;
 
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -66,7 +66,7 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
         Thread.sleep(2500);
         MessageListener l = new MessageListener() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+            public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 count.putIfAbsent(msg.getSenderId(), new AtomicInteger());
                 log.info(msg.getSenderId() + ": Got message: " + count.get(msg.getSenderId()).incrementAndGet());
                 try {

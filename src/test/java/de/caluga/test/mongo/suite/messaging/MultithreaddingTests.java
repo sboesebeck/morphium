@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +29,7 @@ public class MultithreaddingTests extends MorphiumTestBase {
         AtomicInteger parallelThreads = new AtomicInteger(0);
         rec.addMessageListener(new MessageListener<Msg>() {
             @Override
-            public Msg onMessage(Messaging msg, Msg m) {
+            public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 parallelThreads.incrementAndGet();
 
                 try {

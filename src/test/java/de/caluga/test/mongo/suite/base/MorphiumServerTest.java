@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import de.caluga.morphium.messaging.Messaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -167,7 +167,7 @@ public class MorphiumServerTest {
             msg2.start();
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recTime.set(System.currentTimeMillis());
                     log.info("incoming mssage");
                     return null;
@@ -214,7 +214,7 @@ public class MorphiumServerTest {
             msg2.start();
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recTime.set(System.currentTimeMillis());
                     log.info("incoming mssage");
                     return null;
@@ -306,7 +306,7 @@ public class MorphiumServerTest {
             // Thread.sleep(2500);
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recAmount.incrementAndGet();
                     recTimes.put(m.getMsgId(), System.currentTimeMillis());
                     log.info("incoming mssage after {}ms", System.currentTimeMillis() - m.getTimestamp());
@@ -386,7 +386,7 @@ public class MorphiumServerTest {
             // Thread.sleep(2500);
             msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
                 @Override
-                public Msg onMessage(Messaging msg, Msg m) {
+                public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recAmount.incrementAndGet();
 
                     synchronized (recAmount) {
