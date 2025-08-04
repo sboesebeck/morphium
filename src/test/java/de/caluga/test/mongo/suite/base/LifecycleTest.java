@@ -41,7 +41,7 @@ public class LifecycleTest extends MorphiumTestBase {
         q.f("value").eq("Ein Test");
         obj = q.get(); //should trigger
         assertTrue(postLoad, "Something went wrong: postload");
-        morphium.set(obj, "value", "test beendet");
+        morphium.setInEntity(obj, "value", "test beendet");
         TestUtils.waitForWrites(morphium, log);
         assertTrue(preUpdate);
         assertTrue(postUpdate);
