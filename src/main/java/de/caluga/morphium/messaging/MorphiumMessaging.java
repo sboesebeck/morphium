@@ -95,7 +95,7 @@ public interface MorphiumMessaging {
 
     boolean isAutoAnswer();
 
-    MorphiumdMessaging setAutoAnswer(boolean autoAnswer);
+    MorphiumMessaging setAutoAnswer(boolean autoAnswer);
 
     <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs);
 
@@ -110,19 +110,19 @@ public interface MorphiumMessaging {
     boolean isProcessMultiple();
 
     @Deprecated
-    StdMessaging setProcessMultiple(boolean processMultiple);
+    MorphiumMessaging setProcessMultiple(boolean processMultiple);
 
     String getQueueName();
 
-    StdMessaging setQueueName(String queueName);
+    MorphiumMessaging setQueueName(String queueName);
 
     boolean isMultithreadded();
 
-    StdMessaging setMultithreadded(boolean multithreadded);
+    MorphiumMessaging setMultithreadded(boolean multithreadded);
 
     int getWindowSize();
 
-    StdMessaging setWindowSize(int windowSize);
+    MorphiumMessaging setWindowSize(int windowSize);
 
     boolean isUseChangeStream();
 
@@ -130,7 +130,7 @@ public interface MorphiumMessaging {
 
     Morphium getMorphium();
 
-    StdMessaging setPolling(boolean doPolling);
+    MorphiumMessaging setPolling(boolean doPolling);
 
-    StdMessaging setUseChangeStream(boolean useChangeStream);
+    MorphiumMessaging setUseChangeStream(boolean useChangeStream);
 }

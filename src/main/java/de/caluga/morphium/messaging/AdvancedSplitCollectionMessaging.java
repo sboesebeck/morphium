@@ -3,6 +3,7 @@ package de.caluga.morphium.messaging;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Vector;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Messaging;
@@ -15,7 +16,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
     @Override
     public List<MorphiumMessaging> getAlternativeMessagings() {
-        return new List<>(allMessagings);
+        return new Vector<>(allMessagings);
     }
 
 
