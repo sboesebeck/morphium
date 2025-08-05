@@ -9,11 +9,15 @@ import de.caluga.morphium.messaging.StdMessaging;
 public class MessagingSettings {
     private String messagingStatusInfoListenerName = null;
     private boolean messagingStatusInfoListenerEnabled = true;
+    private boolean useChangeStrean = true;
+    private boolean messagingMultithreadded = true;
     private String messagingImplementation = "StandardMessaging";
+    private String messageQueueName = "msg";
     private int threadPoolMessagingCoreSize = 0;
     private int threadPoolMessagingMaxSize = 100;
     private long threadPoolMessagingKeepAliveTime = 2000;
     private int messagingWindowSize = 100;
+    private int messagingPollPause = 250;
 
 
     @Transient
@@ -73,5 +77,29 @@ public class MessagingSettings {
     public MessagingSettings setMessagingClass(Class <? extends MorphiumMessaging > messagingClass) {
         this.messagingClass = messagingClass;
         return this;
+    }
+    public boolean isUseChangeStrean() {
+        return useChangeStrean;
+    }
+    public void setUseChangeStrean(boolean useChangeStrean) {
+        this.useChangeStrean = useChangeStrean;
+    }
+    public String getMessageQueueName() {
+        return messageQueueName;
+    }
+    public void setMessageQueueName(String queueName) {
+        this.messageQueueName = queueName;
+    }
+    public int getMessagingPollPause() {
+        return messagingPollPause;
+    }
+    public void setMessagingPollPause(int messagingPollPause) {
+        this.messagingPollPause = messagingPollPause;
+    }
+    public boolean isMessagingMultithreadded() {
+        return messagingMultithreadded;
+    }
+    public void setMessagingMultithreadded(boolean messagingMultithreadded) {
+        this.messagingMultithreadded = messagingMultithreadded;
     }
 }

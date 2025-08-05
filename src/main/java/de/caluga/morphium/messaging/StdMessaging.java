@@ -8,6 +8,7 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
@@ -82,11 +83,30 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
+    private MessagingSettings settings = null;
 
 
     public StdMessaging() {
         allMessagings.add(this);
         id = UUID.randomUUID().toString();
+        running = true;
+        hostname = System.getenv("HOSTNAME");
+
+        if (hostname == null) {
+            try {
+                hostname = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException ignored) {
+            }
+        }
+
+        if (hostname == null) {
+            hostname = "unknown host";
+        }
+
+        morphium.addShutdownListener(this);
+        // listeners = new CopyOnWriteArrayList<>();
+        // listenerByName = new HashMap<>();
+        requestPoll.set(1);
     }
     /**
      * attaches to the default queue named "msg"
@@ -170,6 +190,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @prarm pause: when waiting for incoming messages, especially when multithreadded == false, how long to wait between polls
      */
     public StdMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize, boolean useChangeStream) {
+        this();
         setWindowSize(windowSize);
         setUseChangeStream(useChangeStream);
         setQueueName(queueName);
@@ -182,25 +203,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         }
 
         setMultithreadded(multithreadded);
-        decouplePool = new ScheduledThreadPoolExecutor(windowSize, Thread.ofVirtual().name("decouple_thr-", 0).factory());
-        morphium.addShutdownListener(this);
-        running = true;
-        hostname = System.getenv("HOSTNAME");
-
-        if (hostname == null) {
-            try {
-                hostname = InetAddress.getLocalHost().getHostName();
-            } catch (UnknownHostException ignored) {
-            }
-        }
-
-        if (hostname == null) {
-            hostname = "unknown host";
-        }
-
-        // listeners = new CopyOnWriteArrayList<>();
-        // listenerByName = new HashMap<>();
-        requestPoll.set(1);
         // try {
         //     m.ensureIndicesFor(Msg.class, getCollectionName());
         //     m.ensureIndicesFor(MsgLock.class, getLockCollectionName());
@@ -210,8 +212,24 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
 
-    public void init(Morphium morphium) {
-        MorphiumConfig cfg = morphium.getConfig();
+    public void init(Morphium m) {
+        init(m, m.getConfig().createCopy().messagingSettings());
+    }
+    public void init(Morphium m, MessagingSettings settings) {
+        morphium = m;
+        this.settings = settings;
+        statusInfoListenerEnabled = settings.isMessagingStatusInfoListenerEnabled();
+        decouplePool = new ScheduledThreadPoolExecutor(windowSize, Thread.ofVirtual().name("decouple_thr-", 0).factory());
+
+        if (settings.getMessagingStatusInfoListenerName() != null) {
+            statusInfoListenerName = settings.getMessagingStatusInfoListenerName();
+        }
+
+        setWindowSize(settings.getMessagingWindowSize());
+        setUseChangeStream(settings.isUseChangeStrean());
+        setQueueName(settings.getMessageQueueName());
+        setPause(settings.getMessagingPollPause());
+        setMultithreadded(settings.isMessagingMultithreadded());
     }
     @Override
     public List<MorphiumMessaging> getAlternativeMessagings() {
@@ -326,9 +344,9 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-            morphium.getConfig().getThreadPoolMessagingCoreSize(),
-            morphium.getConfig().getThreadPoolMessagingMaxSize(),
-            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(),
+            settings.getThreadPoolMessagingCoreSize(),
+            settings.getThreadPoolMessagingMaxSize(),
+            settings.getThreadPoolMessagingKeepAliveTime(),
             TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<>(),
             Thread.ofVirtual().name("msg-thr-", 0).factory()
@@ -439,7 +457,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
-            final int pauseDings = getMorphium().getConfig().getMaxWaitTime() / 3;
+            final int pauseDings = getMorphium().getConfig().connectionSettings().getMaxWaitTime() / 3;
             decouplePool.scheduleWithFixedDelay(() -> {
                 try {
                     if (requestPoll.get() > 0 || !useChangeStream || System.currentTimeMillis() - lastRun.get() > pauseDings) {
@@ -1017,7 +1035,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                     // throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
                         // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
-                        Thread.sleep(morphium.getConfig().getIdleSleepTime());
+                        Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                     }
 
                     //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
@@ -1156,7 +1174,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                 // swallow
             }
             retry++;
-            if (retry > 2 * morphium.getConfig().getMaxWaitTime() / 150 + 5) {
+            if (retry > 2 * morphium.getConfig().connectionSettings().getMaxWaitTime() / 150 + 5) {
                 throw new RuntimeException("Could not terminate Messaging! MaxTime exceeded twice");
             }
         }
@@ -1399,7 +1417,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                 }
 
                 try {
-                    Thread.sleep(morphium.getConfig().getIdleSleepTime());
+                    Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                 } catch (InterruptedException e) {
                     // ignore
                 }
