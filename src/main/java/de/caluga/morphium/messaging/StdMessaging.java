@@ -1,6 +1,7 @@
 package de.caluga.morphium.messaging;
 
 import de.caluga.morphium.*;
+import de.caluga.morphium.annotations.Messaging;
 import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.async.AsyncCallbackAdapter;
 import de.caluga.morphium.async.AsyncOperationCallback;
@@ -43,24 +44,23 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
+@Messaging(name = "StandardMessaging", description = "Standard message queueing implementation")
 public class StdMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
-    public static String messagingImplementation = "StandardMessaging";
     private static final Logger log = LoggerFactory.getLogger(StdMessaging.class);
-    private final StatusInfoListener statusInfoListener;
+    private final StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String statusInfoListenerName = "morphium.status_info";
     private boolean statusInfoListenerEnabled = true;
-    private final Morphium morphium;
-    private boolean running;
-    private int pause;
+    private Morphium morphium;
+    private boolean running = true;
+    private int pause = 100;
 
     private String id;
     private boolean autoAnswer = false;
     private String hostname;
 
-    private final List<MessageListener> listeners;
-
+    private final List<MessageListener> listeners = new CopyOnWriteArrayList<>();
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
-    private Map<String, List<MessageListener>> listenerByName;
+    private Map<String, List<MessageListener>> listenerByName = new HashMap<>();
     private String queueName;
     private String lockCollectionName = null;
     private String collectionName = null;
@@ -68,9 +68,9 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     private ThreadPoolExecutor threadPool;
     private final ScheduledThreadPoolExecutor decouplePool;
 
-    private boolean multithreadded;
-    private int windowSize;
-    private boolean useChangeStream;
+    private boolean multithreadded = true;
+    private int windowSize = 100;
+    private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
     private static Vector<StdMessaging> allMessagings = new Vector<>();
 
@@ -85,12 +85,8 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
 
     public StdMessaging() {
-        listeners = null;
-        decouplePool = null;
-        morphium = null;
-        running = false;
-        statusInfoListener = null;
-        log.info("Instanciating empty, unuseable messaging");
+        allMessagings.add(this);
+        id = UUID.randomUUID().toString();
     }
     /**
      * attaches to the default queue named "msg"
@@ -163,6 +159,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         if (!processMultiple) setWindowSize(1);
     }
 
+
     /**
      * @param  m:              the morphium instance to use
      * @param queueName:       The name of the messaging queue
@@ -173,13 +170,11 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @prarm pause: when waiting for incoming messages, especially when multithreadded == false, how long to wait between polls
      */
     public StdMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize, boolean useChangeStream) {
-        allMessagings.add(this);
         setWindowSize(windowSize);
         setUseChangeStream(useChangeStream);
         setQueueName(queueName);
         setPause(pause);
         morphium = m;
-        statusInfoListener = new StatusInfoListener();
         statusInfoListenerEnabled = m.getConfig().isMessagingStatusInfoListenerEnabled();
 
         if (m.getConfig().getMessagingStatusInfoListenerName() != null) {
@@ -190,7 +185,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         decouplePool = new ScheduledThreadPoolExecutor(windowSize, Thread.ofVirtual().name("decouple_thr-", 0).factory());
         morphium.addShutdownListener(this);
         running = true;
-        id = UUID.randomUUID().toString();
         hostname = System.getenv("HOSTNAME");
 
         if (hostname == null) {
@@ -215,14 +209,14 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         // }
     }
 
-    @Override
-    public String getMessagingImplementation() {
-        return messagingImplementation;
-    }
 
+    public void init(Morphium morphium) {
+        MorphiumConfig cfg = morphium.getConfig();
+        multithreadded = cfg.messagingSettings().isMultithreadded();
+    }
     @Override
-    public List<StdMessaging> getAlternativeMessagings() {
-        List<StdMessaging> ret = new ArrayList<>(allMessagings);
+    public List<MorphiumMessaging> getAlternativeMessagings() {
+        List<MorphiumMessaging> ret = new ArrayList<>(allMessagings);
         ret.remove(this);
         return ret;
     }
@@ -326,19 +320,19 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-                        morphium.getConfig().getThreadPoolMessagingCoreSize(),
-                        morphium.getConfig().getThreadPoolMessagingMaxSize(),
-                        morphium.getConfig().getThreadPoolMessagingKeepAliveTime(),
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory()
+            morphium.getConfig().getThreadPoolMessagingCoreSize(),
+            morphium.getConfig().getThreadPoolMessagingMaxSize(),
+            morphium.getConfig().getThreadPoolMessagingKeepAliveTime(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
 
