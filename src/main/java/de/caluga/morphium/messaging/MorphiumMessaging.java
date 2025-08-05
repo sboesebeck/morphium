@@ -1,16 +1,16 @@
 package de.caluga.morphium.messaging;
 
-import de.caluga.morphium.Morphium;
-
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-public interface MorphiumMessaging {
-    List<StdMessaging> getAlternativeMessagings();
+import de.caluga.morphium.Morphium;
 
-    String getMessagingImplementation();
+public interface MorphiumMessaging {
+    List<MorphiumMessaging> getAlternativeMessagings();
+
     void start();
+
 
     void enableStatusInfoListener();
 
@@ -69,11 +69,11 @@ public interface MorphiumMessaging {
 
     String getSenderId();
 
-    StdMessaging setSenderId(String id);
+    MorphiumMessaging setSenderId(String id);
 
     int getPause();
 
-    StdMessaging setPause(int pause);
+    MorphiumMessaging setPause(int pause);
 
     boolean isRunning();
 
@@ -95,7 +95,7 @@ public interface MorphiumMessaging {
 
     boolean isAutoAnswer();
 
-    StdMessaging setAutoAnswer(boolean autoAnswer);
+    MorphiumdMessaging setAutoAnswer(boolean autoAnswer);
 
     <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs);
 
