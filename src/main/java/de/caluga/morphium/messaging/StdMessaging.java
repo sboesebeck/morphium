@@ -66,7 +66,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     private String collectionName = null;
 
     private ThreadPoolExecutor threadPool;
-    private final ScheduledThreadPoolExecutor decouplePool;
+    private ScheduledThreadPoolExecutor decouplePool;
 
     private boolean multithreadded = true;
     private int windowSize = 100;
@@ -198,8 +198,8 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             hostname = "unknown host";
         }
 
-        listeners = new CopyOnWriteArrayList<>();
-        listenerByName = new HashMap<>();
+        // listeners = new CopyOnWriteArrayList<>();
+        // listenerByName = new HashMap<>();
         requestPoll.set(1);
         // try {
         //     m.ensureIndicesFor(Msg.class, getCollectionName());
@@ -212,7 +212,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
     public void init(Morphium morphium) {
         MorphiumConfig cfg = morphium.getConfig();
-        multithreadded = cfg.messagingSettings().isMultithreadded();
     }
     @Override
     public List<MorphiumMessaging> getAlternativeMessagings() {
@@ -1250,7 +1249,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setAutoAnswer(boolean autoAnswer) {
+    public MorphiumMessaging setAutoAnswer(boolean autoAnswer) {
         this.autoAnswer = autoAnswer;
         return this;
     }
@@ -1419,7 +1418,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
     @Deprecated
     @Override
-    public StdMessaging setProcessMultiple(boolean processMultiple) {
+    public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
         if (processMultiple) {
             windowSize = 10;
         } else {
@@ -1435,7 +1434,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setQueueName(String queueName) {
+    public MorphiumMessaging setQueueName(String queueName) {
         this.queueName = queueName;
         collectionName = null;
         lockCollectionName = null;
@@ -1448,7 +1447,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setMultithreadded(boolean multithreadded) {
+    public MorphiumMessaging setMultithreadded(boolean multithreadded) {
         if (!multithreadded && threadPool != null) {
             threadPool.shutdownNow();
             threadPool = null;
@@ -1466,7 +1465,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setWindowSize(int windowSize) {
+    public MorphiumMessaging setWindowSize(int windowSize) {
         this.windowSize = windowSize;
         return this;
     }
@@ -1497,13 +1496,13 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * setPolling(true) == setUseChangeStream(false)!!!!!!
      **/
     @Override
-    public StdMessaging setPolling(boolean doPolling) {
+    public MorphiumMessaging setPolling(boolean doPolling) {
         useChangeStream = !doPolling;
         return this;
     }
 
     @Override
-    public StdMessaging setUseChangeStream(boolean useChangeStream) {
+    public MorphiumMessaging setUseChangeStream(boolean useChangeStream) {
         this.useChangeStream = useChangeStream;
         return this;
     }

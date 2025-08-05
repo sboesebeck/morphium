@@ -72,7 +72,8 @@ public class MorphiumConfig {
 
 
     @Transient
-    private List<Object> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings, messagingSettings);
+    private List<Object> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings,
+            messagingSettings);
 
 
     public MessagingSettings messagingSettings() {
@@ -187,7 +188,7 @@ public class MorphiumConfig {
                 try {
                     if (f.getType().isEnum()) {
                         @SuppressWarnings("unchecked")
-                        Enum value = Enum.valueOf((Class <? extends Enum > ) f.getType(), (String) setting);
+                        Enum value = Enum.valueOf((Class <? extends Enum >) f.getType(), (String) setting);
                         f.set(settingObject, value);
                     } else if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                         f.set(settingObject, Integer.parseInt((String) setting));
@@ -1418,21 +1419,6 @@ public class MorphiumConfig {
      * use messagingSettings
      */
     @Deprecated
-    public String getMessagingImplementation() {
-        return messagingSettings.getMessagingImplementation();
-    }
-    /**
-     * use messagingSettings
-     */
-    @Deprecated
-    public MorphiumConfig setMessagingImplementation(String implementation) {
-        messagingSettings.setMessagingImplementation(implementation);
-        return this;
-    }
-    /**
-     * use messagingSettings
-     */
-    @Deprecated
     public int getThreadPoolMessagingCoreSize() {
         return messagingSettings.getThreadPoolMessagingCoreSize();
     }
@@ -1827,7 +1813,6 @@ public class MorphiumConfig {
     @Deprecated
     public void setIdleSleepTime(int idleSleepTime) {
         driverSettings.setIdleSleepTime(idleSleepTime);
-
     }
 
     public Map<String, Object> getRestoreData() {
