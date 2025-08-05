@@ -19,7 +19,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return new Vector<>(allMessagings);
     }
 
-
     @Override
     public void start() {
         // TODO Auto-generated method stub

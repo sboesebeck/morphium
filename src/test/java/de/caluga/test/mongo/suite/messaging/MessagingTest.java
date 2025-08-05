@@ -209,6 +209,8 @@ public class MessagingTest extends MultiDriverTestBase {
             assertFalse(gotMessage, "Got message again?!?!?!");
             messaging.terminate();
             log.info(method + "() finished with " + morphium.getDriver().getName());
+        } catch (Exception e) {
+            log.error("Error", e);
         }
     }
 
@@ -623,7 +625,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 for (MorphiumId id : processedMessages.keySet()) {
                     log.info(id + "---- ok!");
                     assert(processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by "
-                        + processedMessages.get(id);
+                    + processedMessages.get(id);
                 }
 
                 assert(procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";

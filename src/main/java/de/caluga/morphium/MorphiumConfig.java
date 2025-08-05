@@ -1202,6 +1202,9 @@ public class MorphiumConfig {
     }
 
 
+    public MorphiumConfig createCopy() {
+        return fromProperties(asProperties());
+    }
     /**
      * @param prefix prefix to use in property keys
      * @param effectiveConfig when true, use the current effective config, including
