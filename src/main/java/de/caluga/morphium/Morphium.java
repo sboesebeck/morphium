@@ -345,6 +345,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             morphiumDriver.setIdleSleepTime(getConfig().driverSettings().getIdleSleepTime());
             morphiumDriver.setCompression(getConfig().driverSettings().getCompressionType().getCode());
             morphiumDriver.setDefaultBatchSize(getConfig().driverSettings().getCursorBatchSize());
+            morphiumDriver.setServerSelectionTimeout(getConfig().driverSettings().getServerSelectionTimeout());
 
             if (getConfig().clusterSettings().getHostSeed().isEmpty() && !(morphiumDriver instanceof InMemoryDriver)) {
                 throw new RuntimeException("Error - no server address specified!");
