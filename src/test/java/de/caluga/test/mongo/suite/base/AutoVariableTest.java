@@ -146,7 +146,7 @@ public class AutoVariableTest extends MorphiumTestBase {
 
     @Test
     public void disableAutoValues() throws Exception {
-        morphium.getConfig().disableAutoValues();
+        morphium.getConfig().objectMappingSettings().disableAutoValues();
         CTimeTest ct = new CTimeTest();
         ct.value = "should not work";
         morphium.store(ct);
@@ -183,7 +183,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         Thread.sleep(500);
         la = morphium.findById(LATest.class, la.morphiumId);
         assert(la.lastAccess == 0);
-        morphium.getConfig().enableAutoValues();
+        morphium.getConfig().objectMappingSettings().enableAutoValues();
     }
 
     @Test
@@ -299,7 +299,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         Thread.sleep(100);
         assert(lc.lastChange > created);
         Query<LCTest> q = morphium.createQueryFor(LCTest.class);
-        morphium.set(q, "value", "all_same", false, true);
+        q.set("value", "all_same", false, true);
         long cmp = 0;
 
         for (LCTest tst : q.asIterable()) {
@@ -318,7 +318,7 @@ public class AutoVariableTest extends MorphiumTestBase {
 
     @Test
     public void testCTNonOjbectId() throws Exception {
-        morphium.getConfig().setCheckForNew(true);
+        morphium.getConfig().objectMappingSettings().setCheckForNew(true);
         morphium.dropCollection(CTimeTestStringId.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, CTimeTestStringId.class);
         //        while (morphium.getDriver().exists(morphium.getConfig().getDatabase(), morphium.getMapper().getCollectionName(CTimeTestStringId.class))) {
@@ -354,7 +354,7 @@ public class AutoVariableTest extends MorphiumTestBase {
         assert(record.timestamp == created) : "Record timestamp " + record.timestamp;
         Thread.sleep(500);
         q = q.q().f("value").eq("new");
-        morphium.set(q, "additional", "1111", true, true);
+        q.set("additional", "1111", true, true);
         record = q.get();
         assert(record.timestamp != 0);
         ArrayList<CTimeTestStringId> lst = new ArrayList<>();
