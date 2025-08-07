@@ -20,11 +20,27 @@ public class ObjectMappingSettings {
     public boolean isAutoValuesEnabled() {
         return autoValues;
     }
+    public ObjectMappingSettings enableAutoValues() {
+        autoValues = true;
+        return this;
+    }
+    public ObjectMappingSettings disableAutoValues() {
+        autoValues = false;
+        return this;
+    }
     public boolean isAutoValues() {
         return autoValues;
     }
     public ObjectMappingSettings setAutoValues(boolean autoValues) {
         this.autoValues = autoValues;
+        return this;
+    }
+    public ObjectMappingSettings disableObjectSerialization() {
+        objectSerializationEnabled = false;
+        return this;
+    }
+    public ObjectMappingSettings enableObjectSerialization() {
+        objectSerializationEnabled = true;
         return this;
     }
     public boolean isObjectSerializationEnabled() {
@@ -34,11 +50,27 @@ public class ObjectMappingSettings {
         this.objectSerializationEnabled = objectSerializationEnabled;
         return this;
     }
+    public ObjectMappingSettings disableCamelCaseConversion() {
+        camelCaseConversionEnabled = false;
+        return this;
+    }
+    public ObjectMappingSettings enableCamelCaseConversion() {
+        camelCaseConversionEnabled = true;
+        return this;
+    }
     public boolean isCamelCaseConversionEnabled() {
         return camelCaseConversionEnabled;
     }
     public ObjectMappingSettings setCamelCaseConversionEnabled(boolean camelCaseConversionEnabled) {
         this.camelCaseConversionEnabled = camelCaseConversionEnabled;
+        return this;
+    }
+    public ObjectMappingSettings disableWarningOnnoEntitySerialization() {
+        warnOnNoEntitySerialization = false;
+        return this;
+    }
+    public ObjectMappingSettings enableWarningOnnoEntitySerialization() {
+        warnOnNoEntitySerialization = true;
         return this;
     }
     public boolean isWarnOnNoEntitySerialization() {
