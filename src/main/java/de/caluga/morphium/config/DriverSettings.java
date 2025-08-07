@@ -32,7 +32,7 @@ public class DriverSettings {
     @Transient
     private String defaultReadPreferenceType;
 
-    private int serverSelectionTimeout = -1;
+    private int serverSelectionTimeout = 30000;
 
     public int getIdleSleepTime() {
         return idleSleepTime;

@@ -65,7 +65,7 @@ public class PooledDriver extends DriverBase {
 
     private final AtomicInteger lastSecondaryNode = new AtomicInteger(0);
     private final Map<String, Thread> hostThreads = new ConcurrentHashMap<>();
-    private int serverSelectionTimeout = -1;
+    private int serverSelectionTimeout = 2000;
 
     public PooledDriver() {
         connectionPool = new HashMap<>();
@@ -270,7 +270,7 @@ public class PooledDriver extends DriverBase {
                                     int loopCounter = 0;
 
                                     while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                            (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
+                                        (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
                                         loopCounter++;
                                         log.debug("Creating connection to {} - WaitCounter is {}", hst, getWaitCounterForHost(hst));
                                         // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
@@ -387,7 +387,7 @@ public class PooledDriver extends DriverBase {
                             int loopCounter = 0;
 
                             while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
-                                    ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                                ((queue.size() < wait && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost()) || getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                                 // log.info("Creating new connection to {}", hst);
                                 // System.out.println("Creating new connection to " + hst);
                                 loopCounter++;
@@ -472,7 +472,7 @@ public class PooledDriver extends DriverBase {
 
         synchronized (connectionPool) {
             if (connectionPool.containsKey(hst) && (connectionPool.get(hst).size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost() ||
-                                                    getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
+                getTotalConnectionsToHost(hst) < getMinConnectionsPerHost())) {
                 var cont = new ConnectionContainer(con);
                 connectionPool.get(hst).add(cont);
             } else {
@@ -626,17 +626,22 @@ public class PooledDriver extends DriverBase {
 
             switch (type) {
                 case PRIMARY:
-                    if (primaryNode == null) {
-                        if (getServerSelectionTimeout() > 0) {
-                            try {
-                                Thread.sleep(getServerSelectionTimeout());
-                            } catch (InterruptedException e) {
-                                //swallow
-                            }
+                    long start = System.currentTimeMillis();
+                    long timeout = getServerSelectionTimeout();
+
+                    if (timeout <= 0) {
+                        timeout = 1000;
+                    }
+
+                    while (primaryNode == null) {
+                        if (System.currentTimeMillis() - start > timeout) {
+                            throw new MorphiumDriverException("No primary node defined - not connected yet?");
                         }
 
-                        if (primaryNode == null) {
-                            throw new MorphiumDriverException("No primary node defined - not connected yet?");
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            //swallow
                         }
                     }
 
@@ -709,7 +714,7 @@ public class PooledDriver extends DriverBase {
                             if (retry > getRetriesOnNetworkError()) {
                                 log.error("Could not get Connection - abort");
                                 stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-                                throw (e);
+                                throw(e);
                             }
 
                             log.warn("could not get connection to secondary node '{}'- trying other replicaset node", host, e);
@@ -741,7 +746,6 @@ public class PooledDriver extends DriverBase {
 
         return borrowConnection(primaryNode);
     }
-
     @Override
     public void closeConnection(MongoConnection con) {
         releaseConnection(con);
@@ -757,13 +761,11 @@ public class PooledDriver extends DriverBase {
             }
         }
     }
-
     public Map<Integer, ConnectionContainer> getBorrowedConnections() {
         synchronized (connectionPool) {
             return new HashMap<>(borrowedConnections);
         }
     }
-
     @Override
     public void releaseConnection(MongoConnection con) {
         stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
@@ -821,7 +823,6 @@ public class PooledDriver extends DriverBase {
             stats.get(DriverStatsKey.CONNECTIONS_RELEASED).incrementAndGet();
         }
     }
-
     public boolean isConnected() {
         synchronized (connectionPool) {
             for (var c : connectionPool.keySet()) {
@@ -833,31 +834,25 @@ public class PooledDriver extends DriverBase {
 
         return false;
     }
-
     @Override
     public int getIdleSleepTime() {
         return idleSleepTime;
     }
-
     @Override
     public void setIdleSleepTime(int sl) {
         idleSleepTime = sl;
     }
-
     @Override
     public <T, R> Aggregator<T, R> createAggregator(Morphium morphium, Class<? extends T > type, Class <? extends R > resultType) {
         return new AggregatorImpl<>(morphium, type, resultType);
     }
-
     @Override
     public String getName() {
         return driverName;
     }
-
     @Override
     public void setConnectionUrl(String connectionUrl) {
     }
-
     @Override
     public void close() {
         if (heartbeat != null) {
@@ -883,7 +878,6 @@ public class PooledDriver extends DriverBase {
             }
         }
     }
-
     protected void killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
         List<Long> cursorIds = new ArrayList<>();
 
@@ -901,7 +895,6 @@ public class PooledDriver extends DriverBase {
         var ret = k.execute();
         // log.debug("killed cursor");
     }
-
     @Override
     public void commitTransaction() throws MorphiumDriverException {
         if (getTransactionContext() == null) {
@@ -918,7 +911,6 @@ public class PooledDriver extends DriverBase {
         clearTransactionContext();
         releaseConnection(con);
     }
-
     @Override
     public void abortTransaction() throws MorphiumDriverException {
         if (getTransactionContext() == null) {
@@ -936,7 +928,6 @@ public class PooledDriver extends DriverBase {
             clearTransactionContext();
         }
     }
-
     @Override
     public Map<String, Object> getReplsetStatus() throws MorphiumDriverException {
         MongoConnection con = null;
@@ -959,7 +950,6 @@ public class PooledDriver extends DriverBase {
             releaseConnection(con);
         }
     }
-
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
         MongoConnection con = null;
@@ -971,13 +961,11 @@ public class PooledDriver extends DriverBase {
             releaseConnection(con);
         }
     }
-
     @Override
     public Map<String, Object> getCollStats(String db, String coll) throws MorphiumDriverException {
         CollStatsCommand cmd = new CollStatsCommand(getPrimaryConnection(null)).setColl(coll).setDb(db);
         return cmd.execute();
     }
-
     public List<Map<String, Object >> currentOp(int threshold) throws MorphiumDriverException {
         CurrentOpCommand cmd = null;
 
@@ -990,7 +978,6 @@ public class PooledDriver extends DriverBase {
             }
         }
     }
-
     public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
         if (crs == null) {
             return;
@@ -998,7 +985,6 @@ public class PooledDriver extends DriverBase {
 
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
     }
-
     public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
         return new NetworkCallHelper<Map<String, Object >> ().doCall(() -> {
             OpMsg msg = new OpMsg();
@@ -1015,7 +1001,6 @@ public class PooledDriver extends DriverBase {
             return reply.getFirstDoc();
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
-
     public boolean exists(String db) throws MorphiumDriverException {
         // noinspection EmptyCatchBlock
         try {
@@ -1026,11 +1011,9 @@ public class PooledDriver extends DriverBase {
 
         return false;
     }
-
     public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
         return getDbStats(db, false);
     }
-
     private List<Map<String, Object >> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
         // noinspection unchecked
         return new NetworkCallHelper<List<Map<String, Object >>> ().doCall(() -> {
@@ -1041,7 +1024,6 @@ public class PooledDriver extends DriverBase {
             return cmd.execute();
         }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
     }
-
     @Override
     public Map<String, Integer> getNumConnectionsByHost() {
         Map<String, Integer> ret = new HashMap<>();
@@ -1058,7 +1040,6 @@ public class PooledDriver extends DriverBase {
 
         return ret;
     }
-
     @Override
     public boolean isCapped(String db, String coll) throws MorphiumDriverException {
         List<Map<String, Object >> lst = getCollectionInfo(db, coll);
@@ -1073,7 +1054,6 @@ public class PooledDriver extends DriverBase {
         }
         return false;
     }
-
     private class ConnectionContainer {
         private SingleMongoConnection con;
         private long created;
@@ -1116,7 +1096,6 @@ public class PooledDriver extends DriverBase {
             return this;
         }
     }
-
     @Override
     public BulkRequestContext createBulkContext(Morphium m, String db, String collection, boolean ordered, WriteConcern wc) {
         return new BulkRequestContext(m) {
@@ -1169,7 +1148,6 @@ public class PooledDriver extends DriverBase {
             }
         };
     }
-
     @Override
     public Map<DriverStatsKey, Double> getDriverStats() {
         Map<DriverStatsKey, Double> m = new HashMap<>();
