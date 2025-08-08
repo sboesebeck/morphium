@@ -274,8 +274,11 @@ public class SingleMongoConnection implements MongoConnection {
             stats.get(REPLY_RECEIVED).incrementAndGet();
             return msg;
         } catch (Exception e) {
-            close();
-            throw new MorphiumDriverException("" + e.getMessage(), e);
+            if (running) {
+                close();
+                throw new MorphiumDriverException("" + e.getMessage(), e);
+            }
+            return null;
         }
     }
 

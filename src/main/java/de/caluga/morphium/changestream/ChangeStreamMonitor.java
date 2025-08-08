@@ -111,8 +111,8 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
         }
 
         changeStreamThread = Thread.ofVirtual()
-            .name("changeStream")
-            .start(this);
+                             .name("changeStream")
+                             .start(this);
         running = true;
     }
 
@@ -239,11 +239,15 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                     log.warn("connection closed!", e);
                     break;
                 } else {
-                    log.warn("Error in changestream monitor - restarting", e);
+                    if (running) {
+                        log.warn("Error in changestream monitor - restarting", e);
 
-                    try {
-                        Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
-                    } catch (InterruptedException ex) {
+                        try {
+                            Thread.sleep(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        } catch (InterruptedException ex) {
+                        }
+                    } else {
+                        break;
                     }
                 }
             } finally {
