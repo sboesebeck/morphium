@@ -162,28 +162,28 @@ public class MorphiumConfig {
             for (Field f : flds) {
                 String fName = prefix + f.getName();
                 Object setting = resolver.resolveSetting(fName);
-                log.info("fname {} = {}", fName, setting);
+                // log.info("fname {} = {}", fName, setting);
 
                 if (setting == null) {
                     //check camelcase
                     fName = prefix + an.convertCamelCase(f.getName());
                     setting = resolver.resolveSetting(fName);
-                    log.info("  camel {} = {}", fName, setting);
+                    // log.info("  camel {} = {}", fName, setting);
 
                     if (setting == null) {
                         fName = prefix + an.createCamelCase(f.getName(), false);
                         setting = resolver.resolveSetting(fName);
-                        log.info("  decamel {} = {}", fName, setting);
+                        // log.info("  decamel {} = {}", fName, setting);
 
                         if (setting == null) {
-                            log.debug("Setting {} is null - continuing", f.getName());
+                            // log.debug("Setting {} is null - continuing", f.getName());
                             continue;
                         }
                     }
                 }
 
                 f.setAccessible(true);
-                log.info("Setting {} in class {} to value {}", f.getName(), settingObject.getClass().getName(), setting);
+                // log.info("Setting {} in class {} to value {}", f.getName(), settingObject.getClass().getName(), setting);
 
                 try {
                     if (f.getType().isEnum()) {
