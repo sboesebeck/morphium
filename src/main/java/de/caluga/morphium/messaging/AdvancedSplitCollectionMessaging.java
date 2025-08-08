@@ -4,6 +4,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Messaging;
@@ -23,6 +26,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     private Morphium morphium;
     private MessagingSettings effectiveSettings;
+    private ThreadPoolExecutor threadPool;
+
 
     private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
     @Override
@@ -203,7 +208,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setSenderId(String id) {
+    public MorphiumMessaging setSenderId(String id) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setSenderId'");
     }
@@ -215,7 +220,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setPause(int pause) {
+    public MorphiumMessaging setPause(int pause) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setPause'");
     }
@@ -281,7 +286,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setAutoAnswer(boolean autoAnswer) {
+    public MorphiumMessaging setAutoAnswer(boolean autoAnswer) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setAutoAnswer'");
     }
@@ -324,7 +329,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setProcessMultiple(boolean processMultiple) {
+    public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setProcessMultiple'");
     }
@@ -336,7 +341,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setQueueName(String queueName) {
+    public MorphiumMessaging setQueueName(String queueName) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setQueueName'");
     }
@@ -348,7 +353,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setMultithreadded(boolean multithreadded) {
+    public MorphiumMessaging setMultithreadded(boolean multithreadded) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setMultithreadded'");
     }
@@ -360,7 +365,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setWindowSize(int windowSize) {
+    public MorphiumMessaging setWindowSize(int windowSize) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setWindowSize'");
     }
@@ -384,13 +389,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public StdMessaging setPolling(boolean doPolling) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setPolling'");
+    public MorphiumMessaging setPolling(boolean doPolling) {
+        effectiveSettings.setUseChangeStrean(!doPolling);
+        return this;
     }
 
     @Override
-    public StdMessaging setUseChangeStream(boolean useChangeStream) {
+    public MorphiumMessaging setUseChangeStream(boolean useChangeStream) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setUseChangeStream'");
     }
@@ -406,8 +411,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         if (overrides == m.getConfig().messagingSettings()) {
             effectiveSettings = m.getConfig().createCopy().messagingSettings();
         } else {
-
+            effectiveSettings = overrides;
         }
+
+        threadPool = new ThreadPoolExecutor(
+                        effectiveSettings.getThreadPoolMessagingCoreSize(),
+                        effectiveSettings.getThreadPoolMessagingMaxSize(),
+                        effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<>(),
+                        Thread.ofVirtual().name("msg-thr-", 0).factory()
+        );
     }
 
 }
