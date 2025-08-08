@@ -3,7 +3,7 @@ package de.caluga.morphium.config;
 import de.caluga.morphium.annotations.Embedded;
 
 @Embedded
-public class ObjectMappingSettings {
+public class ObjectMappingSettings extends Settings {
 
     private boolean checkForNew = true;
     private boolean autoValues = true;

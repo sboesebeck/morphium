@@ -4,7 +4,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.annotations.Embedded;
 
 @Embedded
-public class CollectionCheckSettings {
+public class CollectionCheckSettings extends Settings {
 
     private IndexCheck indexCheck = IndexCheck.WARN_ON_STARTUP;
     private CappedCheck cappedCheck = CappedCheck.WARN_ON_STARTUP;

@@ -8,11 +8,11 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 
 @Embedded
-public class EncryptionSettings {
+public class EncryptionSettings extends Settings {
     @Transient
-    private Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
+    private Class <? extends EncryptionKeyProvider > encryptionKeyProviderClass = DefaultEncryptionKeyProvider.class;
     @Transient
-    private Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass = AESEncryptionProvider.class;
+    private Class <? extends ValueEncryptionProvider > valueEncryptionProviderClass = AESEncryptionProvider.class;
     /**
      * login credentials for MongoDB - if necessary. If null, don't authenticate
      */
@@ -21,17 +21,17 @@ public class EncryptionSettings {
     @Transient
     private String credentialsDecryptionKey;
     private Boolean credentialsEncrypted;
-    public Class<? extends EncryptionKeyProvider> getEncryptionKeyProviderClass() {
+    public Class <? extends EncryptionKeyProvider > getEncryptionKeyProviderClass() {
         return encryptionKeyProviderClass;
     }
-    public EncryptionSettings setEncryptionKeyProviderClass(Class<? extends EncryptionKeyProvider> encryptionKeyProviderClass) {
+    public EncryptionSettings setEncryptionKeyProviderClass(Class <? extends EncryptionKeyProvider > encryptionKeyProviderClass) {
         this.encryptionKeyProviderClass = encryptionKeyProviderClass;
         return this;
     }
-    public Class<? extends ValueEncryptionProvider> getValueEncryptionProviderClass() {
+    public Class <? extends ValueEncryptionProvider > getValueEncryptionProviderClass() {
         return valueEncryptionProviderClass;
     }
-    public EncryptionSettings setValueEncryptionProviderClass(Class<? extends ValueEncryptionProvider> valueEncryptionProviderClass) {
+    public EncryptionSettings setValueEncryptionProviderClass(Class <? extends ValueEncryptionProvider > valueEncryptionProviderClass) {
         this.valueEncryptionProviderClass = valueEncryptionProviderClass;
         return this;
     }

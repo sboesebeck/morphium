@@ -2,8 +2,7 @@ package de.caluga.morphium.config;
 
 import de.caluga.morphium.annotations.Embedded;
 
-@Embedded
-public class AuthSettings {
+public class AuthSettings extends Settings {
     private String mongoLogin = null, mongoPassword = null, mongoAuthDb = null;
 
     public String getMongoLogin() {

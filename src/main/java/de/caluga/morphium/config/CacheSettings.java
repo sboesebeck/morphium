@@ -5,7 +5,7 @@ import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.cache.MorphiumCache;
 
 @Embedded
-public class CacheSettings {
+public class CacheSettings extends Settings {
     @Transient
     private MorphiumCache cache;
     private int globalCacheValidTime = 5000;

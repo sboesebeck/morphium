@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Embedded
-public class ConnectionSettings {
+public class ConnectionSettings extends Settings {
 
     private int maxWaitTime = 2000;
     private int connectionTimeout = 0;
@@ -78,25 +78,25 @@ public class ConnectionSettings {
     }
 
 
-   /*  public boolean isUseSSL() {
-        return useSSL;
-    }
-    public ConnectionSettings setUseSSL(boolean useSSL) {
-        this.useSSL = useSSL;
-        return this;
-    }
-    public SSLContext getSslContext() {
-        return sslContext;
-    }
-    public ConnectionSettings setSslContext(SSLContext sslContext) {
-        this.sslContext = sslContext;
-        return this;
-    }
-    public boolean isSslInvalidHostNameAllowed() {
-        return sslInvalidHostNameAllowed;
-    }
-    public ConnectionSettings setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
-        this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
-        return this;
-    }*/
+    /*  public boolean isUseSSL() {
+         return useSSL;
+     }
+     public ConnectionSettings setUseSSL(boolean useSSL) {
+         this.useSSL = useSSL;
+         return this;
+     }
+     public SSLContext getSslContext() {
+         return sslContext;
+     }
+     public ConnectionSettings setSslContext(SSLContext sslContext) {
+         this.sslContext = sslContext;
+         return this;
+     }
+     public boolean isSslInvalidHostNameAllowed() {
+         return sslInvalidHostNameAllowed;
+     }
+     public ConnectionSettings setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+         this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+         return this;
+     }*/
 }

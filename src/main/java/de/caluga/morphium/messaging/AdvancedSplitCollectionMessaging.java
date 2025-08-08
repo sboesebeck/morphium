@@ -7,11 +7,22 @@ import java.util.Vector;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Messaging;
+import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.messaging.StdMessaging.AsyncMessageCallback;
 
+
+
+/**
+ * MessageQueueing implementation with additional features:
+ * - using a collection for each message name - reducing load on clients with minimal overhead on MongoDB-Side
+ * - adding capability for streaming data. Usually as an answer, but could also be as "just as is"
+*/
 @Messaging(name = "AdvMessaging", description =
-        "Message queueing implementation, that splits messages into different collections in order to reduce overhead on client side and improve effectiveness of changestreams")
+                           "Message queueing implementation, that splits messages into different collections in order to reduce overhead on client side and improve effectiveness of changestreams")
 public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
+
+    private Morphium morphium;
+    private MessagingSettings effectiveSettings;
 
     private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
     @Override
@@ -21,8 +32,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void start() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'start'");
     }
 
     @Override
@@ -303,7 +312,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout,
-        boolean throwExceptionOnTimeout) {
+            boolean throwExceptionOnTimeout) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitAnswers'");
     }
@@ -384,6 +393,21 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     public StdMessaging setUseChangeStream(boolean useChangeStream) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'setUseChangeStream'");
+    }
+
+    @Override
+    public void init(Morphium m) {
+        init(m, m.getConfig().messagingSettings());
+    }
+
+    @Override
+    public void init(Morphium m, MessagingSettings overrides) {
+        morphium = m;
+        if (overrides == m.getConfig().messagingSettings()) {
+            effectiveSettings = m.getConfig().createCopy().messagingSettings();
+        } else {
+
+        }
     }
 
 }

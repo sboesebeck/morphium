@@ -5,12 +5,15 @@ import java.util.List;
 import java.util.Map;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.config.MessagingSettings;
 
 public interface MorphiumMessaging {
     List<MorphiumMessaging> getAlternativeMessagings();
 
     void start();
 
+    void init(Morphium m) ;
+    void init(Morphium m, MessagingSettings overrides);
 
     void enableStatusInfoListener();
 

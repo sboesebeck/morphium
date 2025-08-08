@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Embedded
-public class ClusterSettings {
+public class ClusterSettings extends Settings {
     private String atlasUrl;
     private int heartbeatFrequency;
     private int replicaSetMonitoringTimeout = 5000;
