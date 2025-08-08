@@ -8,7 +8,7 @@ import de.caluga.morphium.writer.MorphiumWriter;
 import de.caluga.morphium.writer.MorphiumWriterImpl;
 
 @Embedded
-public class WriterSettings {
+public class WriterSettings extends Settings {
     @Transient
     private MorphiumWriter writer;
     @Transient

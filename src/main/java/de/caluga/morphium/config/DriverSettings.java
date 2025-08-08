@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Embedded
-public class DriverSettings {
+public class DriverSettings extends Settings {
 
     private MorphiumConfig.CompressionType compressionType = MorphiumConfig.CompressionType.NONE;
     private String uuidRepresentation;

@@ -3,7 +3,7 @@ package de.caluga.morphium.config;
 import de.caluga.morphium.annotations.Embedded;
 
 @Embedded
-public class ThreadPoolSettings {
+public class ThreadPoolSettings extends Settings {
 
     private int threadPoolAsyncOpCoreSize = 1;
     private int threadPoolAsyncOpMaxSize = 1000;

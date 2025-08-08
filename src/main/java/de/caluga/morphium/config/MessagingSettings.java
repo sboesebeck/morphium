@@ -6,7 +6,7 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 
 @Embedded
-public class MessagingSettings {
+public class MessagingSettings extends Settings {
     private String messagingStatusInfoListenerName = null;
     private boolean messagingStatusInfoListenerEnabled = true;
     private boolean useChangeStrean = true;

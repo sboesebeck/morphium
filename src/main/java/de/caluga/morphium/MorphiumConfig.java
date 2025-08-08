@@ -72,8 +72,8 @@ public class MorphiumConfig {
 
 
     @Transient
-    private List<Object> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings,
-            messagingSettings);
+    private List<Settings> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings,
+                                      messagingSettings);
 
 
     public MessagingSettings messagingSettings() {
@@ -176,7 +176,7 @@ public class MorphiumConfig {
                         log.info("  decamel {} = {}", fName, setting);
 
                         if (setting == null) {
-                            log.debug("Setting {} is null - continueing", f.getName());
+                            log.debug("Setting {} is null - continuing", f.getName());
                             continue;
                         }
                     }
@@ -188,7 +188,7 @@ public class MorphiumConfig {
                 try {
                     if (f.getType().isEnum()) {
                         @SuppressWarnings("unchecked")
-                        Enum value = Enum.valueOf((Class <? extends Enum >) f.getType(), (String) setting);
+                        Enum value = Enum.valueOf((Class <? extends Enum > ) f.getType(), (String) setting);
                         f.set(settingObject, value);
                     } else if (f.getType().equals(int.class) || f.getType().equals(Integer.class)) {
                         f.set(settingObject, Integer.parseInt((String) setting));
@@ -1040,15 +1040,9 @@ public class MorphiumConfig {
             var om = new ObjectMapperImpl();
             om.getARHelper().enableConvertCamelCase();
             Map<String, Object> data = new LinkedHashMap<>();
-            data.putAll(om.serialize(cacheSettings));
-            data.putAll(om.serialize(connectionSettings));
-            data.putAll(om.serialize(encryptionSettings));
-            data.putAll(om.serialize(driverSettings));
-            data.putAll(om.serialize(writerSettings));
-            data.putAll(om.serialize(objectMappingSettings));
-            data.putAll(om.serialize(threadPoolSettings));
-            data.putAll(om.serialize(collectionCheckSettings));
-            data.putAll(om.serialize(messagingSettings));
+            for (var s : settings) {
+                data.putAll(om.serialize(s));
+            }
             return Utils.toJsonString(data);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -1216,47 +1210,49 @@ public class MorphiumConfig {
         return asProperties(prefix);
     }
     public Properties asProperties(String prefix) {
-        if (prefix == null) {
-            prefix = "";
-        } else {
-            prefix = prefix + ".";
-        }
+        // if (prefix == null) {
+        //     prefix = "";
+        // } else {
+        //     prefix = prefix + ".";
+        // }
 
         Properties p = new Properties();
         AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
 
         for (var setting : settings) {
-            List<Field> flds = an.getAllFields(setting.getClass());
+            p.putAll(setting.asProperties(prefix));
+            // List<Field> flds = an.getAllFields(setting.getClass());
 
-            for (Field f : flds) {
-                if (f.isAnnotationPresent(Transient.class)) {
-                    continue;
-                }
-
-                try {
-                    var defaults = setting.getClass().getConstructor().newInstance();
-                    f.setAccessible(true);
-
-                    if (f.get(setting) != null && !f.get(setting).equals(f.get(defaults)) || f.getName().equals("database")) {
-                        p.put(prefix + f.getName(), f.get(setting).toString());
-                    }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            // if (effectiveConfig) {
-            //     Properties sysprop = System.getProperties();
-            //     for (Object sysk : sysprop.keySet()) {
-            //         String k = (String) sysk;
-            //         if (k.startsWith("morphium.")) {
-            //             String value = sysprop.get(k).toString();
-            //             k = k.substring(9);
-            //             p.put(prefix + k, value);
-            //         }
+            // for (Field f : flds) {
+            //     if (f.isAnnotationPresent(Transient.class)) {
+            //         continue;
             //     }
-            // }
+
+            //     try {
+            //         var defaults = setting.getClass().getConstructor().newInstance();
+            //         f.setAccessible(true);
+
+            //         if (f.get(setting) != null && !f.get(setting).equals(f.get(defaults)) || f.getName().equals("database")) {
+            //             p.put(prefix + f.getName(), f.get(setting).toString());
+            //         }
+            //     } catch (Exception e) {
+            //         throw new RuntimeException(e);
+            //     }
         }
+
+        // if (effectiveConfig) {
+        //     Properties sysprop = System.getProperties();
+        //
+        //     for (Object sysk : sysprop.keySet()) {
+        //         String k = (String) sysk;
+        //         if (k.startsWith("morphium.")) {
+        //             String value = sysprop.get(k).toString();
+        //             k = k.substring(9);
+        //             p.put(prefix + k, value);
+        //         }
+        //     }
+        // }
+        // }
 
         return p;
     }
@@ -1634,34 +1630,34 @@ public class MorphiumConfig {
         return this;
     }
 
-    // public String getDefaultTags() {
-    //     driverSettings.settag
-    //     return defaultTags;
-    // }
+// public String getDefaultTags() {
+//     driverSettings.settag
+//     return defaultTags;
+// }
 
-    // public MorphiumConfig addDefaultTag(String name, String value) {
-    //     if (defaultTags != null) {
-    //         defaultTags += ",";
-    //     } else {
-    //         defaultTags = "";
-    //     }
+// public MorphiumConfig addDefaultTag(String name, String value) {
+//     if (defaultTags != null) {
+//         defaultTags += ",";
+//     } else {
+//         defaultTags = "";
+//     }
 
-    //     defaultTags += name + ":" + value;
-    //     return this;
-    // }
+//     defaultTags += name + ":" + value;
+//     return this;
+// }
 
-    // public List<Map<String, String >> getDefaultTagSet() {
-    //     if (defaultTags == null) {
-    //         return null;
-    //     }
-    //     List<Map<String, String >> tagList = new ArrayList<>();
+// public List<Map<String, String >> getDefaultTagSet() {
+//     if (defaultTags == null) {
+//         return null;
+//     }
+//     List<Map<String, String >> tagList = new ArrayList<>();
 
-    //     for (String t : defaultTags.split(",")) {
-    //         String[] tag = t.split(":");
-    //         tagList.add(UtilsMap.of(tag[0], tag[1]));
-    //     }
-    //     return tagList;
-    // }
+//     for (String t : defaultTags.split(",")) {
+//         String[] tag = t.split(":");
+//         tagList.add(UtilsMap.of(tag[0], tag[1]));
+//     }
+//     return tagList;
+// }
 
     public int getCursorBatchSize() {
         return driverSettings.getCursorBatchSize();
@@ -1672,29 +1668,29 @@ public class MorphiumConfig {
         return this;
     }
 
-    // public SSLContext getSslContext() {
-    //     return sslContext;
-    // }
+// public SSLContext getSslContext() {
+//     return sslContext;
+// }
 
-    // public void setSslContext(SSLContext sslContext) {
-    //     this.sslContext = sslContext;
-    // }
+// public void setSslContext(SSLContext sslContext) {
+//     this.sslContext = sslContext;
+// }
 
-    // public boolean isUseSSL() {
-    //     return useSSL;
-    // }
+// public boolean isUseSSL() {
+//     return useSSL;
+// }
 
-    // public void setUseSSL(boolean useSSL) {
-    //     this.useSSL = useSSL;
-    // }
+// public void setUseSSL(boolean useSSL) {
+//     this.useSSL = useSSL;
+// }
 
-    // public boolean isSslInvalidHostNameAllowed() {
-    //     return sslInvalidHostNameAllowed;
-    // }
+// public boolean isSslInvalidHostNameAllowed() {
+//     return sslInvalidHostNameAllowed;
+// }
 
-    // public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
-    //     this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
-    // }
+// public void setSslInvalidHostNameAllowed(boolean sslInvalidHostNameAllowed) {
+//     this.sslInvalidHostNameAllowed = sslInvalidHostNameAllowed;
+// }
     @Deprecated
     public int getReadTimeout() {
         return driverSettings.getReadTimeout();
