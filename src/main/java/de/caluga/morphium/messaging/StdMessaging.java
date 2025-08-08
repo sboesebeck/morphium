@@ -661,45 +661,45 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             return new ArrayList<>();
         }
 
-        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
+        FindCommand fnd = null;
+        try {
+            Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
-        if (listenerByName.isEmpty() && listeners.isEmpty()) {
-            // No listeners - only answers will be processed
-            return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForAnswers.keySet()).limit(windowSize).idList();
-        }
-
-        // locking messages.. and getting broadcasts
-        var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
-
-        synchronized (processing) {
-            for (var p : processing) {
-                idsToIgnore.add(p.getId());
+            if (listenerByName.isEmpty() && listeners.isEmpty()) {
+                // No listeners - only answers will be processed
+                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
 
-            idsToIgnore.addAll(idsInProgress);
-        }
+            // locking messages.. and getting broadcasts
+            var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
 
-        // q1: Exclusive messages, not locked yet, not processed yet
-        var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
-        // q2: non-exclusive messages, cannot be locked, not processed by me yet
-        var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
-        q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
-        Set<String> pausedMessagesKeys = pauseMessages.keySet();
+            synchronized (processing) {
+                for (var p : processing) {
+                    idsToIgnore.add(p.getId());
+                }
 
-        if (!pauseMessages.isEmpty()) {
-            q.f(Msg.Fields.name).nin(pausedMessagesKeys);
-        }
+                idsToIgnore.addAll(idsInProgress);
+            }
 
-        q.or(q1, q2);
-        // not searching for paused messages
-        // Only handle messages we have listener for - not working, because of answers...
-        q.setLimit(windowSize);
-        q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
-        List<ProcessingQueueElement> queueElements = new ArrayList<>();
-        // just trigger unprocessed messages for Changestream...
-        FindCommand fnd = null;
+            // q1: Exclusive messages, not locked yet, not processed yet
+            var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
+            // q2: non-exclusive messages, cannot be locked, not processed by me yet
+            var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
+            q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
+            Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
-        try {
+            if (!pauseMessages.isEmpty()) {
+                q.f(Msg.Fields.name).nin(pausedMessagesKeys);
+            }
+
+            q.or(q1, q2);
+            // not searching for paused messages
+            // Only handle messages we have listener for - not working, because of answers...
+            q.setLimit(windowSize);
+            q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
+            List<ProcessingQueueElement> queueElements = new ArrayList<>();
+            // just trigger unprocessed messages for Changestream...
+
             int ws = windowSize;
             // get IDs of messages to process
             fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
@@ -730,7 +730,10 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
             return queueElements;
         } catch (Exception e) {
-            log.error(id + ": Error while processing", e);
+            if (running) {
+
+                log.error(id + ": Error while processing", e);
+            }
             return null;
         } finally {
             if (fnd != null) {
