@@ -1,5 +1,7 @@
 package de.caluga.morphium.config;
 
+import java.util.UUID;
+
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.messaging.MorphiumMessaging;
@@ -18,10 +20,14 @@ public class MessagingSettings extends Settings {
     private long threadPoolMessagingKeepAliveTime = 2000;
     private int messagingWindowSize = 100;
     private int messagingPollPause = 250;
+    private String senderId = UUID.randomUUID().toString();
 
 
     @Transient
     private Class <? extends MorphiumMessaging > messagingClass = StdMessaging.class;
+
+
+
     public String getMessagingStatusInfoListenerName() {
         return messagingStatusInfoListenerName;
     }
@@ -101,5 +107,11 @@ public class MessagingSettings extends Settings {
     }
     public void setMessagingMultithreadded(boolean messagingMultithreadded) {
         this.messagingMultithreadded = messagingMultithreadded;
+    }
+    public String getSenderId() {
+        return senderId;
+    }
+    public void setSenderId(String senderId) {
+        this.senderId = senderId;
     }
 }
