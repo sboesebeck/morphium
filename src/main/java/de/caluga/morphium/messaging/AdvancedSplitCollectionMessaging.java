@@ -393,38 +393,38 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public int getPause() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPause'");
+        return effectiveSettings.getMessagingPollPause();
     }
     @Override
     public MorphiumMessaging setPause(int pause) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setPause'");
+        effectiveSettings.setMessagingPollPause(pause);
+        return this;
     }
     @Override
     public boolean isRunning() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isRunning'");
+        return running.get();
     }
     @Override
     public void terminate() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'terminate'");
+        for (var e : monitorsByMsgName.entrySet()) {
+            for (var m : e.getValue()) {
+                ((ChangeStreamMonitor) m.get("monitor")).terminate();;
+            }
+        }
+
+        monitorsByMsgName.clear();
+        running.set(false);
     }
     @Override
     public void addMessageListener(MessageListener l) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'addMessageListener'");
+        //global listener...
+        throw new UnsupportedOperationException("Global listeners not supported");
     }
     @Override
     public void removeMessageListener(MessageListener l) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'removeMessageListener'");
     }
     @Override
     public void queueMessage(Msg m) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'queueMessage'");
     }
     @Override
     public void sendMessage(Msg m) {
