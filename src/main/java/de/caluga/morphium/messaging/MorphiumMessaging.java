@@ -56,13 +56,7 @@ public interface MorphiumMessaging {
     @SuppressWarnings("CommentedOutCode")
     Long unpauseProcessingOfMessagesNamed(String name);
 
-    MsgLock getLock(Msg m);
-
     String getLockCollectionName();
-
-    boolean lockMessage(Msg m, String lockId);
-
-    boolean lockMessage(Msg m, String lockId, Date delAt);
 
     String getCollectionName();
 

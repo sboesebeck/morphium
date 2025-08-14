@@ -46,6 +46,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
@@ -537,7 +538,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
         getCache().setValidCacheTime(CollectionInfo.class, 15000);
     }
 
-    public MorphiumMessaging createMessaging() {
+    public MorphiumMessaging createMessaging() throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+        MorphiumMessaging messaging = messagingClass.getConstructor().newInstance();
+        messaging.init(this);
         return null;
     }
 
