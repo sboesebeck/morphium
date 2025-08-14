@@ -325,19 +325,19 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-                        settings.getThreadPoolMessagingCoreSize(),
-                        settings.getThreadPoolMessagingMaxSize(),
-                        settings.getThreadPoolMessagingKeepAliveTime(),
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory()
+            settings.getThreadPoolMessagingCoreSize(),
+            settings.getThreadPoolMessagingMaxSize(),
+            settings.getThreadPoolMessagingKeepAliveTime(),
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
 
@@ -662,6 +662,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         }
 
         FindCommand fnd = null;
+
         try {
             Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
@@ -699,7 +700,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
             List<ProcessingQueueElement> queueElements = new ArrayList<>();
             // just trigger unprocessed messages for Changestream...
-
             int ws = windowSize;
             // get IDs of messages to process
             fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
@@ -731,9 +731,9 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             return queueElements;
         } catch (Exception e) {
             if (running) {
-
                 log.error(id + ": Error while processing", e);
             }
+
             return null;
         } finally {
             if (fnd != null) {
@@ -783,7 +783,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         }
     }
 
-    @Override
     public MsgLock getLock(Msg m) {
         return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName());
     }
@@ -797,12 +796,10 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         return lockCollectionName;
     }
 
-    @Override
     public boolean lockMessage(Msg m, String lockId) {
         return lockMessage(m, lockId, null);
     }
 
-    @Override
     public boolean lockMessage(Msg m, String lockId, Date delAt) {
         long start = System.currentTimeMillis();
         MsgLock lck = new MsgLock(m);
