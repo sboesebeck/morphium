@@ -41,7 +41,7 @@ import de.caluga.morphium.query.Query;
  * - adding capability for streaming data. Usually as an answer, but could also be as "just as is"
 */
 @Messaging(name = "AdvMessaging", description =
-        "Message queueing implementation, that splits messages into different collections in order to reduce overhead on client side and improve effectiveness of changestreams")
+                           "Message queueing implementation, that splits messages into different collections in order to reduce overhead on client side and improve effectiveness of changestreams")
 public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     private Logger log = LoggerFactory.getLogger(AdvancedSplitCollectionMessaging.class);
@@ -243,7 +243,51 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
     }
 
+    private void pollAndProcess() {
+        for (String n : monitorsByMsgName.keySet()) {
+            Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(n));
+            q1.f(Msg.Fields.exclusive).eq(true) //exclusive message
+              .f(Msg.Fields.processedBy).eq(null) //not processed yet
+              .f(Msg.Fields.senderHost).ne(getSenderId()); //not sent by me
+            Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(n));
+            q2.f(Msg.Fields.exclusive).eq(false) //exclusive message
+              .f(Msg.Fields.processedBy).ne(getSenderId()) //not processed by me
+              .f(Msg.Fields.senderHost).ne(getSenderId()); //not sent by me
 
+            Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(n));
+            q.sort(Msg.Fields.priority);
+            q.or(q1, q2);
+            for (Msg m : q.asIterable()) {
+                for (var e : (List<Map<String, Object>>)monitorsByMsgName.get(m.getName())) {
+                    var l = (MessageListener)e.get("listener");
+                    if (m.isExclusive()) {
+                        if (!lockMessage(m, getSenderId())) {
+                            continue;
+                        }
+                        //could lock message
+                        // process exclusive message
+                        //
+                    }
+                    if (l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(m);
+                    }
+                    var ret = l.onMessage(this, m);
+                    if (!l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(m);
+                    }
+                    if (ret != null) {
+                        ret.setSender(getSenderId());
+                        ret.setRecipient(m.getSender());
+                        ret.setInAnswerTo(m.getMsgId());
+                        sendMessage(ret);
+                    }
+
+                }
+            }
+
+            //now look for broadcast messages
+        }
+    }
 
     private void updateProcessedBy(Msg msg) {
         if (msg == null) {
@@ -365,6 +409,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(msgId).f("lock_id").eq(getSenderId()).remove();
     }
 
+
     @Override
     public void removeListenerForMessageNamed(String n, MessageListener l) {
         int idx = -1;
@@ -478,7 +523,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout,
-        boolean throwExceptionOnTimeout) {
+            boolean throwExceptionOnTimeout) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitAnswers'");
     }
@@ -562,12 +607,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
 
         threadPool = new ThreadPoolExecutor(
-            effectiveSettings.getThreadPoolMessagingCoreSize(),
-            effectiveSettings.getThreadPoolMessagingMaxSize(),
-            effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
-            TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>(),
-            Thread.ofVirtual().name("msg-thr-", 0).factory()
+                        effectiveSettings.getThreadPoolMessagingCoreSize(),
+                        effectiveSettings.getThreadPoolMessagingMaxSize(),
+                        effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<>(),
+                        Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
 }
