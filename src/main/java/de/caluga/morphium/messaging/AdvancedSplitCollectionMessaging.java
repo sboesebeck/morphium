@@ -9,9 +9,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -34,6 +36,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.messaging.StdMessaging.AsyncMessageCallback;
+import de.caluga.morphium.messaging.StdMessaging.SystemShutdownException;
 import de.caluga.morphium.query.Query;
 
 
@@ -52,6 +55,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
 
+    private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
+    private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private enum MType {
         listener, monitor,
@@ -67,6 +72,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
 
     private ScheduledThreadPoolExecutor decouplePool;
+    private class CallbackRequest {
+        Msg theMessage;
+        AsyncMessageCallback callback;
+        long ttl;
+        long timestamp;
+    }
     public AdvancedSplitCollectionMessaging() {
         hostname = System.getenv("HOSTNAME");
 
@@ -318,6 +329,44 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 var l = (MessageListener)e.get("listener");
                 Runnable r = ()-> {
                     try{
+                        //Check answers
+                        if (m.isAnswer()) {
+                            final Queue<Msg> answersForMessage = waitingForAnswers.get(m.getInAnswerTo());
+
+                            if (null != answersForMessage) {
+                                // we're expecting this message!
+                                updateProcessedBy(m);
+
+                                if (!answersForMessage.contains(m)) {
+                                    answersForMessage.add(m);
+                                }
+
+                                checkDeleteAfterProcessing(m);
+                                return;
+                            }
+
+                            final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+                            final Msg theMessage = m;
+
+                            if (cbr != null) {
+                                AsyncMessageCallback cb = cbr.callback;
+                                Runnable cbRunnable = () -> {
+                                    cb.incomingMessage(theMessage);
+                                };
+                                updateProcessedBy(theMessage);
+                                queueOrRun(cbRunnable);
+
+                                if (cbr.theMessage.isExclusive()) {
+                                    waitingForCallbacks.remove(m.getInAnswerTo());
+                                }
+
+                                if (m.isDeleteAfterProcessing()) {
+                                    checkDeleteAfterProcessing(m);
+                                }
+                                return;
+                            }
+                        }
+
                         if (m.isExclusive()) {
                             if (!lockMessage(m, getSenderId())) {
                                 return;
@@ -333,6 +382,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         if (!l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(m);
                         }
+                        checkDeleteAfterProcessing(m);
 
                         if (ret != null) {
                             ret.setSender(getSenderId());
@@ -344,7 +394,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         log.warn("Message rejected");
                         updateProcessedBy(m);
                         unlock(m);
-                    } catch(Throwable err) {
+                    } catch (Throwable err) {
                         log.error("Error during message processing", e);
                     }
                 };
@@ -355,6 +405,23 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
         //now look for broadcast messages
     }
+
+    private void checkDeleteAfterProcessing(Msg obj) {
+        if (obj.isDeleteAfterProcessing()) {
+            if (obj.getDeleteAfterProcessingTime() == 0) {
+                morphium.delete(obj, getCollectionName());
+                if (obj.isExclusive()) unlock(obj);
+            } else {
+                obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
+                morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
+
+                if (obj.isExclusive()) {
+                    morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId()).set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
+                }
+            }
+        }
+    }
+
     private void queueOrRun(Runnable r) {
         if (effectiveSettings.isMessagingMultithreadded()) {
             boolean queued = false;
@@ -461,15 +528,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 try{
                     var ret = l.onMessage(this, doc);
                     if (doc.isDeleteAfterProcessing()) {
-                        if (doc.getDeleteAfterProcessingTime() == 0) {
-                            morphium.delete(doc);
-                            if (doc.isExclusive()) {
-                                unlock(doc);
-                            }
-                        } else {
-                            morphium.setInEntity(doc, getCollectionName(doc), Map.of("delte_at", new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime())), null);
-                            // doc.setDeleteAt(new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime()));
-                        }
+                        checkDeleteAfterProcessing(doc);
                     } else {
                         if (!l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(doc);
@@ -613,32 +672,132 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         effectiveSettings.setAutoAnswer(autoAnswer);
         return this;
     }
-    @Override
-    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitFirstAnswer'");
-    }
-    @Override
-    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitAsync'");
-    }
+
+
     @Override
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitFirstAnswer'");
+        if (!running.get()) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
+        }
+
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
+
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final LinkedBlockingDeque<Msg> blockingQueue = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, blockingQueue);
+
+        try {
+            sendMessage(theMessage);
+            T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
+
+            if (null == firstAnswer && throwExceptionOnTimeout) {
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
+            }
+
+            return firstAnswer;
+        } catch (InterruptedException e) {
+            log.error("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " interrupted.", e);
+        } finally {
+            waitingForAnswers.remove(requestMsgId);
+        }
+
+        return null;
     }
+
     @Override
     public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitAnswers'");
+        return sendAndAwaitAnswers(theMessage, numberOfAnswers, timeout, false);
     }
+
     @Override
-    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout,
-            boolean throwExceptionOnTimeout) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendAndAwaitAnswers'");
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
+        MorphiumId requestMsgId = theMessage.getMsgId();
+
+        if (requestMsgId == null) {
+            theMessage.setMsgId(new MorphiumId());
+            requestMsgId = theMessage.getMsgId();
+        }
+
+        final Queue<Msg> answerList = new LinkedBlockingDeque<>();
+        waitingForAnswers.put(requestMsgId, answerList);
+        sendMessage(theMessage);
+        long start = System.currentTimeMillis();
+        List<T> returnValue = null;
+
+        try {
+            while (running) {
+                if (answerList.size() > 0) {
+                    if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
+                        break;
+                    }
+
+                    // time up - return all answers that were received
+                }
+
+                // Did not receive any message in time
+                if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
+                }
+
+                if (System.currentTimeMillis() - start > timeout) {
+                    break;
+                }
+
+                if (!running) {
+                    throw new SystemShutdownException("Messaging shutting down - abort waiting!");
+                }
+
+                try {
+                    Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }
+        } finally {
+            returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));
+        }
+
+        return returnValue;
     }
+
+
+    @Override
+    public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
+        return sendAndAwaitFirstAnswer(theMessage, timeoutInMs, true);
+    }
+
+    /**
+    * Sends a message asynchronously and sends all incoming answers via callback.
+    * If sent message is exclusive, only one answer will be processed, otherwise all incoming answers up to timeout
+    * will be processed.
+    *
+    * @parameter theMessage to be sent
+    * @parameter timoutInMs - milliseconds to wait until listener is removed
+    * @parameter cb - the message callback
+    */
+    @Override
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
+        if (!running.get()) {
+            throw new SystemShutdownException("Messaging shutting down - abort sending!");
+        }
+
+        if (theMessage.getMsgId() == null)
+            theMessage.setMsgId(new MorphiumId());
+
+        final MorphiumId requestMsgId = theMessage.getMsgId();
+        final CallbackRequest cbr = new CallbackRequest();
+        cbr.timestamp = System.currentTimeMillis();
+        cbr.theMessage = theMessage;
+        cbr.callback = cb;
+        cbr.ttl = timeoutInMs;
+        waitingForCallbacks.put(requestMsgId, cbr);
+        sendMessage(theMessage);
+        decouplePool.schedule(() -> {
+            waitingForCallbacks.remove(requestMsgId);
+        }, timeoutInMs, TimeUnit.MILLISECONDS);
+    }
+
     @Override
     public boolean isProcessMultiple() {
         return effectiveSettings.isProcessMultiple();
