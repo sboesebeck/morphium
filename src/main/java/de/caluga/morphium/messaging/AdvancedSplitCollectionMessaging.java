@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -36,6 +35,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.messaging.StdMessaging.AsyncMessageCallback;
+import de.caluga.morphium.messaging.StdMessaging.MessageTimeoutException;
 import de.caluga.morphium.messaging.StdMessaging.SystemShutdownException;
 import de.caluga.morphium.query.Query;
 
@@ -726,7 +726,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         List<T> returnValue = null;
 
         try {
-            while (running) {
+            while (running.get()) {
                 if (answerList.size() > 0) {
                     if (numberOfAnswers > 0 && answerList.size() >= numberOfAnswers) {
                         break;
@@ -744,7 +744,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     break;
                 }
 
-                if (!running) {
+                if (!running.get()) {
                     throw new SystemShutdownException("Messaging shutting down - abort waiting!");
                 }
 
