@@ -1,8 +1,11 @@
 package de.caluga.morphium.messaging;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,9 +13,11 @@ import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,29 +55,65 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private ThreadPoolExecutor threadPool;
 
 
-    private Map < String, List< Map<String, Object>>> monitorsByMsgName = new ConcurrentHashMap<>();
+    private enum MType {
+        listener, monitor,
+    }
+    private Map < String, List< Map<MType, Object>>> monitorsByMsgName = new ConcurrentHashMap<>();
     private AtomicBoolean running = new AtomicBoolean(false);
     private String lockCollectionName;
     private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
+    private Vector<String> pausedMessages = new Vector<>();
+    private StatusInfoListener statusInfoListener = new StatusInfoListener();
+    private String hostname = null;
 
-    @Override
+    private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
+
+    private ScheduledThreadPoolExecutor decouplePool;
+    public AdvancedSplitCollectionMessaging() {
+        hostname = System.getenv("HOSTNAME");
+
+        if (hostname == null) {
+            try {
+                hostname = InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException ignored) {
+            }
+        }
+
+        if (hostname == null) {
+            hostname = "unknown host";
+        }
+
+        decouplePool = new ScheduledThreadPoolExecutor(1, Thread.ofVirtual().name("decouple_thr-", 0).factory());
+
+    }
     public List<MorphiumMessaging> getAlternativeMessagings() {
         return new Vector<>(allMessagings);
     }
 
+
     @Override
     public void start() {
         running.set(true);
+        decouplePool.scheduleWithFixedDelay(()-> {
+            for (var name : pollTrigger.keySet()) {
+                if (pollTrigger.get(name).get() != 0) {
+                    pollAndProcess(name);
+                    pollTrigger.get(name).set(0);
+                }
+            }
+        }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS );
     }
 
     @Override
     public void enableStatusInfoListener() {
         effectiveSettings.setMessagingStatusInfoListenerEnabled(true);
+        addListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
     }
 
     @Override
     public void disableStatusInfoListener() {
         effectiveSettings.setMessagingStatusInfoListenerEnabled(false);
+        removeListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
     }
 
     @Override
@@ -111,20 +152,34 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public boolean isStatusInfoListenerEnabled() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isStatusInfoListenerEnabled'");
+        return effectiveSettings.isMessagingStatusInfoListenerEnabled();
     }
 
     @Override
     public void setStatusInfoListenerEnabled(boolean statusInfoListenerEnabled) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setStatusInfoListenerEnabled'");
+        if (statusInfoListenerEnabled) {
+            //avoid duplication
+            if (!monitorsByMsgName.containsKey(effectiveSettings.getMessagingStatusInfoListenerName())
+                    || !monitorsByMsgName.get(effectiveSettings.getMessagingStatusInfoListenerName()).contains(statusInfoListener)) {
+                addListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+            }
+        } else {
+            removeListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+        }
     }
 
     @Override
     public Map<String, List<String>> getListenerNames() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getListenerNames'");
+        Map<String, List<String>> ret = new HashMap<>();
+        for (var e : monitorsByMsgName.entrySet()) {
+            List<String> lst = new ArrayList<>();
+            for (Map<MType, Object> l : e.getValue()) {
+                MessageListener listener = (MessageListener)l.get(MType.listener);
+                lst.add(listener.getClass().getName());
+            }
+            ret.put(e.getKey(), lst);
+        }
+        return ret;
     }
 
     @Override
@@ -165,20 +220,19 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void pauseProcessingOfMessagesNamed(String name) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'pauseProcessingOfMessagesNamed'");
+        pausedMessages.add(name);
     }
 
     @Override
     public List<String> getPausedMessageNames() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPausedMessageNames'");
+        return new ArrayList<String>(pausedMessages);
     }
 
     @Override
     public Long unpauseProcessingOfMessagesNamed(String name) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'unpauseProcessingOfMessagesNamed'");
+        pausedMessages.remove(name);
+        pollAndProcess(name);
+        return 0L; //TODO: calculate time
     }
 
 
@@ -225,7 +279,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
         if (delAt != null) {
             lck.setDeleteAt(delAt);
+        } else {
+            //lock shall be deleted way after ttl or message
+            lck.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl() * 1000 * 2));
         }
+
 
         InsertMongoCommand cmd = null;
 
@@ -243,49 +301,88 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
     }
 
-    private void pollAndProcess() {
-        for (String n : monitorsByMsgName.keySet()) {
-            Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(n));
-            q1.f(Msg.Fields.exclusive).eq(true) //exclusive message
-              .f(Msg.Fields.processedBy).eq(null) //not processed yet
-              .f(Msg.Fields.senderHost).ne(getSenderId()); //not sent by me
-            Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(n));
-            q2.f(Msg.Fields.exclusive).eq(false) //exclusive message
-              .f(Msg.Fields.processedBy).ne(getSenderId()) //not processed by me
-              .f(Msg.Fields.senderHost).ne(getSenderId()); //not sent by me
 
-            Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(n));
-            q.sort(Msg.Fields.priority);
-            q.or(q1, q2);
-            for (Msg m : q.asIterable()) {
-                for (var e : (List<Map<String, Object>>)monitorsByMsgName.get(m.getName())) {
-                    var l = (MessageListener)e.get("listener");
-                    if (m.isExclusive()) {
-                        if (!lockMessage(m, getSenderId())) {
-                            continue;
+    private void pollAndProcess(String msgName) {
+        Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q1.f(Msg.Fields.exclusive).eq(true) //exclusive message
+          .f(Msg.Fields.processedBy).eq(null) //not processed yet
+          .f(Msg.Fields.sender).ne(getSenderId()); //not sent by me
+        Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q2.f(Msg.Fields.exclusive).eq(false) //exclusive message
+          .f(Msg.Fields.processedBy).ne(getSenderId()) //not processed by me
+          .f(Msg.Fields.sender).ne(getSenderId()); //not sent by me
+
+        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+        q.sort(Msg.Fields.priority);
+        q.or(q1, q2);
+        for (Msg m : q.asIterable()) {
+            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
+                var l = (MessageListener)e.get("listener");
+                Runnable r = ()-> {
+                    try{
+                        if (m.isExclusive()) {
+                            if (!lockMessage(m, getSenderId())) {
+                                return;
+                            }
+                            //could lock message
+                            // process exclusive message
+                            //
                         }
-                        //could lock message
-                        // process exclusive message
-                        //
-                    }
-                    if (l.markAsProcessedBeforeExec()) {
+                        if (l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(m);
+                        }
+                        var ret = l.onMessage(this, m);
+                        if (!l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(m);
+                        }
+
+                        if (ret != null) {
+                            ret.setSender(getSenderId());
+                            ret.setRecipient(m.getSender());
+                            ret.setInAnswerTo(m.getMsgId());
+                            sendMessage(ret);
+                        }
+                    } catch (MessageRejectedException mre) {
+                        log.warn("Message rejected");
                         updateProcessedBy(m);
+                        unlock(m);
+                    } catch(Throwable err) {
+                        log.error("Error during message processing", e);
                     }
-                    var ret = l.onMessage(this, m);
-                    if (!l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(m);
-                    }
-                    if (ret != null) {
-                        ret.setSender(getSenderId());
-                        ret.setRecipient(m.getSender());
-                        ret.setInAnswerTo(m.getMsgId());
-                        sendMessage(ret);
+                };
+                queueOrRun(r);
+
+            }
+        }
+
+        //now look for broadcast messages
+    }
+    private void queueOrRun(Runnable r) {
+        if (effectiveSettings.isMessagingMultithreadded()) {
+            boolean queued = false;
+
+            while (!queued) {
+                try {
+                    // throtteling to windowSize - do not create more threads than windowSize
+                    while (threadPool.getActiveCount() > effectiveSettings.getMessagingWindowSize()) {
+                        // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
+                        Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                     }
 
+                    //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
+                    threadPool.execute(r);
+                    queued = true;
+                } catch (Throwable ignored) {
                 }
             }
+        } else {
+            r.run();
+        }
+    }
 
-            //now look for broadcast messages
+    private void pollAndProcess() {
+        for (String name : monitorsByMsgName.keySet()) {
+            pollAndProcess(name);
         }
     }
 
@@ -359,54 +456,69 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     return running.get();
                 }
             }
-            if(l.markAsProcessedBeforeExec()) {
-                updateProcessedBy(doc);
-            }
-            try{
-                var ret = l.onMessage(this, doc);
-                if (doc.isDeleteAfterProcessing()) {
-                    if (doc.getDeleteAfterProcessingTime() == 0) {
-                        morphium.delete(doc);
+            Runnable r = ()->{
+                if(l.markAsProcessedBeforeExec()) {
+                    updateProcessedBy(doc);
+                }
+                try{
+                    var ret = l.onMessage(this, doc);
+                    if (doc.isDeleteAfterProcessing()) {
+                        if (doc.getDeleteAfterProcessingTime() == 0) {
+                            morphium.delete(doc);
+                            if (doc.isExclusive()) {
+                                unlock(doc);
+                            }
+                        } else {
+                            morphium.setInEntity(doc, getCollectionName(doc), Map.of("delte_at", new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime())), null);
+                            // doc.setDeleteAt(new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime()));
+                        }
+                    } else {
+                        if (!l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(doc);
+                        }
                     }
-                    else {
-                        morphium.setInEntity(doc, getCollectionName(doc), Map.of("delte_at", new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime())), null);
-                        // doc.setDeleteAt(new Date(System.currentTimeMillis() + doc.getDeleteAfterProcessingTime()));
+                    if (ret != null) {
+                        //send answer
+                        ret.setInAnswerTo(doc.getMsgId());
+                        ret.setRecipients(List.of(doc.getSender()));
+                        sendMessage(ret);
                     }
-                }
-                else {
-                    if (!l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(doc);
-                    }
-                }
-                if (ret != null) {
-                    //send answer
-                    ret.setInAnswerTo(doc.getMsgId());
-                    ret.setRecipients(List.of(doc.getSender()));
-                    sendMessage(ret);
-                }
-            } catch(Exception e) {
-                if (e instanceof MessageRejectedException) {
-                    deleteLock(doc.getMsgId());
-                    log.warn("Message rejected", e);
-                }
-                else {
+                } catch(MessageRejectedException mre) {
+                    if(doc.isExclusive()) unlock(doc);
+                    log.warn("Message rejected", mre);
+                } catch(Exception e) {
+                    if(doc.isExclusive()) unlock(doc);
                     log.error("Error processing message", e);
                 }
-            }
+            };
+            queueOrRun(r);
             return running.get();
         });
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(n), false, effectiveSettings.getMessagingPollPause(), List.of(Doc.of("$match", Doc.of("operationType",
             Doc.of("$eq", "delete")))));
         lockMonitor.addListener((evt)-> {
+            var id = evt.getId();
+            if (morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName(n)).f(Msg.Fields.msgId).eq(id).countAll() != 0) {
+                pollTrigger.putIfAbsent(n, new AtomicInteger());
+                pollTrigger.get( n).incrementAndGet();
+            }
+
             return running.get();
         });
         monitorsByMsgName.putIfAbsent(n, new ArrayList<>());
-        monitorsByMsgName.get(n).add(Map.of("monitor", cm, "listener", l));
+        monitorsByMsgName.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
         cm.start();
+        pollAndProcess(n);
     }
 
     private void deleteLock(MorphiumId msgId) {
         morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(msgId).f("lock_id").eq(getSenderId()).remove();
+    }
+
+    private void unlock(Msg msg) {
+        if (msg.isExclusive()) {
+            deleteLock(msg.getMsgId());
+        } //no need to release lock, if message was not locked
     }
 
 
@@ -417,13 +529,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         for (var cm : monitorsByMsgName.get(n)) {
             idx++;
 
-            if (cm.get("listener") == l) {
+            if (cm.get(MType.listener) == l) {
                 break;
             }
         }
 
         if (idx >= 0) {
-            ((ChangeStreamMonitor)monitorsByMsgName.get(n).get(idx).get("monitor")).terminate();
+            ((ChangeStreamMonitor)monitorsByMsgName.get(n).get(idx).get(MType.monitor)).terminate();
             monitorsByMsgName.get(n).remove(idx);
         }
     }
@@ -453,7 +565,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     public void terminate() {
         for (var e : monitorsByMsgName.entrySet()) {
             for (var m : e.getValue()) {
-                ((ChangeStreamMonitor) m.get("monitor")).terminate();;
+                ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();;
             }
         }
 
@@ -467,14 +579,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public void removeMessageListener(MessageListener l) {
+        log.error("No support for global MessageListener");
     }
     @Override
     public void queueMessage(Msg m) {
+        m.setSenderHost(hostname);
+        m.setSender(getSenderId());
+        morphium.store(m, getCollectionName(m), null);
     }
     @Override
     public void sendMessage(Msg m) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendMessage'");
+        queueMessage(m);
     }
     @Override
     public long getNumberOfMessages() {
@@ -493,13 +608,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public boolean isAutoAnswer() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isAutoAnswer'");
+        return effectiveSettings.isAutoAnswer();
     }
     @Override
     public MorphiumMessaging setAutoAnswer(boolean autoAnswer) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setAutoAnswer'");
+        effectiveSettings.setAutoAnswer(autoAnswer);
+        return this;
     }
     @Override
     public <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs) {
@@ -529,58 +643,51 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public boolean isProcessMultiple() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isProcessMultiple'");
+        return effectiveSettings.isProcessMultiple();
     }
     @Override
     public MorphiumMessaging setProcessMultiple(boolean processMultiple) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setProcessMultiple'");
+        effectiveSettings.setProcessMultiple(processMultiple);
+        return this;
     }
     @Override
     public String getQueueName() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getQueueName'");
+        return effectiveSettings.getMessageQueueName();
     }
     @Override
     public MorphiumMessaging setQueueName(String queueName) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setQueueName'");
+        effectiveSettings.setMessageQueueName(queueName);
+        return this;
     }
     @Override
     public boolean isMultithreadded() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isMultithreadded'");
+        return effectiveSettings.isMessagingMultithreadded();
     }
     @Override
     public MorphiumMessaging setMultithreadded(boolean multithreadded) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setMultithreadded'");
+        effectiveSettings.setMessagingMultithreadded(multithreadded);
+        return this;
     }
     @Override
     public int getWindowSize() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getWindowSize'");
+        return effectiveSettings.getMessagingWindowSize();
     }
     @Override
     public MorphiumMessaging setWindowSize(int windowSize) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setWindowSize'");
+        effectiveSettings.setMessagingWindowSize(windowSize);
+        return this;
     }
     @Override
     public boolean isUseChangeStream() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'isUseChangeStream'");
+        return morphium.getConfig().clusterSettings().isReplicaset() && effectiveSettings.isUseChangeStrean();
     }
     @Override
     public int getRunningTasks() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getRunningTasks'");
+        return threadPool.getActiveCount();
     }
     @Override
     public Morphium getMorphium() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getMorphium'");
+        return morphium;
     }
     @Override
     public MorphiumMessaging setPolling(boolean doPolling) {
@@ -589,8 +696,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public MorphiumMessaging setUseChangeStream(boolean useChangeStream) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'setUseChangeStream'");
+        effectiveSettings.setUseChangeStrean(useChangeStream);
+        return this;
     }
     @Override
     public void init(Morphium m) {

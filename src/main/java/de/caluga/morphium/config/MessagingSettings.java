@@ -21,7 +21,8 @@ public class MessagingSettings extends Settings {
     private int messagingWindowSize = 100;
     private int messagingPollPause = 250;
     private String senderId = UUID.randomUUID().toString();
-
+    private boolean autoAnswer = false;
+    private boolean processMultiple = true;
 
     @Transient
     private Class <? extends MorphiumMessaging > messagingClass = StdMessaging.class;
@@ -113,5 +114,17 @@ public class MessagingSettings extends Settings {
     }
     public void setSenderId(String senderId) {
         this.senderId = senderId;
+    }
+    public boolean isAutoAnswer() {
+        return autoAnswer;
+    }
+    public void setAutoAnswer(boolean autoAnswer) {
+        this.autoAnswer = autoAnswer;
+    }
+    public boolean isProcessMultiple() {
+        return processMultiple;
+    }
+    public void setProcessMultiple(boolean processMultiple) {
+        this.processMultiple = processMultiple;
     }
 }
