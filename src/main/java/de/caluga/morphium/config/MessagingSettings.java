@@ -11,7 +11,7 @@ import de.caluga.morphium.messaging.StdMessaging;
 public class MessagingSettings extends Settings {
     private String messagingStatusInfoListenerName = null;
     private boolean messagingStatusInfoListenerEnabled = true;
-    private boolean useChangeStrean = true;
+    private boolean useChangeStream = true;
     private boolean messagingMultithreadded = true;
     private String messagingImplementation = "StandardMessaging";
     private String messageQueueName = "msg";
@@ -85,11 +85,11 @@ public class MessagingSettings extends Settings {
         this.messagingClass = messagingClass;
         return this;
     }
-    public boolean isUseChangeStrean() {
-        return useChangeStrean;
+    public boolean isUseChangeStream() {
+        return useChangeStream;
     }
-    public void setUseChangeStrean(boolean useChangeStrean) {
-        this.useChangeStrean = useChangeStrean;
+    public void setUseChangeStream(boolean useChangeStrean) {
+        this.useChangeStream = useChangeStrean;
     }
     public String getMessageQueueName() {
         return messageQueueName;

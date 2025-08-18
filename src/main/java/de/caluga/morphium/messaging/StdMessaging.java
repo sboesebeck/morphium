@@ -195,7 +195,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         cfg.messagingSettings().setMessagingPollPause(pause);
         cfg.messagingSettings().setMessagingMultithreadded(multithreadded);
         cfg.messagingSettings().setMessagingWindowSize(windowSize);
-        cfg.messagingSettings().setUseChangeStrean(useChangeStream);
+        cfg.messagingSettings().setUseChangeStream(useChangeStream);
         init(m, cfg.messagingSettings());
     }
 
@@ -214,7 +214,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         }
 
         setWindowSize(settings.getMessagingWindowSize());
-        setUseChangeStream(settings.isUseChangeStrean());
+        setUseChangeStream(settings.isUseChangeStream());
         setQueueName(settings.getMessageQueueName());
         setPause(settings.getMessagingPollPause());
         setMultithreadded(settings.isMessagingMultithreadded());
@@ -325,19 +325,19 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-            .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-            .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-            .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-            settings.getThreadPoolMessagingCoreSize(),
-            settings.getThreadPoolMessagingMaxSize(),
-            settings.getThreadPoolMessagingKeepAliveTime(),
-            TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<>(),
-            Thread.ofVirtual().name("msg-thr-", 0).factory()
+                        settings.getThreadPoolMessagingCoreSize(),
+                        settings.getThreadPoolMessagingMaxSize(),
+                        settings.getThreadPoolMessagingKeepAliveTime(),
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<>(),
+                        Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
 
