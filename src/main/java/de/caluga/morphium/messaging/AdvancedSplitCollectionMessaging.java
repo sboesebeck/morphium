@@ -26,8 +26,6 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Messaging;
-import de.caluga.morphium.async.AsyncOperationCallback;
-import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.driver.Doc;
@@ -679,7 +677,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public boolean isUseChangeStream() {
-        return morphium.getConfig().clusterSettings().isReplicaset() && effectiveSettings.isUseChangeStrean();
+        return morphium.getConfig().clusterSettings().isReplicaset() && effectiveSettings.isUseChangeStream();
     }
     @Override
     public int getRunningTasks() {
@@ -691,12 +689,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public MorphiumMessaging setPolling(boolean doPolling) {
-        effectiveSettings.setUseChangeStrean(!doPolling);
+        effectiveSettings.setUseChangeStream(!doPolling);
         return this;
     }
     @Override
     public MorphiumMessaging setUseChangeStream(boolean useChangeStream) {
-        effectiveSettings.setUseChangeStrean(useChangeStream);
+        effectiveSettings.setUseChangeStream(useChangeStream);
         return this;
     }
     @Override
