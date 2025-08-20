@@ -430,7 +430,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         lockMonitor.start();
     }
 
-    @Override
     public void run() {
         setName("Msg " + id);
 
