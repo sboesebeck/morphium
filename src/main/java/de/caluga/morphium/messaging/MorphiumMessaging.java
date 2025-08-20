@@ -45,8 +45,6 @@ public interface MorphiumMessaging {
 
     void removeMessage(Msg m);
 
-    void run();
-
     int getAsyncMessagesPending();
 
     void pauseProcessingOfMessagesNamed(String name);

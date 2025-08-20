@@ -27,6 +27,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.annotations.Messaging;
+import de.caluga.morphium.async.AsyncOperationCallback;
+import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.driver.Doc;
@@ -78,6 +80,22 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         long ttl;
         long timestamp;
     }
+
+    private AsyncOperationCallback aCallback = new AsyncOperationCallback<Msg>() {
+
+        @Override
+        public void onOperationError(AsyncOperationType type, Query q,
+                                     long duration, String error, Throwable t, Msg entity, Object... param) {
+            log.error("Could not store {}", error, t);
+        }
+
+        @Override
+        public void onOperationSucceeded(AsyncOperationType type, Query<Msg> q,
+                                         long duration, List<Msg> result, Msg entity,
+                                         Object... param) {
+
+        }
+    };
     public AdvancedSplitCollectionMessaging() {
         hostname = System.getenv("HOSTNAME");
 
@@ -137,26 +155,28 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public int getProcessingCount() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getProcessingCount'");
+        return threadPool.getActiveCount();
     }
 
     @Override
     public int getInProgressCount() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getInProgressCount'");
+        return getProcessingCount();
     }
 
     @Override
     public int waitingForAnswersCount() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'waitingForAnswersCount'");
+        return waitingForAnswers.size();
     }
 
     @Override
     public int waitingForAnswersTotalCount() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'waitingForAnswersTotalCount'");
+        int cnt = 0;
+
+        for (Queue l : waitingForAnswers.values()) {
+            cnt = cnt + l.size();
+        }
+
+        return cnt;
     }
 
     @Override
@@ -193,38 +213,41 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public List<String> getGlobalListeners() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getGlobalListeners'");
+        log.warn("Globallisteners not supported");
+        return List.of();
     }
 
     @Override
     public Map<String, Long> getThreadPoolStats() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getThreadPoolStats'");
+        if (threadPool == null) return Map.of();
+
+        String prefix = "messaging.threadpool.";
+        return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
+               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
+               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     @Override
     public long getPendingMessagesCount() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getPendingMessagesCount'");
+        long sum = 0;
+        for (var msgName : monitorsByMsgName.keySet()) {
+            Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+            q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            sum += q1.countAll();
+        }
+        return sum;
     }
 
     @Override
     public void removeMessage(Msg m) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'removeMessage'");
+        morphium.delete(m, getCollectionName(m));
     }
 
-    @Override
-    public void run() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'run'");
-    }
 
     @Override
     public int getAsyncMessagesPending() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getAsyncMessagesPending'");
+        return waitingForCallbacks.size();
     }
 
     @Override
@@ -365,6 +388,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                                 }
                                 return;
                             }
+                        }
+
+                        if (m.getRecipients() != null && !m.getRecipients().isEmpty() && !m.getRecipients().contains(getSenderId())) {
+                            //message not for me
+                            return;
                         }
 
                         if (m.isExclusive()) {
@@ -513,6 +541,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         cm.addListener((evt)-> {
 
             Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+            if (doc.getRecipients() != null && !doc.getRecipients().isEmpty() && !doc.getRecipients().contains(getSenderId())) {
+                //message not for me
+                return running.get();
+            }
             if (doc.isExclusive()) {
                 //try to get lock
                 if (!lockMessage(doc, getSenderId())) {
@@ -521,6 +553,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     return running.get();
                 }
             }
+
             Runnable r = ()->{
                 if(l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(doc);
@@ -642,11 +675,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     public void queueMessage(Msg m) {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
-        morphium.store(m, getCollectionName(m), null);
+        morphium.store(m, getCollectionName(m), aCallback);
     }
     @Override
     public void sendMessage(Msg m) {
-        queueMessage(m);
+        m.setSenderHost(hostname);
+        m.setSender(getSenderId());
+        morphium.store(m, getCollectionName(m), null);
     }
     @Override
     public long getNumberOfMessages() {
@@ -655,13 +690,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public void sendMessageToSelf(Msg m) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'sendMessageToSelf'");
+
+        m.setSender("self");
+        m.setRecipient(getSenderId());
+        morphium.store(m, getCollectionName(m), null);
     }
     @Override
     public void queueMessagetoSelf(Msg m) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'queueMessagetoSelf'");
+
+        m.setSender("self");
+        m.setRecipient(getSenderId());
+        morphium.store(m, getCollectionName(m), aCallback );
     }
     @Override
     public boolean isAutoAnswer() {
@@ -879,4 +918,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         Thread.ofVirtual().name("msg-thr-", 0).factory()
         );
     }
+
+
+
 }
