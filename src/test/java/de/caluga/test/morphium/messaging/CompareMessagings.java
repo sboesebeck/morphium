@@ -18,6 +18,89 @@ import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 public class CompareMessagings extends MorphiumTestBase {
 
     @Test
+    public void compareExclMessagingTests() throws Exception{
+        Map<String, Long> runtimes = new HashMap<>();
+        int amount = 900;
+        for (String msgImplementation : List.of("StandardMessaging", "AdvMessaging")) {
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImplementation);
+            Morphium morph = new Morphium(cfg);
+
+
+            MorphiumMessaging sender = morph.createMessaging();
+            sender.setSenderId("sender");
+            sender.start();
+
+            final var latch = new java.util.concurrent.CountDownLatch(amount);
+            MorphiumMessaging receiver = morph.createMessaging();
+            receiver.setSenderId("rec");
+            receiver.addListenerForMessageNamed("test", (msg, m)-> {
+                latch.countDown();
+                return null;
+            });
+            receiver.start();
+            MorphiumMessaging receiver2 = morph.createMessaging();
+            receiver2.setSenderId("rec2");
+            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
+                latch.countDown();
+                return null;
+            });
+            receiver2.start();
+
+            Thread.sleep(500);
+
+            var received = new java.util.concurrent.atomic.AtomicInteger(0);
+            var scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            scheduler.scheduleAtFixedRate(() -> {
+                int done = (int) (amount - latch.getCount());
+                if (done != received.getAndSet(done)) {
+                    log.info("received {}", done);
+                }
+            }, 500, 500, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+            long start = System.nanoTime();
+
+            Thread sd = Thread.ofVirtual().start(() -> {
+                for (int i = 0; i < amount; i++) {
+                    try {
+                        sender.sendMessage(new Msg("test", "test-msg", "test-Value", 30_000, true));
+                    } catch (Exception e) {
+                        log.warn("send failed at {}: {}", i, e.toString());
+                    }
+                }
+            });
+
+            // Warten bis alle empfangen sind – mit Timeout
+            boolean allReceived = latch.await(90, java.util.concurrent.TimeUnit.SECONDS);
+            long durMs = (System.nanoTime() - start) / 1_000_000;
+
+            scheduler.shutdownNow();
+            sd.join(); // sauber beenden
+
+            if (!allReceived) {
+                long got = amount - latch.getCount();
+                log.error("Timeout: received {}/{} after {} ms", got, amount, durMs);
+            } else {
+                log.info("{} messages send & receive took {} ms ({}/s)",
+                         amount, durMs, durMs == 0 ? "∞" : (amount * 1000L) / durMs);
+            }
+
+
+
+            runtimes.put(msgImplementation, durMs);
+            sender.terminate();
+            receiver.terminate();
+            receiver2.terminate();
+            morph.close();
+
+        }
+        OutputHelper.figletOutput(log, "Results");
+
+        for (var e : runtimes.entrySet()) {
+            log.info("{} needed {}ms for {} messages", e.getKey(), e.getValue(), amount);
+        }
+    }
+    @Test
     public void compareMessagingTests() throws Exception{
         Map<String, Long> runtimes = new HashMap<>();
         int amount = 2000;
@@ -31,40 +114,57 @@ public class CompareMessagings extends MorphiumTestBase {
             sender.setSenderId("sender");
             sender.start();
 
+            final var latch = new java.util.concurrent.CountDownLatch(amount);
             final AtomicInteger recieved = new AtomicInteger();
             MorphiumMessaging receiver = morph.createMessaging();
             receiver.setSenderId("rec");
             receiver.addListenerForMessageNamed("test", (msg, m)-> {
-                recieved.incrementAndGet();
+                latch.countDown();
                 return null;
             });
             receiver.start();
 
             Thread.sleep(500);
-            log.info("Sending {} messages", amount);
-            long start = System.currentTimeMillis();
-            Thread.ofVirtual().start(()-> {
+
+            var received = new java.util.concurrent.atomic.AtomicInteger(0);
+            var scheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            scheduler.scheduleAtFixedRate(() -> {
+                int done = (int) (amount - latch.getCount());
+                if (done != received.getAndSet(done)) {
+                    log.info("received {}", done);
+                }
+            }, 500, 500, java.util.concurrent.TimeUnit.MILLISECONDS);
+
+            long start = System.nanoTime();
+
+            Thread sd = Thread.ofVirtual().start(() -> {
                 for (int i = 0; i < amount; i++) {
-                    sender.sendMessage(new Msg("test", "test-msg", "test-Value", 30000, false));
+                    try {
+                        sender.sendMessage(new Msg("test", "test-msg", "test-Value", 30_000, false));
+                    } catch (Exception e) {
+                        log.warn("send failed at {}: {}", i, e.toString());
+                    }
                 }
             });
-            log.info("Waiting for messages to be received, already got {}", recieved.get());
 
-            boolean output = false;
-            while (recieved.get() != amount) {
-                if (recieved.get() % 100 == 0 && !output) {
-                    log.info("received {}", recieved.get());
-                    output = true;
-                }
-                if (recieved.get() % 100 != 0) {
-                    output = false;
-                }
-                Thread.yield();
+            // Warten bis alle empfangen sind – mit Timeout
+            boolean allReceived = latch.await(90, java.util.concurrent.TimeUnit.SECONDS);
+            long durMs = (System.nanoTime() - start) / 1_000_000;
+
+            scheduler.shutdownNow();
+            sd.join(); // sauber beenden
+
+            if (!allReceived) {
+                long got = amount - latch.getCount();
+                log.error("Timeout: received {}/{} after {} ms", got, amount, durMs);
+            } else {
+                log.info("{} messages send & receive took {} ms ({}/s)",
+                         amount, durMs, durMs == 0 ? "∞" : (amount * 1000L) / durMs);
             }
-            long dur = System.currentTimeMillis() - start;
-            log.info("{} messages send and receive took {} ms with {}", amount, dur, msgImplementation);
 
-            runtimes.put(msgImplementation, dur);
+
+
+            runtimes.put(msgImplementation, durMs);
             sender.terminate();
             receiver.terminate();
             morph.close();
