@@ -44,6 +44,9 @@ public class MessagingSettings extends Settings {
         return this;
     }
     public String getMessagingImplementation() {
+        if (messagingImplementation == null) {
+            messagingImplementation = "StandardMessaging";
+        }
         return messagingImplementation;
     }
     public MessagingSettings setMessagingImplementation(String messagingImplementation) {

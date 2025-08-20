@@ -17,12 +17,11 @@ import de.caluga.morphium.driver.*;
 import de.caluga.morphium.messaging.AdvancedSplitCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
-import de.caluga.test.mongo.suite.base.ObjectMapperImplTest.Simple;
 import net.sf.ehcache.util.concurrent.ConcurrentHashMap;
 
-public class SimpleBroadcastTests extends MorphiumTestBase {
+public class SimpleMessagingTests extends MorphiumTestBase {
 
-    private Logger log = LoggerFactory.getLogger(SimpleBroadcastTests.class);;
+    private Logger log = LoggerFactory.getLogger(SimpleMessagingTests.class);;
 
     @Test
     public void simpleBroadcastTest() throws Exception {
@@ -119,9 +118,9 @@ public class SimpleBroadcastTests extends MorphiumTestBase {
         sender.setSenderId("sender");
         sender.start();
 
-        int messagings = 10;
+        int messagings = 5;
         int queues = 3;
-        int msgToSend = 100;
+        int msgToSend = 1000;
 
         final Map<MorphiumId, AtomicInteger> recs = new ConcurrentHashMap<>();
         for (int i = 0; i < messagings; i++) {
@@ -150,9 +149,6 @@ public class SimpleBroadcastTests extends MorphiumTestBase {
         }
         Thread.sleep(3000);
         assertEquals(recs.size(), msgToSend);
-        for (var e : recs.entrySet()) {
-
-        }
     }
 }
 

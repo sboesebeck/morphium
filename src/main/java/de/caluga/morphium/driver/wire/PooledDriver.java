@@ -274,7 +274,7 @@ public class PooledDriver extends DriverBase {
                                     while (getHostSeed().contains(hst) && queue != null && loopCounter < getMaxConnectionsPerHost() &&
                                             (queue.size() < getWaitCounterForHost(hst) && getTotalConnectionsToHost(hst) < getMaxConnectionsPerHost())) {
                                         loopCounter++;
-                                        log.debug("Creating connection to {} - WaitCounter is {}", hst, getWaitCounterForHost(hst));
+                                        // log.debug("Creating connection to {} - WaitCounter is {}", hst, getWaitCounterForHost(hst));
                                         // System.out.println("Creating new connection to " + hst + " WaitCounter is: " + waitCounter.get(hst).get());
                                         createNewConnection(hst);
                                     }

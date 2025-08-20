@@ -155,7 +155,7 @@ public class MorphiumConfig {
         }
 
         for (var settingObject : settings) {
-            log.info("======> Settings {} <======", settingObject.getClass().getName());
+            // log.info("======> Settings {} <======", settingObject.getClass().getName());
             // case
             List<Field> flds = an.getAllFields(settingObject.getClass());
 

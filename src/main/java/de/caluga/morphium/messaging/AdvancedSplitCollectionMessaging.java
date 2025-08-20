@@ -653,14 +653,15 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public void terminate() {
+        running.set(false);
         for (var e : monitorsByMsgName.entrySet()) {
             for (var m : e.getValue()) {
                 ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();;
             }
         }
-
+        threadPool.shutdownNow();
+        decouplePool.shutdownNow();
         monitorsByMsgName.clear();
-        running.set(false);
     }
     @Override
     public void addMessageListener(MessageListener l) {
