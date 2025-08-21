@@ -305,6 +305,25 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return lockMessage(m, lockId, null);
     }
 
+    public boolean lockMessage(MorphiumId id, String msgName, String lockId) {
+        MsgLock lck = new MsgLock(id);
+        lck.setLockId(lockId);
+        lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
+        InsertMongoCommand cmd = null;
+
+        try {
+            cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+            cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase()).setDocuments(List.of(morphium.getMapper().serialize(lck)));
+            cmd.execute();
+            return true;
+        } catch (Exception e) {
+            return false;
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
+    }
     public boolean lockMessage(Msg m, String lockId, Date delAt) {
         MsgLock lck = new MsgLock(m);
         lck.setLockId(lockId);
@@ -395,6 +414,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                             return;
                         }
 
+                        if (pausedMessages.contains(m.getName())) {
+                            //paused
+                            return;
+                        }
+
                         if (m.isExclusive()) {
                             if (!lockMessage(m, getSenderId())) {
                                 return;
@@ -438,7 +462,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         if (obj.isDeleteAfterProcessing()) {
             if (obj.getDeleteAfterProcessingTime() == 0) {
                 morphium.delete(obj, getCollectionName());
-                if (obj.isExclusive()) unlock(obj);
+                unlock(obj);
             } else {
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
                 morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
@@ -540,25 +564,31 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             pipeline);
         cm.addListener((evt)-> {
 
-            Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-            if (doc.getRecipients() != null && !doc.getRecipients().isEmpty() && !doc.getRecipients().contains(getSenderId())) {
-                //message not for me
-                return running.get();
-            }
-            if (doc.isExclusive()) {
-                //try to get lock
-                if (!lockMessage(doc, getSenderId())) {
-                    //could not get Lock
-                    //
-                    return running.get();
-                }
-            }
+
 
             Runnable r = ()->{
-                if(l.markAsProcessedBeforeExec()) {
+
+                // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                Map<String, Object> map = evt.getFullDocument();
+                List<String> recipients = (List<String>)map.get("recipients");
+                if (recipients != null && !recipients.isEmpty() && !recipients.contains(getSenderId())) {
+                    //message not for me
+                    return;
+                }
+                if (pausedMessages.contains(map.get("name"))) {
+                    //paused
+                    return;
+                }
+                Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                if (doc.isExclusive()) {
+                    if (!lockMessage(doc, getSenderId())) {
+                        return;
+                    }
+                }
+                if (l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(doc);
                 }
-                try{
+                try {
                     var ret = l.onMessage(this, doc);
                     if (doc.isDeleteAfterProcessing()) {
                         checkDeleteAfterProcessing(doc);
@@ -573,11 +603,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         ret.setRecipients(List.of(doc.getSender()));
                         sendMessage(ret);
                     }
-                } catch(MessageRejectedException mre) {
-                    if(doc.isExclusive()) unlock(doc);
+                } catch (MessageRejectedException mre) {
+                    unlock(doc);
                     log.warn("Message rejected", mre);
-                } catch(Exception e) {
-                    if(doc.isExclusive()) unlock(doc);
+                } catch (Exception e) {
+                    unlock(doc);
                     log.error("Error processing message", e);
                 }
             };

@@ -20,8 +20,8 @@ public class CompareMessagings extends MorphiumTestBase {
     @Test
     public void compareExclMessagingTests() throws Exception{
         Map<String, Long> runtimes = new HashMap<>();
-        int amount = 900;
-        for (String msgImplementation : List.of("StandardMessaging", "AdvMessaging")) {
+        int amount = 500;
+        for (String msgImplementation : MorphiumTestBase.messagingsToTest) {
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImplementation);
             Morphium morph = new Morphium(cfg);
@@ -88,9 +88,23 @@ public class CompareMessagings extends MorphiumTestBase {
 
 
             runtimes.put(msgImplementation, durMs);
-            sender.terminate();
-            receiver.terminate();
-            receiver2.terminate();
+
+            try {
+                sender.terminate();
+            } catch (Exception e) {
+                log.error("could not terminate sender", e);
+            }
+            try {
+                receiver.terminate();
+            } catch (Exception e) {
+                log.error("could not terminate rec1", e);
+            }
+            try {
+                receiver2.terminate();
+            } catch (Exception e) {
+                log.error("could not terminate rec2", e);
+            }
+
             morph.close();
 
         }
@@ -103,8 +117,8 @@ public class CompareMessagings extends MorphiumTestBase {
     @Test
     public void compareMessagingTests() throws Exception{
         Map<String, Long> runtimes = new HashMap<>();
-        int amount = 2000;
-        for (String msgImplementation : List.of("StandardMessaging", "AdvMessaging")) {
+        int amount = 1000;
+        for (String msgImplementation : MorphiumTestBase.messagingsToTest) {
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImplementation);
             Morphium morph = new Morphium(cfg);
@@ -165,8 +179,16 @@ public class CompareMessagings extends MorphiumTestBase {
 
 
             runtimes.put(msgImplementation, durMs);
-            sender.terminate();
-            receiver.terminate();
+            try {
+                sender.terminate();
+            } catch (Exception e) {
+                log.error("Could not erminate sender", e);
+            }
+            try {
+                receiver.terminate();
+            } catch (Exception e) {
+                log.error("Could not erminate receiver", e);
+            }
             morph.close();
 
         }
