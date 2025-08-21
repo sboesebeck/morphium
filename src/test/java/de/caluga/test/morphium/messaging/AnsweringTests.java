@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
@@ -7,6 +7,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -40,127 +41,129 @@ public class AnsweringTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answeringTest(Morphium morphium) throws Exception {
         try (morphium) {
-            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
-            log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            error = false;
-            morphium.clearCollection(Msg.class);
-            final StdMessaging m1;
-            final StdMessaging m2;
-            final StdMessaging onlyAnswers;
-            m1 = new StdMessaging(morphium, 100, true);
-            m2 = new StdMessaging(morphium, 100, true);
-            onlyAnswers = new StdMessaging(morphium, 100, true);
-            m1.setSenderId("m1");
-            m2.setSenderId("m2");
-            onlyAnswers.setSenderId("onlyAnswers");
-
-            try {
-                m1.start();
-                m2.start();
-                onlyAnswers.start();
-                Thread.sleep(2000);
-                log.info("m1 ID: " + m1.getSenderId());
-                log.info("m2 ID: " + m2.getSenderId());
-                log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
-                m1.addMessageListener((msg, m) -> {
-                    gotMessage1 = true;
-
-                    if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
-                        log.error("wrongly received message?");
-                        error = true;
-                    }
-                    if (m.getInAnswerTo() != null) {
-                        log.error("M1 got an answer, but did not ask?");
-                        error = true;
-                    }
-                    log.info("M1 got message " + m);
-                    Msg answer = m.createAnswerMsg();
-                    answer.setValue("This is the answer from m1");
-                    answer.addValue("something", new Date());
-                    answer.addAdditional("String message from m1");
-                    return answer;
-                });
-                m2.addMessageListener((msg, m) -> {
-                    gotMessage2 = true;
-
-                    if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
-                        log.error("wrongly received message?");
-                        error = true;
-                    }
-                    log.info("M2 got message " + m);
-                    assert(m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
-                    Msg answer = m.createAnswerMsg();
-                    answer.setValue("This is the answer from m2");
-                    answer.addValue("when", System.currentTimeMillis());
-                    answer.addAdditional("Additional Value von m2");
-                    return answer;
-                });
-                onlyAnswers.addMessageListener((msg, m) -> {
-                    gotMessage3 = true;
-
-                    if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
-                        log.error("wrongly received message?");
-                        error = true;
-                    }
-
-                    assertNotNull(m.getInAnswerTo(), "was not an answer? " + m);
-                    assert(m.getMapValue().size() == 1);
-                    assert(m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
-                    log.info(msg.getSenderId() + " got answer " + m);
-                    assertNotNull(lastMsgId, "Last message == null?");
-                    assert(m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
-                    //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
-                    return null;
-                });
-                Msg question = new Msg("QMsg", "This is the message text", "A question param");
-                question.setMsgId(new MorphiumId());
-                lastMsgId = question.getMsgId();
-                onlyAnswers.sendMessage(question);
-                log.info("Send Message with id: " + question.getMsgId());
-                Thread.sleep(7000);
-                long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-                log.info("Answers in mongo: " + cnt);
-                assertEquals(2, cnt);
-                assertTrue(gotMessage3);//: "no answer got back?";
-                assertTrue(gotMessage1, "Question not received by m1");
-                assertTrue(gotMessage2, "Question not received by m2");
-                assertFalse(error);
+                log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
                 gotMessage1 = false;
                 gotMessage2 = false;
                 gotMessage3 = false;
-                Thread.sleep(2000);
-                assertFalse(error);
-                assertTrue(!gotMessage3 && !gotMessage1 && !gotMessage2, "Message processing repeat?");
-                question = new Msg("QMsg", "This is the message text #2", "A question param", 30000, true);
-                question.setMsgId(new MorphiumId());
-                lastMsgId = question.getMsgId();
-                onlyAnswers.sendMessage(question);
-                log.info("Send Message with id: " + question.getMsgId());
-                Thread.sleep(1000);
+                error = false;
+                morphium.clearCollection(Msg.class);
+                final StdMessaging m1;
+                final StdMessaging m2;
+                final StdMessaging onlyAnswers;
+                m1 = new StdMessaging(morphium, 100, true);
+                m2 = new StdMessaging(morphium, 100, true);
+                onlyAnswers = new StdMessaging(morphium, 100, true);
+                m1.setSenderId("m1");
+                m2.setSenderId("m2");
+                onlyAnswers.setSenderId("onlyAnswers");
 
-                if (gotMessage1) {
-                    log.info("Received by m1");
+                try {
+                    m1.start();
+                    m2.start();
+                    onlyAnswers.start();
+                    Thread.sleep(2000);
+                    log.info("m1 ID: " + m1.getSenderId());
+                    log.info("m2 ID: " + m2.getSenderId());
+                    log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
+                    m1.addMessageListener((msg, m) -> {
+                        gotMessage1 = true;
+
+                        if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
+                            log.error("wrongly received message?");
+                            error = true;
+                        }
+                        if (m.getInAnswerTo() != null) {
+                            log.error("M1 got an answer, but did not ask?");
+                            error = true;
+                        }
+                        log.info("M1 got message " + m);
+                        Msg answer = m.createAnswerMsg();
+                        answer.setValue("This is the answer from m1");
+                        answer.addValue("something", new Date());
+                        answer.addAdditional("String message from m1");
+                        return answer;
+                    });
+                    m2.addMessageListener((msg, m) -> {
+                        gotMessage2 = true;
+
+                        if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
+                            log.error("wrongly received message?");
+                            error = true;
+                        }
+                        log.info("M2 got message " + m);
+                        assert(m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+                        Msg answer = m.createAnswerMsg();
+                        answer.setValue("This is the answer from m2");
+                        answer.addValue("when", System.currentTimeMillis());
+                        answer.addAdditional("Additional Value von m2");
+                        return answer;
+                    });
+                    onlyAnswers.addMessageListener((msg, m) -> {
+                        gotMessage3 = true;
+
+                        if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
+                            log.error("wrongly received message?");
+                            error = true;
+                        }
+
+                        assertNotNull(m.getInAnswerTo(), "was not an answer? " + m);
+                        assert(m.getMapValue().size() == 1);
+                        assert(m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
+                        log.info(msg.getSenderId() + " got answer " + m);
+                        assertNotNull(lastMsgId, "Last message == null?");
+                        assert(m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+                        //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
+                        return null;
+                    });
+                    Msg question = new Msg("QMsg", "This is the message text", "A question param");
+                    question.setMsgId(new MorphiumId());
+                    lastMsgId = question.getMsgId();
+                    onlyAnswers.sendMessage(question);
+                    log.info("Send Message with id: " + question.getMsgId());
+                    Thread.sleep(7000);
+                    long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                    log.info("Answers in mongo: " + cnt);
+                    assertEquals(2, cnt);
+                    assertTrue(gotMessage3);//: "no answer got back?";
+                    assertTrue(gotMessage1, "Question not received by m1");
+                    assertTrue(gotMessage2, "Question not received by m2");
+                    assertFalse(error);
+                    gotMessage1 = false;
+                    gotMessage2 = false;
+                    gotMessage3 = false;
+                    Thread.sleep(2000);
+                    assertFalse(error);
+                    assertTrue(!gotMessage3 && !gotMessage1 && !gotMessage2, "Message processing repeat?");
+                    question = new Msg("QMsg", "This is the message text #2", "A question param", 30000, true);
+                    question.setMsgId(new MorphiumId());
+                    lastMsgId = question.getMsgId();
+                    onlyAnswers.sendMessage(question);
+                    log.info("Send Message with id: " + question.getMsgId());
+                    Thread.sleep(1000);
+
+                    if (gotMessage1) {
+                        log.info("Received by m1");
+                    }
+
+                    if (gotMessage2) {
+                        log.info("Received by m2");
+                    }
+
+                    if (gotMessage3) {
+                        log.info("Received by onlyAnswers");
+                    }
+
+                    cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                    assertEquals(1, cnt);
+                } finally {
+                    m1.terminate();
+                    m2.terminate();
+                    onlyAnswers.terminate();
+                    Thread.sleep(100);
                 }
-
-                if (gotMessage2) {
-                    log.info("Received by m2");
-                }
-
-                if (gotMessage3) {
-                    log.info("Received by onlyAnswers");
-                }
-
-                cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
-                assertEquals(1, cnt);
-            } finally {
-                m1.terminate();
-                m2.terminate();
-                onlyAnswers.terminate();
-                Thread.sleep(100);
             }
         }
     }

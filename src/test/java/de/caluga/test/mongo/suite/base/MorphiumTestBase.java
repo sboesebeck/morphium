@@ -46,6 +46,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  */
 public class MorphiumTestBase {
 
+    public static List<String> messagingsToTest = List.of("StandardMessaging", "AdvMessaging");
     public static Morphium morphium;
     private static Properties props;
     private static File configDir;
