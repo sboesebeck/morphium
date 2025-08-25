@@ -69,8 +69,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addMessageListener(ml);
-            rec2.addMessageListener(ml);
+            rec1.addListenerForMessageNamed("test", ml);
+            rec2.addListenerForMessageNamed("test", ml);
             int amount = 25;
 
             for (int i = 0; i < amount; i++) {
@@ -271,8 +271,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addMessageListener(ml);
-            rec2.addMessageListener(ml);
+            rec1.addListenerForMessageNamed("test", ml);
+            rec2.addListenerForMessageNamed("test", ml);
             int amount = 25;
 
             for (int i = 0; i < amount; i++) {
@@ -329,8 +329,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addMessageListener(ml);
-            rec2.addMessageListener(ml);
+            rec1.addListenerForMessageNamed("test", ml);
+            rec2.addListenerForMessageNamed("test", ml);
             int amount = 100;
 
             for (int i = 0; i < amount; i++) {

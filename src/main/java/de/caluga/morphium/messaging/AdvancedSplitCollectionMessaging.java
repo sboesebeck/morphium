@@ -211,11 +211,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return ret;
     }
 
-    @Override
-    public List<String> getGlobalListeners() {
-        log.warn("Globallisteners not supported");
-        return List.of();
-    }
 
     @Override
     public Map<String, Long> getThreadPoolStats() {
@@ -692,15 +687,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         threadPool.shutdownNow();
         decouplePool.shutdownNow();
         monitorsByMsgName.clear();
-    }
-    @Override
-    public void addMessageListener(MessageListener l) {
-        //global listener...
-        throw new UnsupportedOperationException("Global listeners not supported");
-    }
-    @Override
-    public void removeMessageListener(MessageListener l) {
-        log.error("No support for global MessageListener");
     }
     @Override
     public void queueMessage(Msg m) {

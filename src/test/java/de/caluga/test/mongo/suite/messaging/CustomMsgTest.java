@@ -22,7 +22,7 @@ public class CustomMsgTest extends MorphiumTestBase {
         morphium.dropCollection(Msg.class);
         StdMessaging m1 = new StdMessaging(morphium, 100, false);
         StdMessaging m2 = new StdMessaging(morphium, 100, false);
-        m2.addMessageListener((MessageListener<CustomMsg>) (msg, m) -> {
+        m2.addListenerForMessageNamed("test", (MessageListener<CustomMsg>) (msg, m) -> {
             received = true;
             log.info("incoming message: " + m.getCustomBuiltValue());
             return null;

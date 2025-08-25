@@ -59,7 +59,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     private boolean autoAnswer = false;
     private String hostname;
 
-    private final List<MessageListener> listeners = new CopyOnWriteArrayList<>();
     private final Map<String, Long> pauseMessages = new ConcurrentHashMap<>();
     private Map<String, List<MessageListener>> listenerByName = new HashMap<>();
     private String queueName;
@@ -307,17 +306,17 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         return ret;
     }
 
-    @Override
-    public List<String> getGlobalListeners() {
-        List<MessageListener> localCopy = new ArrayList<>(listeners);
-        List<String> ret = new ArrayList<>();
+    // @Override
+    // public List<String> getGlobalListeners() {
+    //     List<MessageListener> localCopy = new ArrayList<>(listeners);
+    //     List<String> ret = new ArrayList<>();
 
-        for (MessageListener lst : localCopy) {
-            ret.add(lst.getClass().getName());
-        }
+    //     for (MessageListener lst : localCopy) {
+    //         ret.add(lst.getClass().getName());
+    //     }
 
-        return ret;
-    }
+    //     return ret;
+    // }
 
     @Override
     public Map<String, Long> getThreadPoolStats() {
@@ -506,7 +505,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                         }
 
                         //do not process if no listener registered for this message
-                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getName()) && getGlobalListeners().isEmpty()) {
+                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getName()) ) {
                             return;
                         }
 
@@ -566,7 +565,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                             }
                         }
 
-                        if (!getListenerNames().containsKey(msg.getName()) && getGlobalListeners().isEmpty()) {
+                        if (!getListenerNames().containsKey(msg.getName()) ) {
                             return;
                         }
 
@@ -592,7 +591,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             log.debug("Messaging " + id + " stopped!");
         }
 
-        listeners.clear();
         listenerByName.clear();
     }
 
@@ -665,7 +663,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         try {
             Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
-            if (listenerByName.isEmpty() && listeners.isEmpty()) {
+            if (listenerByName.isEmpty() ) {
                 // No listeners - only answers will be processed
                 return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
@@ -859,7 +857,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             return;
         }
 
-        if (listeners.isEmpty() && listenerByName.isEmpty()) {
+        if (listenerByName.isEmpty()) {
             // message cannot be processed, as no listener is defined and message is no
             // answer.
             if (log.isDebugEnabled()) {
@@ -876,7 +874,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         boolean wasProcessed = false;
         boolean wasRejected = false;
         List<MessageRejectedException> rejections = new ArrayList<>();
-        List<MessageListener> lst = new ArrayList<>(listeners);
+        List<MessageListener> lst = new ArrayList<>();
 
         if (listenerByName.get(msg.getName()) != null) {
             lst.addAll(listenerByName.get(msg.getName()));
@@ -1115,7 +1113,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         log.info("Terminate messaging");
         running = false;
         listenerByName.clear();
-        listeners.clear();
         waitingForAnswers.clear();
         processing.clear();
         requestPoll.set(0);
@@ -1167,21 +1164,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         }
     }
 
-    @Override
-    public void addMessageListener(MessageListener l) {
-        if (listeners.contains(l)) {
-            log.error("Cowardly refusing to add already registered listener");
-        } else {
-            listeners.add(l);
-        }
-
-        requestPoll.incrementAndGet();
-    }
-
-    @Override
-    public void removeMessageListener(MessageListener l) {
-        listeners.remove(l);
-    }
 
     @Override
     public void queueMessage(final Msg m) {

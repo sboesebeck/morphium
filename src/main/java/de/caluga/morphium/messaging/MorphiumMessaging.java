@@ -37,7 +37,6 @@ public interface MorphiumMessaging {
 
     Map<String, List<String>> getListenerNames();
 
-    List<String> getGlobalListeners();
 
     Map<String, Long> getThreadPoolStats();
 
@@ -74,9 +73,6 @@ public interface MorphiumMessaging {
 
     void terminate();
 
-    void addMessageListener(MessageListener l);
-
-    void removeMessageListener(MessageListener l);
 
     void queueMessage(Msg m);
 

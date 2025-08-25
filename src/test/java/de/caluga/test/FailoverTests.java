@@ -70,9 +70,9 @@ public class FailoverTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesPooledOnly")
     public void primaryFailoverMessagingTest(Morphium morphium) throws Exception {
-        var l=(Logger)LoggerFactory.getLogger(PooledDriver.class);
+        var l = (Logger)LoggerFactory.getLogger(PooledDriver.class);
         l.setLevel(Level.OFF);
-        l=(Logger)LoggerFactory.getLogger(SingleMongoConnectDriver.class);
+        l = (Logger)LoggerFactory.getLogger(SingleMongoConnectDriver.class);
         l.setLevel(Level.OFF);
 
         try (morphium) {
@@ -80,14 +80,14 @@ public class FailoverTests extends MultiDriverTestBase {
             sender.start();
             StdMessaging receiver = new StdMessaging(morphium, 250, true);
             receiver.start();
-            receiver.addMessageListener((m, msg)->{
+            receiver.addListenerForMessageNamed("Test", (m, msg)-> {
                 return msg.createAnswerMsg();
             });
             Thread.sleep(3000);
             AtomicBoolean b = new AtomicBoolean(true);
             AtomicInteger unanswered = new AtomicInteger(0);
             AtomicInteger answers = new AtomicInteger(0);
-            new Thread(()->{
+            new Thread(()-> {
                 while (b.get()) {
                     Msg m = new Msg("Test", "value", "Val");
                     var answer = sender.sendAndAwaitFirstAnswer(m, 500, false);
@@ -149,7 +149,7 @@ public class FailoverTests extends MultiDriverTestBase {
         try (morphium) {
             AtomicInteger incomingEvent = new AtomicInteger(0);
             ChangeStreamMonitor monitor = new ChangeStreamMonitor(morphium, UncachedObject.class);
-            monitor.addListener((evt)->{
+            monitor.addListener((evt)-> {
                 log.info("Incoming...");
                 incomingEvent.incrementAndGet();
                 return true;
@@ -210,7 +210,7 @@ public class FailoverTests extends MultiDriverTestBase {
             TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
             AtomicBoolean running = new AtomicBoolean(true);
             AtomicInteger events = new AtomicInteger(0);
-            new Thread(()->{
+            new Thread(()-> {
                 var enc = new AESEncryptionProvider();
                 enc.setEncryptionKey("1234567890abcdef".getBytes());
                 enc.setDecryptionKey("1234567890abcdef".getBytes());
@@ -268,7 +268,7 @@ public class FailoverTests extends MultiDriverTestBase {
 
             long countAll = morphium.createQueryFor(UncachedObject.class).countAll();
             log.info("Wrote 1000 documents, now in db " + countAll + " got Events: " + events.get());
-            assertTrue(countAll-100<events.get());
+            assertTrue(countAll - 100 < events.get());
             Thread.sleep(1000);
             checkCluster(morphium, originalConnectedTo);
         }

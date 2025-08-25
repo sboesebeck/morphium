@@ -121,7 +121,6 @@ public class StatusInfoListener implements MessageListener<Msg> {
                     }
 
                     answer.getMapValue().put(messageListenersbyNameKey, msg.getListenerNames());
-                    answer.getMapValue().put(globalListenersKey, msg.getGlobalListeners());
                     answer.getMapValue().put("messaging.changestream", msg.isUseChangeStream());
                     answer.getMapValue().put("messaging.multithreadded", msg.isMultithreadded());
                     answer.getMapValue().put("messaging.window_size", msg.getWindowSize());
