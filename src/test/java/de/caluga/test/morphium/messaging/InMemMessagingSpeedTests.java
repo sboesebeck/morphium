@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.inmem_messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
@@ -61,7 +61,7 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
 
         try {
             final AtomicInteger recCount = new AtomicInteger();
-            receiver.addMessageListener(new MessageListener() {
+            receiver.addListenerForMessageNamed("test", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recCount.incrementAndGet();
@@ -114,11 +114,11 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
 
         try {
             final AtomicInteger recCount = new AtomicInteger();
-            receiver.addMessageListener((msg, m)-> {
+            receiver.addListenerForMessageNamed("test", (msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });
-            receiver2.addMessageListener((msg, m)-> {
+            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });

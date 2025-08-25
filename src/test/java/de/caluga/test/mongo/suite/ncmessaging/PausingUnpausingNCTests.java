@@ -37,7 +37,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage4 = false;
 
         StdMessaging m1 = new StdMessaging(morphium, 10, false, false, 1);
-        m1.addMessageListener((msg, m) -> {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });
@@ -52,7 +52,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
         gotMessage1 = false;
 
-        sender.sendMessage(new Msg("tst1", "a message", "the value"));
+        sender.sendMessage(new Msg("test", "a message", "the value"));
         Thread.sleep(1200);
         assert (!gotMessage1);
 
@@ -67,7 +67,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         assert (!gotMessage1);
 
         gotMessage1 = false;
-        sender.sendMessage(new Msg("tst1", "a message", "the value"));
+        sender.sendMessage(new Msg("test", "a message", "the value"));
         Thread.sleep(1200);
         assert (gotMessage1);
 
@@ -233,10 +233,10 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         receiver.setUseChangeStream(false).start();
         Thread.sleep(1000);
         receiver.addListenerForMessageNamed("exclusive_test", (msg, m) -> {
-                    log.info("Incoming message!");
-                    return null;
-                }
-        );
+            log.info("Incoming message!");
+            return null;
+        }
+                                           );
         Msg ex = new Msg("exclusive_test", "a message", "A value");
         ex.setExclusive(true);
         sender.sendMessage(ex);

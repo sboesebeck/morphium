@@ -104,7 +104,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10,  10, true);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return null;
@@ -143,7 +143,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10,  10, false);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return null;
@@ -176,7 +176,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10,  10, true);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return null;
@@ -214,7 +214,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10,  10, false);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return null;
@@ -364,7 +364,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10, 10, true);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return msg.createAnswerMsg();
@@ -397,7 +397,7 @@ public class SeveralSystemsTests extends MorphiumTestBase {
             createIndependentMessagings(10, 10, false);
 
             for (StdMessaging m : messagings) {
-                m.addMessageListener((ms, msg) -> {
+                m.addListenerForMessageNamed("test", (ms, msg) -> {
                     log.info("incoming message to " + ms.getSenderId());
                     cnt.incrementAndGet();
                     return msg.createAnswerMsg();

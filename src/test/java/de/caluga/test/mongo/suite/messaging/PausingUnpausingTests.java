@@ -35,7 +35,6 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
     private final List<Msg> list = new ArrayList<>();
 
-    private final AtomicInteger queueCount = new AtomicInteger(1000);
 
 
     @Test

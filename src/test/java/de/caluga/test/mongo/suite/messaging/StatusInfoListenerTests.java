@@ -113,13 +113,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         sender.terminate();
     }
 
-    private void addListeners(StdMessaging m1, MorphiumMessaging m2) {
-        m1.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(MorphiumMessaging msg, Msg m)  {
-                return null;
-            }
-        });
+    private void addListeners(MorphiumMessaging m1, MorphiumMessaging m2) {
         m1.addListenerForMessageNamed("test1", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
@@ -149,7 +143,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
         m.setUseChangeStream(false);
         m.start();
         assertTrue(m.isStatusInfoListenerEnabled());
-        m.addMessageListener((msg, m1) -> {
+        m.addListenerForMessageNamed("test", (msg, m1) -> {
             log.info("Incoming message! " + m1.getMsgId());
 
             try {

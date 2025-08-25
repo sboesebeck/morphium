@@ -68,7 +68,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     log.info("m1 ID: " + m1.getSenderId());
                     log.info("m2 ID: " + m2.getSenderId());
                     log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
-                    m1.addMessageListener((msg, m) -> {
+                    m1.addListenerForMessageNamed("test", (msg, m) -> {
                         gotMessage1 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
@@ -86,7 +86,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                         answer.addAdditional("String message from m1");
                         return answer;
                     });
-                    m2.addMessageListener((msg, m) -> {
+                    m2.addListenerForMessageNamed("test", (msg, m) -> {
                         gotMessage2 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
@@ -94,14 +94,14 @@ public class AnsweringTests extends MultiDriverTestBase {
                             error = true;
                         }
                         log.info("M2 got message " + m);
-                        assert(m.getInAnswerTo() == null) : "M2 got an answer, but did not ask?";
+                        assertNull(m.getInAnswerTo());
                         Msg answer = m.createAnswerMsg();
                         answer.setValue("This is the answer from m2");
                         answer.addValue("when", System.currentTimeMillis());
                         answer.addAdditional("Additional Value von m2");
                         return answer;
                     });
-                    onlyAnswers.addMessageListener((msg, m) -> {
+                    onlyAnswers.addListenerForMessageNamed("test", (msg, m) -> {
                         gotMessage3 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
@@ -110,15 +110,15 @@ public class AnsweringTests extends MultiDriverTestBase {
                         }
 
                         assertNotNull(m.getInAnswerTo(), "was not an answer? " + m);
-                        assert(m.getMapValue().size() == 1);
-                        assert(m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
+                        assertEquals(m.getMapValue().size(), 1);
+                        assertTrue(m.getMapValue().containsKey("something") || m.getMapValue().containsKey("when"));
                         log.info(msg.getSenderId() + " got answer " + m);
                         assertNotNull(lastMsgId, "Last message == null?");
-                        assert(m.getInAnswerTo().equals(lastMsgId)) : "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
+                        assertEquals(m.getInAnswerTo(), lastMsgId); //: "Wrong answer????" + lastMsgId.toString() + " != " + m.getInAnswerTo().toString();
                         //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                         return null;
                     });
-                    Msg question = new Msg("QMsg", "This is the message text", "A question param");
+                    Msg question = new Msg("test", "This is the message text", "A question param");
                     question.setMsgId(new MorphiumId());
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
@@ -137,7 +137,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     Thread.sleep(2000);
                     assertFalse(error);
                     assertTrue(!gotMessage3 && !gotMessage1 && !gotMessage2, "Message processing repeat?");
-                    question = new Msg("QMsg", "This is the message text #2", "A question param", 30000, true);
+                    question = new Msg("test", "This is the message text #2", "A question param", 30000, true);
                     question.setMsgId(new MorphiumId());
                     lastMsgId = question.getMsgId();
                     onlyAnswers.sendMessage(question);
@@ -193,7 +193,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             m.setExclusive(true);
             Msg answer = m1.sendAndAwaitFirstAnswer(m, 10000);
             assertNotNull(answer);;
-            assert(answer.getProcessedBy().size() == 1) : "Size wrong: " + answer.getProcessedBy();
+            assertEquals(answer.getProcessedBy().size(), 1);// : "Size wrong: " + answer.getProcessedBy();
 
             try {
                 m1.terminate();
@@ -292,12 +292,12 @@ public class AnsweringTests extends MultiDriverTestBase {
             Msg question = new Msg("q_getAnswer", "question", "a value");
             question.setPriority(5);
             List<Msg> answers = m1.sendAndAwaitAnswers(question, 2, 5000);
-            assert(answers != null && !answers.isEmpty());
-            assert(answers.size() == 2) : "Got wrong number of answers: " + answers.size();
+            assertTrue(answers != null && !answers.isEmpty());
+            assertEquals(answers.size(), 2); //: "Got wrong number of answers: " + answers.size();
 
             for (Msg m : answers) {
                 assertNotNull(m.getInAnswerTo());;
-                assert(m.getInAnswerTo().equals(question.getMsgId()));
+                assertEquals(m.getInAnswerTo(), question.getMsgId());
             }
 
             m1.terminate();
@@ -338,7 +338,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 Msg answer = m1.sendAndAwaitFirstAnswer(question, 4500);
                 long dur = System.currentTimeMillis() - start;
                 assertTrue(answer != null && answer.getInAnswerTo() != null);;
-                assert(answer.getInAnswerTo().equals(question.getMsgId()));
+                assertEquals(answer.getInAnswerTo(), question.getMsgId());
                 log.info("... ok - took " + dur + " ms");
             }
 
@@ -414,8 +414,8 @@ public class AnsweringTests extends MultiDriverTestBase {
             });
             sender.sendMessage(new Msg("query", "a query", "avalue"));
             Thread.sleep(5000);
-            assert(gotMessage1);
-            assert(gotMessage2);
+            assertTrue(gotMessage1);
+            assertTrue(gotMessage2);
             Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
             assertNotNull(answer);;
             sender.terminate();
@@ -435,12 +435,14 @@ public class AnsweringTests extends MultiDriverTestBase {
                 log.info("Upcoming Errormessage is expected!");
 
                 try {
-                    m1.addMessageListener((msg, m) -> {
+                    m1.addListenerForMessageNamed("test", (msg, m) -> {
                         gotMessage1 = true;
                         return new Msg(m.getName(), "got message", "value", 5000);
                     });
                     m1.start();
                     Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
+                    assertTrue(gotMessage1);
+                    assertNotNull(answer);
                 } finally {
                     //cleaning up
                     m1.terminate();
@@ -469,7 +471,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             gotMessage4 = false;
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             m1.setSenderId("m1");
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 return new Msg(m.getName(), "got message", "value", 5555000);
             });
@@ -478,10 +480,10 @@ public class AnsweringTests extends MultiDriverTestBase {
             // Thread.sleep(2500);
             Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
             assertNotNull(answer);;
-            assert(answer.getName().equals("test"));
+            assertEquals(answer.getName(), "test");
             assertNotNull(answer.getInAnswerTo());;
             assertNotNull(answer.getRecipients());;
-            assert(answer.getMsg().equals("got message"));
+            assertEquals(answer.getMsg(), "got message");
             m1.terminate();
             sender.terminate();
         }
@@ -504,7 +506,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 StdMessaging rec = new StdMessaging(morphium, 100, true, true, 100);
                 rec.setSenderId("rec" + i);
                 rec.start();
-                rec.addMessageListener(new MessageListener<Msg>() {
+                rec.addListenerForMessageNamed("test", new MessageListener<Msg>() {
                     @Override
                     public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
@@ -566,7 +568,7 @@ public class AnsweringTests extends MultiDriverTestBase {
             gotMessage4 = false;
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             m1.setSenderId("m1");
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 return new Msg(m.getName(), "got message", "value", 5555000);
             });
@@ -575,10 +577,10 @@ public class AnsweringTests extends MultiDriverTestBase {
             Thread.sleep(2500);
             Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
             assertNotNull(answer);;
-            assert(answer.getName().equals("test"));
+            assertEquals(answer.getName(), "test");
             assertNotNull(answer.getInAnswerTo());;
             assertNotNull(answer.getRecipients());;
-            assert(answer.getMsg().equals("got message"));
+            assertEquals(answer.getMsg(), "got message");
             m1.terminate();
             sender.terminate();
         }
