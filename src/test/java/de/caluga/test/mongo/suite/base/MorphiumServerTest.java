@@ -44,7 +44,7 @@ public class MorphiumServerTest {
         AtomicInteger received = new AtomicInteger();
         StdMessaging msg2 = new StdMessaging(morphium, 100, true);
         msg2.setUseChangeStream(true);
-        msg2.addMessageListener((msg, m)-> {
+        msg2.addListenerForMessageNamed("test", (msg, m)-> {
             received.incrementAndGet();
             return null;
         });

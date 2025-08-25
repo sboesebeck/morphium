@@ -37,27 +37,27 @@ public class MessagingSeveralSystemsTest extends MultiDriverTestBase {
             m2.start();
             m3.start();
             Thread.sleep(2000);
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
                 return null;
             });
-            m2.addMessageListener((msg, m) -> {
+            m2.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage2 = true;
                 log.info("M2 got message " + m.toString());
                 return null;
             });
-            m3.addMessageListener((msg, m) -> {
+            m3.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage3 = true;
                 log.info("M3 got message " + m.toString());
                 return null;
             });
-            m4.addMessageListener((msg, m) -> {
+            m4.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage4 = true;
                 log.info("M4 got message " + m.toString());
                 return null;
             });
-            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            m1.sendMessage(new Msg("test", "The message from M1", "Value"));
             long start = System.currentTimeMillis();
 
             while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
@@ -74,7 +74,7 @@ public class MessagingSeveralSystemsTest extends MultiDriverTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             gotMessage4 = false;
-            m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
+            m2.sendMessage(new Msg("test", "The message from M2", "Value"));
             start = System.currentTimeMillis();
 
             while (!gotMessage1 || !gotMessage3 || !gotMessage4) {
@@ -91,7 +91,7 @@ public class MessagingSeveralSystemsTest extends MultiDriverTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             gotMessage4 = false;
-            m1.sendMessage(new Msg("testmsg_excl", "This is the message", "value", 30000000, true));
+            m1.sendMessage(new Msg("test", "This is the message", "value", 30000000, true));
             start = System.currentTimeMillis();
 
             while (!gotMessage1 && !gotMessage2 && !gotMessage3 && !gotMessage4) {

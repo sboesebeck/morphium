@@ -68,7 +68,7 @@ public class MessagingTest extends MultiDriverTestBase {
             StdMessaging rec = new StdMessaging(morphium);
             rec.setSenderId("rec");
             rec.start();
-            rec.addMessageListener((mess, msg) -> {
+            rec.addListenerForMessageNamed("test", (mess, msg) -> {
                 received.incrementAndGet();
                 return null;
             });
@@ -108,20 +108,20 @@ public class MessagingTest extends MultiDriverTestBase {
             assert(!m.isMultithreadded());
             assert(m.getPause() == 500);
             assert(m.getWindowSize() != 1);
-            m.addMessageListener((msg, m1) -> {
+            m.addListenerForMessageNamed("tst", (msg, m1) -> {
                 gotMessage1 = true;
                 return null;
             });
             m.start();
             StdMessaging m2 = new StdMessaging(morphium, "msg2", 500, true);
-            m2.addMessageListener((msg, m1) -> {
+            m2.addListenerForMessageNamed("test", (msg, m1) -> {
                 gotMessage2 = true;
                 return null;
             });
             m2.start();
 
             try {
-                Msg msg = new Msg("tst", "msg", "value", 30000);
+                Msg msg = new Msg("test", "msg", "value", 30000);
                 msg.setExclusive(false);
                 m.sendMessage(msg);
                 Thread.sleep(100);
@@ -129,7 +129,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 assert(q.countAll() == 1);
                 q.setCollectionName(m2.getCollectionName());
                 assert(q.countAll() == 0);
-                msg = new Msg("tst2", "msg", "value", 30000);
+                msg = new Msg("test", "msg", "value", 30000);
                 msg.setExclusive(false);
                 m2.sendMessage(msg);
                 Thread.sleep(100);
@@ -182,7 +182,7 @@ public class MessagingTest extends MultiDriverTestBase {
             final StdMessaging messaging = new StdMessaging(morphium, 500, true);
             messaging.start();
             Thread.sleep(500);
-            messaging.addMessageListener((msg, m) -> {
+            messaging.addListenerForMessageNamed("meine Message", (msg, m) -> {
                 log.info("Got Message: " + m.toString());
                 gotMessage = true;
                 return null;
@@ -235,21 +235,21 @@ public class MessagingTest extends MultiDriverTestBase {
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             m1.setQueueName("t1");
             // m1.setUseChangeStream(true);
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 return null;
             });
             StdMessaging m2 = new StdMessaging(morphium, 100, false);
             m2.setQueueName("t1");
             // m2.setUseChangeStream(true);
-            m2.addMessageListener((msg, m) -> {
+            m2.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage2 = true;
                 return null;
             });
             StdMessaging m3 = new StdMessaging(morphium, 100, false);
             m3.setQueueName("t1");
             // m3.setUseChangeStream(true);
-            m3.addMessageListener((msg, m) -> {
+            m3.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage3 = true;
                 return null;
             });
@@ -263,7 +263,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 m.setExclusive(true);
                 m.setDeleteAfterProcessing(true);
                 m.setDeleteAfterProcessingTime(0);
-                m.setName("A message");
+                m.setName("test");
                 m.setProcessedBy(Arrays.asList("someone_else"));
                 sender.sendMessage(m);
                 Thread.sleep(1000);
@@ -331,7 +331,7 @@ public class MessagingTest extends MultiDriverTestBase {
             m1.start();
             m2.start();
             Thread.sleep(100);
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
 
@@ -341,7 +341,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 }
                 return null;
             });
-            m2.addMessageListener((msg, m) -> {
+            m2.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage2 = true;
                 log.info("M2 got message " + m.toString());
 
@@ -351,7 +351,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 }
                 return null;
             });
-            m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
+            m1.sendMessage(new Msg("test", "The message from M1", "Value"));
 
             while (!gotMessage2) {
                 Thread.sleep(100);
@@ -359,7 +359,7 @@ public class MessagingTest extends MultiDriverTestBase {
 
             assertTrue(gotMessage2, "Message not recieved yet?!?!?");
             gotMessage2 = false;
-            m2.sendMessage(new Msg("testmsg2", "The message from M2", "Value"));
+            m2.sendMessage(new Msg("test", "The message from M2", "Value"));
             Thread.sleep(1000);
             assertTrue(gotMessage1, "Message not recieved yet?!?!?");
             gotMessage1 = false;
@@ -399,7 +399,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 log.info("m1 ID: " + m1.getSenderId());
                 log.info("m2 ID: " + m2.getSenderId());
                 log.info("m3 ID: " + m3.getSenderId());
-                m1.addMessageListener((msg, m) -> {
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage1 = true;
 
                     if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
@@ -410,14 +410,14 @@ public class MessagingTest extends MultiDriverTestBase {
                     //                assert (m.getSender().equals(m2.getSenderId())) : "Sender is not M2?!?!? m2_id: " + m2.getSenderId() + " - message sender: " + m.getSender();
                     return null;
                 });
-                m2.addMessageListener((msg, m) -> {
+                m2.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage2 = true;
                     assert(m.getTo() == null || m.getTo().contains(m2.getSenderId())) : "wrongly received message?";
                     log.info("DM-M2 got message " + m.toString());
                     //                assert (m.getSender().equals(m1.getSenderId())) : "Sender is not M1?!?!? m1_id: " + m1.getSenderId() + " - message sender: " + m.getSender();
                     return null;
                 });
-                m3.addMessageListener((msg, m) -> {
+                m3.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage3 = true;
                     assert(m.getTo() == null || m.getTo().contains(m3.getSenderId())) : "wrongly received message?";
                     log.info("DM-M3 got message " + m.toString());
@@ -426,7 +426,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 });
                 //sending message to all
                 log.info("Sending broadcast message");
-                m1.sendMessage(new Msg("testmsg1", "The message from M1", "Value"));
+                m1.sendMessage(new Msg("test", "The message from M1", "Value"));
                 Thread.sleep(3000);
                 assert(gotMessage2) : "Message not recieved yet by m2?!?!?";
                 assert(gotMessage3) : "Message not recieved yet by m3?!?!?";
@@ -442,7 +442,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 assert(!gotMessage3) : "Message recieved again by m3?!?!?";
                 assert(!error);
                 log.info("Sending direct message");
-                Msg m = new Msg("testmsg1", "The message from M1", "Value");
+                Msg m = new Msg("test", "The message from M1", "Value");
                 m.addRecipient(m2.getSenderId());
                 m1.sendMessage(m);
                 Thread.sleep(1000);
@@ -460,7 +460,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 assert(!error);
                 log.info("Sending message to 2 recipients");
                 log.info("Sending direct message");
-                m = new Msg("testmsg1", "The message from M1", "Value");
+                m = new Msg("test", "The message from M1", "Value");
                 m.addRecipient(m2.getSenderId());
                 m.addRecipient(m3.getSenderId());
                 m1.sendMessage(m);
@@ -577,7 +577,7 @@ public class MessagingTest extends MultiDriverTestBase {
                             return null;
                         }
                     };
-                    m.addMessageListener(l);
+                    m.addListenerForMessageNamed("test", l);
                 }
 
                 Thread.sleep(100);
@@ -585,7 +585,7 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 for (int i = 0; i < numberOfMessages; i++) {
                     int m = (int)(Math.random() * systems.size());
-                    Msg msg = new Msg("test" + i, "The message for msg " + i, "a value", ttl);
+                    Msg msg = new Msg("test", "The message for msg " + i, "a value", ttl);
                     msg.addAdditional("Additional Value " + i);
                     msg.setExclusive(false);
                     systems.get(m).sendMessage(msg);
@@ -625,7 +625,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 for (MorphiumId id : processedMessages.keySet()) {
                     log.info(id + "---- ok!");
                     assert(processedMessages.get(id) == numberOfWorkers - 1) : "Message " + id + " was not recieved by all " + (numberOfWorkers - 1) + " other workers? only by "
-                    + processedMessages.get(id);
+                        + processedMessages.get(id);
                 }
 
                 assert(procCounter.get() == numberOfMessages * (numberOfWorkers - 1)) : "Still processing messages?!?!?";
@@ -666,7 +666,7 @@ public class MessagingTest extends MultiDriverTestBase {
             try {
                 final int[] processed = {0};
                 final Vector<String> messageIds = new Vector<>();
-                consumer.addMessageListener((msg, m) -> {
+                consumer.addListenerForMessageNamed("test", (msg, m) -> {
                     processed[0]++;
 
                     if (processed[0] % 50 == 1) {
@@ -693,7 +693,7 @@ public class MessagingTest extends MultiDriverTestBase {
                         log.info("Storing messages... " + i);
                     }
 
-                    producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i));
+                    producer.sendMessage(new Msg("test ", "msg " + i, "value " + i));
                 }
 
                 long start = System.currentTimeMillis();
@@ -767,14 +767,14 @@ public class MessagingTest extends MultiDriverTestBase {
             StdMessaging m1 = new StdMessaging(morphium, 1000, false);
 
             try {
-                m1.addMessageListener((msg, m) -> {
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
                     log.error("ERROR!");
                     cnt.incrementAndGet();
                     return null;
                 });
                 m1.start();
                 Thread.sleep(1100);
-                Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("msg").setName("timeout_name").setValue("a value").setTtl(-1000);
+                Msg m = new Msg().setMsgId(new MorphiumId()).setMsg("test").setName("timeout_name").setValue("a value").setTtl(-1000);
                 m1.sendMessage(m);
                 Thread.sleep(200);
                 assert(cnt.get() == 0);
@@ -806,7 +806,7 @@ public class MessagingTest extends MultiDriverTestBase {
             assert(sender.getQueueName() == null);
             sender.start();
             Thread.sleep(2500);
-            sender.addMessageListener(((msg, m) -> {
+            sender.addListenerForMessageNamed("test", ((msg, m) -> {
                 gotMessage = true;
                 log.info("Got message: " + m.getMsg() + "/" + m.getName());
                 return null;
@@ -817,7 +817,7 @@ public class MessagingTest extends MultiDriverTestBase {
             gotMessage3 = false;
             gotMessage4 = false;
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 return new Msg(m.getName(), "got message", "value", 5000);
             });
@@ -825,7 +825,7 @@ public class MessagingTest extends MultiDriverTestBase {
             Thread.sleep(2000);
 
             try {
-                sender.sendMessageToSelf(new Msg("testmsg", "Selfmessage", "value"));
+                sender.sendMessageToSelf(new Msg("test", "Selfmessage", "value"));
                 long s = System.currentTimeMillis();
 
                 while (!gotMessage || gotMessage1) {
@@ -836,7 +836,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 assert(gotMessage);
                 assert(!gotMessage1);
                 gotMessage = false;
-                sender.queueMessagetoSelf(new Msg("testmsg", "SelfMessage", "val"));
+                sender.queueMessagetoSelf(new Msg("test", "SelfMessage", "val"));
                 s = System.currentTimeMillis();
 
                 while (!gotMessage || gotMessage1) {
@@ -876,7 +876,7 @@ public class MessagingTest extends MultiDriverTestBase {
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
 
             try {
-                m3.addMessageListener((msg, m) -> {
+                m3.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage3 = true;
                     return null;
                 });
@@ -890,7 +890,7 @@ public class MessagingTest extends MultiDriverTestBase {
 
                 assert(gotMessage3);
                 Thread.sleep(2000);
-                m1.addMessageListener((msg, m) -> {
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage1 = true;
                     return null;
                 });
@@ -901,7 +901,7 @@ public class MessagingTest extends MultiDriverTestBase {
                 }
 
                 assert(gotMessage1);
-                m2.addMessageListener((msg, m) -> {
+                m2.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage2 = true;
                     return null;
                 });
@@ -943,7 +943,7 @@ public class MessagingTest extends MultiDriverTestBase {
             receiver.setSenderId("receiver");
 
             try {
-                receiver.addMessageListener((msg, m) -> {
+                receiver.addListenerForMessageNamed("test", (msg, m) -> {
                     log.info("Incoming message: prio " + m.getPriority() + "  timestamp: " + m.getTimestamp());
                     list.add(m);
                     return null;
@@ -1026,7 +1026,7 @@ public class MessagingTest extends MultiDriverTestBase {
                     receiver1.setSenderId("rec" + i);
                     receiver1.start();
                     receivers.add(receiver1);
-                    receiver1.addMessageListener(new MessageListener() {
+                    receiver1.addListenerForMessageNamed("test", new MessageListener() {
                         @Override
                         public Msg onMessage(MorphiumMessaging msg, Msg m) {
                             receivedBy.add(msg.getSenderId());

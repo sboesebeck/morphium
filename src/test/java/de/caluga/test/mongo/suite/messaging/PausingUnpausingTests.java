@@ -51,7 +51,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         gotMessage4 = false;
 
         StdMessaging m1 = new StdMessaging(morphium, 100, false, false, 1);
-        m1.addMessageListener((msg, m) -> {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });
@@ -146,7 +146,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
         while (count.get() < 6) {
             Thread.sleep(500);
 
-            assert (System.currentTimeMillis() - s < 5*morphium.getConfig().getMaxWaitTime());
+            assert (System.currentTimeMillis() - s < 5 * morphium.getConfig().getMaxWaitTime());
         }
         assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
         assert (list.size() < 5);

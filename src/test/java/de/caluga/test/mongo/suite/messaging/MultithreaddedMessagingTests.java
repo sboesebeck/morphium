@@ -31,7 +31,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             Vector<String> processedIds = new Vector<>();
             Hashtable<String, Long> processedAt = new Hashtable<>();
             procCounter.set(0);
-            consumer.addMessageListener((msg, m) -> {
+            consumer.addListenerForMessageNamed("test", (msg, m) -> {
                 procCounter.incrementAndGet();
 
                 if (processedIds.contains(m.getMsgId().toString())) {
@@ -56,7 +56,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                     log.info("Sending message {} of {} / Processed: {}", i, amount, procCounter.get());
                 }
 
-                producer.sendMessage(new Msg("Test " + i, "msg " + i, "value " + i, 30000, false));
+                producer.sendMessage(new Msg("test ", "msg " + i, "value " + i, 30000, false));
             }
 
             log.info("--- sending finished");
@@ -86,7 +86,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         try {
             final AtomicInteger processed = new AtomicInteger();
             final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
-            consumer.addMessageListener((msg, m) -> {
+            consumer.addListenerForMessageNamed("test", (msg, m) -> {
                 processed.incrementAndGet();
 
                 if (processed.get() % 1000 == 0) {
@@ -106,7 +106,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             int numberOfMessages = 1000;
 
             for (int i = 0; i < numberOfMessages; i++) {
-                Msg m = new Msg("msg", "m", "v");
+                Msg m = new Msg("test", "m", "v");
                 m.setTtl(5 * 60 * 1000);
 
                 if (i % 1000 == 0) {
@@ -147,7 +147,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         StdMessaging receiver = new StdMessaging(morphium, 100, false, false, 10);
-        receiver.addMessageListener((msg, m) -> {
+        receiver.addListenerForMessageNamed("test", (msg, m) -> {
             list.add(m);
 
             try {
@@ -188,7 +188,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         StdMessaging receiver = new StdMessaging(morphium, 100, false, true, 10);
-        receiver.addMessageListener((msg, m) -> {
+        receiver.addListenerForMessageNamed("test", (msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
 
@@ -229,13 +229,13 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 log.info("Messages sent: " + i);
             }
 
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 30000);
+            Msg m = new Msg("test", "tm", "" + i + System.currentTimeMillis(), 30000);
             producer.sendMessage(m);
         }
 
         final AtomicInteger count = new AtomicInteger();
         StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 1000);
-        consumer.addMessageListener((msg, m) -> {
+        consumer.addListenerForMessageNamed("test", (msg, m) -> {
             //            log.info("Got message!");
             count.incrementAndGet();
             return null;
@@ -270,14 +270,14 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 log.info("Messages sent: " + i + "/" + amount);
             }
 
-            Msg m = new Msg("test" + i, "tm", "" + i + System.currentTimeMillis(), 300000);
+            Msg m = new Msg("test", "tm", "" + i + System.currentTimeMillis(), 300000);
             producer.sendMessage(m);
         }
 
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
         StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 121);
-        consumer.addMessageListener((msg, m) -> {
+        consumer.addListenerForMessageNamed("test", (msg, m) -> {
             //log.info("Got message!");
             count.incrementAndGet();
             return null;

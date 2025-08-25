@@ -40,7 +40,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
-        m3.addMessageListener(new MessageListener() {
+        m3.addListenerForMessageNamed("test", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 return null;
@@ -91,19 +91,19 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage4 = false;
         StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
         m1.setQueueName("t1");
-        m1.addMessageListener((msg, m)-> {
+        m1.addListenerForMessageNamed("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
         m2.setQueueName("t1");
-        m2.addMessageListener((msg, m)-> {
+        m2.addListenerForMessageNamed("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
         m3.setQueueName("t1");
-        m3.addMessageListener((msg, m)-> {
+        m3.addListenerForMessageNamed("A message", (msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -174,17 +174,17 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
         StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
-        m1.addMessageListener((msg, m)-> {
+        m1.addListenerForMessageNamed("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
-        m2.addMessageListener((msg, m)-> {
+        m2.addListenerForMessageNamed("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
-        m3.addMessageListener((msg, m)-> {
+        m3.addListenerForMessageNamed("A message", (msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -260,28 +260,28 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage4 = false;
             m1 = new StdMessaging(morphium, "test", 100, false);
             m1.setSenderId("m1");
-            m1.addMessageListener((msg, m)-> {
+            m1.addListenerForMessageNamed("A message", (msg, m)-> {
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
             m2 = new StdMessaging(morphium, "test", 100, false);
             m2.setSenderId("m2");
-            m2.addMessageListener((msg, m)-> {
+            m2.addListenerForMessageNamed("A message", (msg, m)-> {
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
             m3 = new StdMessaging(morphium, "test2", 100, false);
             m3.setSenderId("m3");
-            m3.addMessageListener((msg, m)-> {
+            m3.addListenerForMessageNamed("A message", (msg, m)-> {
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
             m4 = new StdMessaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
-            m4.addMessageListener((msg, m)-> {
+            m4.addListenerForMessageNamed("A message", (msg, m)-> {
                 gotMessage4 = true;
                 log.info("Got message m4");
                 return null;
@@ -665,7 +665,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             r.setSenderId("r" + i);
             recs.add(r);
             r.start();
-            r.addMessageListener((m, msg)-> {
+            r.addListenerForMessageNamed("excl_name", (m, msg)-> {
                 counts.incrementAndGet();
                 return null;
             });
