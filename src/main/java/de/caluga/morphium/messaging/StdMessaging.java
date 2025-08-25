@@ -1046,6 +1046,15 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
         return collectionName;
     }
+    @Override
+    public String getCollectionName(String msgName) {
+        return getCollectionName();
+    }
+
+    @Override
+    public String getCollectionName(Msg msg) {
+        return getCollectionName();
+    }
 
     @Override
     public void addListenerForMessageNamed(String n, MessageListener l) {

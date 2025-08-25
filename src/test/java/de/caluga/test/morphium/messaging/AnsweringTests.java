@@ -40,22 +40,30 @@ public class AnsweringTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void answeringTest(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        gotMessage1 = false;
+        gotMessage2 = false;
+        gotMessage3 = false;
+        error = false;
         try (morphium) {
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
-                String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
-                log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-                gotMessage1 = false;
-                gotMessage2 = false;
-                gotMessage3 = false;
-                error = false;
-                morphium.clearCollection(Msg.class);
-                final StdMessaging m1;
-                final StdMessaging m2;
-                final StdMessaging onlyAnswers;
-                m1 = new StdMessaging(morphium, 100, true);
-                m2 = new StdMessaging(morphium, 100, true);
-                onlyAnswers = new StdMessaging(morphium, 100, true);
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                Morphium morph = new Morphium(cfg);
+                final MorphiumMessaging m1;
+                final MorphiumMessaging m2;
+                final MorphiumMessaging onlyAnswers;
+
+                m1 = morph.createMessaging();
+                m2 = morph.createMessaging();
+                onlyAnswers = morph.createMessaging();
                 m1.setSenderId("m1");
                 m2.setSenderId("m2");
                 onlyAnswers.setSenderId("onlyAnswers");
@@ -124,7 +132,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
                     Thread.sleep(7000);
-                    long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                    long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName("test")).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
                     log.info("Answers in mongo: " + cnt);
                     assertEquals(2, cnt);
                     assertTrue(gotMessage3);//: "no answer got back?";
@@ -162,6 +170,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     m1.terminate();
                     m2.terminate();
                     onlyAnswers.terminate();
+                    morph.close();
                     Thread.sleep(100);
                 }
             }

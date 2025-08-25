@@ -124,4 +124,7 @@ public interface MorphiumMessaging {
     MorphiumMessaging setPolling(boolean doPolling);
 
     MorphiumMessaging setUseChangeStream(boolean useChangeStream);
+
+    String getCollectionName(String string);
+    <T extends Msg> String getCollectionName(T msg);
 }
