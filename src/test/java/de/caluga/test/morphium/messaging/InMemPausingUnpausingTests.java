@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.inmem_messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
@@ -31,7 +31,11 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
         gotMessage1 = false;
         gotMessage2 = false;
         StdMessaging m1 = new StdMessaging(morphium, 100,  false, 1);
-        m1.addMessageListener((msg, m) -> {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
+            gotMessage1 = true;
+            return new Msg(m.getName(), "got message", "value", 5000);
+        });
+        m1.addListenerForMessageNamed("tst1", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });
@@ -275,7 +279,7 @@ public class InMemPausingUnpausingTests extends MorphiumInMemTestBase {
             log.info("Incoming message!");
             return null;
         }
-        );
+                                           );
         Msg ex = new Msg("exclusive_test", "a message", "A value");
         ex.setExclusive(true);
         sender.sendMessage(ex);

@@ -55,7 +55,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             log.info("m2 ID: " + m2.getSenderId());
             log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
 
-            m1.addMessageListener((msg, m) -> {
+            m1.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage1 = true;
                 if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
                     log.error("wrongly received message?");
@@ -73,7 +73,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return answer;
             });
 
-            m2.addMessageListener((msg, m) -> {
+            m2.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage2 = true;
                 if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
                     log.error("wrongly received message?");
@@ -88,7 +88,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return answer;
             });
 
-            onlyAnswers.addMessageListener((msg, m) -> {
+            onlyAnswers.addListenerForMessageNamed("test", (msg, m) -> {
                 gotMessage3 = true;
                 if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
                     log.error("wrongly received message?");
@@ -369,7 +369,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
             try {
-                m1.addMessageListener((msg, m) -> {
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
                     gotMessage1 = true;
                     return new Msg(m.getName(), "got message", "value", 5000);
                 });
@@ -398,7 +398,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage4 = false;
 
         StdMessaging m1 = new StdMessaging(morphium, 100, false);
-        m1.addMessageListener((msg, m) -> {
+        m1.addListenerForMessageNamed("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getName(), "got message", "value", 5000);
         });

@@ -73,7 +73,7 @@ public class SpeedTests extends MultiDriverTestBase {
 
             try {
                 final AtomicInteger recCount = new AtomicInteger();
-                receiver.addMessageListener(new MessageListener() {
+                receiver.addListenerForMessageNamed("test", new MessageListener() {
                     @Override
                     public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         recCount.incrementAndGet();
@@ -131,11 +131,11 @@ public class SpeedTests extends MultiDriverTestBase {
 
             try {
                 final AtomicInteger recCount = new AtomicInteger();
-                receiver.addMessageListener((msg, m) -> {
+                receiver.addListenerForMessageNamed("test", (msg, m) -> {
                     recCount.incrementAndGet();
                     return null;
                 });
-                receiver2.addMessageListener((msg, m) -> {
+                receiver2.addListenerForMessageNamed("test", (msg, m) -> {
                     recCount.incrementAndGet();
                     return null;
                 });

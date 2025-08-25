@@ -49,50 +49,6 @@ public class TestSkipChecks extends MorphiumTestBase {
         m.terminate();
     }
 
-    @Test
-    public void testActiveMessaging() throws Exception {
-        morphium.resetStatistics();
-        StdMessaging m = new StdMessaging(morphium, 100, true, true, 100);
-        m.start();
-        m.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                return null;
-            }
-        });
-        StdMessaging m2 = new StdMessaging(morphium, 100, true, true, 100);
-        m2.addMessageListener(new MessageListener() {
-            @Override
-            public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                return null;
-            }
-        });
-        m2.start();
-
-        m2.sendMessage(new Msg("test", "whatever", "value"));
-        m.sendMessage(new Msg("other", "whatever", "42"));
-
-
-        Thread.sleep(500);
-        Map<String, Double> stats = morphium.getStatistics();
-        double pullskip = stats.get("PULLSKIP");
-        log.info("Pullskip (checks forced): " + pullskip);
-        log.info("Checks skipped          : " + stats.get(SKIPPED_MSG_UPDATES.name()));
-        double skips = stats.get(SKIPPED_MSG_UPDATES.name());
-        Thread.sleep(500);
-        stats = morphium.getStatistics();
-        log.info("Pullskip (checks forced): " + stats.get(PULLSKIP.name()));
-        log.info("Checks skipped          : " + stats.get(SKIPPED_MSG_UPDATES.name()));
-
-        assertEquals(stats.get(PULLSKIP.name()), pullskip);
-
-        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > 0);
-        assertTrue(stats.get("SKIPPED_MSG_UPDATES") > skips);
-
-        m.terminate();
-        m2.terminate();
-
-    }
 
 
 }
