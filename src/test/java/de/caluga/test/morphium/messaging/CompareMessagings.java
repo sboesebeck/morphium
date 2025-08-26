@@ -198,4 +198,47 @@ public class CompareMessagings extends MorphiumTestBase {
             log.info("{} needed {}ms for {} messages", e.getKey(), e.getValue(), amount);
         }
     }
+
+
+
+
+    @Test
+    public void compareAnsweringBroadcastTest() throws Exception {
+
+        Map<String, Long> runtimes = new HashMap<>();
+        int amount = 1000;
+        for (String msgImplementation : MorphiumTestBase.messagingsToTest) {
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImplementation);
+            Morphium morph = new Morphium(cfg);
+
+            final var latch = new java.util.concurrent.CountDownLatch(amount * 2);
+
+            MorphiumMessaging sender = morph.createMessaging();
+            sender.setSenderId("sender");
+            sender.start();
+            MorphiumMessaging receiver1 = morph.createMessaging();
+            receiver1.setSenderId("rec1");
+            receiver1.addListenerForMessageNamed("test", (msg, m)-> {
+                latch.countDown();
+                return m.createAnswerMsg().setMsg("Recieved by rec1");
+            });
+            receiver1.start();
+            MorphiumMessaging receiver2 = morph.createMessaging();
+            receiver2.setSenderId("rec2");
+            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
+                latch.countDown();
+                return m.createAnswerMsg().setMsg("Recieved by rec2");
+            });
+            receiver2.start();
+
+            Thread.sleep(500);
+
+            for (int i = 0; i < amount; i++) {
+                sender.sendMessage(new Msg("test", "test-msg", "test-Value", 30_000, false));
+
+            }
+
+        }
+    }
 }
