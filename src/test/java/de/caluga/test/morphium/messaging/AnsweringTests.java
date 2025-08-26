@@ -132,7 +132,8 @@ public class AnsweringTests extends MultiDriverTestBase {
                     onlyAnswers.sendMessage(question);
                     log.info("Send Message with id: " + question.getMsgId());
                     Thread.sleep(7000);
-                    long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName("test")).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                    long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+
                     log.info("Answers in mongo: " + cnt);
                     assertEquals(2, cnt);
                     assertTrue(gotMessage3);//: "no answer got back?";
@@ -164,7 +165,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                         log.info("Received by onlyAnswers");
                     }
 
-                    cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                    cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
                     assertEquals(1, cnt);
                 } finally {
                     m1.terminate();

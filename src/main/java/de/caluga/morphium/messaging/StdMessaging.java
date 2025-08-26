@@ -1588,4 +1588,18 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     public interface AsyncMessageCallback {
         void incomingMessage(Msg m);
     }
+
+    @Override
+    public <T extends Msg> String getLockCollectionName(T topic) {
+        return getLockCollectionName();
+    }
+    @Override
+    public String getLockCollectionName(String topic) {
+        return getLockCollectionName();
+    }
+    @Override
+    public String getDMCollectionName(String sender) {
+        return getCollectionName();
+
+    }
 }

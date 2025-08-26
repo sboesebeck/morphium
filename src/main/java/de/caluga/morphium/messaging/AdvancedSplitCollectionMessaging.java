@@ -118,9 +118,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return new Vector<>(allMessagings);
     }
 
+    public String getDMCollectionName() {
+        return getDMCollectionName(getSenderId());
+    }
 
-    private String getDmCollectionName() {
-        return "dm_" + morphium.getARHelper().createCamelCase(getSenderId(), false);
+    @Override
+    public String getDMCollectionName(String sender) {
+        return "dm_" + morphium.getARHelper().createCamelCase(sender, false);
     }
     @Override
     public void start() {
@@ -134,7 +138,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             }
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS );
 
-        String dmCollectionName = getDmCollectionName();
+        String dmCollectionName = getDMCollectionName();
         morphium.ensureIndicesFor(Msg.class, dmCollectionName );
 
         List<Map<String, Object>> pipeline = List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
@@ -155,7 +159,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                                 updateProcessedBy(msg);
                             }
                             try {
-                                l.onMessage(AdvancedSplitCollectionMessaging.this, msg);
+                                var ret = l.onMessage(AdvancedSplitCollectionMessaging.this, msg);
+                                ret.setRecipient(msg.getSender());
+                                ret.setInAnswerTo(msg.getMsgId());
+                                queueMessage(ret);
                             } catch (Exception e) {
                                 log.error("Error processinig message");
                             }
@@ -180,6 +187,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             }
             return running.get();
         });
+        directMessagesMonitor.start();
     }
 
     @Override
@@ -320,13 +328,15 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return effectiveSettings.getMessageQueueName();
     }
 
+    @Override
     public String getCollectionName(Msg m) {
         return getCollectionName(m.getName());
     }
+    @Override
     public String getCollectionName(String n) {
         return (getCollectionName() + "_" + n).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
     }
-    public MsgLock getLock(Msg m) {
+    private MsgLock getLock(Msg m) {
         return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName() + "_" + m.getName());
     }
 
@@ -339,19 +349,23 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         return lockCollectionName;
     }
 
+
+
+    @Override
     public String getLockCollectionName(Msg m) {
         return getLockCollectionName(m.getName());
     }
 
+    @Override
     public String getLockCollectionName(String name) {
         //TODO: improve
         return (getLockCollectionName() + "_" + name).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
     }
-    public boolean lockMessage(Msg m, String lockId) {
+    private boolean lockMessage(Msg m, String lockId) {
         return lockMessage(m, lockId, null);
     }
 
-    public boolean lockMessage(MorphiumId id, String msgName, String lockId) {
+    private boolean lockMessage(MorphiumId id, String msgName, String lockId) {
         MsgLock lck = new MsgLock(id);
         lck.setLockId(lockId);
         lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
@@ -413,25 +427,55 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return;
         }
 
-        final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
-        final Msg theMessage = m;
+        if (pausedMessages.contains(m.getName()) return;
+                final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+                final Msg theMessage = m;
 
         if (cbr != null) {
             AsyncMessageCallback cb = cbr.callback;
             Runnable cbRunnable = () -> {
-                cb.incomingMessage(theMessage);
+                    cb.incomingMessage(theMessage);
+                    waitingForCallbacks.remove(m.getInAnswerTo());
+                };
+                queueOrRun(cbRunnable);
+            } else {
+                //an answer, but no one is waiting for it
+                processMessage(theMessage);
+            }
+    }
+
+
+    private void processMessage(Msg m) {
+        for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
+            var l = (MessageListener)e.get("listener");
+            Runnable r = ()-> {
+                try {
+
+                    if (l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(m);
+                    }
+                    var ret = l.onMessage(this, m);
+                    if (!l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(m);
+                    }
+                    checkDeleteAfterProcessing(m);
+
+                    if (ret != null) {
+                        ret.setSender(getSenderId());
+                        ret.setRecipient(m.getSender());
+                        ret.setInAnswerTo(m.getMsgId());
+                        sendMessage(ret);
+                    }
+                } catch (MessageRejectedException mre) {
+                    log.warn("Message rejected");
+                    updateProcessedBy(m);
+                    unlock(m);
+                } catch (Throwable err) {
+                    log.error("Error during message processing", e);
+                }
             };
-            updateProcessedBy(theMessage);
-            queueOrRun(cbRunnable);
+            queueOrRun(r);
 
-            if (cbr.theMessage.isExclusive()) {
-                waitingForCallbacks.remove(m.getInAnswerTo());
-            }
-
-            if (m.isDeleteAfterProcessing()) {
-                checkDeleteAfterProcessing(m);
-            }
-            return;
         }
     }
 
@@ -449,59 +493,29 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         q.sort(Msg.Fields.priority);
         q.or(q1, q2);
         for (Msg m : q.asIterable()) {
-            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
-                var l = (MessageListener)e.get("listener");
-                Runnable r = ()-> {
-                    try{
-                        //Check answers
-                        if (m.isAnswer()) { //should never come in this collection!!! TODO
-                            handleAnswer(m);
-                        }
+            if (pausedMessages.contains(m.getName())) {
+                //paused
+                return;
+            }
+            //Check answers
+            if (m.isAnswer()) { //should never come in this collection!!! TODO
+                handleAnswer(m);
+            } else {
+                if (m.getRecipients() != null && !m.getRecipients().isEmpty() && !m.getRecipients().contains(getSenderId())) {
+                    //message not for me
+                    //TODO: should never be here as we use DM_collections
+                    return;
+                }
 
-                        if (m.getRecipients() != null && !m.getRecipients().isEmpty() && !m.getRecipients().contains(getSenderId())) {
-                            //message not for me
-                            //TODO: should never be here as we use DM_collections
-                            return;
-                        }
-
-                        if (pausedMessages.contains(m.getName())) {
-                            //paused
-                            return;
-                        }
-
-                        if (m.isExclusive()) {
-                            if (!lockMessage(m, getSenderId())) {
-                                return;
-                            }
-                            //could lock message
-                            // process exclusive message
-                            //
-                        }
-                        if (l.markAsProcessedBeforeExec()) {
-                            updateProcessedBy(m);
-                        }
-                        var ret = l.onMessage(this, m);
-                        if (!l.markAsProcessedBeforeExec()) {
-                            updateProcessedBy(m);
-                        }
-                        checkDeleteAfterProcessing(m);
-
-                        if (ret != null) {
-                            ret.setSender(getSenderId());
-                            ret.setRecipient(m.getSender());
-                            ret.setInAnswerTo(m.getMsgId());
-                            sendMessage(ret);
-                        }
-                    } catch (MessageRejectedException mre) {
-                        log.warn("Message rejected");
-                        updateProcessedBy(m);
-                        unlock(m);
-                    } catch (Throwable err) {
-                        log.error("Error during message processing", e);
+                if (m.isExclusive()) {
+                    if (!lockMessage(m, getSenderId())) {
+                        return;
                     }
-                };
-                queueOrRun(r);
-
+                    //could lock message
+                    // process exclusive message
+                    //
+                }
+                processMessage(m);
             }
         }
 
@@ -509,37 +523,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         //TODO: look for paused dms
         //
         //
-        q = morphium.createQueryFor(Msg.class, getDmCollectionName()).f(Msg.Fields.processedBy).eq(null); //not processed
-        for (Msg m: q.asIterable(10)) {
+        q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) //not processed
+            .f(Msg.Fields.name).nin(pausedMessages);
+        for (Msg m : q.asIterable(10)) {
             for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
                 var l = (MessageListener)e.get("listener");
 
                 queueOrRun(()-> {
-                    if (l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(m);
-                    }
-                    Msg ret = null;
-                    try {
-                        ret = l.onMessage(AdvancedSplitCollectionMessaging.this, m);
-                    } catch (Exception ex) {
-                        log.error("Error processinig message", ex);
-                    }
-                    if (m.isDeleteAfterProcessing()) {
-                        if (m.getDeleteAfterProcessingTime() == 0) {
-                            morphium.remove(m, getDmCollectionName());
-                        } else {
-                            m.setDeleteAt(new Date(System.currentTimeMillis() + m.getDeleteAfterProcessingTime()));
-                            m.addProcessedId(getSenderId());
-                            morphium.updateUsingFields(m, getDmCollectionName(), new AsyncCallbackAdapter(), Msg.Fields.deleteAt, Msg.Fields.processedBy);
-                        }
-                    } else if (!l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(m);
-                    }
-                    if (ret != null) {
-                        ret.setSender(getSenderId());
-                        ret.setRecipient(m.getSender());
-                        ret.setInAnswerTo(m.getMsgId());
-                        sendMessage(ret);
+                    if (m.isAnswer()) {
+                        handleAnswer(m);
+                    } else {
+                        processMessage(m);
                     }
 
                 });
@@ -655,18 +649,18 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName() + "_" + n, true, morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);
         cm.addListener((evt)-> {
-
-
-
             Runnable r = ()->{
 
                 // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
                 Map<String, Object> map = evt.getFullDocument();
-                List<String> recipients = (List<String>)map.get("recipients");
-                if (recipients != null && !recipients.isEmpty() && !recipients.contains(getSenderId())) {
-                    //message not for me
-                    return;
-                }
+                if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own message
+
+                //this part is obsolete - recipients receive their message directly
+                //List<String> recipients = (List<String>)map.get("recipients");
+                //if (recipients != null && !recipients.isEmpty() && !recipients.contains(getSenderId())) {
+                //    //message not for me
+                //    return;
+                //}
                 if (pausedMessages.contains(map.get("name"))) {
                     //paused
                     return;
@@ -789,13 +783,25 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     public void queueMessage(Msg m) {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
-        morphium.store(m, getCollectionName(m), aCallback);
+        if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
+            morphium.store(m, getCollectionName(m), aCallback);
+        } else {
+            for (String rec : m.getRecipients()) {
+                morphium.store(m, getDMCollectionName(rec), aCallback);
+            }
+        }
     }
     @Override
     public void sendMessage(Msg m) {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
-        morphium.store(m, getCollectionName(m), null);
+        if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
+            morphium.store(m, getCollectionName(m), null);
+        } else {
+            for (String rec : m.getRecipients()) {
+                morphium.store(m, getDMCollectionName(rec), null);
+            }
+        }
     }
     @Override
     public long getNumberOfMessages() {
