@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
 import org.bson.types.ObjectId;
@@ -127,12 +128,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             }
 
             executor = new ThreadPoolExecutor(
-                core,
-                max,
-                60L,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(),
-                Thread.ofVirtual().name("writer-", 0).factory()
+                            core,
+                            max,
+                            60L,
+                            TimeUnit.SECONDS,
+                            new LinkedBlockingQueue<>(),
+                            Thread.ofVirtual().name("writer-", 0).factory()
             );
             // new ThreadPoolExecutor(core, max, 60L, TimeUnit.SECONDS, queue);
             // executor.setRejectedExecutionHandler((r, executor)-> {
@@ -321,7 +322,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         // TODO: Implement Handling
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -856,7 +857,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (morphium != null && morphium.getConfig() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
                         //log.error("Error executing... retrying");
-                        Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        // Utils.pause(morphium.getConfig().getSleepBetweenNetworkErrorRetries());
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
                     } else {
                         throw new RuntimeException(e);
                     }
@@ -877,7 +879,8 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                         retries++;
 
                         if (retries < morphium.getConfig().getRetriesOnNetworkError()) {
-                            Utils.pause(morphium.getConfig().getRetriesOnNetworkError());
+                            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
+                            // Utils.pause(morphium.getConfig().getRetriesOnNetworkError());
                         } else {
                             callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
                         }
@@ -893,7 +896,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     executor.execute(retryRunnable);
                     retry = false;
                 } catch (OutOfMemoryError ignored) {
-                    logger.error(tries + " - Got OutOfMemory Erro, retrying...", ignored);
+                    logger.error(tries + " - Got OutOfMemory Error, retrying...", ignored);
                 } catch (java.util.concurrent.RejectedExecutionException e) {
                     if (tries > maximumRetries) {
                         throw new RuntimeException("Could not write - not even after " + maximumRetries + " retries and pause of " + pause + "ms", e);
@@ -1063,7 +1066,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1214,7 +1217,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1310,7 +1313,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1446,7 +1449,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1507,12 +1510,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     LoggerFactory.getLogger(MorphiumWriterImpl.class).error("Limit for inc not supported - ignoring");
                 }
 
-                Class<? extends T> cls = query.getType();
+                Class <? extends T > cls = query.getType();
                 morphium.firePreUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.INC);
                 String coll = query.getCollectionName();
                 Map<String, Object> update = new HashMap<>();
                 update.put("$inc", new HashMap<String, Object>(fieldsToInc));
-                handleLastChange((Class<? extends T>) cls, update);
+                handleLastChange((Class <? extends T > ) cls, update);
                 Map<String, Object> qobj = query.toQueryObject();
 
                 if (upsert) {
@@ -1563,7 +1566,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1585,7 +1588,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
      * @param update: Content will be changed!!!!!
      * @param <T>
      */
-    private <T> void handleLastChange(Class<? extends T> cls, Map<String, Object> update) {
+    private <T> void handleLastChange(Class <? extends T> cls, Map<String, Object> update) {
         if (!morphium.isAutoValuesEnabledForThread()) {
             return;
         }
@@ -1714,7 +1717,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1890,7 +1893,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -1992,7 +1995,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (Exception e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -2105,7 +2108,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> Map<String, Object> pushPull(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String field, final Object value, final boolean upsert, final boolean multiple,
-        AsyncOperationCallback<T> callback) {
+                                            AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -2174,7 +2177,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 } catch (RuntimeException e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
@@ -2224,7 +2227,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (en.getValue() != null) {
                         if (morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Entity.class)
-                            || morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)) {
+                                || morphium.getARHelper().isAnnotationPresentInHierarchy(en.getValue().getClass(), Embedded.class)) {
                             Map<String, Object> marshall = morphium.getMapper().serialize(en.getValue());
                             marshall.put("class_name", morphium.getARHelper().getTypeIdForClass(en.getValue().getClass()));
                             ((Map) value).put(en.getKey(), marshall);
@@ -2292,7 +2295,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
     @Override
     public <T> Map<String, Object> pushPullAll(final MorphiumStorageListener.UpdateTypes type, final Query<T> query, final String f, final List<?> v, final boolean upsert, final boolean multiple,
-        AsyncOperationCallback<T> callback) {
+            AsyncOperationCallback<T> callback) {
         WriterTask r = new WriterTask() {
             private AsyncOperationCallback<T> callback;
             private Map<String, Object> ret = new HashMap<>();
@@ -2414,19 +2417,19 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                     if (callback != null) {
                         callback.onOperationSucceeded(type.equals(MorphiumStorageListener.UpdateTypes.PULL) ? AsyncOperationType.PULL : AsyncOperationType.PUSH, query,
-                            System.currentTimeMillis() - start, null, null, field, value, upsert, multiple);
+                                                      System.currentTimeMillis() - start, null, null, field, value, upsert, multiple);
                     }
                 } catch (RuntimeException e) {
                     if (callback == null) {
                         if (e instanceof RuntimeException) {
-                            throw(RuntimeException) e;
+                            throw (RuntimeException) e;
                         }
 
                         throw new RuntimeException(e);
                     }
 
                     callback.onOperationError(type.equals(MorphiumStorageListener.UpdateTypes.PULL) ? AsyncOperationType.PULL : AsyncOperationType.PUSH, query, System.currentTimeMillis() - start,
-                        e.getMessage(), e, null, field, value, upsert, multiple);
+                                              e.getMessage(), e, null, field, value, upsert, multiple);
                 }
             }
         };
@@ -2615,7 +2618,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
             } catch (Exception e) {
                 if (callback == null) {
                     if (e instanceof RuntimeException) {
-                        throw(RuntimeException) e;
+                        throw (RuntimeException) e;
                     }
 
                     throw new RuntimeException(e);

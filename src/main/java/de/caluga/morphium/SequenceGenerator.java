@@ -15,6 +15,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * User: Stephan Bösebeck
@@ -112,10 +114,11 @@ public class SequenceGenerator {
             } catch (Exception e) {
                 // lock failed
                 // waiting for it to be released
-                try {
-                    Thread.sleep((long)(100 * Math.random() + 10));
-                } catch (InterruptedException ignored) {
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((long)(100 * Math.random() + 10)));
+                // try {
+                //     Thread.sleep((long)(100 * Math.random() + 10));
+                // } catch (InterruptedException ignored) {
+                // }
             }
 
             // MongoConnection con = null;
