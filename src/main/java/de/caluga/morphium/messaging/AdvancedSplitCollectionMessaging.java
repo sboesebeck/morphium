@@ -112,6 +112,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
 
         decouplePool = new ScheduledThreadPoolExecutor(1, Thread.ofVirtual().name("decouple_thr-", 0).factory());
+        allMessagings.add(this);
 
     }
     public List<MorphiumMessaging> getAlternativeMessagings() {
@@ -778,30 +779,34 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         threadPool.shutdownNow();
         decouplePool.shutdownNow();
         monitorsByMsgName.clear();
+        allMessagings.remove(this);
     }
-    @Override
-    public void queueMessage(Msg m) {
+
+    private void persistMessage(Msg m, boolean async) {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
             morphium.store(m, getCollectionName(m), aCallback);
         } else {
             for (String rec : m.getRecipients()) {
-                morphium.store(m, getDMCollectionName(rec), aCallback);
+                if (async) {
+                    morphium.store(m, getDMCollectionName(rec), aCallback);
+                } else {
+                    morphium.store(m, getDMCollectionName(rec), null);
+                }
+
             }
         }
+
+
+    }
+    @Override
+    public void queueMessage(Msg m) {
+        persistMessage(m, true);
     }
     @Override
     public void sendMessage(Msg m) {
-        m.setSenderHost(hostname);
-        m.setSender(getSenderId());
-        if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
-            morphium.store(m, getCollectionName(m), null);
-        } else {
-            for (String rec : m.getRecipients()) {
-                morphium.store(m, getDMCollectionName(rec), null);
-            }
-        }
+        persistMessage(m, false);
     }
     @Override
     public long getNumberOfMessages() {
@@ -813,14 +818,14 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
         m.setSender("self");
         m.setRecipient(getSenderId());
-        morphium.store(m, getCollectionName(m), null);
+        morphium.store(m, getDMCollectionName(), null);
     }
     @Override
     public void queueMessagetoSelf(Msg m) {
 
         m.setSender("self");
         m.setRecipient(getSenderId());
-        morphium.store(m, getCollectionName(m), aCallback );
+        morphium.store(m, getDMCollectionName(), aCallback );
     }
     @Override
     public boolean isAutoAnswer() {
