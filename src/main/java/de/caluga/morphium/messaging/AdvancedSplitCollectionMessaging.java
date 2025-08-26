@@ -449,7 +449,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     private void processMessage(Msg m) {
         for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
-            var l = (MessageListener)e.get("listener");
+            var l = (MessageListener)e.get(MType.listener);
             Runnable r = ()-> {
                 try {
 
@@ -473,7 +473,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     updateProcessedBy(m);
                     unlock(m);
                 } catch (Throwable err) {
-                    log.error("Error during message processing", e);
+                    log.error("Error during message processing", err);
                 }
             };
             queueOrRun(r);
@@ -529,7 +529,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             .f(Msg.Fields.name).nin(pausedMessages);
         for (Msg m : q.asIterable(10)) {
             for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
-                var l = (MessageListener)e.get("listener");
+                var l = (MessageListener)e.get(MType.listener   );
 
                 queueOrRun(()-> {
                     if (m.isAnswer()) {
@@ -656,7 +656,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
                 // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
                 Map<String, Object> map = evt.getFullDocument();
-                if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own message
+                // if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own message
 
                 //this part is obsolete - recipients receive their message directly
                 //List<String> recipients = (List<String>)map.get("recipients");
@@ -664,11 +664,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 //    //message not for me
                 //    return;
                 //}
+
                 if (pausedMessages.contains(map.get("name"))) {
                     //paused
                     return;
                 }
                 Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                if (doc.getSender().equals(getSenderId())) return;
                 if (doc.isExclusive()) {
                     if (!lockMessage(doc, getSenderId())) {
                         return;
