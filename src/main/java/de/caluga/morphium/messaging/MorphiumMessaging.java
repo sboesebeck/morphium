@@ -54,8 +54,14 @@ public interface MorphiumMessaging {
     Long unpauseProcessingOfMessagesNamed(String name);
 
     String getLockCollectionName();
+    <T extends Msg> String getLockCollectionName(T topic);
+    String getLockCollectionName(String topic);
 
     String getCollectionName();
+    String getCollectionName(String topic);
+    <T extends Msg> String getCollectionName(T msg);
+
+    String getDMCollectionName(String sender);
 
     void addListenerForMessageNamed(String n, MessageListener l);
 
@@ -125,6 +131,4 @@ public interface MorphiumMessaging {
 
     MorphiumMessaging setUseChangeStream(boolean useChangeStream);
 
-    String getCollectionName(String string);
-    <T extends Msg> String getCollectionName(T msg);
 }
