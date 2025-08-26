@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.jms.*;
 import java.util.Stack;
+import java.util.concurrent.locks.LockSupport;
 
 public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.MessageListener<JMSMessage> {
 
@@ -61,10 +62,11 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
         }
         long start = System.currentTimeMillis();
         while (incomingQueue.size() == 0) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException e) {
-            }
+            // try {
+            //     Thread.sleep(20);
+            // } catch (InterruptedException e) {
+            // }
+            LockSupport.parkNanos(20000000);
             if (timeout > 0 && System.currentTimeMillis() - start > timeout) {
                 log.warn("Did not receive message in time!");
                 return null;

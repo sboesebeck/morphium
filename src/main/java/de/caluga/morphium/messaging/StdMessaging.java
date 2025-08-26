@@ -28,6 +28,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * User: Stephan Bösebeck
@@ -1020,7 +1022,8 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                     // throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
                         // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
-                        Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((morphium.getConfig().driverSettings().getIdleSleepTime())));
+                        //Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                     }
 
                     //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
@@ -1259,7 +1262,8 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
             if (threadPool != null) {
                 threadPool.shutdown();
-                Thread.sleep(200);
+                LockSupport.parkNanos(200000000);
+                // Thread.sleep(200);
 
                 if (threadPool != null) {
                     threadPool.shutdownNow();
@@ -1394,11 +1398,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                     throw new SystemShutdownException("Messaging shutting down - abort waiting!");
                 }
 
-                try {
-                    Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
-                } catch (InterruptedException e) {
-                    // ignore
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
             }
         } finally {
             returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));

@@ -19,6 +19,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -428,21 +429,21 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return;
         }
 
-        if (pausedMessages.contains(m.getName()) return;
-                final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
-                final Msg theMessage = m;
+        if (pausedMessages.contains(m.getName())) return;
+        final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
+        final Msg theMessage = m;
 
         if (cbr != null) {
             AsyncMessageCallback cb = cbr.callback;
             Runnable cbRunnable = () -> {
-                    cb.incomingMessage(theMessage);
-                    waitingForCallbacks.remove(m.getInAnswerTo());
-                };
-                queueOrRun(cbRunnable);
-            } else {
-                //an answer, but no one is waiting for it
-                processMessage(theMessage);
-            }
+                cb.incomingMessage(theMessage);
+                waitingForCallbacks.remove(m.getInAnswerTo());
+            };
+            queueOrRun(cbRunnable);
+        } else {
+            //an answer, but no one is waiting for it
+            processMessage(theMessage);
+        }
     }
 
 
@@ -569,8 +570,9 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 try {
                     // throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > effectiveSettings.getMessagingWindowSize()) {
-                        // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
-                        Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
+                        Thread.onSpinWait(); // CPU-friendly busy wait hint
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));          // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
+                        // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                     }
 
                     //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
@@ -912,11 +914,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     throw new SystemShutdownException("Messaging shutting down - abort waiting!");
                 }
 
-                try {
-                    Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
-                } catch (InterruptedException e) {
-                    // ignore
-                }
+                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
+                // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
             }
         } finally {
             returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));

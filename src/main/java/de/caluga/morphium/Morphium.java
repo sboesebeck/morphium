@@ -55,6 +55,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * This is the single access point for accessing MongoDB. This conains a ton of convenience Methods
@@ -2633,10 +2634,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                 asyncOperationsThreadPool.execute(runnable);
                 queued = true;
             } catch (Exception e) {
-                try {
-                    Thread.sleep(100); // wait a moment, reduce load
-                } catch (InterruptedException ignored) {
-                }
+                LockSupport.parkNanos(200000000);
             }
         } while (!queued);
     }
