@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -72,6 +73,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private Vector<String> pausedMessages = new Vector<>();
     private StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String hostname = null;
+    private String senderId;
 
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
 
@@ -162,9 +164,15 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                             }
                             try {
                                 var ret = l.onMessage(AdvancedSplitCollectionMessaging.this, msg);
-                                ret.setRecipient(msg.getSender());
-                                ret.setInAnswerTo(msg.getMsgId());
-                                queueMessage(ret);
+                                if (!running.get()) return;
+                                if (ret == null && effectiveSettings.isAutoAnswer()) {
+                                    ret = new Msg(msg.getName(), "received", "");
+                                }
+                                if (ret != null) {
+                                    ret.setRecipient(msg.getSender());
+                                    ret.setInAnswerTo(msg.getMsgId());
+                                    queueMessage(ret);
+                                }
                             } catch (Exception e) {
                                 log.error("Error processinig message");
                             }
@@ -190,6 +198,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return running.get();
         });
         directMessagesMonitor.start();
+        pollAndProcess();
     }
 
     @Override
@@ -457,6 +466,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         updateProcessedBy(m);
                     }
                     var ret = l.onMessage(this, m);
+                    if (!running.get()) return;
+                    if (effectiveSettings.isAutoAnswer() && ret == null) {
+                        ret = new Msg(m.getName(), "received", "");
+
+                    }
                     if (!l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(m);
                     }
@@ -495,6 +509,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         q.sort(Msg.Fields.priority);
         q.or(q1, q2);
         for (Msg m : q.asIterable()) {
+            if (m.isTimingOut() && System.currentTimeMillis() - m.getTimestamp() > m.getTtl()) {
+                log.debug("deleting outdated message");
+                morphium.delete(m);
+                return;
+            }
             if (pausedMessages.contains(m.getName())) {
                 //paused
                 return;
@@ -593,6 +612,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     private void updateProcessedBy(Msg msg) {
+        if (!running.get()) return; //this happens during tests mainly
         if (msg == null) {
             return;
         }
@@ -647,59 +667,69 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         //        in.put("$eq", "insert"); //, "delete", "update"));
         in.put("$in", Arrays.asList("insert"));
         match.put("operationType", in);
+        match.put("full_document.sender", Map.of("$ne", getSenderId()));
         var pipeline = new ArrayList < Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
-        ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName() + "_" + n, true, morphium.getConfig().connectionSettings().getMaxWaitTime(),
+        log.debug("Adding changestream for collection {}", getCollectionName(n));
+        ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true, morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);
         cm.addListener((evt)-> {
             Runnable r = ()->{
 
-                // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-                Map<String, Object> map = evt.getFullDocument();
-                // if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own message
+                try{
+                    // Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
+                    Map<String, Object> map = evt.getFullDocument();
+                    // if (getSenderId().equals(map.get(Msg.Fields.sender.name()))) return; //own message
 
-                //this part is obsolete - recipients receive their message directly
-                //List<String> recipients = (List<String>)map.get("recipients");
-                //if (recipients != null && !recipients.isEmpty() && !recipients.contains(getSenderId())) {
-                //    //message not for me
-                //    return;
-                //}
+                    //this part is obsolete - recipients receive their message directly
+                    //List<String> recipients = (List<String>)map.get("recipients");
+                    //if (recipients != null && !recipients.isEmpty() && !recipients.contains(getSenderId())) {
+                    //    //message not for me
+                    //    return;
+                    //}
 
-                if (pausedMessages.contains(map.get("name"))) {
-                    //paused
-                    return;
-                }
-                Msg doc = morphium.getMapper().deserialize(Msg.class, evt.getFullDocument());
-                if (doc.getSender().equals(getSenderId())) return;
-                if (doc.isExclusive()) {
-                    if (!lockMessage(doc, getSenderId())) {
+                    if (pausedMessages.contains(map.get("name"))) {
+                        //paused
                         return;
                     }
-                }
-                if (l.markAsProcessedBeforeExec()) {
-                    updateProcessedBy(doc);
-                }
-                try {
-                    var ret = l.onMessage(this, doc);
-                    if (doc.isDeleteAfterProcessing()) {
-                        checkDeleteAfterProcessing(doc);
-                    } else {
-                        if (!l.markAsProcessedBeforeExec()) {
-                            updateProcessedBy(doc);
+                    Msg doc = morphium.getMapper().deserialize(Msg.class, map);
+                    if (doc.getSender().equals(getSenderId())) return;
+                    if (doc.isExclusive()) {
+                        if (!lockMessage(doc, getSenderId())) {
+                            return;
                         }
                     }
-                    if (ret != null) {
-                        //send answer
-                        ret.setInAnswerTo(doc.getMsgId());
-                        ret.setRecipients(List.of(doc.getSender()));
-                        sendMessage(ret);
+                    if (l.markAsProcessedBeforeExec()) {
+                        updateProcessedBy(doc);
                     }
-                } catch (MessageRejectedException mre) {
-                    unlock(doc);
-                    log.warn("Message rejected", mre);
+                    try {
+                        var ret = l.onMessage(this, doc);
+                        if (!running.get()) return;
+                        if (ret == null && effectiveSettings.isAutoAnswer()) {
+                            ret = new Msg(doc.getName(), "received", "");
+                        }
+                        if (doc.isDeleteAfterProcessing()) {
+                            checkDeleteAfterProcessing(doc);
+                        } else {
+                            if (!l.markAsProcessedBeforeExec()) {
+                                updateProcessedBy(doc);
+                            }
+                        }
+                        if (ret != null) {
+                            //send answer
+                            ret.setInAnswerTo(doc.getMsgId());
+                            ret.setRecipients(List.of(doc.getSender()));
+                            sendMessage(ret);
+                        }
+                    } catch (MessageRejectedException mre) {
+                        unlock(doc);
+                        log.warn("Message rejected", mre);
+                    } catch (Exception e) {
+                        unlock(doc);
+                        log.error("Error processing message", e);
+                    }
                 } catch (Exception e) {
-                    unlock(doc);
-                    log.error("Error processing message", e);
+                    log.error("Error during change event processing", e);
                 }
             };
             queueOrRun(r);
@@ -752,11 +782,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
     @Override
     public String getSenderId() {
-        return effectiveSettings.getSenderId();
+        return senderId;
     }
     @Override
     public MorphiumMessaging setSenderId(String id) {
-        effectiveSettings.setSenderId(id);
+        senderId = id;
         return this;
     }
     @Override
@@ -1030,11 +1060,18 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         morphium = m;
 
         if (overrides == m.getConfig().messagingSettings()) {
+            //create copy of settings, if same as morphiums
             effectiveSettings = m.getConfig().createCopy().messagingSettings();
         } else {
             effectiveSettings = overrides;
         }
 
+
+        if (effectiveSettings.getSenderId() == null) {
+            setSenderId(UUID.randomUUID().toString());
+        } else {
+            setSenderId(effectiveSettings.getSenderId());
+        }
         threadPool = new ThreadPoolExecutor(
                         effectiveSettings.getThreadPoolMessagingCoreSize(),
                         effectiveSettings.getThreadPoolMessagingMaxSize(),

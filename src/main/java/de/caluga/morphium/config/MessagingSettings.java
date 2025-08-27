@@ -20,7 +20,7 @@ public class MessagingSettings extends Settings {
     private long threadPoolMessagingKeepAliveTime = 2000;
     private int messagingWindowSize = 100;
     private int messagingPollPause = 250;
-    private String senderId = UUID.randomUUID().toString();
+    private String senderId = null;
     private boolean autoAnswer = false;
     private boolean processMultiple = true;
 
