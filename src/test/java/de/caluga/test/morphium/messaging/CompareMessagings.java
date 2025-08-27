@@ -1,5 +1,10 @@
 package  de.caluga.test.morphium.messaging;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -203,42 +208,116 @@ public class CompareMessagings extends MorphiumTestBase {
 
 
     @Test
-    public void compareAnsweringBroadcastTest() throws Exception {
+    public void compareAnsweringExclusiveTest() throws Exception {
 
         Map<String, Long> runtimes = new HashMap<>();
-        int amount = 1000;
+        int amount = 200;
+        int receiverAmount = 3;
         for (String msgImplementation : MorphiumTestBase.messagingsToTest) {
+            List<MorphiumMessaging> receivers = new ArrayList<>();
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImplementation);
             Morphium morph = new Morphium(cfg);
 
-            final var latch = new java.util.concurrent.CountDownLatch(amount * 2);
+            MorphiumMessaging sender = morph.createMessaging();
+            sender.setSenderId("sender");
+            sender.start();
+
+            for (int i = 0; i < receiverAmount; i++) {
+                MorphiumMessaging receiver1 = morph.createMessaging();
+                receiver1.setSenderId("rec" + i);
+                receiver1.addListenerForMessageNamed("test", (msg, m)-> {
+                    return m.createAnswerMsg().setMsg("Recieved by rec");
+                });
+                receiver1.start();
+                receivers.add(receiver1);
+            }
+
+            Thread.sleep(500);
+            //warmup
+            var answers = sender.sendAndAwaitAnswers(new Msg("test", "test-msg", "test-Value", 30_000, true), 1, 10000, false);
+            assertEquals(1, answers.size(), "Wrong amount of answers?");
+
+            long total = 0;
+            for (int i = 0; i < amount; i++) {
+                long start = System.currentTimeMillis();
+                // answers = sender.sendAndAwaitAnswers(new Msg("test", "test-msg", "test-Value", 30_000, true), 1, 10000, false);
+                var a = sender.sendAndAwaitFirstAnswer(new Msg("test", "test-msg", "test-value", 30000, true), 10000, false);
+                long dur = System.currentTimeMillis() - start;
+                log.info("{}: Getting answer took {}ms", i, dur);
+                total = total + dur;
+                assertNotNull(a);
+            }
+            runtimes.put(msgImplementation, total);
+            log.info("Processed all {} queries for {}", amount, msgImplementation);
+
+            sender.terminate();
+            for (MorphiumMessaging r : receivers) {
+                r.terminate();
+            }
+            receivers.clear();
+
+        }
+        OutputHelper.figletOutput(log, "Done!");
+        for (String impl : runtimes.keySet()) {
+            log.info("Implementation {} needed {}ms", impl, runtimes.get(impl));
+        }
+    }
+    @Test
+    public void compareAnsweringBroadcastTest() throws Exception {
+
+        Map<String, Long> runtimes = new HashMap<>();
+        int amount = 200;
+        int receiverAmount = 3;
+        for (String msgImplementation : MorphiumTestBase.messagingsToTest) {
+            List<MorphiumMessaging> receivers = new ArrayList<>();
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImplementation);
+            Morphium morph = new Morphium(cfg);
 
             MorphiumMessaging sender = morph.createMessaging();
             sender.setSenderId("sender");
             sender.start();
-            MorphiumMessaging receiver1 = morph.createMessaging();
-            receiver1.setSenderId("rec1");
-            receiver1.addListenerForMessageNamed("test", (msg, m)-> {
-                latch.countDown();
-                return m.createAnswerMsg().setMsg("Recieved by rec1");
-            });
-            receiver1.start();
-            MorphiumMessaging receiver2 = morph.createMessaging();
-            receiver2.setSenderId("rec2");
-            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
-                latch.countDown();
-                return m.createAnswerMsg().setMsg("Recieved by rec2");
-            });
-            receiver2.start();
 
-            Thread.sleep(500);
-
-            for (int i = 0; i < amount; i++) {
-                sender.sendMessage(new Msg("test", "test-msg", "test-Value", 30_000, false));
-
+            for (int i = 0; i < receiverAmount; i++) {
+                MorphiumMessaging receiver1 = morph.createMessaging();
+                receiver1.setSenderId("rec" + i);
+                receiver1.addListenerForMessageNamed("test", (msg, m)-> {
+                    return m.createAnswerMsg().setMsg("Recieved by rec");
+                });
+                receiver1.start();
+                receivers.add(receiver1);
             }
 
+            Thread.sleep(500);
+            //warmup
+            var answers = sender.sendAndAwaitAnswers(new Msg("test", "test-msg", "test-Value", 30_000, false), receiverAmount, 10000, false);
+            assertEquals(receiverAmount, answers.size(), "Wrong amount of answers?");
+
+            long total = 0;
+            for (int i = 0; i < amount; i++) {
+                long start = System.currentTimeMillis();
+                answers = sender.sendAndAwaitAnswers(new Msg("test", "test-msg", "test-Value", 30_000, false), receiverAmount, 10000, false);
+                long dur = System.currentTimeMillis() - start;
+                log.info("{}: Getting answers took {}ms", i, dur);
+                total = total + dur;
+                assertNotNull(answers);
+                assertFalse(answers.isEmpty());
+                assertEquals(receiverAmount, answers.size(), "wrong amount of answers" );
+            }
+            runtimes.put(msgImplementation, total);
+            log.info("Processed all {} queries for {}", amount, msgImplementation);
+
+            sender.terminate();
+            for (MorphiumMessaging r : receivers) {
+                r.terminate();
+            }
+            receivers.clear();
+
+        }
+        OutputHelper.figletOutput(log, "Done!");
+        for (String impl : runtimes.keySet()) {
+            log.info("Implementation {} needed {}ms", impl, runtimes.get(impl));
         }
     }
 }

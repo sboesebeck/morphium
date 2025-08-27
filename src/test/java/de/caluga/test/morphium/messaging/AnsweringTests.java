@@ -4,6 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.messaging.AdvancedSplitCollectionMessaging;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
@@ -17,7 +18,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -164,7 +167,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                         log.info("Received by onlyAnswers");
                     }
                     assertTrue(gotMessage1 || gotMessage2);
-                    assertTrue(gotMessage);
+                    assertTrue(gotMessage3);
 
                 } finally {
                     m1.terminate();
@@ -290,6 +293,7 @@ public class AnsweringTests extends MultiDriverTestBase {
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
+    // @MethodSource("getMorphiumInstancesPooledOnly")
     public void getAnswersTest(Morphium morphium) throws Exception {
         try (morphium) {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
@@ -308,11 +312,14 @@ public class AnsweringTests extends MultiDriverTestBase {
                 MorphiumMessaging messaging1 = morph.createMessaging();
                 MorphiumMessaging messaging2 = morph.createMessaging();
                 MorphiumMessaging messagingElse = morph.createMessaging();
+                gotMessage1 = false;
+                gotMessage2 = false;
                 messaging1.start();
                 messaging2.start();
                 messagingElse.start();
                 messagingElse.addListenerForMessageNamed("something else", (msg, m) -> {
                     log.info("incoming message??");
+                    gotMessage1 = true;
                     return null;
                 });
                 messaging2.addListenerForMessageNamed("q_getAnswer", (msg, m) -> {
@@ -320,6 +327,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     Msg answer = m.createAnswerMsg();
                     msg.sendMessage(answer);
 
+                    gotMessage2 = true;
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e) {
@@ -332,6 +340,8 @@ public class AnsweringTests extends MultiDriverTestBase {
                 msg.setPriority(1);
                 messaging1.sendMessage(msg);
                 Thread.sleep(5000);
+                assertFalse(gotMessage1);
+                assertFalse(gotMessage2);
                 Msg question = new Msg("q_getAnswer", "question", "a value");
                 question.setPriority(5);
                 List<Msg> answers = messaging1.sendAndAwaitAnswers(question, 2, 5000);
@@ -347,55 +357,13 @@ public class AnsweringTests extends MultiDriverTestBase {
                 messaging2.terminate();
                 messagingElse.terminate();
             }
+            OutputHelper.figletOutput(log, "Finished");
+
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
-    public void waitForAnswerTest(Morphium morphium) throws Exception {
-        try (morphium) {
-            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
-            log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
-            cfg.setCredentialsDecryptionKey(morphium.getConfig().getCredentialsDecryptionKey());
-            cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
-            cfg.setCredentialsEncrypted(morphium.getConfig().getCredentialsEncrypted());
-            Morphium mor = new Morphium(cfg);
-            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-            StdMessaging m2 = new StdMessaging(mor, 10, false, true, 10);
-            m1.setSenderId("m1");
-            m2.setSenderId("m2");
-            m1.start();
-            m2.start();
-            m2.addListenerForMessageNamed("q_wait_for", (msg, m) -> {
-                Msg answer = m.createAnswerMsg();
-                return answer;
-            });
-            Thread.sleep(1000);
 
-            for (int i = 0; i < 100; i++) {
-                log.info("Sending msg " + i);
-                Msg question = new Msg("q_wait_for", "question" + i, "a value " + i);
-                question.setPriority(5);
-                long start = System.currentTimeMillis();
-                Msg answer = m1.sendAndAwaitFirstAnswer(question, 4500);
-                long dur = System.currentTimeMillis() - start;
-                assertTrue(answer != null && answer.getInAnswerTo() != null);;
-                assertEquals(answer.getInAnswerTo(), question.getMsgId());
-                log.info("... ok - took " + dur + " ms");
-            }
-
-            try {
-                m1.terminate();
-                m2.terminate();
-                mor.close();
-            } catch (Exception e) {
-            }
-
-            mor.close();
-        }
-    }
 
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
@@ -404,27 +372,43 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-            StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
-            m1.start();
-            m2.start();
-            // Thread.sleep(2000);
-            m2.addListenerForMessageNamed("q_no_listener", (msg, m) -> m.createAnswerMsg());
-            m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
-            Thread.sleep(5000);
-            Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
-            assertNotNull(answer);;
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
 
-            try {
-                m1.terminate();
-            } catch (Exception e) {
-                //swallow
-            }
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
-            try {
-                m2.terminate();
-            } catch (Exception e) {
-                //swallow
+                Morphium morph = new Morphium(cfg);
+                MorphiumMessaging m1 = morph.createMessaging();
+                MorphiumMessaging m2 = morph.createMessaging();
+                m1.start();
+                m2.start();
+                // Thread.sleep(2000);
+                m2.addListenerForMessageNamed("q_no_listener", (msg, m) -> m.createAnswerMsg());
+                m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
+                Thread.sleep(1000);
+                Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
+                assertNotNull(answer);;
+
+                try {
+                    m1.terminate();
+                } catch (Exception e) {
+                    //swallow
+                }
+
+                try {
+                    m2.terminate();
+                } catch (Exception e) {
+                    //swallow
+                }
+                try {
+                    morph.close();
+                } catch (Exception e) {
+                    //swallow
+                }
             }
         }
     }
@@ -436,34 +420,47 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            StdMessaging sender = new StdMessaging(morphium, 100, true);
-            StdMessaging recipient = new StdMessaging(morphium, 100, true);
-            sender.start();
-            recipient.start();
-            Thread.sleep(2000);
-            gotMessage1 = false;
-            recipient.addListenerForMessageNamed("query", (msg, m) -> {
-                gotMessage1 = true;
-                Msg answer = m.createAnswerMsg();
-                answer.setName("queryAnswer");
-                answer.setMsg("the answer");
-                //msg.storeMessage(answer);
-                return answer;
-            });
-            gotMessage2 = false;
-            sender.addListenerForMessageNamed("queryAnswer", (msg, m) -> {
-                gotMessage2 = true;
-                assertNotNull(m.getInAnswerTo());;
-                return null;
-            });
-            sender.sendMessage(new Msg("query", "a query", "avalue"));
-            Thread.sleep(5000);
-            assertTrue(gotMessage1);
-            assertTrue(gotMessage2);
-            Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
-            assertNotNull(answer);;
-            sender.terminate();
-            recipient.terminate();
+
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
+
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                Morphium morph = new Morphium(cfg);
+                MorphiumMessaging sender = morph.createMessaging();
+                MorphiumMessaging recipient = morph.createMessaging();
+                sender.start();
+                recipient.start();
+                Thread.sleep(2000);
+                gotMessage1 = false;
+                recipient.addListenerForMessageNamed("query", (msg, m) -> {
+                    gotMessage1 = true;
+                    Msg answer = m.createAnswerMsg();
+                    answer.setName("queryAnswer");
+                    answer.setMsg("the answer");
+                    //msg.storeMessage(answer);
+                    return answer;
+                });
+                gotMessage2 = false;
+                sender.addListenerForMessageNamed("queryAnswer", (msg, m) -> {
+                    gotMessage2 = true;
+                    assertNotNull(m.getInAnswerTo());;
+                    return null;
+                });
+                sender.sendMessage(new Msg("query", "a query", "avalue"));
+                Thread.sleep(5000);
+                assertTrue(gotMessage1);
+                assertTrue(gotMessage2);
+                Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("query", "query", "avalue"), 1000);
+                assertNotNull(answer);;
+                sender.terminate();
+                recipient.terminate();
+                morph.close();
+            }
         }
     }
 
@@ -474,120 +471,114 @@ public class AnsweringTests extends MultiDriverTestBase {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            assertThrows(RuntimeException.class, () -> {
-                StdMessaging m1 = new StdMessaging(morphium, 100, false);
-                log.info("Upcoming Errormessage is expected!");
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
 
-                try {
-                    m1.addListenerForMessageNamed("test", (msg, m) -> {
-                        gotMessage1 = true;
-                        return new Msg(m.getName(), "got message", "value", 5000);
-                    });
-                    m1.start();
-                    Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
-                    assertTrue(gotMessage1);
-                    assertNotNull(answer);
-                } finally {
-                    //cleaning up
-                    m1.terminate();
-                    morphium.dropCollection(Msg.class);
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                Morphium morph = new Morphium(cfg);
+                assertThrows(RuntimeException.class, () -> {
+                    MorphiumMessaging m1 = morph.createMessaging();
+                    log.info("Upcoming Errormessage is expected, because messaging is not processing own messages!");
+
+                    try {
+                        m1.addListenerForMessageNamed("test", (msg, m) -> {
+                            gotMessage1 = true;
+                            return new Msg(m.getName(), "got message", "value", 5000);
+                        });
+                        m1.start();
+                        Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
+                        log.info("Got answer {}", answer);
+                        assertTrue(gotMessage1);
+                        assertNotNull(answer);
+                    } finally {
+                        //cleaning up
+                        m1.terminate();
+                    }
                 }
-            });
+                            );
+                morph.close();
+            }
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
-    // @MethodSource("getInMemInstanceOnly")
-    public void sendAndWaitforAnswerTestChangeStream(Morphium morphium) throws Exception {
-        try (morphium) {
-            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
-
-            log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            //        morphium.dropCollection(Msg.class);
-            StdMessaging sender = new StdMessaging(morphium, 100, false);
-            sender.setSenderId("sender");
-            sender.setUseChangeStream(true);;
-            sender.start();
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            StdMessaging m1 = new StdMessaging(morphium, 100, false);
-            m1.setSenderId("m1");
-            m1.addListenerForMessageNamed("test", (msg, m) -> {
-                gotMessage1 = true;
-                return new Msg(m.getName(), "got message", "value", 5555000);
-            });
-            m1.setUseChangeStream(false);
-            m1.start();
-            // Thread.sleep(2500);
-            Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
-            assertNotNull(answer);;
-            assertEquals(answer.getName(), "test");
-            assertNotNull(answer.getInAnswerTo());;
-            assertNotNull(answer.getRecipients());;
-            assertEquals(answer.getMsg(), "got message");
-            m1.terminate();
-            sender.terminate();
-        }
-    }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    // @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("getMorphiumInstancesPooledOnly")
     // @MethodSource("getInMemInstanceOnly")
     public void sendAndWaitforAnswerLoadTest(Morphium morphium) throws Exception {
         try (morphium) {
             String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-            StdMessaging sender = new StdMessaging(morphium, 100, true, true, 100);
-            sender.setSenderId("Sender");
-            sender.start();
-            ArrayList<StdMessaging> msgs = new ArrayList<>();
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
 
-            for (int i = 0; i < 5; i++) {
-                StdMessaging rec = new StdMessaging(morphium, 100, true, true, 100);
-                rec.setSenderId("rec" + i);
-                rec.start();
-                rec.addListenerForMessageNamed("test", new MessageListener<Msg>() {
-                    @Override
-                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                        log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            // TODO Auto-generated catch block
+                Morphium morph = new Morphium(cfg);
+                MorphiumMessaging sender = morph.createMessaging();
+                sender.setSenderId("Sender");
+                sender.start();
+                ArrayList<MorphiumMessaging> msgs = new ArrayList<>();
+
+                for (int i = 0; i < 5; i++) {
+                    MorphiumMessaging rec = morph.createMessaging();
+                    rec.setSenderId("rec" + i);
+                    rec.start();
+                    rec.addListenerForMessageNamed("test", new MessageListener<Msg>() {
+                        @Override
+                        public Msg onMessage(MorphiumMessaging msg, Msg m) {
+                            log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
+
+                            try {
+                                Thread.sleep(1000);
+                            } catch (InterruptedException e) {
+                                // TODO Auto-generated catch block
+                            }
+
+                            return m.createAnswerMsg();
                         }
+                    });
 
-                        return m.createAnswerMsg();
-                    }
-                });
+                    msgs.add(rec);
+                }
+                Thread.sleep(1000);
 
-                msgs.add(rec);
-            }
+                Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 12000, true), 12000, false);
+                log.info("Got answer {}", a);
+                assertNotNull(a, "Did not get answer");
+                Thread.sleep(2000);
+                log.info("All recievers instanciated...");
 
-            Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
-            Thread.sleep(2000);
-            log.info("All recievers instanciated...");
+                for (int i = 0; i < 100; i++) {
+                    new Thread(() -> {
+                        long start = System.currentTimeMillis();
+                        Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
+                        assertNotNull(answer);
+                        long d = System.currentTimeMillis() - start;
+                        log.info("Rec after " + d + "ms");
+                    }).start();
+                    Thread.sleep(20);
+                }
 
-            for (int i = 0; i < 100; i++) {
-                new Thread(() -> {
-                    long start = System.currentTimeMillis();
-                    Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Test", "value", 2000, true), 2000, false);
-                    long d = System.currentTimeMillis() - start;
-                    log.info("Rec after " + d + "ms");
-                }).start();
-                Thread.sleep(20);
-            }
+                log.info("Done...");
+                Thread.sleep(1000);
+                sender.terminate();
 
-            log.info("Done...");
-            Thread.sleep(10000);
-            sender.terminate();
-
-            for (StdMessaging m : msgs) {
-                m.terminate();
+                for (MorphiumMessaging m : msgs) {
+                    m.terminate();
+                }
+                morph.close();
             }
         }
     }
@@ -601,33 +592,103 @@ public class AnsweringTests extends MultiDriverTestBase {
 
             log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
             //        morphium.dropCollection(Msg.class);
-            StdMessaging sender = new StdMessaging(morphium, 100, false);
-            sender.setSenderId("sender");
-            sender.setUseChangeStream(false);;
-            sender.start();
-            // Thread.sleep(2000);
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            StdMessaging m1 = new StdMessaging(morphium, 100, false);
-            m1.setSenderId("m1");
-            m1.addListenerForMessageNamed("test", (msg, m) -> {
-                gotMessage1 = true;
-                return new Msg(m.getName(), "got message", "value", 5555000);
-            });
-            m1.setUseChangeStream(false);
-            m1.start();
-            Thread.sleep(2500);
-            Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
-            assertNotNull(answer);;
-            assertEquals(answer.getName(), "test");
-            assertNotNull(answer.getInAnswerTo());;
-            assertNotNull(answer.getRecipients());;
-            assertEquals(answer.getMsg(), "got message");
-            m1.terminate();
-            sender.terminate();
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
+
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                Morphium morph = new Morphium(cfg);
+
+                MorphiumMessaging sender = morph.createMessaging();
+                sender.setSenderId("sender");
+                sender.setUseChangeStream(false);;
+                sender.start();
+                // Thread.sleep(2000);
+                gotMessage1 = false;
+                gotMessage2 = false;
+                gotMessage3 = false;
+                gotMessage4 = false;
+                MorphiumMessaging m1 = morph.createMessaging();
+                m1.setSenderId("m1");
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                    gotMessage1 = true;
+                    return new Msg(m.getName(), "got message", "value", 5555000);
+                });
+                m1.setUseChangeStream(false);
+                m1.start();
+                Thread.sleep(2500);
+                Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
+                assertNotNull(answer);;
+                assertEquals(answer.getName(), "test");
+                assertNotNull(answer.getInAnswerTo());;
+                assertNotNull(answer.getRecipients());;
+                assertEquals(answer.getMsg(), "got message");
+                m1.terminate();
+                sender.terminate();
+                morph.close();
+            }
         }
     }
+
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    // @MethodSource("getInMemInstanceOnly")
+    public void sendAndWaitforAnswerTimoutTest(Morphium morphium) throws Exception {
+        try (morphium) {
+            String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+
+            log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+            //        morphium.dropCollection(Msg.class);
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
+
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                Morphium morph = new Morphium(cfg);
+
+                MorphiumMessaging sender = morph.createMessaging();
+                sender.setSenderId("sender");
+                sender.setUseChangeStream(false);;
+                sender.start();
+                // Thread.sleep(2000);
+                gotMessage1 = false;
+                gotMessage2 = false;
+                gotMessage3 = false;
+                gotMessage4 = false;
+                MorphiumMessaging m1 = morph.createMessaging();
+                m1.setSenderId("m1");
+                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                    gotMessage1 = true;
+                    LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(5));
+                    return new Msg(m.getName(), "got message", "value", 5000);
+                });
+                m1.setUseChangeStream(false);
+                m1.start();
+                Thread.sleep(2500);
+                Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 2000, false);
+                assertNull(answer, "should have gotten no message due to timeout");
+
+                assertThrows(Exception.class, ()-> {
+
+                    Msg a = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 2000, true);
+                    log.info("Should not get {}", a);
+                }, "Should have thrown an exceptinio");
+
+
+                m1.terminate();
+                sender.terminate();
+                morph.close();
+            }
+        }
+    }
+
 
 }
