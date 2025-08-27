@@ -457,6 +457,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
 
     private void processMessage(Msg m) {
+        if (!monitorsByMsgName.containsKey(m.getName())) {
+            log.error("I {} Got a message I do not have a listener configured for: {}!", getSenderId(), m.getName());
+
+            return; //cannot process message, as there is no listener? HOW?
+        }
         for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
             var l = (MessageListener)e.get(MType.listener);
             Runnable r = ()-> {
