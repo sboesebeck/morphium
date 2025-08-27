@@ -612,7 +612,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     private void updateProcessedBy(Msg msg) {
-        if (!running.get()) return; //this happens during tests mainly
         if (msg == null) {
             return;
         }
@@ -634,6 +633,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
+            if (!running.get()) return; //this happens during tests mainly
             Map<String, Object> ret = cmd.execute();
             cmd.releaseConnection();
             cmd = null;
