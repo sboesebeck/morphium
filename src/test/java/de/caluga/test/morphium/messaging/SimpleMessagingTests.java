@@ -69,7 +69,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
 
 
                 Thread.sleep(1000);
-                messaging.sendMessage(new Msg("test", "test-msg", "test-value"));
+                messaging.sendMessage(new Msg("test", "test-msg", "test-value", 30000, false));
 
                 while (!rec2Received.get() || !rec1Received.get()) {
                     Thread.sleep(100);

@@ -6,6 +6,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 public class TestUtils {
@@ -17,6 +19,30 @@ public class TestUtils {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, tst, null);
     }
 
+    /**
+     * wait until cond.get() <= valueToReach
+     */
+    public static long waitForIntegerValueMax(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() <= valueToReach;}, statusMessage);
+    }
+    /**
+     * wait until cond.get() >= valueToReach
+     */
+    public static long waitForIntegerValueMin(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() >= valueToReach;}, statusMessage);
+    }
+    /**
+     * wait until cond.get() == valueToReach
+     */
+    public static long waitForIntegerValue(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() == valueToReach;}, statusMessage);
+    }
+    public static long waitForBooleanToBecomeFalse(long maxDuration, String failMessage, AtomicBoolean cond, Runnable statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return !cond.get();}, statusMessage);
+    }
+    public static long waitForBooleanToBecomeTrue(long maxDuration, String failMessage, AtomicBoolean cond, Runnable statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> { return cond.get();}, statusMessage);
+    }
     public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, Runnable statusMessage) {
         long start = System.currentTimeMillis();
         int last = 0;
@@ -35,6 +61,8 @@ public class TestUtils {
                 Thread.yield();
             }
 
+            if (statusMessage != null)
+                statusMessage.run();
             return System.currentTimeMillis() - start;
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -136,8 +164,8 @@ public class TestUtils {
         Thread.sleep(initialDelay);
         T value = supplier.get();
         long currentDelay = initialDelay;
-        while(value == null) {
-            if(currentDelay + step > maxDelay) {
+        while (value == null) {
+            if (currentDelay + step > maxDelay) {
                 break;
             }
             currentDelay += step;
