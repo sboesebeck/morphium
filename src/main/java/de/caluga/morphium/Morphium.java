@@ -2583,6 +2583,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     }
 
     public boolean isAutoValuesEnabledForThread() {
+        if (getConfig() == null) return false;
         if (enableAutoValues == null) return getConfig().objectMappingSettings().isAutoValuesEnabled();
 
         return ((enableAutoValues.get() == null || enableAutoValues.get()) && getConfig().objectMappingSettings().isAutoValuesEnabled());

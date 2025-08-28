@@ -46,7 +46,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  */
 public class MorphiumTestBase {
 
-    public static List<String> messagingsToTest = List.of("StandardMessaging", "AdvMessaging");
+    public static List<String> messagingsToTest = List.of("AdvMessaging", "StandardMessaging" );
     public static Morphium morphium;
     private static Properties props;
     private static File configDir;
@@ -281,12 +281,6 @@ public class MorphiumTestBase {
                 for (var collMap : lst) {
                     String coll = (String) collMap.get("name");
                     log.info("Dropping collection " + coll);
-
-                    try {
-                        morphium.clearCollection(UncachedObject.class, coll); //faking it
-                    } catch (Exception e) {
-                        //e.printStackTrace();
-                    }
 
                     morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
                 }

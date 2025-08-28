@@ -59,6 +59,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private Morphium morphium;
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
+    private Vector<MorphiumId> processingMessages = new Vector<>();
 
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
@@ -136,7 +137,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         decouplePool.scheduleWithFixedDelay(()-> {
             for (var name : pollTrigger.keySet()) {
                 if (pollTrigger.get(name).get() != 0) {
-                    pollAndProcess(name);
+                    if (name.startsWith("dm_")) {
+                        pollAndProcessDms(name.substring(3));
+                    } else {
+                        pollAndProcess(name);
+                    }
                     pollTrigger.get(name).set(0);
                 }
             }
@@ -155,7 +160,15 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 //Answer handling
                 handleAnswer(msg);
             } else {
+                if (pausedMessages.contains(msg.getName())) {
+                    return running.get();
+
+                }
                 if (monitorsByMsgName.containsKey(msg.getName())) {
+                    if (processingMessages.contains(msg.getMsgId())) {
+                        return running.get();
+                    }
+                    processingMessages.add(msg.getMsgId());
                     for (var map : monitorsByMsgName.get(msg.getName())) {
                         MessageListener l = (MessageListener)map.get(MType.listener);
                         queueOrRun(()-> {
@@ -187,6 +200,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                             } else if (!l.markAsProcessedBeforeExec()) {
                                 updateProcessedBy(msg);
                             }
+                            processingMessages.remove(msg.getMsgId());
 
                         });
                     }
@@ -328,7 +342,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     @Override
     public Long unpauseProcessingOfMessagesNamed(String name) {
         pausedMessages.remove(name);
-        pollAndProcess(name);
+        decouplePool.execute(()-> {
+            pollAndProcess(name);
+            pollAndProcessDms(name);
+        });
         return 0L; //TODO: calculate time
     }
 
@@ -458,14 +475,20 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     private void processMessage(Msg m) {
         if (!monitorsByMsgName.containsKey(m.getName())) {
-            log.error("I {} Got a message I do not have a listener configured for: {}!", getSenderId(), m.getName());
-
+            // log.error("I {} Got a message I do not have a listener configured for: {}!", getSenderId(), m.getName());
             return; //cannot process message, as there is no listener? HOW?
         }
         for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
             var l = (MessageListener)e.get(MType.listener);
+            if (l == null) continue;
+
+            if (processingMessages.contains(m.getMsgId())) {
+                return;
+            }
+            processingMessages.add(m.getMsgId());
             Runnable r = ()-> {
                 try {
+                    if (pausedMessages.contains(m.getName())) return;
 
                     if (l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(m);
@@ -494,25 +517,66 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 } catch (Throwable err) {
                     log.error("Error during message processing", err);
                 }
+
+                processingMessages.remove(m.getMsgId());
             };
             queueOrRun(r);
 
         }
     }
 
+    private void pollAndProcessDms(String name) {
+        //TODO: look for paused dms
+        //
+        //
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) //not processed
+                .f(Msg.Fields.name).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
+        q.limit(getWindowSize());
+        if (q.countAll() > getWindowSize()) {
+            pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));
+            pollTrigger.get("dm_" + name).incrementAndGet();
+        }
+        for (Msg m : q.asIterable(10)) {
+            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
+                var l = (MessageListener)e.get(MType.listener   );
+
+                queueOrRun(()-> {
+                    if (m.isAnswer()) {
+                        handleAnswer(m);
+                    } else {
+                        processMessage(m);
+                    }
+
+                });
+
+
+
+            }
+        }
+    }
     private void pollAndProcess(String msgName) {
+        if (!running.get()) return;
+        // log.info("PollAndProcess - ignoring {} msids", processingMessages.size());
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q1.f(Msg.Fields.exclusive).eq(true) //exclusive message
           .f(Msg.Fields.processedBy).eq(null) //not processed yet
+          .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) //not processed by me
           .f(Msg.Fields.sender).ne(getSenderId()); //not sent by me
         Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q2.f(Msg.Fields.exclusive).eq(false) //exclusive message
           .f(Msg.Fields.processedBy).ne(getSenderId()) //not processed by me
+          .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) //not processed by me
           .f(Msg.Fields.sender).ne(getSenderId()); //not sent by me
 
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q.sort(Msg.Fields.priority);
         q.or(q1, q2);
+        q.limit(getWindowSize());
+        if (q.countAll() > getWindowSize()) {
+            pollTrigger.putIfAbsent(msgName, new AtomicInteger(0));
+            pollTrigger.get(msgName ).incrementAndGet();
+        }
+        if (!running.get()) return;
         for (Msg m : q.asIterable()) {
             if (m.isTimingOut() && System.currentTimeMillis() - m.getTimestamp() > m.getTtl()) {
                 log.debug("deleting outdated message");
@@ -527,6 +591,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             if (m.isAnswer()) { //should never come in this collection!!! TODO
                 handleAnswer(m);
             } else {
+                //happens if pausing is enabled during processing!
+                if (pausedMessages.contains(m.getName())) {
+                    continue;
+                }
                 if (m.getRecipients() != null && !m.getRecipients().isEmpty() && !m.getRecipients().contains(getSenderId())) {
                     //message not for me
                     //TODO: should never be here as we use DM_collections
@@ -546,28 +614,6 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
 
 
-        //TODO: look for paused dms
-        //
-        //
-        q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) //not processed
-            .f(Msg.Fields.name).nin(pausedMessages);
-        for (Msg m : q.asIterable(10)) {
-            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
-                var l = (MessageListener)e.get(MType.listener   );
-
-                queueOrRun(()-> {
-                    if (m.isAnswer()) {
-                        handleAnswer(m);
-                    } else {
-                        processMessage(m);
-                    }
-
-                });
-
-
-
-            }
-        }
     }
 
     private void checkDeleteAfterProcessing(Msg obj) {
@@ -694,11 +740,16 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     //}
 
                     if (pausedMessages.contains(map.get("name"))) {
+                        // log.info("Topic {} paused", map.get("name"));
                         //paused
                         return;
                     }
                     Msg doc = morphium.getMapper().deserialize(Msg.class, map);
                     if (doc.getSender().equals(getSenderId())) return;
+                    if (processingMessages.contains(doc.getMsgId())) {
+                        return;
+                    }
+                    processingMessages.add(doc.getMsgId());
                     if (doc.isExclusive()) {
                         if (!lockMessage(doc, getSenderId())) {
                             return;
@@ -733,6 +784,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         unlock(doc);
                         log.error("Error processing message", e);
                     }
+                    processingMessages.remove(doc.getMsgId());
                 } catch (Exception e) {
                     log.error("Error during change event processing", e);
                 }
