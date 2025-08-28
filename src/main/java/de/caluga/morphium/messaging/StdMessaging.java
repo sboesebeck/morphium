@@ -507,7 +507,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                         }
 
                         //do not process if no listener registered for this message
-                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getName()) ) {
+                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic()) ) {
                             return;
                         }
 
@@ -567,7 +567,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                             }
                         }
 
-                        if (!getListenerNames().containsKey(msg.getName()) ) {
+                        if (!getListenerNames().containsKey(msg.getTopic()) ) {
                             return;
                         }
 
@@ -622,13 +622,13 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @param name
      */
     @Override
-    public void pauseProcessingOfMessagesNamed(String name) {
+    public void pauseTopicProcessing(String name) {
         // log.debug("PAusing processing for "+name);
         pauseMessages.putIfAbsent(name, System.currentTimeMillis());
     }
 
     @Override
-    public List<String> getPausedMessageNames() {
+    public List<String> getPausedTopics() {
         return new ArrayList<>(pauseMessages.keySet());
     }
 
@@ -640,7 +640,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      */
     @SuppressWarnings("CommentedOutCode")
     @Override
-    public Long unpauseProcessingOfMessagesNamed(String name) {
+    public Long unpauseTopicProcessing(String name) {
         if (!pauseMessages.containsKey(name)) {
             return 0L;
         }
@@ -878,13 +878,13 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         List<MessageRejectedException> rejections = new ArrayList<>();
         List<MessageListener> lst = new ArrayList<>();
 
-        if (listenerByName.get(msg.getName()) != null) {
-            lst.addAll(listenerByName.get(msg.getName()));
+        if (listenerByName.get(msg.getTopic()) != null) {
+            lst.addAll(listenerByName.get(msg.getTopic()));
         }
 
         for (MessageListener l : lst) {
             try {
-                if (pauseMessages.containsKey(msg.getName())) {
+                if (pauseMessages.containsKey(msg.getTopic())) {
                     // paused - do not process
                     // log.warn("Received paused message?!?!? "+msg1.getMsgId());
                     // processing.remove(msg.getMsgId());
@@ -902,7 +902,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                 wasProcessed = true;
 
                 if (autoAnswer && answer == null) {
-                    answer = new Msg(msg.getName(), "received", "");
+                    answer = new Msg(msg.getTopic(), "received", "");
                 }
 
                 if (answer != null) {
@@ -1060,7 +1060,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public void addListenerForMessageNamed(String n, MessageListener l) {
+    public void addListenerForTopic(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
             HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<>());
@@ -1077,7 +1077,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public void removeListenerForMessageNamed(String n, MessageListener l) {
+    public void removeListenerForTopic(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
             return;
         }
@@ -1342,12 +1342,12 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
 
             if (null == firstAnswer && throwExceptionOnTimeout) {
-                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
             }
 
             return firstAnswer;
         } catch (InterruptedException e) {
-            log.error("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " interrupted.", e);
+            log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " interrupted.", e);
         } finally {
             waitingForAnswers.remove(requestMsgId);
         }
@@ -1387,7 +1387,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
 
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
-                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic() + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
 
                 if (System.currentTimeMillis() - start > timeout) {

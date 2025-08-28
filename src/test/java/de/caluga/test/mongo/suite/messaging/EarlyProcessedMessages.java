@@ -82,9 +82,9 @@ public class EarlyProcessedMessages extends MorphiumTestBase {
                 return true;
             }
         };
-        m2.addListenerForMessageNamed("testmessage", l);
-        m3.addListenerForMessageNamed("testmessage", l);
-        m4.addListenerForMessageNamed("testmessage", l);
+        m2.addListenerForTopic("testmessage", l);
+        m3.addListenerForTopic("testmessage", l);
+        m4.addListenerForTopic("testmessage", l);
 
 
         for (int i = 0; i < 10; i++) {

@@ -23,7 +23,7 @@ public class BigMessagesNCTest extends MorphiumTestBase {
         try {
             sender.setUseChangeStream(false).start();
             receiver.setUseChangeStream(false).start();
-            receiver.addListenerForMessageNamed("bigMsg", (msg, m) -> {
+            receiver.addListenerForTopic("bigMsg", (msg, m) -> {
                 long dur = System.currentTimeMillis() - m.getTimestamp();
                 long dur2 = System.currentTimeMillis() - (Long) m.getMapValue().get("ts");
                 log.info("Received #" + m.getMapValue().get("msgNr") + " after " + dur + "ms Dur2: " + dur2);
@@ -42,7 +42,7 @@ public class BigMessagesNCTest extends MorphiumTestBase {
 
                 log.info("Text Size: " + txt.length());
                 Msg big = new Msg();
-                big.setName("bigMsg");
+                big.setTopic("bigMsg");
                 big.setTtl(3000000);
                 big.setValue(txt.toString());
                 big.setMapValue(UtilsMap.of("msgNr", i));

@@ -61,7 +61,7 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
 
         try {
             final AtomicInteger recCount = new AtomicInteger();
-            receiver.addListenerForMessageNamed("test", new MessageListener() {
+            receiver.addListenerForTopic("test", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recCount.incrementAndGet();
@@ -114,11 +114,11 @@ public class InMemMessagingSpeedTests extends MorphiumInMemTestBase {
 
         try {
             final AtomicInteger recCount = new AtomicInteger();
-            receiver.addListenerForMessageNamed("test", (msg, m)-> {
+            receiver.addListenerForTopic("test", (msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });
-            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
+            receiver2.addListenerForTopic("test", (msg, m)-> {
                 recCount.incrementAndGet();
                 return null;
             });

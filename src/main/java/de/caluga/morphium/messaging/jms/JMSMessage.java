@@ -11,7 +11,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Entity(typeId = "jmsmessage",polymorph = true)
+@Entity(typeId = "jmsmessage", polymorph = true)
 public class JMSMessage extends Msg implements Message {
     private boolean redelivered = false;
     private Object body;
@@ -122,13 +122,13 @@ public class JMSMessage extends Msg implements Message {
     @SuppressWarnings("RedundantThrows")
     @Override
     public String getJMSType() throws JMSException {
-        return getName();
+        return getTopic();
     }
 
     @SuppressWarnings("RedundantThrows")
     @Override
     public void setJMSType(String type) throws JMSException {
-        setName(type);
+        setTopic(type);
     }
 
     @SuppressWarnings("RedundantThrows")

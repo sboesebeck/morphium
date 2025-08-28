@@ -27,7 +27,7 @@ public class MultithreaddingTests extends MorphiumTestBase {
         rec.setSenderId("rec");
         rec.start();
         AtomicInteger parallelThreads = new AtomicInteger(0);
-        rec.addListenerForMessageNamed("test", new MessageListener<Msg>() {
+        rec.addListenerForTopic("test", new MessageListener<Msg>() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 parallelThreads.incrementAndGet();

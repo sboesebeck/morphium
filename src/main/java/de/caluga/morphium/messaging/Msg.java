@@ -51,7 +51,8 @@ public class Msg {
     private MorphiumId inAnswerTo;
     //payload goes here
     @Index
-    private String name;
+    @Aliases({"name"})
+    private String topic;
     private String msg;
     private List<Object> additional;
     private Map<String, Object> mapValue;
@@ -82,7 +83,7 @@ public class Msg {
 
     public Msg(String name, String msg, String value, long ttl, boolean exclusive) {
         this();
-        this.name = name;
+        this.topic = name;
         this.msg = msg;
         this.value = value;
         this.ttl = ttl;
@@ -242,12 +243,12 @@ public class Msg {
         return this;
     }
 
-    public String getName() {
-        return name;
+    public String getTopic() {
+        return topic;
     }
 
-    public Msg setName(String name) {
-        this.name = name;
+    public Msg setTopic(String name) {
+        this.topic = name;
         return this;
     }
 
@@ -368,7 +369,7 @@ public class Msg {
                // ", locked=" + locked +
                ", ttl=" + ttl +
                ", sender='" + sender + '\'' +
-               ", name='" + name + '\'' +
+               ", name='" + topic + '\'' +
                ", msg='" + msg + '\'' +
                ", value='" + value + '\'' +
                ", timestamp=" + timestamp +
@@ -385,7 +386,7 @@ public class Msg {
             throw new RuntimeException("Cannot send msg anonymously - set Sender first!");
         }
 
-        if (name == null) {
+        if (topic == null) {
             throw new RuntimeException("Cannot send a message without name!");
         }
 
@@ -418,7 +419,7 @@ public class Msg {
     }
 
     public Msg createAnswerMsg() {
-        Msg ret = new Msg(name, msg, value, ttl);
+        Msg ret = new Msg(topic, msg, value, ttl);
         ret.setInAnswerTo(msgId);
         ret.addRecipient(sender);
         ret.setPriority(priority - 10);

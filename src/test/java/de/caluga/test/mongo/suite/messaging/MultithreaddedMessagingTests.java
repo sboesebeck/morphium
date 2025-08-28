@@ -31,7 +31,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             Vector<String> processedIds = new Vector<>();
             Hashtable<String, Long> processedAt = new Hashtable<>();
             procCounter.set(0);
-            consumer.addListenerForMessageNamed("test", (msg, m) -> {
+            consumer.addListenerForTopic("test", (msg, m) -> {
                 procCounter.incrementAndGet();
 
                 if (processedIds.contains(m.getMsgId().toString())) {
@@ -86,7 +86,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         try {
             final AtomicInteger processed = new AtomicInteger();
             final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
-            consumer.addListenerForMessageNamed("test", (msg, m) -> {
+            consumer.addListenerForTopic("test", (msg, m) -> {
                 processed.incrementAndGet();
 
                 if (processed.get() % 1000 == 0) {
@@ -147,7 +147,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         StdMessaging receiver = new StdMessaging(morphium, 100, false, false, 10);
-        receiver.addListenerForMessageNamed("test", (msg, m) -> {
+        receiver.addListenerForTopic("test", (msg, m) -> {
             list.add(m);
 
             try {
@@ -188,7 +188,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         sender.start();
         list.clear();
         StdMessaging receiver = new StdMessaging(morphium, 100, false, true, 10);
-        receiver.addListenerForMessageNamed("test", (msg, m) -> {
+        receiver.addListenerForTopic("test", (msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
 
@@ -235,7 +235,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
         final AtomicInteger count = new AtomicInteger();
         StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 1000);
-        consumer.addListenerForMessageNamed("test", (msg, m) -> {
+        consumer.addListenerForTopic("test", (msg, m) -> {
             //            log.info("Got message!");
             count.incrementAndGet();
             return null;
@@ -277,7 +277,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
         StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 121);
-        consumer.addListenerForMessageNamed("test", (msg, m) -> {
+        consumer.addListenerForTopic("test", (msg, m) -> {
             //log.info("Got message!");
             count.incrementAndGet();
             return null;

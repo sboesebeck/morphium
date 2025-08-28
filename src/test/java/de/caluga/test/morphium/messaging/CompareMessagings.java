@@ -39,14 +39,14 @@ public class CompareMessagings extends MorphiumTestBase {
             final var latch = new java.util.concurrent.CountDownLatch(amount);
             MorphiumMessaging receiver = morph.createMessaging();
             receiver.setSenderId("rec");
-            receiver.addListenerForMessageNamed("test", (msg, m)-> {
+            receiver.addListenerForTopic("test", (msg, m)-> {
                 latch.countDown();
                 return null;
             });
             receiver.start();
             MorphiumMessaging receiver2 = morph.createMessaging();
             receiver2.setSenderId("rec2");
-            receiver2.addListenerForMessageNamed("test", (msg, m)-> {
+            receiver2.addListenerForTopic("test", (msg, m)-> {
                 latch.countDown();
                 return null;
             });
@@ -137,7 +137,7 @@ public class CompareMessagings extends MorphiumTestBase {
             final AtomicInteger recieved = new AtomicInteger();
             MorphiumMessaging receiver = morph.createMessaging();
             receiver.setSenderId("rec");
-            receiver.addListenerForMessageNamed("test", (msg, m)-> {
+            receiver.addListenerForTopic("test", (msg, m)-> {
                 latch.countDown();
                 return null;
             });
@@ -226,7 +226,7 @@ public class CompareMessagings extends MorphiumTestBase {
             for (int i = 0; i < receiverAmount; i++) {
                 MorphiumMessaging receiver1 = morph.createMessaging();
                 receiver1.setSenderId("rec" + i);
-                receiver1.addListenerForMessageNamed("test", (msg, m)-> {
+                receiver1.addListenerForTopic("test", (msg, m)-> {
                     return m.createAnswerMsg().setMsg("Recieved by rec");
                 });
                 receiver1.start();
@@ -282,7 +282,7 @@ public class CompareMessagings extends MorphiumTestBase {
             for (int i = 0; i < receiverAmount; i++) {
                 MorphiumMessaging receiver1 = morph.createMessaging();
                 receiver1.setSenderId("rec" + i);
-                receiver1.addListenerForMessageNamed("test", (msg, m)-> {
+                receiver1.addListenerForTopic("test", (msg, m)-> {
                     return m.createAnswerMsg().setMsg("Recieved by rec");
                 });
                 receiver1.start();

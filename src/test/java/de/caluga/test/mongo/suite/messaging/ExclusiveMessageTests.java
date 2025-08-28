@@ -40,7 +40,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         m2.setSenderId("m2");
         StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
-        m3.addListenerForMessageNamed("test", new MessageListener() {
+        m3.addListenerForTopic("test", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m) {
                 return null;
@@ -91,19 +91,19 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage4 = false;
         StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
         m1.setQueueName("t1");
-        m1.addListenerForMessageNamed("A message", (msg, m)-> {
+        m1.addListenerForTopic("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
         m2.setQueueName("t1");
-        m2.addListenerForMessageNamed("A message", (msg, m)-> {
+        m2.addListenerForTopic("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
         m3.setQueueName("t1");
-        m3.addListenerForMessageNamed("A message", (msg, m)-> {
+        m3.addListenerForTopic("A message", (msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -117,7 +117,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             m.setExclusive(true);
             m.setDeleteAfterProcessing(true);
             m.setDeleteAfterProcessingTime(0);
-            m.setName("A message");
+            m.setTopic("A message");
             m.setProcessedBy(Arrays.asList("someone_else"));
             sender.sendMessage(m);
             Thread.sleep(1000);
@@ -174,17 +174,17 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
         StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
-        m1.addListenerForMessageNamed("A message", (msg, m)-> {
+        m1.addListenerForTopic("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
         StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
-        m2.addListenerForMessageNamed("A message", (msg, m)-> {
+        m2.addListenerForTopic("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
         StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
-        m3.addListenerForMessageNamed("A message", (msg, m)-> {
+        m3.addListenerForTopic("A message", (msg, m)-> {
             gotMessage3 = true;
             return null;
         });
@@ -196,7 +196,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             Thread.sleep(2000);
             Msg m = new Msg();
             m.setExclusive(true);
-            m.setName("A message");
+            m.setTopic("A message");
             sender.sendMessage(m);
             long s = System.currentTimeMillis();
 
@@ -260,28 +260,28 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage4 = false;
             m1 = new StdMessaging(morphium, "test", 100, false);
             m1.setSenderId("m1");
-            m1.addListenerForMessageNamed("A message", (msg, m)-> {
+            m1.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
             m2 = new StdMessaging(morphium, "test", 100, false);
             m2.setSenderId("m2");
-            m2.addListenerForMessageNamed("A message", (msg, m)-> {
+            m2.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
             m3 = new StdMessaging(morphium, "test2", 100, false);
             m3.setSenderId("m3");
-            m3.addListenerForMessageNamed("A message", (msg, m)-> {
+            m3.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
             m4 = new StdMessaging(morphium, "test2", 100, false);
             m4.setSenderId("m4");
-            m4.addListenerForMessageNamed("A message", (msg, m)-> {
+            m4.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage4 = true;
                 log.info("Got message m4");
                 return null;
@@ -296,7 +296,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             m.setExclusive(true);
             m.setTtl(3000000);
             m.setMsgId(new MorphiumId());
-            m.setName("A message");
+            m.setTopic("A message");
             log.info("Sending: " + m.getMsgId().toString());
             sender.sendMessage(m);
             assert(!gotMessage3);
@@ -324,7 +324,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage2 = false;
             m = new Msg();
             m.setExclusive(true);
-            m.setName("A message");
+            m.setTopic("A message");
             m.setTtl(3000000);
             sender2.sendMessage(m);
             Thread.sleep(500);
@@ -466,10 +466,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 recById.put(m.getMsgId().toString(), msg.getSenderId());
                 return null;
             };
-            receiver.addListenerForMessageNamed("m", messageListener);
-            receiver2.addListenerForMessageNamed("m", messageListener);
-            receiver3.addListenerForMessageNamed("m", messageListener);
-            receiver4.addListenerForMessageNamed("m", messageListener);
+            receiver.addListenerForTopic("m", messageListener);
+            receiver2.addListenerForTopic("m", messageListener);
+            receiver3.addListenerForTopic("m", messageListener);
+            receiver4.addListenerForTopic("m", messageListener);
             int amount = 150;
             int broadcastAmount = 50;
 
@@ -580,11 +580,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
         StdMessaging receiver = new StdMessaging(morphium, 100, true);
-        receiver.addListenerForMessageNamed("test2", (messaging, msg)-> {
+        receiver.addListenerForTopic("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
-        receiver.addListenerForMessageNamed("test", (messaging, msg)-> {
+        receiver.addListenerForTopic("test", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
@@ -630,11 +630,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
         StdMessaging receiver = new StdMessaging(morphium, 100, true, 10);
-        receiver.addListenerForMessageNamed("test2", (messaging, msg)-> {
+        receiver.addListenerForTopic("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
-        receiver.addListenerForMessageNamed("test", (messaging, msg)-> {
+        receiver.addListenerForTopic("test", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
         });
@@ -665,7 +665,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             r.setSenderId("r" + i);
             recs.add(r);
             r.start();
-            r.addListenerForMessageNamed("excl_name", (m, msg)-> {
+            r.addListenerForTopic("excl_name", (m, msg)-> {
                 counts.incrementAndGet();
                 return null;
             });

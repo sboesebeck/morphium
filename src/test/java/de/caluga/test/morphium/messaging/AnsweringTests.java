@@ -82,7 +82,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     log.info("m1 ID: " + m1.getSenderId());
                     log.info("m2 ID: " + m2.getSenderId());
                     log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
-                    m1.addListenerForMessageNamed("test", (msg, m) -> {
+                    m1.addListenerForTopic("test", (msg, m) -> {
                         gotMessage1 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
@@ -100,7 +100,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                         answer.addAdditional("String message from m1");
                         return answer;
                     });
-                    m2.addListenerForMessageNamed("test", (msg, m) -> {
+                    m2.addListenerForTopic("test", (msg, m) -> {
                         gotMessage2 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
@@ -115,7 +115,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                         answer.addAdditional("Additional Value von m2");
                         return answer;
                     });
-                    onlyAnswers.addListenerForMessageNamed("test", (msg, m) -> {
+                    onlyAnswers.addListenerForTopic("test", (msg, m) -> {
                         gotMessage3 = true;
 
                         if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
@@ -208,7 +208,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 m2.start();
                 m3.start();
                 Thread.sleep(2000);
-                m3.addListenerForMessageNamed("test_answer_exclusive", (msg, m) -> {
+                m3.addListenerForTopic("test_answer_exclusive", (msg, m) -> {
                     log.info("Incoming message");
                     return m.createAnswerMsg();
                 });
@@ -259,7 +259,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 m2.start();
                 mSrv.start();
                 Thread.sleep(1000);
-                mSrv.addListenerForMessageNamed("query", (msg, m) -> {
+                mSrv.addListenerForTopic("query", (msg, m) -> {
                     log.info("Incoming message - sending result");
                     Msg answer = m.createAnswerMsg();
                     m.setTtl(30000);
@@ -317,12 +317,12 @@ public class AnsweringTests extends MultiDriverTestBase {
                 messaging1.start();
                 messaging2.start();
                 messagingElse.start();
-                messagingElse.addListenerForMessageNamed("something else", (msg, m) -> {
+                messagingElse.addListenerForTopic("something else", (msg, m) -> {
                     log.info("incoming message??");
                     gotMessage1 = true;
                     return null;
                 });
-                messaging2.addListenerForMessageNamed("q_getAnswer", (msg, m) -> {
+                messaging2.addListenerForTopic("q_getAnswer", (msg, m) -> {
                     log.info("Messaging2 got query");
                     Msg answer = m.createAnswerMsg();
                     msg.sendMessage(answer);
@@ -387,7 +387,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                 m1.start();
                 m2.start();
                 // Thread.sleep(2000);
-                m2.addListenerForMessageNamed("q_no_listener", (msg, m) -> m.createAnswerMsg());
+                m2.addListenerForTopic("q_no_listener", (msg, m) -> m.createAnswerMsg());
                 m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
                 Thread.sleep(1000);
                 Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("q_no_listener", "question", "a value"), 5000);
@@ -437,16 +437,16 @@ public class AnsweringTests extends MultiDriverTestBase {
                 recipient.start();
                 Thread.sleep(2000);
                 gotMessage1 = false;
-                recipient.addListenerForMessageNamed("query", (msg, m) -> {
+                recipient.addListenerForTopic("query", (msg, m) -> {
                     gotMessage1 = true;
                     Msg answer = m.createAnswerMsg();
-                    answer.setName("queryAnswer");
+                    answer.setTopic("queryAnswer");
                     answer.setMsg("the answer");
                     //msg.storeMessage(answer);
                     return answer;
                 });
                 gotMessage2 = false;
-                sender.addListenerForMessageNamed("queryAnswer", (msg, m) -> {
+                sender.addListenerForTopic("queryAnswer", (msg, m) -> {
                     gotMessage2 = true;
                     assertNotNull(m.getInAnswerTo());;
                     return null;
@@ -486,9 +486,9 @@ public class AnsweringTests extends MultiDriverTestBase {
                     log.info("Upcoming Errormessage is expected, because messaging is not processing own messages!");
 
                     try {
-                        m1.addListenerForMessageNamed("test", (msg, m) -> {
+                        m1.addListenerForTopic("test", (msg, m) -> {
                             gotMessage1 = true;
-                            return new Msg(m.getName(), "got message", "value", 5000);
+                            return new Msg(m.getTopic(), "got message", "value", 5000);
                         });
                         m1.start();
                         Msg answer = m1.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 5000), 500);
@@ -535,7 +535,7 @@ public class AnsweringTests extends MultiDriverTestBase {
                     MorphiumMessaging rec = morph.createMessaging();
                     rec.setSenderId("rec" + i);
                     rec.start();
-                    rec.addListenerForMessageNamed("test", new MessageListener<Msg>() {
+                    rec.addListenerForTopic("test", new MessageListener<Msg>() {
                         @Override
                         public Msg onMessage(MorphiumMessaging msg, Msg m) {
                             log.info("Got message after ms: " + (System.currentTimeMillis() - m.getTimestamp()));
@@ -614,16 +614,16 @@ public class AnsweringTests extends MultiDriverTestBase {
                 gotMessage4 = false;
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                m1.addListenerForTopic("test", (msg, m) -> {
                     gotMessage1 = true;
-                    return new Msg(m.getName(), "got message", "value", 5555000);
+                    return new Msg(m.getTopic(), "got message", "value", 5555000);
                 });
                 m1.setUseChangeStream(false);
                 m1.start();
                 Thread.sleep(2500);
                 Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 115000), 125000);
                 assertNotNull(answer);;
-                assertEquals(answer.getName(), "test");
+                assertEquals(answer.getTopic(), "test");
                 assertNotNull(answer.getInAnswerTo());;
                 assertNotNull(answer.getRecipients());;
                 assertEquals(answer.getMsg(), "got message");
@@ -665,10 +665,10 @@ public class AnsweringTests extends MultiDriverTestBase {
                 gotMessage4 = false;
                 MorphiumMessaging m1 = morph.createMessaging();
                 m1.setSenderId("m1");
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                m1.addListenerForTopic("test", (msg, m) -> {
                     gotMessage1 = true;
                     LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(5));
-                    return new Msg(m.getName(), "got message", "value", 5000);
+                    return new Msg(m.getTopic(), "got message", "value", 5000);
                 });
                 m1.setUseChangeStream(false);
                 m1.start();

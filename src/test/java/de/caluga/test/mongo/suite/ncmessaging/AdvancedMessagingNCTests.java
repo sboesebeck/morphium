@@ -93,7 +93,7 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 msg.setSenderId("msg" + i);
                 msg.setUseChangeStream(true).start();
                 messagings.add(msg);
-                msg.addListenerForMessageNamed("test", msgMessageListener);
+                msg.addListenerForTopic("test", msgMessageListener);
             }
 
             for (int i = 0; i < amount; i++) {
@@ -217,12 +217,12 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             MessageListener<Msg> msgMessageListener = (msg, m) -> {
                 log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 Msg answer = m.createAnswerMsg();
-                answer.setName("test_answer");
+                answer.setTopic("test_answer");
                 return answer;
             };
-            m2.addListenerForMessageNamed("test", msgMessageListener);
-            m3.addListenerForMessageNamed("test", msgMessageListener);
-            m4.addListenerForMessageNamed("test", msgMessageListener);
+            m2.addListenerForTopic("test", msgMessageListener);
+            m3.addListenerForTopic("test", msgMessageListener);
+            m4.addListenerForTopic("test", msgMessageListener);
 
             for (int i = 0; i < 10; i++) {
                 Msg query = new Msg("test", "test querey", "query");
@@ -305,16 +305,16 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         Msg answer;
 
         try {
-            consumer.addListenerForMessageNamed("testDiff", (msg, m) -> {
+            consumer.addListenerForTopic("testDiff", (msg, m) -> {
                 log.info("incoming message, replying with answer");
                 Msg answer1 = m.createAnswerMsg();
-                answer1.setName("answer");
+                answer1.setTopic("answer");
                 return answer1;
             });
             answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 1000);
             assertNotNull(answer);
             ;
-            assert(answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
+            assert(answer.getTopic().equals("answer")) : "Name is wrong: " + answer.getTopic();
         } finally {
             producer.terminate();
             consumer.terminate();
@@ -329,14 +329,14 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         consumer.setUseChangeStream(false).start();
 
         try {
-            consumer.addListenerForMessageNamed("testAnswering", (msg, m) -> {
+            consumer.addListenerForTopic("testAnswering", (msg, m) -> {
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
-                answer.setName("answerForTestAnswering");
+                answer.setTopic("answerForTestAnswering");
                 return answer;
             });
             MorphiumId msgId = new MorphiumId();
-            producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m) -> {
+            producer.addListenerForTopic("answerForTestAnswering", (msg, m) -> {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
                 assert(msgId.equals(m.getInAnswerTo()));
                 counts.put(msgId, 1);

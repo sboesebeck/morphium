@@ -80,7 +80,7 @@ public class FailoverTests extends MultiDriverTestBase {
             sender.start();
             StdMessaging receiver = new StdMessaging(morphium, 250, true);
             receiver.start();
-            receiver.addListenerForMessageNamed("Test", (m, msg)-> {
+            receiver.addListenerForTopic("Test", (m, msg)-> {
                 return msg.createAnswerMsg();
             });
             Thread.sleep(3000);

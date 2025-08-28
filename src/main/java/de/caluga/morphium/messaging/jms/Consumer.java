@@ -32,7 +32,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
             throw new RuntimeException(e);
         }
         //messaging.addMessageListener(this);
-        messaging.addListenerForMessageNamed(selector, this);
+        messaging.addListenerForTopic(selector, this);
     }
 
     @Override
@@ -84,7 +84,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
 
     @Override
     public void close() {
-        messaging.removeListenerForMessageNamed(selector, this);
+        messaging.removeListenerForTopic(selector, this);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class Consumer implements JMSConsumer, de.caluga.morphium.messaging.Messa
     private JMSMessage getAckMessage(JMSMessage m) {
         //send ACK
         JMSMessage ans = new JMSMessage();
-        ans.setName("ack");
+        ans.setTopic("ack");
         ans.setInAnswerTo(m.getMsgId());
         ans.setMsg("ack");
         ans.addRecipient(m.getSender());
