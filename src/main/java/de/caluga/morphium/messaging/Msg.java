@@ -29,9 +29,8 @@ import java.util.*;
 @Lifecycle
 @Index({
     "sender,processed_by,in_answer_to",
-    "sender,processed_by",
-    "msgId,sender,processed_by,name,priority,timestamp",
-    "msgId,processed_by,name",
+    "msgId,sender,processed_by,topic,priority,timestamp",
+    "msgId,processed_by,topic",
     "processed_by,priority,timestamp"
 })
 public class Msg {
