@@ -469,5 +469,5 @@ public class Msg {
         return Objects.hash(getMsgId());
     }
 
-    public enum Fields {msgId, exclusive, ttl, sender, senderHost, recipients, to, inAnswerTo, name, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
+    public enum Fields {msgId, exclusive, ttl, sender, senderHost, recipients, to, inAnswerTo, topic, msg, additional, mapValue, value, timestamp, deleteAt, priority, processedBy}
 }

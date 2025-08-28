@@ -530,7 +530,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         //
         //
         var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) //not processed
-                .f(Msg.Fields.name).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
+                .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
         q.limit(getWindowSize());
         if (q.countAll() > getWindowSize()) {
             pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));

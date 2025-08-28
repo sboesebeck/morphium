@@ -689,7 +689,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
             if (!pauseMessages.isEmpty()) {
-                q.f(Msg.Fields.name).nin(pausedMessagesKeys);
+                q.f(Msg.Fields.topic).nin(pausedMessagesKeys);
             }
 
             q.or(q1, q2);

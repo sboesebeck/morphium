@@ -1583,7 +1583,7 @@ public class MessagingNCTest extends MorphiumTestBase {
             }
 
             long start = System.currentTimeMillis();
-            Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.name).eq("test").f(Msg.Fields.processedBy).eq(null);
+            Query<Msg> q = morphium.createQueryFor(Msg.class).f(Msg.Fields.topic).eq("test").f(Msg.Fields.processedBy).eq(null);
             while (q.countAll() > 0) {
                 log.info("Count is still: " + q.countAll());
                 Thread.sleep(500);
