@@ -1155,25 +1155,6 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
         if (changeStreamMonitor != null) {
             changeStreamMonitor.terminate();
         }
-        if (isAlive()) {
-            try {
-                interrupt();
-            } catch (Exception e) {
-                log.warn("Exception when interrupint messaging thread", e);
-            }
-        }
-        int retry = 0;
-        while (isAlive()) {
-            try {
-                sleep(150);
-            } catch (InterruptedException e) {
-                // swallow
-            }
-            retry++;
-            if (retry > 2 * morphium.getConfig().connectionSettings().getMaxWaitTime() / 150 + 5) {
-                throw new RuntimeException("Could not terminate Messaging! MaxTime exceeded twice");
-            }
-        }
     }
 
 
