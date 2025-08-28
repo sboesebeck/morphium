@@ -29,7 +29,7 @@ public class AsyncMessagingTests extends MorphiumTestBase {
             sender.start();
             sender.setSenderId("Sender");
             receiver.setSenderId("receiver");
-            receiver.addListenerForMessageNamed("query", (msging, msg)-> {
+            receiver.addListenerForTopic("query", (msging, msg)-> {
                 log.info("Receiver got message");
                 new Thread() {
                     public void run() {
@@ -59,7 +59,7 @@ public class AsyncMessagingTests extends MorphiumTestBase {
                 log.info("Sending Message");
                 final int num = i;
                 sender.sendAndAwaitAsync(query, 8000, (msg) -> {
-                    log.info("Got message! #{}: {} value: {}", num, msg.getName(), msg.getValue());
+                    log.info("Got message! #{}: {} value: {}", num, msg.getTopic(), msg.getValue());
                     assertEquals(query.getMsgId(), msg.getInAnswerTo());
                     receivedMessages.add(msg);
                 });
@@ -92,7 +92,7 @@ public class AsyncMessagingTests extends MorphiumTestBase {
 
         try {
             sender.start();
-            receiver.addListenerForMessageNamed("query", (msging, msg)-> {
+            receiver.addListenerForTopic("query", (msging, msg)-> {
                 log.info("Receiver got message");
                 new Thread() {
                     public void run() {
@@ -120,7 +120,7 @@ public class AsyncMessagingTests extends MorphiumTestBase {
             query.setExclusive(true);
             log.info("Sending Message");
             sender.sendAndAwaitAsync(query, 8000, (msg) -> {
-                log.info("Got message! {} value: {}", msg.getName(), msg.getValue());
+                log.info("Got message! {} value: {}", msg.getTopic(), msg.getValue());
                 receivedAt.set(System.currentTimeMillis());
             });
 
@@ -181,13 +181,13 @@ public class AsyncMessagingTests extends MorphiumTestBase {
 
                 return null;
             };
-            receiver1.addListenerForMessageNamed("query", l);
+            receiver1.addListenerForTopic("query", l);
             receiver1.start();
-            receiver2.addListenerForMessageNamed("query", l);
+            receiver2.addListenerForTopic("query", l);
             receiver2.start();
-            receiver3.addListenerForMessageNamed("query", l);
+            receiver3.addListenerForTopic("query", l);
             receiver3.start();
-            receiver4.addListenerForMessageNamed("query", l);
+            receiver4.addListenerForTopic("query", l);
             receiver4.start();
             Thread.sleep(1000);
             //just to be sure, that all is registered properly
@@ -197,7 +197,7 @@ public class AsyncMessagingTests extends MorphiumTestBase {
             Vector<Msg> received = new Vector<Msg>();
             sender.sendAndAwaitAsync(query, 9000, (msg) -> {
                 //getting back an answer from one of the receivers
-                log.info("Got message from {}! {} value: {}", msg.getSender(), msg.getName(), msg.getValue());
+                log.info("Got message from {}! {} value: {}", msg.getSender(), msg.getTopic(), msg.getValue());
                 received.add(msg);
             });
 

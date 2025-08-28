@@ -55,7 +55,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
             log.info("m2 ID: " + m2.getSenderId());
             log.info("onlyAnswers ID: " + onlyAnswers.getSenderId());
 
-            m1.addListenerForMessageNamed("test", (msg, m) -> {
+            m1.addListenerForTopic("test", (msg, m) -> {
                 gotMessage1 = true;
                 if (m.getTo() != null && !m.getTo().contains(m1.getSenderId())) {
                     log.error("wrongly received message?");
@@ -73,7 +73,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return answer;
             });
 
-            m2.addListenerForMessageNamed("test", (msg, m) -> {
+            m2.addListenerForTopic("test", (msg, m) -> {
                 gotMessage2 = true;
                 if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
                     log.error("wrongly received message?");
@@ -88,7 +88,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return answer;
             });
 
-            onlyAnswers.addListenerForMessageNamed("test", (msg, m) -> {
+            onlyAnswers.addListenerForTopic("test", (msg, m) -> {
                 gotMessage3 = true;
                 if (m.getTo() != null && !m.getTo().contains(onlyAnswers.getSenderId())) {
                     log.error("wrongly received message?");
@@ -159,7 +159,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m2.setUseChangeStream(false).start();
         m3.setUseChangeStream(false).start();
 
-        m3.addListenerForMessageNamed("test", (msg, m) -> {
+        m3.addListenerForTopic("test", (msg, m) -> {
             log.info("Incoming message");
             return m.createAnswerMsg();
         });
@@ -187,7 +187,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m2.setUseChangeStream(false).start();
         mSrv.setUseChangeStream(false).start();
 
-        mSrv.addListenerForMessageNamed("query", (msg, m) -> {
+        mSrv.addListenerForTopic("query", (msg, m) -> {
             log.info("Incoming message - sending result");
             Msg answer = m.createAnswerMsg();
             answer.setValue("Result");
@@ -229,12 +229,12 @@ public class AnsweringNCTests extends MorphiumTestBase {
         mTst.setUseChangeStream(false).start();
 
 
-        mTst.addListenerForMessageNamed("somethign else", (msg, m) -> {
+        mTst.addListenerForTopic("somethign else", (msg, m) -> {
             log.info("incoming message??");
             return null;
         });
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> {
+        m2.addListenerForTopic("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             msg.sendMessage(answer);
             try {
@@ -277,7 +277,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> {
+        m2.addListenerForTopic("question", (msg, m) -> {
             Msg answer = m.createAnswerMsg();
             return answer;
         });
@@ -307,7 +307,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
 
-        m2.addListenerForMessageNamed("question", (msg, m) -> m.createAnswerMsg());
+        m2.addListenerForTopic("question", (msg, m) -> m.createAnswerMsg());
 
         m1.sendMessage(new Msg("not asdf", "will it stuck", "uahh", 10000));
         Thread.sleep(10000);
@@ -328,19 +328,19 @@ public class AnsweringNCTests extends MorphiumTestBase {
         sender.setUseChangeStream(false).start();
         recipient.setUseChangeStream(false).start();
         gotMessage1 = false;
-        recipient.addListenerForMessageNamed("query", new MessageListener() {
+        recipient.addListenerForTopic("query", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 gotMessage1 = true;
                 Msg answer = m.createAnswerMsg();
-                answer.setName("queryAnswer");
+                answer.setTopic("queryAnswer");
                 answer.setMsg("the answer");
                 //msg.storeMessage(answer);
                 return answer;
             }
         });
         gotMessage2 = false;
-        sender.addListenerForMessageNamed("queryAnswer", new MessageListener() {
+        sender.addListenerForTopic("queryAnswer", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 gotMessage2 = true;
@@ -369,9 +369,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
             StdMessaging m1 = new StdMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
             try {
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                m1.addListenerForTopic("test", (msg, m) -> {
                     gotMessage1 = true;
-                    return new Msg(m.getName(), "got message", "value", 5000);
+                    return new Msg(m.getTopic(), "got message", "value", 5000);
                 });
 
                 m1.setUseChangeStream(false).start();
@@ -398,9 +398,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage4 = false;
 
         StdMessaging m1 = new StdMessaging(morphium, 100, false);
-        m1.addListenerForMessageNamed("test", (msg, m) -> {
+        m1.addListenerForTopic("test", (msg, m) -> {
             gotMessage1 = true;
-            return new Msg(m.getName(), "got message", "value", 5000);
+            return new Msg(m.getTopic(), "got message", "value", 5000);
         });
 
         m1.setUseChangeStream(false).start();
@@ -409,7 +409,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         Msg answer = sender.sendAndAwaitFirstAnswer(new Msg("test", "Sender", "sent", 15000), 15000);
         assertNotNull(answer);
         ;
-        assert (answer.getName().equals("test"));
+        assert (answer.getTopic().equals("test"));
         assertNotNull(answer.getInAnswerTo());
         ;
         assertNotNull(answer.getRecipients());

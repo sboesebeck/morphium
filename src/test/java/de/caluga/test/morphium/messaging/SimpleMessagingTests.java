@@ -50,7 +50,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
                 AtomicBoolean rec1Received = new AtomicBoolean(false);
                 MorphiumMessaging rec1 = morph.createMessaging();
                 rec1.start();
-                rec1.addListenerForMessageNamed("test", (msg, m)-> {
+                rec1.addListenerForTopic("test", (msg, m)-> {
                     log.info("Rec1 received");
                     rec1Received.set(true);
                     return null;
@@ -61,7 +61,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
 
                 rec2.init(morphium);
                 rec2.start();
-                rec2.addListenerForMessageNamed("test", (msg, m)-> {
+                rec2.addListenerForTopic("test", (msg, m)-> {
                     log.info("Rec2 received");
                     rec2Received.set(true);
                     return null;
@@ -105,7 +105,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
 
                 rec1.init(morphium);
                 rec1.start();
-                rec1.addListenerForMessageNamed("test", (msg, m)-> {
+                rec1.addListenerForTopic("test", (msg, m)-> {
                     log.info("Rec1 received");
                     rec1Received.set(true);
                     return null;
@@ -116,7 +116,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
 
                 rec2.init(morphium);
                 rec2.start();
-                rec2.addListenerForMessageNamed("test", (msg, m)-> {
+                rec2.addListenerForTopic("test", (msg, m)-> {
                     log.info("Rec2 received");
                     rec2Received.set(true);
                     return null;
@@ -173,7 +173,7 @@ public class SimpleMessagingTests extends MorphiumTestBase {
                     msg.start();
                     for (int j = 0; j < queues; j++  ) {
                         log.info("Adding listener #{} to rec{}", j, i);
-                        msg.addListenerForMessageNamed("test_" + j, (ms, m)-> {
+                        msg.addListenerForTopic("test_" + j, (ms, m)-> {
                             assertNotEquals(msg.getSenderId(), m.getSender());
                             assertNull(recs.get(m.getMsgId()));
 

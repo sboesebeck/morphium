@@ -29,7 +29,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
         rec.start();
         AtomicInteger messageCount = new AtomicInteger();
         AtomicInteger totalCount = new AtomicInteger();
-        rec.addListenerForMessageNamed("name", (msg, m) -> {
+        rec.addListenerForTopic("name", (msg, m) -> {
             if (messageCount.get() == 0) {
                 messageCount.incrementAndGet();
                 var ex = new MessageRejectedException("nah.. not now", true);
@@ -94,7 +94,7 @@ public class ComplexMessageQueueTests extends MorphiumTestBase {
             for (int i = 0; i < 5; i++) {
                 StdMessaging cl = new StdMessaging(morphium);
                 cl.setSenderId("cl" + i);
-                cl.addListenerForMessageNamed("test", lst);
+                cl.addListenerForTopic("test", lst);
                 cl.start();
                 clients.add(cl);
             }

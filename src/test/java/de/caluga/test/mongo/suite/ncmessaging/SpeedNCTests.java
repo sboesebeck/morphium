@@ -53,7 +53,7 @@ public class SpeedNCTests extends MorphiumTestBase {
         receiver.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
-        receiver.addListenerForMessageNamed("test", new MessageListener() {
+        receiver.addListenerForTopic("test", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();
@@ -98,14 +98,14 @@ public class SpeedNCTests extends MorphiumTestBase {
         receiver2.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
-        receiver.addListenerForMessageNamed("test", new MessageListener() {
+        receiver.addListenerForTopic("test", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();
                 return null;
             }
         });
-        receiver2.addListenerForMessageNamed("test", new MessageListener() {
+        receiver2.addListenerForTopic("test", new MessageListener() {
             @Override
             public Msg onMessage(MorphiumMessaging msg, Msg m)  {
                 recCount.incrementAndGet();

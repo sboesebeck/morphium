@@ -76,7 +76,7 @@ public class AnsweringLoadTests extends MultiDriverTestBase {
                 m.setPause(10);
                 m.setMultithreadded(true);
                 m.setProcessMultiple(true);
-                m.addListenerForMessageNamed("test", listener);
+                m.addListenerForTopic("test", listener);
                 m.start();
                 rec.add(m);
             }

@@ -56,8 +56,8 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
         annotationHelper = morphium.getARHelper();
         morphium.addListener(this);
 
-        messaging.addListenerForMessageNamed(CACHE_SYNC_TYPE, this);
-        messaging.addListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+        messaging.addListenerForTopic(CACHE_SYNC_TYPE, this);
+        messaging.addListenerForTopic(CACHE_SYNC_RECORD, this);
         attached = true;
 
     }
@@ -168,8 +168,8 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
     public void detach() {
         attached = false;
         morphium.removeListener(this);
-        messaging.removeListenerForMessageNamed(CACHE_SYNC_TYPE, this);
-        messaging.removeListenerForMessageNamed(CACHE_SYNC_RECORD, this);
+        messaging.removeListenerForTopic(CACHE_SYNC_TYPE, this);
+        messaging.removeListenerForTopic(CACHE_SYNC_RECORD, this);
     }
 
     public boolean isAttached() {
@@ -305,9 +305,9 @@ public class MessagingCacheSynchronizer extends AbstractCacheSynchronizer<Messag
             if (log.isDebugEnabled()) {
                 String action = m.getMsg();
                 String sender = m.getSender();
-                log.debug("Got message " + m.getName() + " from " + sender + " - Action: " + action + " Class: " + m.getValue());
+                log.debug("Got message " + m.getTopic() + " from " + sender + " - Action: " + action + " Class: " + m.getValue());
             }
-            if (m.getName().equals(CACHE_SYNC_TYPE)) {
+            if (m.getTopic().equals(CACHE_SYNC_TYPE)) {
                 if (m.getValue().equals("ALL")) {
 
                     try {

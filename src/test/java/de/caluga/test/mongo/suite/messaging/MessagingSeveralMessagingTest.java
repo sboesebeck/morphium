@@ -34,7 +34,7 @@ public class MessagingSeveralMessagingTest extends MultiDriverTestBase {
             Thread.sleep(2000);
 
             try {
-                m3.addListenerForMessageNamed("multisystemtest", (msg, m) -> {
+                m3.addListenerForTopic("multisystemtest", (msg, m) -> {
                     //log.info("Got message: "+m.getName());
                     log.info("Sending answer for " + m.getMsgId());
                     return new Msg("multisystemtest", "answer", "value", 60000);

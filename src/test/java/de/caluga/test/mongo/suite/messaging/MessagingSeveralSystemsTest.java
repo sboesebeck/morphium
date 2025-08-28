@@ -37,22 +37,22 @@ public class MessagingSeveralSystemsTest extends MultiDriverTestBase {
             m2.start();
             m3.start();
             Thread.sleep(2000);
-            m1.addListenerForMessageNamed("test", (msg, m) -> {
+            m1.addListenerForTopic("test", (msg, m) -> {
                 gotMessage1 = true;
                 log.info("M1 got message " + m.toString());
                 return null;
             });
-            m2.addListenerForMessageNamed("test", (msg, m) -> {
+            m2.addListenerForTopic("test", (msg, m) -> {
                 gotMessage2 = true;
                 log.info("M2 got message " + m.toString());
                 return null;
             });
-            m3.addListenerForMessageNamed("test", (msg, m) -> {
+            m3.addListenerForTopic("test", (msg, m) -> {
                 gotMessage3 = true;
                 log.info("M3 got message " + m.toString());
                 return null;
             });
-            m4.addListenerForMessageNamed("test", (msg, m) -> {
+            m4.addListenerForTopic("test", (msg, m) -> {
                 gotMessage4 = true;
                 log.info("M4 got message " + m.toString());
                 return null;

@@ -95,7 +95,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 msg.setSenderId("msg" + i);
                 msg.setUseChangeStream(true).start();
                 messagings.add(msg);
-                msg.addListenerForMessageNamed("test", msgMessageListener);
+                msg.addListenerForTopic("test", msgMessageListener);
                 threads.decrementAndGet();
             }
 
@@ -267,14 +267,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             MessageListener<Msg> msgMessageListener = (msg, m)-> {
                 log.info("Received " + m.getMsgId() + " created " + (System.currentTimeMillis() - m.getTimestamp()) + "ms ago");
                 Msg answer = m.createAnswerMsg();
-                answer.setName("test_answer");
+                answer.setTopic("test_answer");
                 return answer;
             };
 
             try {
-                m2.addListenerForMessageNamed("test", msgMessageListener);
-                m3.addListenerForMessageNamed("test", msgMessageListener);
-                m4.addListenerForMessageNamed("test", msgMessageListener);
+                m2.addListenerForTopic("test", msgMessageListener);
+                m3.addListenerForTopic("test", msgMessageListener);
+                m4.addListenerForTopic("test", msgMessageListener);
 
                 for (int i = 0; i < 10; i++) {
                     log.info("Sending exclusive message " + i + "/10");
@@ -319,18 +319,18 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             consumer.start();
             Thread.sleep(2000);
             try {
-                consumer.addListenerForMessageNamed("testDiff", new MessageListener() {
+                consumer.addListenerForTopic("testDiff", new MessageListener() {
                     @Override
                     public Msg onMessage(MorphiumMessaging msg, Msg m) {
                         log.info("incoming message, replying with answer");
                         Msg answer = m.createAnswerMsg();
-                        answer.setName("answer");
+                        answer.setTopic("answer");
                         return answer;
                     }
                 });
                 Msg answer = producer.sendAndAwaitFirstAnswer(new Msg("testDiff", "query", "value"), 4000);
                 assertNotNull(answer);;
-                assert(answer.getName().equals("answer")) : "Name is wrong: " + answer.getName();
+                assert(answer.getTopic().equals("answer")) : "Name is wrong: " + answer.getTopic();
             } finally {
                 producer.terminate();
                 consumer.terminate();
@@ -347,14 +347,14 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 10);
             consumer.start();
             Thread.sleep(2000); //waiting for messaging
-            consumer.addListenerForMessageNamed("testAnswering", (msg, m)-> {
+            consumer.addListenerForTopic("testAnswering", (msg, m)-> {
                 log.info("incoming message, replying with answer");
                 Msg answer = m.createAnswerMsg();
-                answer.setName("answerForTestAnswering");
+                answer.setTopic("answerForTestAnswering");
                 return answer;
             });
             MorphiumId msgId = new MorphiumId();
-            producer.addListenerForMessageNamed("answerForTestAnswering", (msg, m)-> {
+            producer.addListenerForTopic("answerForTestAnswering", (msg, m)-> {
                 log.info("Incoming answer! " + m.getInAnswerTo() + " ---> " + msgId);
                 assertTrue(msgId.equals(m.getInAnswerTo()));
                 counts.put(msgId, 1);

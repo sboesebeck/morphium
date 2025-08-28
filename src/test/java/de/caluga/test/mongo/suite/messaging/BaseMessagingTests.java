@@ -69,8 +69,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addListenerForMessageNamed("test", ml);
-            rec2.addListenerForMessageNamed("test", ml);
+            rec1.addListenerForTopic("test", ml);
+            rec2.addListenerForTopic("test", ml);
             int amount = 25;
 
             for (int i = 0; i < amount; i++) {
@@ -121,8 +121,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 // log.info(m.getSenderId()+": done processing");
                 return null;
             };
-            rec1.addListenerForMessageNamed("test", ml);;
-            rec2.addListenerForMessageNamed("test", ml);;
+            rec1.addListenerForTopic("test", ml);;
+            rec2.addListenerForTopic("test", ml);;
             int amount = 74;
 
             for (int i = 0; i < amount; i++) {
@@ -200,8 +200,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 // log.info(m.getSenderId()+": done processing");
                 return null;
             };
-            rec1.addListenerForMessageNamed("test", ml);;
-            rec2.addListenerForMessageNamed("test", ml);;
+            rec1.addListenerForTopic("test", ml);;
+            rec2.addListenerForTopic("test", ml);;
             int amount = 74;
 
             for (int i = 0; i < amount; i++) {
@@ -271,8 +271,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addListenerForMessageNamed("test", ml);
-            rec2.addListenerForMessageNamed("test", ml);
+            rec1.addListenerForTopic("test", ml);
+            rec2.addListenerForTopic("test", ml);
             int amount = 25;
 
             for (int i = 0; i < amount; i++) {
@@ -329,8 +329,8 @@ public class BaseMessagingTests extends MultiDriverTestBase {
                 }
             };
 
-            rec1.addListenerForMessageNamed("test", ml);
-            rec2.addListenerForMessageNamed("test", ml);
+            rec1.addListenerForTopic("test", ml);
+            rec2.addListenerForTopic("test", ml);
             int amount = 100;
 
             for (int i = 0; i < amount; i++) {

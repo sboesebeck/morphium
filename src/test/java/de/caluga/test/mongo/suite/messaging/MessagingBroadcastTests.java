@@ -48,7 +48,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                 log.info("m1 ID: " + m1.getSenderId());
                 log.info("m2 ID: " + m2.getSenderId());
                 log.info("m3 ID: " + m3.getSenderId());
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                m1.addListenerForTopic("test", (msg, m) -> {
                     gotMessage1 = true;
 
                     if (m.getTo() != null && m.getTo().contains(m1.getSenderId())) {
@@ -58,7 +58,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     log.info("M1 got message " + m.toString());
                     return null;
                 });
-                m2.addListenerForMessageNamed("test", (msg, m) -> {
+                m2.addListenerForTopic("test", (msg, m) -> {
                     gotMessage2 = true;
 
                     if (m.getTo() != null && !m.getTo().contains(m2.getSenderId())) {
@@ -68,7 +68,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     log.info("M2 got message " + m.toString());
                     return null;
                 });
-                m3.addListenerForMessageNamed("test", (msg, m) -> {
+                m3.addListenerForTopic("test", (msg, m) -> {
                     gotMessage3 = true;
 
                     if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
@@ -78,7 +78,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     log.info("M3 got message " + m.toString());
                     return null;
                 });
-                m4.addListenerForMessageNamed("test", (msg, m) -> {
+                m4.addListenerForTopic("test", (msg, m) -> {
                     gotMessage4 = true;
 
                     if (m.getTo() != null && !m.getTo().contains(m3.getSenderId())) {
@@ -140,7 +140,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                 rec1.setSenderId("rec" + i);
                 receivers.add(rec1);
                 rec1.start();
-                rec1.addListenerForMessageNamed("bcast", (msg, m) -> {
+                rec1.addListenerForTopic("bcast", (msg, m) -> {
                     synchronized(receivedIds) {
                         receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
 

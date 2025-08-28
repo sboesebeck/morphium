@@ -32,7 +32,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
             try {
                 sender.setUseChangeStream(true).start();
                 receiver.setUseChangeStream(true).start();
-                receiver.addListenerForMessageNamed("bigMsg", (msg, m) -> {
+                receiver.addListenerForTopic("bigMsg", (msg, m) -> {
                     long dur = System.currentTimeMillis() - m.getTimestamp();
                     long dur2 = System.currentTimeMillis() - (Long) m.getMapValue().get("ts");
                     log.info("Received #" + m.getMapValue().get("msgNr") + " after " + dur + "ms Dur2: " + dur2);
@@ -52,7 +52,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
                     log.info(i + ". Text Size: " + txt.length());
                     Thread.yield();
                     Msg big = new Msg();
-                    big.setName("bigMsg");
+                    big.setTopic("bigMsg");
                     big.setTtl(3000000);
                     big.setValue(txt.toString());
                     big.setMapValue(UtilsMap.of("msgNr", i));

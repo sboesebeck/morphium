@@ -160,16 +160,16 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 //Answer handling
                 handleAnswer(msg);
             } else {
-                if (pausedMessages.contains(msg.getName())) {
+                if (pausedMessages.contains(msg.getTopic())) {
                     return running.get();
 
                 }
-                if (monitorsByMsgName.containsKey(msg.getName())) {
+                if (monitorsByMsgName.containsKey(msg.getTopic())) {
                     if (processingMessages.contains(msg.getMsgId())) {
                         return running.get();
                     }
                     processingMessages.add(msg.getMsgId());
-                    for (var map : monitorsByMsgName.get(msg.getName())) {
+                    for (var map : monitorsByMsgName.get(msg.getTopic())) {
                         MessageListener l = (MessageListener)map.get(MType.listener);
                         queueOrRun(()-> {
                             if (l.markAsProcessedBeforeExec()) {
@@ -179,7 +179,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                                 var ret = l.onMessage(AdvancedSplitCollectionMessaging.this, msg);
                                 if (!running.get()) return;
                                 if (ret == null && effectiveSettings.isAutoAnswer()) {
-                                    ret = new Msg(msg.getName(), "received", "");
+                                    ret = new Msg(msg.getTopic(), "received", "");
                                 }
                                 if (ret != null) {
                                     ret.setRecipient(msg.getSender());
@@ -205,7 +205,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         });
                     }
                 } else {
-                    log.warn("incoming direct message for topic {} - no listener registered", msg.getName());
+                    log.warn("incoming direct message for topic {} - no listener registered", msg.getTopic());
                     morphium.remove(msg, dmCollectionName);
                 }
             }
@@ -218,13 +218,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     @Override
     public void enableStatusInfoListener() {
         effectiveSettings.setMessagingStatusInfoListenerEnabled(true);
-        addListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+        addListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
     }
 
     @Override
     public void disableStatusInfoListener() {
         effectiveSettings.setMessagingStatusInfoListenerEnabled(false);
-        removeListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+        removeListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
     }
 
     @Override
@@ -274,10 +274,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             //avoid duplication
             if (!monitorsByMsgName.containsKey(effectiveSettings.getMessagingStatusInfoListenerName())
                     || !monitorsByMsgName.get(effectiveSettings.getMessagingStatusInfoListenerName()).contains(statusInfoListener)) {
-                addListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+                addListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
             }
         } else {
-            removeListenerForMessageNamed(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
+            removeListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
         }
     }
 
@@ -330,17 +330,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public void pauseProcessingOfMessagesNamed(String name) {
+    public void pauseTopicProcessing(String name) {
         pausedMessages.add(name);
     }
 
     @Override
-    public List<String> getPausedMessageNames() {
+    public List<String> getPausedTopics() {
         return new ArrayList<String>(pausedMessages);
     }
 
     @Override
-    public Long unpauseProcessingOfMessagesNamed(String name) {
+    public Long unpauseTopicProcessing(String name) {
         pausedMessages.remove(name);
         decouplePool.execute(()-> {
             pollAndProcess(name);
@@ -358,14 +358,14 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getCollectionName(Msg m) {
-        return getCollectionName(m.getName());
+        return getCollectionName(m.getTopic());
     }
     @Override
     public String getCollectionName(String n) {
         return (getCollectionName() + "_" + n).replaceAll(" ", "").replaceAll("-", "").replaceAll("/", "");
     }
     private MsgLock getLock(Msg m) {
-        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName() + "_" + m.getName());
+        return morphium.findById(MsgLock.class, m.getMsgId(), getLockCollectionName() + "_" + m.getTopic());
     }
 
     @Override
@@ -381,7 +381,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public String getLockCollectionName(Msg m) {
-        return getLockCollectionName(m.getName());
+        return getLockCollectionName(m.getTopic());
     }
 
     @Override
@@ -455,7 +455,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return;
         }
 
-        if (pausedMessages.contains(m.getName())) return;
+        if (pausedMessages.contains(m.getTopic())) return;
         final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
         final Msg theMessage = m;
 
@@ -474,11 +474,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
 
     private void processMessage(Msg m) {
-        if (!monitorsByMsgName.containsKey(m.getName())) {
+        if (!monitorsByMsgName.containsKey(m.getTopic())) {
             // log.error("I {} Got a message I do not have a listener configured for: {}!", getSenderId(), m.getName());
             return; //cannot process message, as there is no listener? HOW?
         }
-        for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
+        for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getTopic())) {
             var l = (MessageListener)e.get(MType.listener);
             if (l == null) continue;
 
@@ -488,7 +488,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             processingMessages.add(m.getMsgId());
             Runnable r = ()-> {
                 try {
-                    if (pausedMessages.contains(m.getName())) return;
+                    if (pausedMessages.contains(m.getTopic())) return;
 
                     if (l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(m);
@@ -496,7 +496,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     var ret = l.onMessage(this, m);
                     if (!running.get()) return;
                     if (effectiveSettings.isAutoAnswer() && ret == null) {
-                        ret = new Msg(m.getName(), "received", "");
+                        ret = new Msg(m.getTopic(), "received", "");
 
                     }
                     if (!l.markAsProcessedBeforeExec()) {
@@ -537,7 +537,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             pollTrigger.get("dm_" + name).incrementAndGet();
         }
         for (Msg m : q.asIterable(10)) {
-            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getName())) {
+            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getTopic())) {
                 var l = (MessageListener)e.get(MType.listener   );
 
                 queueOrRun(()-> {
@@ -583,7 +583,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 morphium.delete(m);
                 return;
             }
-            if (pausedMessages.contains(m.getName())) {
+            if (pausedMessages.contains(m.getTopic())) {
                 //paused
                 return;
             }
@@ -592,7 +592,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 handleAnswer(m);
             } else {
                 //happens if pausing is enabled during processing!
-                if (pausedMessages.contains(m.getName())) {
+                if (pausedMessages.contains(m.getTopic())) {
                     continue;
                 }
                 if (m.getRecipients() != null && !m.getRecipients().isEmpty() && !m.getRecipients().contains(getSenderId())) {
@@ -712,7 +712,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public void addListenerForMessageNamed(String n, MessageListener l) {
+    public void addListenerForTopic(String n, MessageListener l) {
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
         //        in.put("$eq", "insert"); //, "delete", "update"));
@@ -762,7 +762,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         var ret = l.onMessage(this, doc);
                         if (!running.get()) return;
                         if (ret == null && effectiveSettings.isAutoAnswer()) {
-                            ret = new Msg(doc.getName(), "received", "");
+                            ret = new Msg(doc.getTopic(), "received", "");
                         }
                         if (doc.isDeleteAfterProcessing()) {
                             checkDeleteAfterProcessing(doc);
@@ -821,7 +821,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
 
     @Override
-    public void removeListenerForMessageNamed(String n, MessageListener l) {
+    public void removeListenerForTopic(String n, MessageListener l) {
         int idx = -1;
 
         for (var cm : monitorsByMsgName.get(n)) {
@@ -947,12 +947,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
 
             if (null == firstAnswer && throwExceptionOnTimeout) {
-                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
             }
 
             return firstAnswer;
         } catch (InterruptedException e) {
-            log.error("Did not receive answer for message " + theMessage.getName() + "/" + requestMsgId + " interrupted.", e);
+            log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " interrupted.", e);
         } finally {
             waitingForAnswers.remove(requestMsgId);
         }
@@ -992,7 +992,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
-                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getName() + "/" + requestMsgId + "in time (" + timeout + ")");
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic() + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
 
                 if (System.currentTimeMillis() - start > timeout) {

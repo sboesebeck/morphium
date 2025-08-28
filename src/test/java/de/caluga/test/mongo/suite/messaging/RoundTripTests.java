@@ -40,7 +40,7 @@ public class RoundTripTests extends MorphiumTestBase {
 
     public void runTest(boolean sameMorphium, boolean exclusive, boolean multithreadded, boolean processMultiple, int warmUp, int amount) throws Exception {
         log.info("===========> Running test: " + (sameMorphium ? "on same Morphium Instance" : "separate Morphium Instances") + " " + (exclusive ? "exclusive messages" : "not exclusive messages")
-            + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
+                 + " " + (processMultiple ? "processing multiple" : "single message processing") + " " + (multithreadded ? "multithreadded" : "single thread"));
         //        morphium.getConfig().setThreadPoolMessagingCoreSize(100);
         //        morphium.getConfig().setThreadPoolMessagingMaxSize(200);
         StdMessaging m1 = new StdMessaging(morphium, 100, processMultiple, multithreadded, 10);
@@ -61,13 +61,13 @@ public class RoundTripTests extends MorphiumTestBase {
             m1.start();
             m2.start();
             Thread.sleep(5000);
-            m2.addListenerForMessageNamed("ping", (msg, m) -> {
+            m2.addListenerForTopic("ping", (msg, m) -> {
                 pingReceived.add(System.currentTimeMillis());
                 msg.sendMessage(new Msg("pong", "msg", "v", 30000, exclusive));
                 pongSent.add(System.currentTimeMillis());
                 return null;
             });
-            m1.addListenerForMessageNamed("pong", (msg, m) -> {
+            m1.addListenerForTopic("pong", (msg, m) -> {
                 pongReceived.add(System.currentTimeMillis());
                 //log.info("got pong back...");
                 return null;

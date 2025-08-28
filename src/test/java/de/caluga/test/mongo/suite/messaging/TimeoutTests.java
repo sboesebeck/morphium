@@ -28,12 +28,12 @@ public class TimeoutTests extends MorphiumTestBase {
         m2.setSenderId("recevier");
         m2.start();
         AtomicInteger msgCount = new AtomicInteger(0);
-        m2.addListenerForMessageNamed("test", (msg, m)-> {
+        m2.addListenerForTopic("test", (msg, m)-> {
             log.info("Got message! " + m.getMsg());
             msgCount.incrementAndGet();
             return null;
         }
-        );
+                              );
 
         for (int i = 0; i < 100; i++) {
             var msg = new Msg("test", "value" + i, "" + i).setTimingOut(false);
@@ -70,7 +70,7 @@ public class TimeoutTests extends MorphiumTestBase {
         StdMessaging m2 = new StdMessaging(morphium, 100,  true, 1);
         m2.setUseChangeStream(true);
         m2.setSenderId("recevier");
-        m2.addListenerForMessageNamed("test", (n, m)-> {
+        m2.addListenerForTopic("test", (n, m)-> {
             log.info("Message incoming");
             return null;
         });
@@ -105,7 +105,7 @@ public class TimeoutTests extends MorphiumTestBase {
         StdMessaging m2 = new StdMessaging(morphium, 100,  true, 1);
         m2.setUseChangeStream(true);
         m2.setSenderId("recevier");
-        m2.addListenerForMessageNamed("test", (n, m)-> {
+        m2.addListenerForTopic("test", (n, m)-> {
             log.info("Message incoming");
             return null;
         });

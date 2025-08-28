@@ -19,13 +19,13 @@ public class NoListenerTest extends MorphiumTestBase {
             log.info("Got Message");
             return null;
         };
-        r1.addListenerForMessageNamed("test_listener", ml);
+        r1.addListenerForTopic("test_listener", ml);
         Msg m = new Msg("test_listener", "a test", "42");
         sender.sendMessage(m);
         Thread.sleep(2000);
         morphium.reread(m);
         assert(m.getProcessedBy().size() == 1);
-        r1.removeListenerForMessageNamed("test_listener", ml);
+        r1.removeListenerForTopic("test_listener", ml);
         m = new Msg("test_listener", "a test", "42");
         sender.sendMessage(m);
         morphium.reread(m);

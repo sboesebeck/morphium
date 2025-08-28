@@ -32,7 +32,7 @@ public class Producer implements JMSProducer {
         messaging.start();
         properties = new ConcurrentHashMap<>();
         waitingForAck = new Vector<>();
-        messaging.addListenerForMessageNamed("ack", (MessageListener<JMSMessage>) (msg, m) -> {
+        messaging.addListenerForTopic("ack", (MessageListener<JMSMessage>) (msg, m) -> {
             if (waitingForAck.contains(m.getInAnswerTo())) {
                 completionListener.onCompletion(m);
                 waitingForAck.remove(m.getInAnswerTo());
@@ -59,10 +59,10 @@ public class Producer implements JMSProducer {
             jmsMessage.setTtl(ttl);
             if (destination instanceof JMSTopic) {
                 jmsMessage.setExclusive(true);
-                jmsMessage.setName(((JMSTopic) destination).getTopicName());
+                jmsMessage.setTopic(((JMSTopic) destination).getTopicName());
             } else if (destination instanceof JMSQueue) {
                 jmsMessage.setExclusive(false);
-                jmsMessage.setName(((JMSQueue) destination).getQueueName());
+                jmsMessage.setTopic(((JMSQueue) destination).getQueueName());
             } else {
                 throw new IllegalArgumentException("Destination has invalid type!");
             }

@@ -33,7 +33,7 @@ public class MessageRejectedException extends RuntimeException {
         this.sendAnswer = sendAnswer;
         this.handler = (msg, m) -> {
             if (isSendAnswer()) {
-                Msg answer = new Msg(m.getName(), "message rejected by listener", getMessage());
+                Msg answer = new Msg(m.getTopic(), "message rejected by listener", getMessage());
                 m.sendAnswer(msg, answer);
             }
 

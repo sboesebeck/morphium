@@ -44,7 +44,7 @@ public class MorphiumServerTest {
         AtomicInteger received = new AtomicInteger();
         StdMessaging msg2 = new StdMessaging(morphium, 100, true);
         msg2.setUseChangeStream(true);
-        msg2.addListenerForMessageNamed("test", (msg, m)-> {
+        msg2.addListenerForTopic("test", (msg, m)-> {
             received.incrementAndGet();
             return null;
         });
@@ -165,7 +165,7 @@ public class MorphiumServerTest {
             msg1.start();
             var msg2 = new StdMessaging(morphium);
             msg2.start();
-            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+            msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recTime.set(System.currentTimeMillis());
@@ -212,7 +212,7 @@ public class MorphiumServerTest {
             var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
             msg2.setUseChangeStream(true);
             msg2.start();
-            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+            msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recTime.set(System.currentTimeMillis());
@@ -304,7 +304,7 @@ public class MorphiumServerTest {
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
-            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+            msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recAmount.incrementAndGet();
@@ -384,7 +384,7 @@ public class MorphiumServerTest {
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
-            msg2.addListenerForMessageNamed("tstmsg", new MessageListener() {
+            msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
                 public Msg onMessage(MorphiumMessaging msg, Msg m) {
                     recAmount.incrementAndGet();

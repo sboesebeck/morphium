@@ -72,22 +72,22 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 morph.dropCollection(Msg.class, m1.getCollectionName("test"), null);
                 morph.dropCollection(Msg.class, m1.getCollectionName("tst1"), null);
                 Thread.sleep(500);
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
+                m1.addListenerForTopic("test", (msg, m) -> {
                     gotMessage1.set(true);
-                    log.info("Test: Incoming {} message: {} - {}", m.getName(), m.getMsgId().toString());
-                    return new Msg(m.getName(), "got message", "value", 5000);
+                    log.info("Test: Incoming {} message: {} - {}", m.getTopic(), m.getMsgId().toString());
+                    return new Msg(m.getTopic(), "got message", "value", 5000);
                 });
-                m1.addListenerForMessageNamed("tst1", (msg, m) -> {
+                m1.addListenerForTopic("tst1", (msg, m) -> {
                     gotMessage2.set(true);
-                    log.info("Tst1: Incoming {} message:  {}", m.getName(), m.getMsgId().toString());
-                    return new Msg(m.getName(), "got message", "value", 5000);
+                    log.info("Tst1: Incoming {} message:  {}", m.getTopic(), m.getMsgId().toString());
+                    return new Msg(m.getTopic(), "got message", "value", 5000);
                 });
 
                 try {
                     m1.start();
                     Thread.sleep(500);
                     log.info("Starting test");
-                    m1.pauseProcessingOfMessagesNamed("tst1");
+                    m1.pauseTopicProcessing("tst1");
 
                     sender.sendMessage(new Msg("test", "a message", "the value"));
                     log.info("Message sent");
@@ -104,7 +104,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                     assertFalse(gotMessage2.get());
                     assertFalse(gotMessage1.get());
 
-                    Long l = m1.unpauseProcessingOfMessagesNamed("tst1");
+                    Long l = m1.unpauseTopicProcessing("tst1");
                     log.info("Processing was paused for ms " + l);
                     TestUtils.waitForBooleanToBecomeTrue(10000, "Did not get message", gotMessage2, ()-> {log.info("Still waiting..");});
 
@@ -151,8 +151,8 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 list.clear();
                 MorphiumMessaging receiver = morph.createMessaging();
 
-                receiver.addListenerForMessageNamed("pause", (msg, m) -> {
-                    msg.pauseProcessingOfMessagesNamed(m.getName());
+                receiver.addListenerForTopic("pause", (msg, m) -> {
+                    msg.pauseTopicProcessing(m.getTopic());
                     String lst = "";
                     if (lastTS.get() != 0) {
                         lst = ("Last msg " + (System.currentTimeMillis() - lastTS.get()) + "ms ago");
@@ -164,11 +164,11 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                     } catch (InterruptedException e) {
                     }
                     list.add(m);
-                    msg.unpauseProcessingOfMessagesNamed(m.getName());
+                    msg.unpauseTopicProcessing(m.getTopic());
                     return null;
                 });
 
-                receiver.addListenerForMessageNamed("now", (msg, m) -> {
+                receiver.addListenerForTopic("now", (msg, m) -> {
                     log.info("incoming now-msg");
                     count.incrementAndGet();
                     return null;
@@ -240,24 +240,24 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
                 MorphiumMessaging receiver = morph.createMessaging();
                 receiver.start();
-                receiver.addListenerForMessageNamed("pause", (msg, m) -> {
-                    msg.pauseProcessingOfMessagesNamed("pause");
+                receiver.addListenerForTopic("pause", (msg, m) -> {
+                    msg.pauseTopicProcessing("pause");
                     log.info("Processing pause message {}", m.getMsgId());
                     try {
                         Thread.sleep(2000);
                     } catch (InterruptedException e) {
                     }
                     cnt.incrementAndGet();
-                    msg.unpauseProcessingOfMessagesNamed("pause");
+                    msg.unpauseTopicProcessing("pause");
 
                     return null;
                 });
-                receiver.pauseProcessingOfMessagesNamed("pause");
+                receiver.pauseTopicProcessing("pause");
                 for (int i = 0; i < 10; i++) {
                     sender.sendMessage(new Msg("pause", "pausing", "value"));
                 }
 
-                receiver.unpauseProcessingOfMessagesNamed("pause");
+                receiver.unpauseTopicProcessing("pause");
                 TestUtils.waitForIntegerValue(25000, "Did not get all messages?", cnt, 10, ()-> {log.info("Still waiting: {} processed", cnt.get());});
 
             }
@@ -289,25 +289,25 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 receiver.start();
 
                 Thread.sleep(2000);
-                receiver.addListenerForMessageNamed("pause", (msg, m) -> {
-                    msg.pauseProcessingOfMessagesNamed("pause");
+                receiver.addListenerForTopic("pause", (msg, m) -> {
+                    msg.pauseTopicProcessing("pause");
                     log.info("Processing pause message {}", m.getMsgId());
                     try {
                         Thread.sleep(2000);
                     } catch (InterruptedException e) {
                     }
                     cnt.incrementAndGet();
-                    msg.unpauseProcessingOfMessagesNamed("pause");
+                    msg.unpauseTopicProcessing("pause");
 
                     return null;
                 });
 
-                receiver.addListenerForMessageNamed("now", (msg, m) -> {
+                receiver.addListenerForTopic("now", (msg, m) -> {
                     // log.info("PAusing msg now");
-                    msg.pauseProcessingOfMessagesNamed("now");
+                    msg.pauseTopicProcessing("now");
                     list.add(m);
                     // log.info("Incoming msg..." + m.getMsgId());
-                    msg.unpauseProcessingOfMessagesNamed("now");
+                    msg.unpauseTopicProcessing("now");
                     // log.info("Unpaused.");
                     return null;
                 });
@@ -372,8 +372,8 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 gotMessage2.set(false);
 
                 MorphiumMessaging m1 = morph.createMessaging();
-                m1.addListenerForMessageNamed("test", (msg, m) -> {
-                    msg.pauseProcessingOfMessagesNamed("test");
+                m1.addListenerForTopic("test", (msg, m) -> {
+                    msg.pauseTopicProcessing("test");
                     try {
                         log.info("Incoming message " + m.getMsgId() + "/" + m.getMsg() + " from " + m.getSender() + " my id: " + msg.getSenderId());
                         Thread.sleep(1000);
@@ -385,7 +385,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                         }
                     } catch (InterruptedException e) {
                     }
-                    msg.unpauseProcessingOfMessagesNamed("test");
+                    msg.unpauseTopicProcessing("test");
                     return null;
                 });
                 m1.start();
@@ -481,8 +481,8 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                     AtomicBoolean fail = new AtomicBoolean(false);
                     m1 = morph.createMessaging();
                     m1.setSenderId("m1");
-                    m1.addListenerForMessageNamed("test", (msg, m) -> {
-                        msg.pauseProcessingOfMessagesNamed("test");
+                    m1.addListenerForTopic("test", (msg, m) -> {
+                        msg.pauseTopicProcessing("test");
 
                         try {
                             assert (m.isExclusive());
@@ -502,7 +502,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                             }
                         } catch (InterruptedException e) {
                         }
-                        msg.unpauseProcessingOfMessagesNamed("test");
+                        msg.unpauseTopicProcessing("test");
                         return null;
                     });
                     m1.start();

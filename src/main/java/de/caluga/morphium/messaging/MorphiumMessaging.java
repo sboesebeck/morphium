@@ -46,12 +46,12 @@ public interface MorphiumMessaging {
 
     int getAsyncMessagesPending();
 
-    void pauseProcessingOfMessagesNamed(String name);
+    void pauseTopicProcessing(String topic);
 
-    List<String> getPausedMessageNames();
+    List<String> getPausedTopics();
 
     @SuppressWarnings("CommentedOutCode")
-    Long unpauseProcessingOfMessagesNamed(String name);
+    Long unpauseTopicProcessing(String topic);
 
     String getLockCollectionName();
     <T extends Msg> String getLockCollectionName(T topic);
@@ -63,9 +63,9 @@ public interface MorphiumMessaging {
 
     String getDMCollectionName(String sender);
 
-    void addListenerForMessageNamed(String n, MessageListener l);
+    void addListenerForTopic(String n, MessageListener l);
 
-    void removeListenerForMessageNamed(String n, MessageListener l);
+    void removeListenerForTopic(String n, MessageListener l);
 
     String getSenderId();
 
