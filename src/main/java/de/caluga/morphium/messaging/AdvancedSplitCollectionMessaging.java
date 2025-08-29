@@ -140,16 +140,22 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void start() {
+        if (running.get()) {
+            log.warn("Already running");
+            return;
+        }
         running.set(true);
-        decouplePool.scheduleWithFixedDelay(() -> {
-            for (var name : pollTrigger.keySet()) {
-                if (pollTrigger.get(name).get() != 0) {
-                    if (name.startsWith("dm_")) {
-                        pollAndProcessDms(name.substring(3));
+        decouplePool.scheduleWithFixedDelay(()-> {
+            if (!running.get())return;
+            for (var topic : pollTrigger.keySet()) {
+                if (pollTrigger.get(topic).get() != 0) {
+                    log.info("Polling {}", topic);
+                    if (topic.startsWith("dm_")) {
+                        pollAndProcessDms(topic.substring(3));
                     } else {
-                        pollAndProcess(name);
+                        pollAndProcess(topic);
                     }
-                    pollTrigger.get(name).set(0);
+                    resetPollTrigger(topic);
                 }
             }
             Map<MorphiumId, CallbackRequest> cp = new HashMap<>(waitingForCallbacks); // copy to avoid concurrent
@@ -180,7 +186,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 // Answer handling
                 handleAnswer(msg);
             } else {
-                if (pausedMessages.contains(msg.getTopic())) {
+                if (pausedTopcis.contains(msg.getTopic())) {
                     return running.get();
 
                 }
@@ -236,7 +242,14 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         });
         directMessagesMonitor.start();
         pollAndProcess();
+        for (var entry : monitorsByMsgName.entrySet()) {
+            for (var monitor : entry.getValue()) {
+                log.info("Starting listener for {}", entry.getKey());
+                ((ChangeStreamMonitor)monitor.get(MType.monitor)).start();
+            }
+        }
     }
+
 
     @Override
     public void enableStatusInfoListener() {
@@ -357,18 +370,18 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public void pauseTopicProcessing(String name) {
-        pausedMessages.add(name);
+        pausedTopcis.add(name);
     }
 
     @Override
     public List<String> getPausedTopics() {
-        return new ArrayList<String>(pausedMessages);
+        return new ArrayList<String>(pausedTopcis);
     }
 
     @Override
     public Long unpauseTopicProcessing(String name) {
-        pausedMessages.remove(name);
-        decouplePool.execute(() -> {
+        pausedTopcis.remove(name);
+        decouplePool.execute(()-> {
             pollAndProcess(name);
             pollAndProcessDms(name);
         });
@@ -484,8 +497,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return;
         }
 
-        if (pausedMessages.contains(m.getTopic()))
-            return;
+        if (pausedTopcis.contains(m.getTopic())) return;
         final CallbackRequest cbr = waitingForCallbacks.get(m.getInAnswerTo());
         final Msg theMessage = m;
 
@@ -519,8 +531,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             processingMessages.add(m.getMsgId());
             Runnable r = () -> {
                 try {
-                    if (pausedMessages.contains(m.getTopic()))
-                        return;
+                    if (pausedTopcis.contains(m.getTopic())) return;
 
                     if (l.markAsProcessedBeforeExec()) {
                         updateProcessedBy(m);
@@ -558,25 +569,21 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
     }
 
-    private void pollAndProcessDms(String name) {
-        // TODO: look for paused dms
+    private void pollAndProcessDms(String topic) {
+        //TODO: look for paused dms
         //
         //
-        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) // not
-                                                                                                            // processed
-                .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
-        int window = getWindowSize();
-        q.limit(window + 1);
-        int seen = 0;
-        boolean more = false;
-        for (Msg m : q.asIterable(window + 1)) {
-            if (seen >= window) {
-                more = true;
-                break;
-            }
-            for (var e : (List<Map<MType, Object>>) monitorsByMsgName.get(m.getTopic())) {
-                var l = (MessageListener) e.get(MType.listener);
-                queueOrRun(() -> {
+        var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) //not processed
+                .f(Msg.Fields.topic).eq(topic).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
+        q.limit(getWindowSize());
+        if (q.countAll() > getWindowSize()) {
+            triggerPoll("dm_" + topic);
+        }
+        for (Msg m : q.asIterable(10)) {
+            for (var e : (List<Map<MType, Object>>)monitorsByMsgName.get(m.getTopic())) {
+                var l = (MessageListener)e.get(MType.listener   );
+
+                queueOrRun(()-> {
                     if (m.isAnswer()) {
                         handleAnswer(m);
                     } else {
@@ -592,22 +599,27 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
     }
 
-    private void pollAndProcess(String msgName) {
-        if (!running.get())
-            return;
-        // log.info("PollAndProcess - ignoring {} msids", processingMessages.size());
-        Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
-        q1.f(Msg.Fields.exclusive).eq(true) // exclusive message
-                .f(Msg.Fields.processedBy).eq(null) // not processed yet
-                .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) // not processed by me
-                .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
-        Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
-        q2.f(Msg.Fields.exclusive).eq(false) // exclusive message
-                .f(Msg.Fields.processedBy).ne(getSenderId()) // not processed by me
-                .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) // not processed by me
-                .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
 
-        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+    public void triggerPoll(String topic) {
+        pollTrigger.putIfAbsent(topic, new AtomicInteger(0));
+        pollTrigger.get(topic).incrementAndGet();
+    }
+
+    private void resetPollTrigger(String topic) {
+        pollTrigger.putIfAbsent(topic, new AtomicInteger(0));
+        pollTrigger.get(topic).set(0);
+    }
+
+    private void pollAndProcess(String msgTopic) {
+        if (!running.get()) return;
+
+        log.info("PollAndProcess topic {} - ignoring {} msids", msgTopic, processingMessages.size());
+        Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgTopic));
+        q.f(Msg.Fields.processedBy).ne(getSenderId()) //not processed by me
+         .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) //not processed right now
+         .f(Msg.Fields.topic).nin(new ArrayList(pausedTopcis)) //paused
+         .f(Msg.Fields.sender).ne(getSenderId()); //not sent by me
+
         q.sort(Msg.Fields.priority);
         q.or(q1, q2);
         int window = getWindowSize();
@@ -626,16 +638,16 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 morphium.delete(m);
                 return;
             }
-            if (pausedMessages.contains(m.getTopic())) {
-                // paused
+            if (pausedTopcis.contains(m.getTopic())) {
+                //paused
                 return;
             }
             // Check answers
             if (m.isAnswer()) { // should never come in this collection!!! TODO
                 handleAnswer(m);
             } else {
-                // happens if pausing is enabled during processing!
-                if (pausedMessages.contains(m.getTopic())) {
+                //happens if pausing is enabled during processing!
+                if (pausedTopcis.contains(m.getTopic())) {
                     continue;
                 }
                 if (m.getRecipients() != null && !m.getRecipients().isEmpty()
@@ -713,6 +725,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     private void pollAndProcess() {
+
         for (String name : monitorsByMsgName.keySet()) {
             pollAndProcess(name);
         }
@@ -801,7 +814,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     // return;
                     // }
 
-                    if (pausedMessages.contains(map.get(Msg.Fields.topic.name()))) {
+                    if (pausedTopcis.contains(map.get(Msg.Fields.topic.name()))) {
                         // log.info("Topic {} paused", map.get("name"));
                         // paused
                         return;
