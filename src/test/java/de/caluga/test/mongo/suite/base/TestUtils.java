@@ -1,9 +1,12 @@
 package de.caluga.test.mongo.suite.base;
 
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.driver.commands.ListCollectionsCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -99,6 +102,61 @@ public class TestUtils {
         cfg.setCredentialsEncryptionKey(morphium.getConfig().getCredentialsEncryptionKey());
         var m2 = new Morphium(cfg);
         return m2;
+    }
+
+
+    public static void clearDB(Morphium morphium) {
+        MongoConnection con = null;
+        ListCollectionsCommand cmd = null;
+        Logger log = LoggerFactory.getLogger(TestUtils.class);
+        try {
+            boolean retry = true;
+
+            while (retry) {
+                con = morphium.getDriver().getPrimaryConnection(null);
+                cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                var lst = cmd.execute();
+                cmd.releaseConnection();
+
+                for (var collMap : lst) {
+                    String coll = (String) collMap.get("name");
+                    log.info("Dropping collection " + coll);
+
+                    morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
+                }
+
+                long start = System.currentTimeMillis();
+                retry = false;
+                boolean collectionsExist = true;
+
+                while (collectionsExist) {
+                    Thread.sleep(100);
+                    con = morphium.getDriver().getPrimaryConnection(null);
+                    cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
+                    lst = cmd.execute();
+                    cmd.releaseConnection();
+
+                    for (var k : lst) {
+                        log.info("Collections still there..." + k.get("name"));
+                    }
+
+                    if (System.currentTimeMillis() - start > 1500) {
+                        retry = true;
+                        break;
+                    }
+
+                    if (lst.size() == 0) {
+                        collectionsExist = false;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.info("Could not clean up: ", e);
+        } finally {
+            if (cmd != null) {
+                cmd.releaseConnection();
+            }
+        }
     }
 
     public static void wait(int secs) {

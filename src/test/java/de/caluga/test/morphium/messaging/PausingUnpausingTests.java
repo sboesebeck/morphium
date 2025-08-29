@@ -1,5 +1,6 @@
 package de.caluga.test.morphium.messaging;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,6 +80,10 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 });
                 m1.addListenerForTopic("tst1", (msg, m) -> {
                     gotMessage2.set(true);
+                    if (msg.getPausedTopics().contains(m.getTopic())) {
+                        log.info("Topic paused: {}", msg.getPausedTopics().contains(m.getTopic()));
+                        new Exception().printStackTrace();
+                    }
                     log.info("Tst1: Incoming {} message:  {}", m.getTopic(), m.getMsgId().toString());
                     return new Msg(m.getTopic(), "got message", "value", 5000);
                 });
@@ -129,8 +134,8 @@ public class PausingUnpausingTests extends MorphiumTestBase {
     }
 
     @Test
-    @Disabled
     public void priorityPausedMessagingTest() throws Exception {
+
         for (String msgImpl : MorphiumTestBase.messagingsToTest) {
 
             OutputHelper.figletOutput(log, msgImpl);
@@ -142,6 +147,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
             Morphium morph = new Morphium(cfg);
             try(morph) {
+                TestUtils.clearDB(morph);
                 MorphiumMessaging sender = morph.createMessaging();
                 sender.start();
                 Thread.sleep(2500);
@@ -149,6 +155,9 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 final AtomicLong lastTS = new AtomicLong(0);
 
                 list.clear();
+                cfg.messagingSettings().setMessagingWindowSize(1);
+                cfg.messagingSettings().setProcessMultiple(false);
+
                 MorphiumMessaging receiver = morph.createMessaging();
 
                 receiver.addListenerForTopic("pause", (msg, m) -> {
@@ -169,8 +178,9 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                 });
 
                 receiver.addListenerForTopic("now", (msg, m) -> {
-                    log.info("incoming now-msg");
-                    count.incrementAndGet();
+                    log.info("{}. incoming now-msg: {}, id: {}", count.incrementAndGet(), m.getTopic(), m.getMsgId());
+                    // new Exception().printStackTrace();
+
                     return null;
                 });
 
@@ -179,29 +189,27 @@ public class PausingUnpausingTests extends MorphiumTestBase {
                     m.setPriority((int) (Math.random() * 100.0));
                     m.setExclusive(true);
                     sender.sendMessage(m);
-                    //Throtteling for first message to wait for pausing
+                    //Throttling for first message to wait for pausing
                     if (i == 0) Thread.sleep(25);
                     if (i % 2 == 0) {
+                        log.info("Sending now-msg");
                         sender.sendMessage(new Msg("now", "now", "now"));
                     }
                 }
                 //this can only work, if the receiver is started _after_ all messages are sent
+                log.info("STarting receiver");
                 receiver.start();
                 Thread.sleep(2000);
                 long s = System.currentTimeMillis();
-                while (count.get() < 6) {
-                    Thread.sleep(500);
-
-                    assert (System.currentTimeMillis() - s < 5 * morphium.getConfig().getMaxWaitTime());
-                }
-                assert (count.get() > 5 && count.get() <= 10) : "Count wrong " + count.get();
-                assert (list.size() < 5);
+                TestUtils.waitForIntegerValueMin(morphium.getConfig().connectionSettings().getMaxWaitTime() * 3, "did not get messages?", count, 6, ()-> {log.info("Waiting for cnt to be six, it is {}", count.get());});
+                assertTrue (count.get() > 5 && count.get() <= 10, String.format("Count {} not >5 and <=10", count.get()));
+                assertTrue (list.size() < 5);
                 s = System.currentTimeMillis();
                 while (list.size() != 20) {
                     Thread.sleep(1000);
                     assert (System.currentTimeMillis() - s < 25000);
                 }
-                assert (list.size() == 20) : "Size wrong " + list.size();
+                assertEquals(list.size(), 20, "Size wrong " + list.size());
 
                 list.remove(0); //prio of first  is random
 
@@ -209,7 +217,7 @@ public class PausingUnpausingTests extends MorphiumTestBase {
 
                 for (Msg m : list) {
                     log.info("Msg: " + m.getPriority());
-                    assert (m.getPriority() >= lastPrio);
+                    assertTrue (m.getPriority() >= lastPrio);
                     lastPrio = m.getPriority();
                 }
 
