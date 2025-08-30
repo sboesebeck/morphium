@@ -64,7 +64,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
     private enum MType {
-        listener, monitor,
+        listener, monitor, lockMonitor,
     }
 
     private Map<String, List<Map<MType, Object>>> monitorsByMsgName = new ConcurrentHashMap<>();
@@ -774,7 +774,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     // return;
                     // }
 
-                    if (pausedMessages.contains(map.get("name"))) {
+                    if (pausedMessages.contains(map.get(Msg.Fields.msgId.name()))) {
                         // log.info("Topic {} paused", map.get("name"));
                         // paused
                         return;
@@ -843,7 +843,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             return running.get();
         });
         monitorsByMsgName.putIfAbsent(n, new ArrayList<>());
-        monitorsByMsgName.get(n).add(Map.of(MType.monitor, cm, MType.listener, l));
+        monitorsByMsgName.get(n).add(Map.of(MType.monitor, cm, MType.listener, l, MType.lockMonitor, lockMonitor));
         cm.start();
         pollAndProcess(n);
     }
@@ -856,10 +856,10 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
-    public void removeListenerForTopic(String n, MessageListener l) {
+    public void removeListenerForTopic(String topic, MessageListener l) {
         int idx = -1;
 
-        for (var cm : monitorsByMsgName.get(n)) {
+        for (var cm : monitorsByMsgName.get(topic)) {
             idx++;
 
             if (cm.get(MType.listener) == l) {
@@ -868,8 +868,12 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         }
 
         if (idx >= 0) {
-            ((ChangeStreamMonitor) monitorsByMsgName.get(n).get(idx).get(MType.monitor)).terminate();
-            monitorsByMsgName.get(n).remove(idx);
+            ((ChangeStreamMonitor) monitorsByMsgName.get(topic).get(idx).get(MType.monitor)).terminate();
+            ((ChangeStreamMonitor) monitorsByMsgName.get(topic).get(idx).get(MType.lockMonitor)).terminate();
+            monitorsByMsgName.get(topic).remove(idx);
+        }
+        if (monitorsByMsgName.get(topic).isEmpty()) {
+            monitorsByMsgName.remove(topic);
         }
     }
 
@@ -906,6 +910,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         for (var e : monitorsByMsgName.entrySet()) {
             for (var m : e.getValue()) {
                 ((ChangeStreamMonitor) m.get(MType.monitor)).terminate();
+                ((ChangeStreamMonitor) m.get(MType.lockMonitor)).terminate();
                 ;
             }
         }
