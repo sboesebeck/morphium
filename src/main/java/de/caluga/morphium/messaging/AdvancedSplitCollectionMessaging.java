@@ -102,6 +102,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
         }
     };
+    private ChangeStreamMonitor directMessagesMonitor;
 
     public AdvancedSplitCollectionMessaging() {
         hostname = System.getenv("HOSTNAME");
@@ -156,7 +157,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
         List<Map<String, Object>> pipeline = List
                 .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
-        ChangeStreamMonitor directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
+        directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
                 morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
         directMessagesMonitor.addListener((evt) -> {
             // All messages coming in here are for me!
@@ -914,6 +915,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 ;
             }
         }
+        directMessagesMonitor.terminate();
         threadPool.shutdownNow();
         decouplePool.shutdownNow();
         monitorsByMsgName.clear();
