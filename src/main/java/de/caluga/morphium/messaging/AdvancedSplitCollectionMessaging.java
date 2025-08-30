@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
@@ -58,7 +59,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private Morphium morphium;
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
-    private Vector<MorphiumId> processingMessages = new Vector<>();
+    private Set<MorphiumId> processingMessages = ConcurrentHashMap.newKeySet();
 
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
@@ -71,7 +72,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private AtomicBoolean running = new AtomicBoolean(false);
     private String lockCollectionName;
     private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
-    private Vector<String> pausedMessages = new Vector<>();
+    private Set<String> pausedMessages = ConcurrentHashMap.newKeySet();
     private StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String hostname = null;
     private String senderId;
@@ -435,7 +436,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
             lck.setDeleteAt(delAt);
         } else {
             // lock shall be deleted way after ttl or message
-            lck.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl() * 1000 * 2));
+            lck.setDeleteAt(new Date(System.currentTimeMillis() + m.getTtl() * 2));
         }
 
         InsertMongoCommand cmd = null;
