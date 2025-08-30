@@ -152,7 +152,9 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     pollTrigger.get(name).set(0);
                 }
             }
-            for (var entry : waitingForCallbacks.entrySet()) {
+            Map<MorphiumId, CallbackRequest> cp = new HashMap<>(waitingForCallbacks); // copy to avoid concurrent
+                                                                                      // Modification in loop
+            for (var entry : cp.entrySet()) {
                 if (System.currentTimeMillis() - entry.getValue().timestamp > entry.getValue().ttl) {
                     // callback timed out
                     decouplePool.schedule(() -> {
@@ -160,6 +162,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     }, 1000, TimeUnit.MILLISECONDS);
                 }
             }
+
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
 
         String dmCollectionName = getDMCollectionName();
