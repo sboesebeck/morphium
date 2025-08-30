@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
+import org.apache.commons.lang3.SystemUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,6 +150,14 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                         pollAndProcess(name);
                     }
                     pollTrigger.get(name).set(0);
+                }
+            }
+            for (var entry : waitingForCallbacks.entrySet()) {
+                if (System.currentTimeMillis() - entry.getValue().timestamp > entry.getValue().ttl) {
+                    // callback timed out
+                    decouplePool.schedule(() -> {
+                        waitingForCallbacks.remove(entry.getKey());
+                    }, 1000, TimeUnit.MILLISECONDS);
                 }
             }
         }, 1000, effectiveSettings.getMessagingPollPause(), TimeUnit.MILLISECONDS);
@@ -920,6 +929,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         threadPool.shutdownNow();
         decouplePool.shutdownNow();
         monitorsByMsgName.clear();
+        waitingForAnswers.clear();
+        waitingForCallbacks.clear();
         allMessagings.remove(this);
     }
 
