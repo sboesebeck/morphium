@@ -66,7 +66,7 @@ List<Order> recent = morphium.createQueryFor(Order.class)
     .asList();
 ```
 
-Field name enums (recommended)
+Field names (avoid string literals)
 - Prefer enums over string field names to avoid typos and ease migrations/renames.
 ```java
 @Entity(translateCamelCase = true)
@@ -81,8 +81,14 @@ public class User {
 var q = morphium.createQueryFor(User.class)
     .f(User.Fields.userName).eq("alice");
 ```
-- Enums remain stable across refactors and camelCase translation changes.
-- IntelliJ users can auto‑generate field enums with: https://github.com/sboesebeck/intelliJGenPropertyEnumsPlugin
+- Alternative without codegen: use the lambda property extractor helper
+```java
+import static de.caluga.morphium.query.FieldNames.of;
+var q2 = morphium.createQueryFor(User.class)
+    .f(of(User::getUserName)).eq("alice");
+```
+- Enums/lambdas remain stable across refactors and camelCase translation changes.
+- See How‑To: Field Names for more options (including annotation‑processor codegen).
 
 Aggregation
 ```java

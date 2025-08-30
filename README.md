@@ -2,9 +2,13 @@
 
 **Want to contribute? Every help is welcome... just contact us**
 
-_ATTENTION:_ _please refer also to the version [here](https://caluga.de/v/2014/9/5/morphium_documentation)_
+Documentation
+- Overview: see `docs/overview.md`
+- Developer Guide: see `docs/developer-guide.md`
+- Messaging: see `docs/messaging.md`
+- How‑Tos: `docs/howtos/` (e.g., migration v5→v6)
 
-also have a look at our blog at https://caluga.de where we post interesting morphium code and documentation examples regularly.
+Also have a look at our blog at https://caluga.de where we post interesting Morphium code and examples.
 
 Morphium - Java Messaging (and POJO Mapper) based on MongoDB
 
@@ -36,44 +40,25 @@ join us on _slack_ [link](https://join.slack.com/t/team-morphium/shared_invite/e
 
 # Compatibility
 
-Morphium V5.0.x has major breaking changes, so upgrading will need some work:
+- Morphium v6 requires Java 21+ and MongoDB 5.0+.
+- Morphium provides its own MongoDB wire‑protocol driver; only the BSON package is required as an extra dependency.
 
-- it uses a whole redesigned Driver API. When upgrading to V5, all direct
-  accesses to MorphiumDriver need to be refactored
-- MorphiumV5 does not support mongodb Versions less then 5.0! make sure to
-  upgrade or stick with V4.2.x for the time being!
-- Driver Configuration now works with `DriverName` instead of `DriverClass`
-  (making refactoring easier). Hence, if you changed the Driver from the
-  default one, you might need to change the setting in either properties or
-  when calling MorphiumConfig.
-- As MorphiumV5 introduces its own driver for accessing mongodb, no
-  dependency to org.mongodb is needed (just for the bson-package). So the new
-  dependency in your `pom.xml` should be like:
-
+Maven dependencies
 ```
- <dependency>
-    <groupId>de.caluga</groupId>
-    <artifactId>morphium</artifactId>
-    <version>[5.1.28,)</version>
- </dependency>
- <dependency>
-    <groupId>org.mongodb</groupId>
-    <artifactId>bson</artifactId>
-    <version>[4.7.1,)</version>
- </dependency>
+<dependency>
+  <groupId>de.caluga</groupId>
+  <artifactId>morphium</artifactId>
+  <version>[6.0.0,)</version>
+  <!-- use the latest v6 release -->
+  </dependency>
+<dependency>
+  <groupId>org.mongodb</groupId>
+  <artifactId>bson</artifactId>
+  <version>4.7.1</version>
+</dependency>
 ```
 
-Morphium up to V4.1.x was built using the mongodb drivers 3.x (up to V3.12.2).
-Morphium V4.2.0 through V4.x used the mongodb driver 4.x.
-Since Morphium V5.0, it includes its own MongoDB driver implementation.
-
-Since Morphium V5.x includes its own MongoDB driver implementation, it supports MongoDB 5.0 and later versions directly, without dependency on the MongoDB Java driver compatibility matrix.
-
-For more details about MongoDB compatibility, please refer to the Morphium documentation.
-
-Since Morphium V5 includes its own MongoDB driver implementation, you only need the BSON dependency for object serialization. The MongoDB driver dependencies are no longer required for runtime.
-
-_Note:_ Only the BSON package from MongoDB is needed as a dependency for Morphium V5.x.
+Upgrading from v5? See `docs/howtos/migration-v5-to-v6.md`.
 
 # Quick Start
 
@@ -81,8 +66,8 @@ before accessing mongo via Morphium, you need to configure Morphium. this is don
 
 ```java
   MorphiumConfig cfg = new MorphiumConfig();
-  cfg.setDatabase("testdb");
-  cfg.addHostToSeed("localhost", 27017);
+  cfg.connectionSettings().setDatabase("testdb");
+  cfg.clusterSettings().addHostToSeed("localhost", 27017);
 ```
 
 The seed of hosts is at least one node from the replicaset. Actually, only one is needed, as the configuration of the replicaset is read by the driver to know which machines are available. Attention: if it happens that exactly the hosts of the replicaset you defined here are not available, morphium won't start and you will end up with an exception.
@@ -98,7 +83,7 @@ After that, you just need to instantiate Morphium:
 There are some convenience constructors available since _V2.2.23_ which make your life a bit easier:
 
 ```
-   Morphium m=new Morphium("localhost","test-db");
+  Morphium m=new Morphium("localhost","test-db");
 ```
 
 this creates a morphium instance with most default settings, connecting to localhost, standard port 27017 and using database `test-db`
@@ -192,7 +177,7 @@ in our example, the batch would look like this:
 
 This is a very short glance at all the features of Morphium!
 
-For more information take a closer look at the wiki.
+For more information, see the documentation in the `docs/` folder.
 
 Have fun,
 
@@ -208,7 +193,7 @@ Especially with V5.0 there was a lot of effort put in to make the
 InMemoryDriver more or less feature complete. Most operations a mongoDB
 offers, is also implemented in the InMemDriver.
 To use the inMemDriver you only need to set the DriverName directly in
-`MorphiumConfig` via `myMorphiumConfig.setDriverName("InMemDriver")` or in
+`MorphiumConfig` via `cfg.driverSettings().setDriverName("InMemDriver")` or in
 properties like `driver_name=InMemDriver'`.
 
 There is a test-version of a listening server for this driver - so you can try

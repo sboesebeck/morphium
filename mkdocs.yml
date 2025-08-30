@@ -1,0 +1,18 @@
+site_name: Morphium
+site_description: Morphium v6 – Java ODM and MongoDB‑backed messaging
+repo_url: https://github.com/sboesebeck/morphium
+theme:
+  name: mkdocs
+  nav:
+  - Overview: index.md
+  - Getting Started: overview.md
+  - Developer Guide: developer-guide.md
+  - Messaging: messaging.md
+  - How‑To:
+      - Basic Setup: howtos/basic-setup.md
+      - InMemory Driver: howtos/inmemory-driver.md
+      - Migration v5→v6: howtos/migration-v5-to-v6.md
+      - Aggregation Examples: howtos/aggregation-examples.md
+      - Caching Examples: howtos/caching-examples.md
+      - Cache Patterns: howtos/cache-patterns.md
+      - Field Names: howtos/field-names.md
