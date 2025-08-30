@@ -563,27 +563,32 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         //
         //
         var q = morphium.createQueryFor(Msg.class, getDMCollectionName()).f(Msg.Fields.processedBy).eq(null) // not
-                                                                                                             // processed
+                                                                                                            // processed
                 .f(Msg.Fields.topic).eq(name).f(Msg.Fields.msgId).nin(new ArrayList(processingMessages));
-        q.limit(getWindowSize());
-        if (q.countAll() > getWindowSize()) {
-            pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));
-            pollTrigger.get("dm_" + name).incrementAndGet();
-        }
-        for (Msg m : q.asIterable(10)) {
+        int window = getWindowSize();
+        q.limit(window + 1);
+        int seen = 0;
+        boolean more = false;
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
             for (var e : (List<Map<MType, Object>>) monitorsByMsgName.get(m.getTopic())) {
                 var l = (MessageListener) e.get(MType.listener);
-
                 queueOrRun(() -> {
                     if (m.isAnswer()) {
                         handleAnswer(m);
                     } else {
                         processMessage(m);
                     }
-
                 });
-
             }
+            seen++;
+        }
+        if (more) {
+            pollTrigger.putIfAbsent("dm_" + name, new AtomicInteger(0));
+            pollTrigger.get("dm_" + name).incrementAndGet();
         }
     }
 
@@ -605,14 +610,17 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q.sort(Msg.Fields.priority);
         q.or(q1, q2);
-        q.limit(getWindowSize());
-        if (q.countAll() > getWindowSize()) {
-            pollTrigger.putIfAbsent(msgName, new AtomicInteger(0));
-            pollTrigger.get(msgName).incrementAndGet();
-        }
+        int window = getWindowSize();
+        q.limit(window + 1);
         if (!running.get())
             return;
-        for (Msg m : q.asIterable()) {
+        int seen = 0;
+        boolean more = false;
+        for (Msg m : q.asIterable(window + 1)) {
+            if (seen >= window) {
+                more = true;
+                break;
+            }
             if (m.isTimingOut() && System.currentTimeMillis() - m.getTimestamp() > m.getTtl()) {
                 log.debug("deleting outdated message");
                 morphium.delete(m);
@@ -647,6 +655,11 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                 }
                 processMessage(m);
             }
+            seen++;
+        }
+        if (more) {
+            pollTrigger.putIfAbsent(msgName, new AtomicInteger(0));
+            pollTrigger.get(msgName).incrementAndGet();
         }
 
     }
