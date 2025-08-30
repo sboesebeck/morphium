@@ -865,7 +865,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private void unlock(Msg msg) {
         if (msg.isExclusive()) {
             morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName(msg)).f("_id")
-                    .eq(msg.getMsgId());
+                    .eq(msg.getMsgId()).delete();
         } // no need to release lock, if message was not locked
     }
 
