@@ -788,7 +788,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
                     // return;
                     // }
 
-                    if (pausedMessages.contains(map.get(Msg.Fields.msgId.name()))) {
+                    if (pausedMessages.contains(map.get(Msg.Fields.topic.name()))) {
                         // log.info("Topic {} paused", map.get("name"));
                         // paused
                         return;
