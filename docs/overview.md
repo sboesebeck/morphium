@@ -62,3 +62,9 @@ Next steps
 - See Developer Guide for configuration, mapping, queries, aggregation, caching, and extension points
 - See Messaging for the built‑in message queue
 - How‑Tos: Aggregation Examples, Caching Examples, and Cache Patterns
+
+
+Driver notes
+- Morphium uses its own wire‑protocol driver tailored to Morphium’s mapping.
+- Limitations: no MongoDB Atlas support and no SSL/TLS connections.
+

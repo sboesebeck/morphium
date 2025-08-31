@@ -64,6 +64,23 @@ mq.init(morphium, ms);
 mq.start();
 ```
 
+
+## Benefits & Trade‑offs
+
+Benefits
+- Persistent queue: messages are stored in MongoDB by default (durability across restarts); use in‑memory storage only when persistence is not needed.
+- Queryable messages: run ad‑hoc queries for statistics, audits, or status checks without interfering with processing.
+- Change streams: combine with MongoDB change streams to react to new messages transparently (no polling; requires replica set).
+- No extra infrastructure: reuse your existing MongoDB setup—no separate broker or runtime dependency when you already operate a replica set.
+
+Trade‑offs
+- Throughput: slower than purpose‑built brokers; every message is a document write/read.
+- Load: very high message rates will add notable database load—plan capacity accordingly or choose a different transport when ultra‑high throughput is critical.
+
+See also
+- In‑memory driver: ./howtos/inmemory-driver.md
+
+
 Notes and best practices
 - No wildcard/global listeners: register explicit topics via `addListenerForTopic(topic, listener)`
 - Non‑exclusive messages are broadcast to all listeners of a topic
