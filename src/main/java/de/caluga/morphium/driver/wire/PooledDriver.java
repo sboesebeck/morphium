@@ -56,12 +56,12 @@ public class PooledDriver extends DriverBase {
     private final Map<String, BlockingQueue<ConnectionContainer>> connectionPool;
     private final Map<Integer, ConnectionContainer> borrowedConnections;
     private final Map<DriverStatsKey, AtomicDecimal> stats;
-    private long fastestTime = 10000;
+    private volatile long fastestTime = 10000;
     private int idleSleepTime = 5;
-    private String fastestHost = null;
+    private volatile String fastestHost = null;
     private Map<String, Long> pingTimesPerHost = new ConcurrentHashMap<>();
     private final Logger log = LoggerFactory.getLogger(PooledDriver.class);
-    private String primaryNode;
+    private volatile String primaryNode;
     private final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(5,
             Thread.ofVirtual().name("MCon-", 0).factory());
 
@@ -120,7 +120,7 @@ public class PooledDriver extends DriverBase {
         }
     }
 
-    private ScheduledFuture<?> heartbeat;
+    private volatile ScheduledFuture<?> heartbeat;
     private final Object waitCounterSignal = new Object();
     private final Map<String, AtomicInteger> waitCounter = new ConcurrentHashMap<>();
     private List<String> lastHostsFromHello = null;
@@ -613,8 +613,8 @@ public class PooledDriver extends DriverBase {
             return bc.getCon();
         } catch (InterruptedException iex) {
             // swallow - might happen when closing
-            // throw new MorphiumDriverException("Waiting for connection was aborted");
-            return new SingleMongoConnection();
+            throw new MorphiumDriverException("Waiting for connection was aborted");
+            // return new SingleMongoConnection();
         } finally {
             if (needToDecrement && getWaitCounterForHost(host) > 0) {
                 AtomicInteger atomicInteger = waitCounter.get(host);
@@ -1002,11 +1002,15 @@ public class PooledDriver extends DriverBase {
 
     @Override
     public Map<String, Object> getDBStats(String db) throws MorphiumDriverException {
+        return getDBStats(db, false);
+    }
+
+    public Map<String, Object> getDBStats(String db, boolean withStorage) throws MorphiumDriverException {
         MongoConnection con = null;
 
         try {
             con = getPrimaryConnection(null);
-            return new DbStatsCommand(con).setDb(db).execute();
+            return new DbStatsCommand(con).setDb(db).setWithStorage(withStorage).execute();
         } finally {
             releaseConnection(con);
         }
@@ -1039,23 +1043,6 @@ public class PooledDriver extends DriverBase {
         killCursors(crs.getDb(), crs.getCollection(), crs.getCursorId());
     }
 
-    public Map<String, Object> getDbStats(String db, boolean withStorage) throws MorphiumDriverException {
-        return new NetworkCallHelper<Map<String, Object>>().doCall(() -> {
-            OpMsg msg = new OpMsg();
-            msg.setMessageId(getNextId());
-            Map<String, Object> v = Doc.of("dbStats", 1, "scale", 1024);
-            v.put("$db", db);
-
-            if (withStorage) {
-                v.put("freeStorage", 1);
-            }
-            msg.setFirstDoc(v);
-            // connection.sendQuery(msg);
-            OpMsg reply = null; // connection.getReplyFor(msg.getMessageId(), getMaxWaitTime());
-            return reply.getFirstDoc();
-        }, getRetriesOnNetworkError(), getSleepBetweenErrorRetries());
-    }
-
     public boolean exists(String db) throws MorphiumDriverException {
         // noinspection EmptyCatchBlock
         try {
@@ -1065,10 +1052,6 @@ public class PooledDriver extends DriverBase {
         }
 
         return false;
-    }
-
-    public Map<String, Object> getDbStats(String db) throws MorphiumDriverException {
-        return getDbStats(db, false);
     }
 
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
