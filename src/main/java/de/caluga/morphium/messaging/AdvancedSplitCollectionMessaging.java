@@ -80,6 +80,8 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private String senderId;
 
     private Map<String, AtomicInteger> pollTrigger = new ConcurrentHashMap<>();
+    // track when a topic was paused, to report elapsed pause time on unpause
+    private final Map<String, Long> pausedAt = new ConcurrentHashMap<>();
 
     private ScheduledThreadPoolExecutor decouplePool;
 
@@ -359,6 +361,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     @Override
     public void pauseTopicProcessing(String name) {
         pausedTopics.add(name);
+        pausedAt.putIfAbsent(name, System.currentTimeMillis());
     }
 
     @Override
@@ -369,11 +372,13 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     @Override
     public Long unpauseTopicProcessing(String name) {
         pausedTopics.remove(name);
+        Long started = pausedAt.remove(name);
         decouplePool.execute(() -> {
             pollAndProcess(name);
             pollAndProcessDms(name);
         });
-        return 0L; // TODO: calculate time
+        if (started == null) return 0L;
+        return System.currentTimeMillis() - started;
     }
 
     @Override
