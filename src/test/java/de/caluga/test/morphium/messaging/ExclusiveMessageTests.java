@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,48 +32,47 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void ignoringExclusiveMessagesTest() throws Exception {
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(100);
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-        m1.setSenderId("m1");
-        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
-        m2.setSenderId("m2");
-        StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
-        m3.setSenderId("m3");
-        m3.addListenerForTopic("test", new MessageListener() {
-            @Override
-            public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                return null;
-            }
-        });
-
-        try {
-            m1.start();
-            m2.start();
-            m3.start();
-            Thread.sleep(1250);
-
-            for (int i = 0; i < 10; i++) {
-                Msg m = new Msg("test", "ignore me please", "value", 20000, true);
-                m1.sendMessage(m);
-
-                while (true) {
-                    Thread.sleep(1000);
-                    m = morphium.reread(m);
-                    assertNotNull(m);
-
-                    if (m.getProcessedBy() != null && m.getProcessedBy().size() != 0) {
-                        break;
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
+            var cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImpl);
+            try (Morphium m = new Morphium(cfg)) {
+                m.dropCollection(Msg.class);
+                Thread.sleep(100);
+                MorphiumMessaging m1 = m.createMessaging();
+                m1.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m1.setSenderId("m1");
+                MorphiumMessaging m2 = m.createMessaging();
+                m2.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m2.setSenderId("m2");
+                MorphiumMessaging m3 = m.createMessaging();
+                m3.setPause(10).setMultithreadded(true).setWindowSize(10);
+                m3.setSenderId("m3");
+                m3.addListenerForTopic("test", (msg, mm) -> null);
+                try {
+                    m1.start();
+                    m2.start();
+                    m3.start();
+                    Thread.sleep(250);
+                    for (int i = 0; i < 10; i++) {
+                        Msg mm = new Msg("test", "ignore me please", "value", 20000, true);
+                        m1.sendMessage(mm);
+                        long start = System.currentTimeMillis();
+                        while (true) {
+                            Thread.sleep(50);
+                            mm = m.reread(mm);
+                            assertNotNull(mm);
+                            if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0) break;
+                            assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for processing");
+                        }
+                        assertEquals(1, mm.getProcessedBy().size());
                     }
+                } finally {
+                    try { m1.terminate(); } catch (Exception ignored) {}
+                    try { m2.terminate(); } catch (Exception ignored) {}
+                    try { m3.terminate(); } catch (Exception ignored) {}
                 }
-
-                assertEquals(1, m.getProcessedBy().size());
-                assertTrue(m.getProcessedBy().contains("m3"));
             }
-        } finally {
-            m1.terminate();
-            m2.terminate();
-            m3.terminate();
         }
     }
 

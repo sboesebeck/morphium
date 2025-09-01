@@ -1,9 +1,9 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,8 +21,12 @@ public class SpeedTests extends MultiDriverTestBase {
 
         try (morphium) {
             morphium.clearCollection(Msg.class);
-            StdMessaging msg = new StdMessaging(morphium, 100,  true, 1);
-            msg.start();
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                try (Morphium m = new Morphium(cfg)) {
+                    MorphiumMessaging msg = m.createMessaging();
+                    msg.start();
 
             try {
                 final long dur = 1000;
@@ -45,13 +49,11 @@ public class SpeedTests extends MultiDriverTestBase {
                     Thread.sleep(10);
                 }
 
-                long cnt = morphium.createQueryFor(Msg.class).countAll();
+                long cnt = m.createQueryFor(Msg.class).countAll();
                 log.info("stored msg: " + cnt + " in " + dur + "ms");
-            } finally {
-                try {
-                    msg.terminate();
-                } catch (Exception e) {
-                    log.warn("Messaging termination failed!");
+                } finally {
+                    try { msg.terminate(); } catch (Exception ignored) {}
+                }
                 }
             }
         }
@@ -66,10 +68,14 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             morphium.clearCollection(Msg.class);
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-            StdMessaging sender = new StdMessaging(morphium, 100,  true, 1);
-            sender.start();
-            StdMessaging receiver = new StdMessaging(morphium, 100,  true, 100);
-            receiver.start();
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                try (Morphium m = new Morphium(cfg)) {
+                    MorphiumMessaging sender = m.createMessaging();
+                    sender.start();
+                    MorphiumMessaging receiver = m.createMessaging();
+                    receiver.start();
 
             try {
                 final AtomicInteger recCount = new AtomicInteger();
@@ -100,14 +106,11 @@ public class SpeedTests extends MultiDriverTestBase {
                     Thread.sleep(10);
                 }
 
-                long cnt = morphium.createQueryFor(Msg.class).countAll();
+                long cnt = m.createQueryFor(Msg.class).countAll();
                 log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
-            } finally {
-                try {
-                    sender.terminate();
-                    receiver.terminate();
-                } catch (Exception e) {
-                    log.warn("Messageing termination failed!");
+                } finally {
+                    try { sender.terminate(); receiver.terminate(); } catch (Exception ignored) {}
+                }
                 }
             }
         }
@@ -122,12 +125,16 @@ public class SpeedTests extends MultiDriverTestBase {
         try (morphium) {
             //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
             morphium.clearCollection(Msg.class);
-            StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
-            sender.start();
-            StdMessaging receiver = new StdMessaging(morphium, 100,  true, 100);
-            receiver.start();
-            StdMessaging receiver2 = new StdMessaging(morphium, 100,  true, 100);
-            receiver2.start();
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                try (Morphium m = new Morphium(cfg)) {
+                    MorphiumMessaging sender = m.createMessaging();
+                    sender.start();
+                    MorphiumMessaging receiver = m.createMessaging();
+                    receiver.start();
+                    MorphiumMessaging receiver2 = m.createMessaging();
+                    receiver2.start();
 
             try {
                 final AtomicInteger recCount = new AtomicInteger();
@@ -160,15 +167,11 @@ public class SpeedTests extends MultiDriverTestBase {
                     Thread.sleep(10);
                 }
 
-                long cnt = morphium.createQueryFor(Msg.class).countAll();
+                long cnt = m.createQueryFor(Msg.class).countAll();
                 log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
-            } finally {
-                try {
-                    sender.terminate();
-                    receiver.terminate();
-                    receiver2.terminate();
-                } catch (Exception e) {
-                    log.warn("Messageing termination failed!");
+                } finally {
+                    try { sender.terminate(); receiver.terminate(); receiver2.terminate(); } catch (Exception ignored) {}
+                }
                 }
             }
         }

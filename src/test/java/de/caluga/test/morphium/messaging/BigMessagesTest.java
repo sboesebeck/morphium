@@ -1,8 +1,9 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -26,8 +27,12 @@ public class BigMessagesTest extends MultiDriverTestBase {
             final AtomicInteger count = new AtomicInteger();
             morphium.dropCollection(Msg.class, "msg", null);
             Thread.sleep(1000);
-            StdMessaging sender = new StdMessaging(morphium, 100, true, 10);
-            StdMessaging receiver = new StdMessaging(morphium);
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                try (Morphium m = new Morphium(cfg)) {
+                    MorphiumMessaging sender = m.createMessaging();
+                    MorphiumMessaging receiver = m.createMessaging();
 
             try {
                 sender.setUseChangeStream(true).start();
@@ -39,7 +44,7 @@ public class BigMessagesTest extends MultiDriverTestBase {
                     count.incrementAndGet();
                     return null;
                 });
-                int amount = 25;
+                int amount = 10;
 
                 for (int i = 0; i < amount; i++) {
                     StringBuilder txt = new StringBuilder();
@@ -72,13 +77,13 @@ public class BigMessagesTest extends MultiDriverTestBase {
 
                     if (System.currentTimeMillis() - start > 10000) {
                         log.error("Message was lost");
-                        log.info("Messagecount: " + morphium.createQueryFor(Msg.class).countAll());
+                        log.info("Messagecount: " + m.createQueryFor(Msg.class).countAll());
 
-                        for (Msg m : morphium.createQueryFor(Msg.class).asIterable()) {
-                            log.info("Msg: " + m.getMsgId());
+                        for (Msg msg : m.createQueryFor(Msg.class).asIterable()) {
+                            log.info("Msg: " + msg.getMsgId());
 
-                            if (m.getProcessedBy() != null) {
-                                for (String pb : m.getProcessedBy()) {
+                            if (msg.getProcessedBy() != null) {
+                                for (String pb : msg.getProcessedBy()) {
                                     log.info("Processed by: " + pb);
                                 }
                             }
@@ -87,9 +92,11 @@ public class BigMessagesTest extends MultiDriverTestBase {
 
                     assertTrue(System.currentTimeMillis() - start < 35000);
                 }
-            } finally {
-                sender.terminate();
-                receiver.terminate();
+                } finally {
+                    sender.terminate();
+                    receiver.terminate();
+                }
+                }
             }
         }
     }

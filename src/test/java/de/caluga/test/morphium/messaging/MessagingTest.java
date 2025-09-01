@@ -1,4 +1,4 @@
-package de.caluga.messaging;
+package de.caluga.test.morphium.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -35,7 +35,7 @@ public class MessagingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void execAfterRelease(Morphium morphium) throws Exception {
         try (morphium) {
-            String method = new Object() {}.getClass().getEnclosingMethod().getName();
+            String method = new Object() {} .getClass().getEnclosingMethod().getName();
             log.info("Running Test {} with {}", method, morphium.getDriver().getName());
 
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
@@ -82,7 +82,7 @@ public class MessagingTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testMsgQueName(Morphium morphium) throws Exception {
         try (morphium) {
-            String method = new Object() {}.getClass().getEnclosingMethod().getName();
+            String method = new Object() {} .getClass().getEnclosingMethod().getName();
             log.info("Running Test {} with {}", method, morphium.getDriver().getName());
 
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
