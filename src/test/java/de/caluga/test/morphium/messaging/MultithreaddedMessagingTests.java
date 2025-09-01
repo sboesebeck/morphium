@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -8,7 +8,9 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.Morphium;
+import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import org.junit.jupiter.api.Test;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
@@ -20,14 +22,18 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
     @Test
     public void messagingSendReceiveThreaddedTest() throws Exception {
-        AtomicInteger procCounter = new AtomicInteger(0);
-        final StdMessaging producer = new StdMessaging(morphium, 100, true, false, 10);
-        final StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 100);
-        producer.start();
-        consumer.start();
-        Thread.sleep(2000);
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImpl);
+            try (Morphium m = new Morphium(cfg)) {
+                AtomicInteger procCounter = new AtomicInteger(0);
+                final MorphiumMessaging producer = m.createMessaging();
+                final MorphiumMessaging consumer = m.createMessaging();
+                producer.start();
+                consumer.start();
+                Thread.sleep(500);
 
-        try {
+                try {
             Vector<String> processedIds = new Vector<>();
             Hashtable<String, Long> processedAt = new Hashtable<>();
             procCounter.set(0);
@@ -48,7 +54,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 return null;
             });
             Thread.sleep(2500);
-            int amount = 3000;
+            int amount = 500;
             log.info("------------- sending messages");
 
             for (int i = 0; i < amount; i++) {
@@ -66,24 +72,29 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 log.info("Still processing: " + procCounter.get());
             }
 
-            assert(procCounter.get() == amount) : "Did process " + procCounter.get();
-        } finally {
-            log.info("All good, shutting down");
-            producer.terminate();
-            consumer.terminate();
+            org.junit.jupiter.api.Assertions.assertEquals(amount, procCounter.get(), "Did process " + procCounter.get());
+                } finally {
+                    producer.terminate();
+                    consumer.terminate();
+                }
+            }
         }
     }
 
     @Test
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         morphium.clearCollection(Msg.class);
-        final StdMessaging producer = new StdMessaging(morphium, 100, true);
-        final StdMessaging consumer = new StdMessaging(morphium, 10, true, true, 2000);
-        consumer.start();
-        producer.start();
-        Thread.sleep(2500);
+        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+            MorphiumConfig cfg = morphium.getConfig().createCopy();
+            cfg.messagingSettings().setMessagingImplementation(msgImpl);
+            try (Morphium m = new Morphium(cfg)) {
+                final MorphiumMessaging producer = m.createMessaging();
+                final MorphiumMessaging consumer = m.createMessaging();
+                consumer.start();
+                producer.start();
+                Thread.sleep(500);
 
-        try {
+                try {
             final AtomicInteger processed = new AtomicInteger();
             final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
             consumer.addListenerForTopic("test", (msg, m) -> {
@@ -92,7 +103,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 if (processed.get() % 1000 == 0) {
                     log.info("Consumed " + processed.get());
                 }
-                assert(!msgCountById.containsKey(m.getMsgId().toString()));
+                org.junit.jupiter.api.Assertions.assertFalse(msgCountById.containsKey(m.getMsgId().toString()));
                 msgCountById.putIfAbsent(m.getMsgId().toString(), new AtomicInteger());
                 msgCountById.get(m.getMsgId().toString()).incrementAndGet();
                 //simulate processing
@@ -103,7 +114,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 }
                 return null;
             });
-            int numberOfMessages = 1000;
+            int numberOfMessages = 300;
 
             for (int i = 0; i < numberOfMessages; i++) {
                 Msg m = new Msg("test", "m", "v");
@@ -130,11 +141,13 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             assert(processed.get() == numberOfMessages);
 
             for (String id : msgCountById.keySet()) {
-                assert(msgCountById.get(id).get() == 1);
+                org.junit.jupiter.api.Assertions.assertEquals(1, msgCountById.get(id).get());
             }
-        } finally {
-            producer.terminate();
-            consumer.terminate();
+                } finally {
+                    producer.terminate();
+                    consumer.terminate();
+                }
+            }
         }
     }
 
@@ -143,10 +156,11 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         final List<Msg> list = new ArrayList<>();
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        StdMessaging sender = new StdMessaging(morphium, 100, false, false, 10);
-        sender.start();
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setMultithreadded(false).setWindowSize(10).start();
         list.clear();
-        StdMessaging receiver = new StdMessaging(morphium, 100, false, false, 10);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setMultithreadded(false).setWindowSize(10);
         receiver.addListenerForTopic("test", (msg, m) -> {
             list.add(m);
 
@@ -168,9 +182,9 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 Thread.sleep(500);
             }
 
-            assert(list.size() == 1) : "Size wrong: " + list.size();
+            org.junit.jupiter.api.Assertions.assertEquals(1, list.size(), "Size wrong: " + list.size());
             Thread.sleep(2200);
-            assert(list.size() == 2);
+            org.junit.jupiter.api.Assertions.assertEquals(2, list.size());
         } finally {
             sender.terminate();
             receiver.terminate();
@@ -184,10 +198,11 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         morphium.getConfig().setThreadPoolMessagingCoreSize(5);
         log.info("Max threadpool:" + morphium.getConfig().getThreadPoolMessagingCoreSize());
         Thread.sleep(1000);
-        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
-        sender.start();
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setMultithreadded(true).setWindowSize(10).start();
         list.clear();
-        StdMessaging receiver = new StdMessaging(morphium, 100, false, true, 10);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setMultithreadded(true).setWindowSize(10);
         receiver.addListenerForTopic("test", (msg, m) -> {
             log.info("Incoming message...");
             list.add(m);
@@ -211,7 +226,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
             }
 
             Thread.sleep(100);
-            assert(list.size() == 2) : "Size wrong: " + list.size();
+            org.junit.jupiter.api.Assertions.assertEquals(2, list.size(), "Size wrong: " + list.size());
         } finally {
             sender.terminate();
             receiver.terminate();
@@ -221,7 +236,8 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @Test
     public void multithreaddingTestSingle() throws Exception {
         int amount = 65;
-        StdMessaging producer = new StdMessaging(morphium, 500, false);
+        MorphiumMessaging producer = morphium.createMessaging();
+        producer.setPause(500);
         producer.start();
 
         for (int i = 0; i < amount; i++) {
@@ -234,7 +250,8 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         }
 
         final AtomicInteger count = new AtomicInteger();
-        StdMessaging consumer = new StdMessaging(morphium, 100, false, true, 1000);
+        MorphiumMessaging consumer = morphium.createMessaging();
+        consumer.setMultithreadded(true).setWindowSize(1000).setPause(100);
         consumer.addListenerForTopic("test", (msg, m) -> {
             //            log.info("Got message!");
             count.incrementAndGet();

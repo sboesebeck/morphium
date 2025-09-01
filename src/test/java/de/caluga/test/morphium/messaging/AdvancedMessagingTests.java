@@ -1,4 +1,4 @@
-package de.caluga.test.messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;

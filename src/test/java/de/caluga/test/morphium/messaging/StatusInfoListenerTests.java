@@ -1,4 +1,4 @@
-package de.caluga.test.mongo.suite.messaging;
+package de.caluga.test.morphium.messaging;
 
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
@@ -17,16 +17,16 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void disablingEnablingStatusListener() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging m1 = morphium.createMessaging();
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
-        StdMessaging m2 = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging m2 = morphium.createMessaging();
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
         addListeners(m1, m2);
-        StdMessaging sender = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
         Thread.sleep(5250);
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", StatusInfoListener.StatusInfoLevel.PING.name()), 2, 1000);
@@ -48,17 +48,17 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void getStatusInfo() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging m1 = morphium.createMessaging();
         m1.setSenderId("m1");
         m1.setMultithreadded(true);
         m1.start();
-        StdMessaging m2 = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging m2 = morphium.createMessaging();
         m2.setSenderId("m2");
         m2.setMultithreadded(false);
         m2.start();
         addListeners(m1, m2);
         Thread.sleep(1500);
-        StdMessaging sender = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
         log.info("Getting standard stauts (should be Messaging only)");
         List<Msg> lst = sender.sendAndAwaitAnswers(new Msg(sender.getStatusInfoListenerName(), "status", "value"), 2, 5000);
@@ -137,7 +137,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void testStatusInfoListener() throws Exception {
-        StdMessaging m = new StdMessaging(morphium);
+        MorphiumMessaging m = morphium.createMessaging();
         m.setWindowSize(1);
         m.setMultithreadded(false);
         m.setUseChangeStream(false);
@@ -152,7 +152,7 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             }
             return null;
         });
-        StdMessaging sender = new StdMessaging(morphium);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.start();
         Thread.sleep(3000);
         ArrayList<Msg> lst = new ArrayList<>();
