@@ -39,3 +39,6 @@ examples.md
 startTS
 disabled.lst
 site
+node_modules
+package-lock.json
+package.json
