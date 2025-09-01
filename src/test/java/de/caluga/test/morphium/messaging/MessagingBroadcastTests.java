@@ -33,6 +33,18 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                 var cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
                 try (Morphium m = new Morphium(cfg)) {
+                    // wait until a primary connection is available to avoid race conditions on startup
+                    // Important: always release the acquired connection back to the pool
+                    de.caluga.test.mongo.suite.base.TestUtils.waitForConditionToBecomeTrue(10000, "No primary node found", () -> {
+                        try {
+                            var con = m.getDriver().getPrimaryConnection(null);
+                            boolean ok = con != null && con.isConnected();
+                            if (con != null) m.getDriver().releaseConnection(con);
+                            return ok;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    });
                     final MorphiumMessaging m1 = m.createMessaging();
                     final MorphiumMessaging m2 = m.createMessaging();
                     final MorphiumMessaging m3 = m.createMessaging();
@@ -46,7 +58,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     m1.start();
                     m3.start();
                     m2.start();
-                    Thread.sleep(300);
+                    Thread.sleep(1250);
 
             try {
                 log.info("m1 ID: " + m1.getSenderId());

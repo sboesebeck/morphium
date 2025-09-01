@@ -40,7 +40,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int retriesOnNetworkError = 5;
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
-    private SequencedSet<String> hostSeed;
+    private Set<String> hostSeed;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
     private int defaultW = 1;
