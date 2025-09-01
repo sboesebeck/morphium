@@ -376,17 +376,15 @@ public class PooledDriver extends DriverBase {
 
                                 long dur = System.currentTimeMillis() - start;
 
-                                if (dur < fastestTime) {
-                                    fastestTime = dur;
-                                    fastestHost = hst;
-                                }
-
                                 pingTimesPerHost.put(hst, dur);
-                                pingStatsPerHost.compute(hst, (host, oldStats) ->
+                                PingStats newStats = pingStatsPerHost.compute(hst, (host, oldStats) ->
                                                          oldStats == null ? new PingStats(dur, dur, dur, dur, 1, System.currentTimeMillis())
                                                          : oldStats.updateWith(dur));
+                                
+                                // Use record patterns to update fastest host
+                                updateFastestHost(hst, newStats);
                                 // container.touch();
-                                handleHelloResult(result, getHost(hst) + ":" + getPortFromHost(hst));
+                                handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
 
                                 synchronized (connectionPool) {
                                     if (connectionPool.containsKey(hst)
@@ -423,7 +421,7 @@ public class PooledDriver extends DriverBase {
 
                             // log.info("Finished connection creation");
                         } catch (Throwable e) {
-                            log.error("Could not create connection to host " + hst, e);
+                            log.error("Could not create connection to host {}", hst, e);
                             onConnectionError(hst);
                         } finally {
                             hostThreads.remove(hst);
@@ -483,6 +481,18 @@ public class PooledDriver extends DriverBase {
         synchronized (waitCounter) {
             waitCounter.putIfAbsent(hst, new AtomicInteger());
             return waitCounter.get(hst).get();
+        }
+    }
+    
+    // Helper method using record patterns for ping stats
+    private void updateFastestHost(String host, PingStats stats) {
+        switch (stats) {
+            case PingStats(var last, var avg, var min, var max, var count, var updated) 
+                when avg < fastestTime -> {
+                    fastestTime = avg;
+                    fastestHost = host;
+                }
+            default -> { /* no update needed */ }
         }
     }
 
@@ -554,16 +564,14 @@ public class PooledDriver extends DriverBase {
 
         long dur = System.currentTimeMillis() - start;
 
-        if (dur < fastestTime) {
-            fastestTime = dur;
-            fastestHost = hst;
-        }
-
-        pingStatsPerHost.compute(hst, (host, oldStats) ->
+        PingStats newStats = pingStatsPerHost.compute(hst, (host, oldStats) ->
                                  oldStats == null ? new PingStats(dur, dur, dur, dur, 1, System.currentTimeMillis())
                                  : oldStats.updateWith(dur));
+        
+        // Use record patterns to update fastest host
+        updateFastestHost(hst, newStats);
 
-        handleHelloResult(result, getHost(hst) + ":" + getPortFromHost(hst));
+        handleHelloResult(result, String.format("%s:%d", getHost(hst), getPortFromHost(hst)));
     }
 
     @Override
@@ -622,7 +630,7 @@ public class PooledDriver extends DriverBase {
                 // connectionPool.putIfAbsent(host, new LinkedBlockingQueue<>());
                 if (!connectionPool.containsKey(host)) {
                     log.error("No connectionpool for host {}", host);
-                    throw new MorphiumDriverException("No connectionpool for " + host + " available");
+                    throw new MorphiumDriverException(String.format("No connectionpool for %s available", host));
                 }
 
                 queue = connectionPool.get(host);
@@ -657,7 +665,7 @@ public class PooledDriver extends DriverBase {
                     log.error("Connections to {}: {}", host, getTotalConnectionsToHost(host));
                     log.error("WaitingThreads for {}: {}", host, getWaitCounterForHost(host));
                     throw new MorphiumDriverException(
-                                    "Could not get connection to " + host + " in time " + getMaxWaitTime() + "ms");
+                                    String.format("Could not get connection to %s in time %dms", host, getMaxWaitTime()));
                 }
 
                 if (bc.getCon().getSourcePort() == 0) {
@@ -724,7 +732,8 @@ public class PooledDriver extends DriverBase {
                         try {
                             Thread.sleep(100);
                         } catch (InterruptedException e) {
-                            // swallow
+                            Thread.currentThread().interrupt(); // Properly handle interruption
+                            return null; // Exit gracefully when interrupted
                         }
                     }
 
@@ -782,10 +791,15 @@ public class PooledDriver extends DriverBase {
 
                             if (getLocalThreshold() > 0) {
                                 PingStats stats = pingStatsPerHost.get(host);
-                                if (stats == null || stats.averagePing() <= fastestTime + getLocalThreshold()) {
-                                    host = hostSeed.get(lastSecondaryNode.get());
-                                } else {
-                                    continue;
+                                // Using pattern matching for records
+                                switch (stats) {
+                                    case null -> host = hostSeed.get(lastSecondaryNode.get());
+                                    case PingStats(var lastPing, var avgPing, var minPing, var maxPing, var count, var updated)
+                                        when avgPing <= fastestTime + getLocalThreshold() -> 
+                                            host = hostSeed.get(lastSecondaryNode.get());
+                                    default -> {
+                                        continue; // Skip hosts that don't meet threshold
+                                    }
                                 }
                             } else {
                                 host = hostSeed.get(lastSecondaryNode.get());
@@ -808,7 +822,8 @@ public class PooledDriver extends DriverBase {
                             try {
                                 Thread.sleep(getSleepBetweenErrorRetries());
                             } catch (InterruptedException e1) {
-                                // Swallow
+                                Thread.currentThread().interrupt(); // Properly handle interruption
+                                break; // Exit retry loop when interrupted
                             }
                         }
                     }
@@ -1208,28 +1223,29 @@ public class PooledDriver extends DriverBase {
             public Doc execute() {
                 try {
                     for (BulkRequest r : requests) {
-                        if (r instanceof InsertBulkRequest) {
-                            InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
-                            settings.setDb(db).setColl(collection).setComment("Bulk insert")
-                                    .setDocuments(((InsertBulkRequest) r).getToInsert());
-                            settings.execute();
-                            settings.releaseConnection();
-                        } else if (r instanceof UpdateBulkRequest) {
-                            UpdateBulkRequest up = (UpdateBulkRequest) r;
-                            UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
-                            upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", up.getQuery(), "u",
-                                    up.getCmd(), "upsert", up.isUpsert(), "multi", up.isMultiple())));
-                            upCmd.execute();
-                            upCmd.releaseConnection();
-                        } else if (r instanceof DeleteBulkRequest) {
-                            DeleteBulkRequest dbr = ((DeleteBulkRequest) r);
-                            DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
-                            del.setColl(collection).setDb(db).setDeletes(
-                                               Arrays.asList(Doc.of("q", dbr.getQuery(), "limit", dbr.isMultiple() ? 0 : 1)));
-                            del.execute();
-                            del.releaseConnection();
-                        } else {
-                            throw new RuntimeException("Unknown operation " + r.getClass().getName());
+                        switch (r) {
+                            case InsertBulkRequest insert -> {
+                                InsertMongoCommand settings = new InsertMongoCommand(getPrimaryConnection(null));
+                                settings.setDb(db).setColl(collection).setComment("Bulk insert")
+                                        .setDocuments(insert.getToInsert());
+                                settings.execute();
+                                settings.releaseConnection();
+                            }
+                            case UpdateBulkRequest update -> {
+                                UpdateMongoCommand upCmd = new UpdateMongoCommand(getPrimaryConnection(null));
+                                upCmd.setColl(collection).setDb(db).setUpdates(Arrays.asList(Doc.of("q", update.getQuery(), "u",
+                                        update.getCmd(), "upsert", update.isUpsert(), "multi", update.isMultiple())));
+                                upCmd.execute();
+                                upCmd.releaseConnection();
+                            }
+                            case DeleteBulkRequest delete -> {
+                                DeleteMongoCommand del = new DeleteMongoCommand(getPrimaryConnection(null));
+                                del.setColl(collection).setDb(db).setDeletes(
+                                                   Arrays.asList(Doc.of("q", delete.getQuery(), "limit", delete.isMultiple() ? 0 : 1)));
+                                del.execute();
+                                del.releaseConnection();
+                            }
+                            default -> throw new RuntimeException("Unknown operation " + r.getClass().getName());
                         }
                     }
                 } catch (MorphiumDriverException e) {

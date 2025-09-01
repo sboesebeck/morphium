@@ -40,7 +40,7 @@ public abstract class DriverBase implements MorphiumDriver {
     private int retriesOnNetworkError = 5;
     private int sleepBetweenRetries = 100;
     private boolean defaultJ = false;
-    private Set<String> hostSeed;
+    private SequencedSet<String> hostSeed;
     private int heartbeatFrequency = 2000;
     private boolean useSSL = false;
     private int defaultW = 1;
@@ -141,7 +141,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setHostSeed(String... hosts) {
-        hostSeed = ConcurrentHashMap.newKeySet();
+        hostSeed = Collections.synchronizedSet(new LinkedHashSet<>());
 
         for (String h : hosts) {
             hostSeed.add(h);
@@ -441,7 +441,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
     @Override
     public void setHostSeed(List<String> hosts) {
-        hostSeed = ConcurrentHashMap.newKeySet();
+        hostSeed = Collections.synchronizedSet(new LinkedHashSet<>());
         hostSeed.addAll(hosts);
     }
 
@@ -635,7 +635,40 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     public void setHostSeed(Set<String> hostSeed) {
-        this.hostSeed = hostSeed;
+        this.hostSeed = hostSeed instanceof SequencedSet ? 
+            (SequencedSet<String>) hostSeed : 
+            Collections.synchronizedSet(new LinkedHashSet<>(hostSeed));
+    }
+    
+    // SequencedSet helper methods for better host management
+    public String getFirstHost() {
+        return hostSeed != null && !hostSeed.isEmpty() ? hostSeed.iterator().next() : null;
+    }
+    
+    public String getLastHost() {
+        if (hostSeed != null && !hostSeed.isEmpty()) {
+            // Get last element without removing it
+            synchronized (hostSeed) {
+                return hostSeed.stream().reduce((first, second) -> second).orElse(null);
+            }
+        }
+        return null;
+    }
+    
+    public void addHostFirst(String host) {
+        if (hostSeed != null) {
+            // For thread-safe SequencedSet operations, we need to create a new set
+            SequencedSet<String> newHostSeed = Collections.synchronizedSet(new LinkedHashSet<>());
+            newHostSeed.add(host);
+            newHostSeed.addAll(hostSeed);
+            this.hostSeed = newHostSeed;
+        }
+    }
+    
+    public void addHostLast(String host) {
+        if (hostSeed != null) {
+            hostSeed.add(host); // LinkedHashSet maintains insertion order
+        }
     }
 
     public int getBatchSize() {
