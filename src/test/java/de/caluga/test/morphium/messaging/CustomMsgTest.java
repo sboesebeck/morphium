@@ -25,6 +25,9 @@ public class CustomMsgTest extends MorphiumTestBase {
         for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             try (Morphium m = new Morphium(cfg)) {
                 MorphiumMessaging m1 = m.createMessaging();
                 MorphiumMessaging m2 = m.createMessaging();

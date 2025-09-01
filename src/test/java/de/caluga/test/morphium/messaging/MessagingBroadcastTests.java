@@ -30,8 +30,14 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
             log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
             morphium.clearCollection(Msg.class);
             for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                log.info("Running test with {} messaging", msgImpl);
                 var cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+
                 try (Morphium m = new Morphium(cfg)) {
                     // wait until a primary connection is available to avoid race conditions on startup
                     // Important: always release the acquired connection back to the pool
@@ -140,136 +146,146 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void broadcastMultiTest(Morphium morphium) throws Exception {
         try (morphium) {
-            String method = new Object() {
-            }
-            .getClass().getEnclosingMethod().getName();
-            log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
-            MorphiumMessaging sender = morphium.createMessaging();
-            sender.setSenderId("sender");
-            sender.start();
-            Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
-            List<MorphiumMessaging> receivers = new ArrayList<MorphiumMessaging>();
+            for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+                var cfg = morphium.getConfig().createCopy();
+                log.info("Running test with {} messaging", msgImpl);
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
-            for (int i = 0; i < 10; i++) {
-                MorphiumMessaging rec1 = morphium.createMessaging();
-                rec1.setSenderId("rec" + i);
-                receivers.add(rec1);
-                rec1.start();
-                rec1.addListenerForTopic("bcast", (msg, incoming) -> {
-                    synchronized(receivedIds) {
-                        receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
+                try (Morphium morph = new Morphium(cfg)) {
+                    String method = new Object() {
+                    }
+                    .getClass().getEnclosingMethod().getName();
+                    log.info(String.format("=====================> Running Test %s with %s <===============================", method, morphium.getDriver().getName()));
+                    MorphiumMessaging sender = morph.createMessaging();
+                    sender.setSenderId("sender");
+                    sender.start();
+                    Map<String, List<MorphiumId >> receivedIds = new ConcurrentHashMap<String, List<MorphiumId >> ();
+                    List<MorphiumMessaging> receivers = new ArrayList<MorphiumMessaging>();
 
-                        if (receivedIds.get(rec1.getSenderId()).contains(incoming.getMsgId())) {
-                            log.error("Duplicate processing!!!!");
-                        } else if (incoming.isExclusive() && incoming.getProcessedBy() != null && incoming.getProcessedBy().size() != 0) {
-                            log.error("Duplicate processing Exclusive Message!!!!!");
+                    for (int i = 0; i < 10; i++) {
+                        MorphiumMessaging rec1 = morph.createMessaging();
+                        rec1.setSenderId("rec" + i);
+                        receivers.add(rec1);
+                        rec1.start();
+                        rec1.addListenerForTopic("bcast", (msg, incoming) -> {
+                            synchronized(receivedIds) {
+                                receivedIds.putIfAbsent(rec1.getSenderId(), new ArrayList<MorphiumId>());
+
+                                if (receivedIds.get(rec1.getSenderId()).contains(incoming.getMsgId())) {
+                                    log.error("Duplicate processing!!!!");
+                                } else if (incoming.isExclusive() && incoming.getProcessedBy() != null && incoming.getProcessedBy().size() != 0) {
+                                    log.error("Duplicate processing Exclusive Message!!!!!");
+                                }
+
+                                receivedIds.get(rec1.getSenderId()).add(incoming.getMsgId());
+                            }
+                            return null;
+                        });
+                    }
+                    int amount = 100;
+
+                    for (int i = 0; i < amount; i++) {
+                        sender.queueMessage(new Msg("bcast", "msg", "value", 40000));
+                        sender.queueMessage(new Msg("bcast", "msg", "value", 40000, true));
+
+                        if (i % 10 == 0) {
+                            log.info("Sent message #" + i);
+                        }
+                    }
+                    long start = System.currentTimeMillis();
+
+                    while (true) {
+                        StringBuilder b = new StringBuilder();
+                        int totalNum = 0;
+                        log.info("-------------");
+
+                        for (var e : receivedIds.entrySet()) {
+                            b.setLength(0);
+                            b.append(e.getKey());
+                            b.append(": ");
+
+                            for (int i = 0; i < e.getValue().size(); i++) {
+                                b.append("*");
+                            }
+
+                            totalNum += e.getValue().size();
+                            b.append(" -> ");
+                            b.append(e.getValue().size());
+                            log.info(b.toString());
                         }
 
-                        receivedIds.get(rec1.getSenderId()).add(incoming.getMsgId());
+                        if (totalNum >= amount * receivers.size() + amount) {
+                            break;
+                        } else {
+                            log.info("Did not receive all: {} of {}", totalNum, amount * receivers.size() + amount);
+                        }
+
+                        Thread.sleep(200);
+                        assertTrue(System.currentTimeMillis() - start < 15000, "Did not get all messages in time");
                     }
-                    return null;
-                });
-            }
-            int amount = 100;
+                    Thread.sleep(1000);
+                    log.info("--------");
+                    StringBuilder b = new StringBuilder();
+                    int totalNum = 0;
+                    int bcast = 0;
+                    int excl = 0;
 
-            for (int i = 0; i < amount; i++) {
-                sender.queueMessage(new Msg("bcast", "msg", "value", 40000));
-                sender.queueMessage(new Msg("bcast", "msg", "value", 40000, true));
+                    for (var e : receivedIds.entrySet()) {
+                        b.setLength(0);
+                        b.append(e.getKey());
+                        b.append(": ");
+                        int ex = 0;
+                        int bx = 0;
 
-                if (i % 10 == 0) {
-                    log.info("Sent message #" + i);
+                        for (int i = 0; i < e.getValue().size(); i++) {
+                            var m = morph.findById(Msg.class, e.getValue().get(i), sender.getCollectionName("bcast"));
+
+                            if (m == null) {
+                                log.warn("Hmm.. Did not get message... retrying...");
+                                Thread.sleep(100);
+                                m = morphium.findById(Msg.class, e.getValue().get(i));
+                                assertNotNull(m, "Message not found");
+                            }
+
+                            if (m.isExclusive()) {
+                                b.append("!");
+                                excl++;
+                                ex++;
+                            } else {
+                                b.append("*");
+                                bcast++;
+                                bx++;
+                            }
+                        }
+
+                        totalNum += e.getValue().size();
+                        b.append(" -> ");
+                        b.append(e.getValue().size());
+                        b.append(" ( excl: ");
+                        b.append(ex);
+                        b.append(" + bcast: ");
+                        b.append(bx);
+                        b.append(")");
+                        log.info(b.toString());
+                    }
+                    log.info("Total processed: " + totalNum);
+                    log.info("    exclusives : " + excl);
+                    log.info("    broadcasts : " + bcast);
+
+                    for (MorphiumMessaging m : receivers) {
+                        m.terminate();
+                    }
+                    sender.terminate();
+                    log.info(method + "() finished with " + morphium.getDriver().getName());
                 }
             }
-            long start = System.currentTimeMillis();
-
-            while (true) {
-                StringBuilder b = new StringBuilder();
-                int totalNum = 0;
-                log.info("-------------");
-
-                for (var e : receivedIds.entrySet()) {
-                    b.setLength(0);
-                    b.append(e.getKey());
-                    b.append(": ");
-
-                    for (int i = 0; i < e.getValue().size(); i++) {
-                        b.append("*");
-                    }
-
-                    totalNum += e.getValue().size();
-                    b.append(" -> ");
-                    b.append(e.getValue().size());
-                    log.info(b.toString());
-                }
-
-                if (totalNum >= amount * receivers.size() + amount) {
-                    break;
-                } else {
-                    log.info("Did not receive all: {} of {}", totalNum, amount * receivers.size() + amount);
-                }
-
-                Thread.sleep(200);
-                assertTrue(System.currentTimeMillis() - start < 15000, "Did not get all messages in time");
-            }
-            Thread.sleep(1000);
-            log.info("--------");
-            StringBuilder b = new StringBuilder();
-            int totalNum = 0;
-            int bcast = 0;
-            int excl = 0;
-
-            for (var e : receivedIds.entrySet()) {
-                b.setLength(0);
-                b.append(e.getKey());
-                b.append(": ");
-                int ex = 0;
-                int bx = 0;
-
-                for (int i = 0; i < e.getValue().size(); i++) {
-                    var m = morphium.findById(Msg.class, e.getValue().get(i));
-
-                    if (m == null) {
-                        log.warn("Hmm.. Did not get message... retrying...");
-                        Thread.sleep(100);
-                        m = morphium.findById(Msg.class, e.getValue().get(i));
-                        assertNotNull(m, "Message not found");
-                    }
-
-                    if (m.isExclusive()) {
-                        b.append("!");
-                        excl++;
-                        ex++;
-                    } else {
-                        b.append("*");
-                        bcast++;
-                        bx++;
-                    }
-                }
-
-                totalNum += e.getValue().size();
-                b.append(" -> ");
-                b.append(e.getValue().size());
-                b.append(" ( excl: ");
-                b.append(ex);
-                b.append(" + bcast: ");
-                b.append(bx);
-                b.append(")");
-                log.info(b.toString());
-            }
-            log.info("Total processed: " + totalNum);
-            log.info("    exclusives : " + excl);
-            log.info("    broadcasts : " + bcast);
-
-            for (MorphiumMessaging m : receivers) {
-                m.terminate();
-            }
-            sender.terminate();
-            log.info(method + "() finished with " + morphium.getDriver().getName());
         }
+
     }
-
-
 }

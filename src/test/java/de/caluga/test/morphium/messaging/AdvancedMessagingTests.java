@@ -37,6 +37,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
                     for (int i = 0; i < 3; i++) {
@@ -144,6 +147,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
                     morphium.dropCollection(Msg.class, "msg", null);
@@ -222,6 +228,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 try (Morphium morphium = new Morphium(cfg)) {
                     MorphiumMessaging producer = morphium.createMessaging();
@@ -259,6 +268,9 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
                 MorphiumConfig cfg = baseMorphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 cfg.encryptionSettings().setCredentialsEncrypted(baseMorphium.getConfig().encryptionSettings().getCredentialsEncrypted());
                 cfg.encryptionSettings().setCredentialsDecryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
                 cfg.encryptionSettings().setCredentialsEncryptionKey(baseMorphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
