@@ -25,13 +25,13 @@ public class NoListenerTest extends MorphiumTestBase {
                 sender.sendMessage(mm);
                 Thread.sleep(300);
                 m.reread(mm);
-                assert(mm.getProcessedBy().size() == 1);
+                org.junit.jupiter.api.Assertions.assertEquals(1, mm.getProcessedBy().size());
                 r1.removeListenerForTopic("test_listener", ml);
                 mm = new Msg("test_listener", "a test", "42");
                 sender.sendMessage(mm);
                 Thread.sleep(200);
                 m.reread(mm);
-                assert(mm.getProcessedBy() == null || mm.getProcessedBy().size() == 0);
+                org.junit.jupiter.api.Assertions.assertTrue(mm.getProcessedBy() == null || mm.getProcessedBy().size() == 0);
                 sender.terminate();
                 r1.terminate();
             }

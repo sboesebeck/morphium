@@ -298,8 +298,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             m.setTopic("A message");
             log.info("Sending: " + m.getMsgId().toString());
             sender.sendMessage(m);
-            assert(!gotMessage3);
-            assert(!gotMessage4);
+            org.junit.jupiter.api.Assertions.assertFalse(gotMessage3);
+            org.junit.jupiter.api.Assertions.assertFalse(gotMessage4);
             long s = System.currentTimeMillis();
 
             while (!gotMessage1 && !gotMessage2) {
@@ -318,7 +318,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 rec++;
             }
 
-            assert(rec == 1) : "rec is " + rec;
+            org.junit.jupiter.api.Assertions.assertEquals(1, rec, "rec is " + rec);
             gotMessage1 = false;
             gotMessage2 = false;
             m = new Msg();
@@ -327,8 +327,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             m.setTtl(3000000);
             sender2.sendMessage(m);
             Thread.sleep(500);
-            assert(!gotMessage1);
-            assert(!gotMessage2);
+            org.junit.jupiter.api.Assertions.assertFalse(gotMessage1);
+            org.junit.jupiter.api.Assertions.assertFalse(gotMessage2);
             rec = 0;
             s = System.currentTimeMillis();
 
@@ -342,10 +342,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 }
 
                 Thread.sleep(100);
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                org.junit.jupiter.api.Assertions.assertTrue(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
-            assert(rec == 1) : "rec is " + rec;
+            org.junit.jupiter.api.Assertions.assertEquals(1, rec, "rec is " + rec);
             Thread.sleep(2500);
 
             for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
@@ -362,7 +362,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             }
 
             for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
-                assert(ms.getNumberOfMessages() == 0) : "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages();
+                org.junit.jupiter.api.Assertions.assertEquals(0, ms.getNumberOfMessages(), "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages());
             }
         } finally {
             m1.terminate();
@@ -505,7 +505,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
                                        (amount + broadcastAmount * 4 - rec - messageCount)));
                 log.info(String.format("Number of ids: %d", ids.size()));
-                assert(dups.get() == 0) : "got duplicate message";
+                org.junit.jupiter.api.Assertions.assertEquals(0, dups.get(), "got duplicate message");
 
                 for (StdMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
@@ -518,7 +518,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             int rec = received.get();
             long messageCount = sender.getPendingMessagesCount();
             log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
-            assert(received.get() == amount + broadcastAmount * 4) : "should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get();
+            org.junit.jupiter.api.Assertions.assertEquals(amount + broadcastAmount * 4, received.get(), "should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get());
 
             for (String id : recieveCount.keySet()) {
                 log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
@@ -558,7 +558,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             Thread.sleep(1000);
             receiverNoListener.setSenderId("recNL");
             receiverNoListener.start();
-            assert(morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 3);
+            org.junit.jupiter.api.Assertions.assertEquals(3, morphium.createQueryFor(Msg.class, sender.getCollectionName()).countAll());
         } finally {
             sender.terminate();
             receiverNoListener.terminate();
@@ -699,7 +699,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             }
 
             Thread.sleep(2000);
-            assert(counts.get() == 10 * recs.size()) : "Did get too many? " + counts.get();
+            org.junit.jupiter.api.Assertions.assertEquals(10 * recs.size(), counts.get(), "Did get too many? " + counts.get());
         } finally {
             sender.terminate();
 
@@ -709,7 +709,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
 
         for (StdMessaging r : recs) {
-            assert(!r.isRunning());
+            org.junit.jupiter.api.Assertions.assertFalse(r.isRunning());
         }
     }
 
