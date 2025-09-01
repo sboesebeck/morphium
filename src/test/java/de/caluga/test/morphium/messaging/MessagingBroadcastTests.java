@@ -49,83 +49,83 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     final MorphiumMessaging m2 = m.createMessaging();
                     final MorphiumMessaging m3 = m.createMessaging();
                     final MorphiumMessaging m4 = m.createMessaging();
-            gotMessage1 = false;
-            gotMessage2 = false;
-            gotMessage3 = false;
-            gotMessage4 = false;
-            error = false;
+                    gotMessage1 = false;
+                    gotMessage2 = false;
+                    gotMessage3 = false;
+                    gotMessage4 = false;
+                    error = false;
                     m4.start();
                     m1.start();
                     m3.start();
                     m2.start();
                     Thread.sleep(1250);
 
-            try {
-                log.info("m1 ID: " + m1.getSenderId());
-                log.info("m2 ID: " + m2.getSenderId());
-                log.info("m3 ID: " + m3.getSenderId());
-                m1.addListenerForTopic("test", (msg, incoming) -> {
-                    gotMessage1 = true;
+                    try {
+                        log.info("m1 ID: " + m1.getSenderId());
+                        log.info("m2 ID: " + m2.getSenderId());
+                        log.info("m3 ID: " + m3.getSenderId());
+                        m1.addListenerForTopic("test", (msg, incoming) -> {
+                            gotMessage1 = true;
 
-                    if (incoming.getTo() != null && incoming.getTo().contains(m1.getSenderId())) {
-                        log.error("wrongly received message m1?");
-                        error = true;
-                    }
-                    log.info("M1 got message " + incoming.toString());
-                    return null;
-                });
-                m2.addListenerForTopic("test", (msg, incoming) -> {
-                    gotMessage2 = true;
+                            if (incoming.getTo() != null && incoming.getTo().contains(m1.getSenderId())) {
+                                log.error("wrongly received message m1?");
+                                error = true;
+                            }
+                            log.info("M1 got message " + incoming.toString());
+                            return null;
+                        });
+                        m2.addListenerForTopic("test", (msg, incoming) -> {
+                            gotMessage2 = true;
 
-                    if (incoming.getTo() != null && !incoming.getTo().contains(m2.getSenderId())) {
-                        log.error("wrongly received message m2?");
-                        error = true;
-                    }
-                    log.info("M2 got message " + incoming.toString());
-                    return null;
-                });
-                m3.addListenerForTopic("test", (msg, incoming) -> {
-                    gotMessage3 = true;
+                            if (incoming.getTo() != null && !incoming.getTo().contains(m2.getSenderId())) {
+                                log.error("wrongly received message m2?");
+                                error = true;
+                            }
+                            log.info("M2 got message " + incoming.toString());
+                            return null;
+                        });
+                        m3.addListenerForTopic("test", (msg, incoming) -> {
+                            gotMessage3 = true;
 
-                    if (incoming.getTo() != null && !incoming.getTo().contains(m3.getSenderId())) {
-                        log.error("wrongly received message m3?");
-                        error = true;
-                    }
-                    log.info("M3 got message " + incoming.toString());
-                    return null;
-                });
-                m4.addListenerForTopic("test", (msg, incoming) -> {
-                    gotMessage4 = true;
+                            if (incoming.getTo() != null && !incoming.getTo().contains(m3.getSenderId())) {
+                                log.error("wrongly received message m3?");
+                                error = true;
+                            }
+                            log.info("M3 got message " + incoming.toString());
+                            return null;
+                        });
+                        m4.addListenerForTopic("test", (msg, incoming) -> {
+                            gotMessage4 = true;
 
-                    if (incoming.getTo() != null && !incoming.getTo().contains(m3.getSenderId())) {
-                        log.error("wrongly received message m4?");
-                        error = true;
-                    }
-                    log.info("M4 got message " + incoming.toString());
-                    return null;
-                });
-                Msg msgObj = new Msg("test", "A message", "a value");
-                msgObj.setExclusive(false);
-                m1.sendMessage(msgObj);
+                            if (incoming.getTo() != null && !incoming.getTo().contains(m3.getSenderId())) {
+                                log.error("wrongly received message m4?");
+                                error = true;
+                            }
+                            log.info("M4 got message " + incoming.toString());
+                            return null;
+                        });
+                        Msg msgObj = new Msg("test", "A message", "a value");
+                        msgObj.setExclusive(false);
+                        m1.sendMessage(msgObj);
 
-                while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
-                    Thread.sleep(500);
-                }
+                        while (!gotMessage2 || !gotMessage3 || !gotMessage4) {
+                            Thread.sleep(500);
+                        }
 
-                org.junit.jupiter.api.Assertions.assertFalse(gotMessage1, "Got message again?");
-                org.junit.jupiter.api.Assertions.assertTrue(gotMessage4, "m4 did not get msg?");
-                org.junit.jupiter.api.Assertions.assertTrue(gotMessage2, "m2 did not get msg?");
-                org.junit.jupiter.api.Assertions.assertTrue(gotMessage3, "m3 did not get msg");
-                org.junit.jupiter.api.Assertions.assertFalse(error);
-                gotMessage2 = false;
-                gotMessage3 = false;
-                gotMessage4 = false;
-                Thread.sleep(500);
-                org.junit.jupiter.api.Assertions.assertFalse(gotMessage1, "Got message again?");
-                org.junit.jupiter.api.Assertions.assertFalse(gotMessage2, "m2 did get msg again?");
-                org.junit.jupiter.api.Assertions.assertFalse(gotMessage3, "m3 did get msg again?");
-                org.junit.jupiter.api.Assertions.assertFalse(gotMessage4, "m4 did get msg again?");
-                org.junit.jupiter.api.Assertions.assertFalse(error);
+                        org.junit.jupiter.api.Assertions.assertFalse(gotMessage1, "Got message again?");
+                        org.junit.jupiter.api.Assertions.assertTrue(gotMessage4, "m4 did not get msg?");
+                        org.junit.jupiter.api.Assertions.assertTrue(gotMessage2, "m2 did not get msg?");
+                        org.junit.jupiter.api.Assertions.assertTrue(gotMessage3, "m3 did not get msg");
+                        org.junit.jupiter.api.Assertions.assertFalse(error);
+                        gotMessage2 = false;
+                        gotMessage3 = false;
+                        gotMessage4 = false;
+                        Thread.sleep(500);
+                        org.junit.jupiter.api.Assertions.assertFalse(gotMessage1, "Got message again?");
+                        org.junit.jupiter.api.Assertions.assertFalse(gotMessage2, "m2 did get msg again?");
+                        org.junit.jupiter.api.Assertions.assertFalse(gotMessage3, "m3 did get msg again?");
+                        org.junit.jupiter.api.Assertions.assertFalse(gotMessage4, "m4 did get msg again?");
+                        org.junit.jupiter.api.Assertions.assertFalse(error);
                     } finally {
                         m1.terminate();
                         m2.terminate();
