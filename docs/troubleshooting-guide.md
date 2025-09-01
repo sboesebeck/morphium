@@ -11,9 +11,11 @@ Common issues and their solutions when using Morphium.
 - Application startup fails with connection timeout
 
 **Diagnosis:**
-```java
-// Enable debug logging to see connection attempts
-morphium.getConfig().setLogLevelForClass(PooledDriver.class, 5);
+```xml
+<!-- Enable debug logging for driver in log4j2.xml -->
+<Logger name="de.caluga.morphium.driver.wire.PooledDriver" level="DEBUG" additivity="false">
+    <AppenderRef ref="Console"/>
+</Logger>
 ```
 
 **Common Causes & Solutions:**
@@ -79,10 +81,14 @@ morphium.getConfig().setLogLevelForClass(PooledDriver.class, 5);
 - Memory growth
 
 **Diagnosis:**
-```java
-// Enable query logging
-morphium.getConfig().setGlobalLogLevel(5);
+```xml
+<!-- Enable query logging in log4j2.xml -->
+<Logger name="de.caluga.morphium" level="DEBUG" additivity="false">
+    <AppenderRef ref="Console"/>
+</Logger>
+```
 
+```java
 // Monitor driver statistics
 Map<DriverStatsKey, Double> stats = morphium.getDriver().getDriverStats();
 System.out.println("Connections in use: " + stats.get(DriverStatsKey.CONNECTIONS_IN_USE));
@@ -244,22 +250,38 @@ System.out.println("Messages failed: " + stats.getMessagesFailed());
 
 ### Enable Debug Logging
 
-```java
-// Global debug logging
-cfg.setGlobalLogLevel(5); // 5 = DEBUG, 4 = INFO, 3 = WARN, 2 = ERROR, 1 = FATAL
-
-// Class-specific logging
-cfg.setLogLevelForClass(PooledDriver.class, 5);
-cfg.setLogLevelForClass(StdMessaging.class, 5);
-
-// Package-level logging
-cfg.setLogLevelForPrefix("de.caluga.morphium.driver", 5);
-```
-
-### Log to File
-```java
-cfg.setGlobalLogFile("/var/log/morphium/app.log");
-cfg.setGlobalLogSynced(true); // For immediate writing
+```xml
+<!-- Configure logging in log4j2.xml -->
+<Configuration>
+    <Appenders>
+        <Console name="Console">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+        <File name="MorphiumLog" fileName="/var/log/morphium/app.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </File>
+    </Appenders>
+    <Loggers>
+        <!-- Global debug logging for all Morphium components -->
+        <Logger name="de.caluga.morphium" level="DEBUG" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <!-- Class-specific logging -->
+        <Logger name="de.caluga.morphium.driver.wire.PooledDriver" level="DEBUG" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        <Logger name="de.caluga.morphium.messaging.StdMessaging" level="DEBUG" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <!-- Package-level logging -->
+        <Logger name="de.caluga.morphium.driver" level="DEBUG" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+    </Loggers>
+</Configuration>
 ```
 
 ### Key Log Patterns to Watch

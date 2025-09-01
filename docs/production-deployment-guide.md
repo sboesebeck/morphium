@@ -69,7 +69,7 @@ MorphiumConfig createDevConfig() {
     cfg.clusterSettings().addHostToSeed("dev-mongo", 27017);
     cfg.connectionSettings().setMaxConnectionsPerHost(10);  // Lower for dev
     cfg.cacheSettings().setGlobalCacheValidTime(30000);     // Shorter cache for dev
-    cfg.setGlobalLogLevel(5); // Debug logging
+    // Debug logging configured via log4j2.xml
     return cfg;
 }
 ```
@@ -124,9 +124,7 @@ MorphiumConfig createProductionConfig() {
     cfg.authSettings().setMongoLogin(System.getenv("MONGO_USERNAME"));
     cfg.authSettings().setMongoPassword(System.getenv("MONGO_PASSWORD"));
     
-    // Production logging (reduce verbosity)
-    cfg.setGlobalLogLevel(3); // WARN level
-    cfg.setGlobalLogFile("/var/log/myapp/morphium.log");
+    // Note: Logging is configured via Log4j configuration files, not programmatically
     
     return cfg;
 }
@@ -335,16 +333,40 @@ public class HealthController {
 
 ### 2. Logging Configuration
 
-**Production Logging:**
-```java
-// Configure structured logging
-cfg.setGlobalLogLevel(3); // WARN level for production
-cfg.setGlobalLogFile("/var/log/myapp/morphium.log");
-cfg.setGlobalLogSynced(false); // Async logging for performance
-
-// Class-specific logging for troubleshooting
-cfg.setLogLevelForClass(PooledDriver.class, 4); // INFO level for connection issues
-cfg.setLogLevelForClass(StdMessaging.class, 4);  // INFO level for messaging issues
+**Production Logging Configuration (log4j2.xml):**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <File name="MorphiumLog" fileName="/var/log/myapp/morphium.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%level] %logger{36} - %msg%n"/>
+        </File>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%level] %logger{36} - %msg%n"/>
+        </Console>
+    </Appenders>
+    
+    <Loggers>
+        <!-- Morphium package logging -->
+        <Logger name="de.caluga.morphium" level="WARN" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <!-- Driver-specific logging for troubleshooting -->
+        <Logger name="de.caluga.morphium.driver.wire.PooledDriver" level="INFO" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <!-- Messaging logging -->
+        <Logger name="de.caluga.morphium.messaging" level="INFO" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
 ```
 
 **Log Rotation Configuration (logrotate):**
