@@ -360,17 +360,33 @@ public AuthSettings authSettings()
 ```
 
 **Logging Configuration:**
-```java
-// Global logging
-public void setGlobalLogLevel(int level)
-public void setGlobalLogFile(String fileName)
-public void setGlobalLogSynced(boolean synced)
 
-// Class/package specific logging  
-public void setLogLevelForClass(Class<?> cls, int level)
-public void setLogLevelForPrefix(String prefix, int level)
-public void setLogFileForClass(Class<?> cls, String fileName)
-public void setLogFileForPrefix(String prefix, String fileName)
+Logging in Morphium is handled by Log4j2. Configure logging in your `log4j2.xml` file:
+
+```xml
+<!-- Example log4j2.xml configuration -->
+<Configuration>
+    <Appenders>
+        <Console name="Console">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+        <File name="MorphiumLog" fileName="/var/log/morphium/app.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </File>
+    </Appenders>
+    <Loggers>
+        <!-- All Morphium components -->
+        <Logger name="de.caluga.morphium" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+        
+        <!-- Driver-specific logging -->
+        <Logger name="de.caluga.morphium.driver" level="DEBUG" additivity="false">
+            <AppenderRef ref="MorphiumLog"/>
+        </Logger>
+    </Loggers>
+</Configuration>
 ```
 
 **Factory Methods:**
