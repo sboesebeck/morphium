@@ -8,6 +8,17 @@ import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 ```
 
+Creating an Aggregator: input and output types
+
+- Signature: `morphium.createAggregator(IncomingEntity.class, OutputType.class)`
+- Incoming entity (`T`): determines the MongoDB collection and the available fields. This type must be a Morphium `@Entity`; Morphium uses its mapping to resolve the backing collection and validate field references.
+- Output type (`R`): the class instantiated for each aggregation result. Use a POJO with matching fields/getters or `Map` for ad‑hoc shapes.
+
+Fail‑fast field validation
+
+- Morphium is designed to help you “fail fast”. When you reference a field that does not exist on the entity, Morphium throws an exception instead of silently ignoring it.
+- Prefer using enums or the lambda‑based field extractor to avoid typos when building queries and matches inside aggregations. See [Field Names Without String Literals](./field-names.md).
+
 1) Grouping with sums and averages
 ```java
 Aggregator<Order, Map> agg = morphium.createAggregator(Order.class, Map.class);
@@ -118,4 +129,4 @@ Tips
 - Use `Expr` helpers to build expressions (e.g., `Expr.field`, `Expr.sum`, `Expr.divide`, `Expr.multiply`)
 - Use `project` to rename or compute fields and limit document size
 - Use `limit` early in the pipeline where appropriate
-See also: Developer Guide (Aggregation)
+See also: [Developer Guide](../developer-guide.md)

@@ -2,10 +2,10 @@
 
 Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.
 
-- Start here: overview of features and a short quick start.
-- Dive deep: developer guide for mapping, queries, aggregation, caching, configuration, and extension points.
-- Messaging: dedicated guide to Morphium’s message queue (exclusive vs broadcast, listeners, concurrency, change streams).
-- How‑Tos: focused recipes for common tasks and migrations.
+- Start here: [Overview](./overview.md) of features and a short quick start.
+- Dive deep: [Developer Guide](./developer-guide.md) for mapping, queries, aggregation, caching, configuration, and extension points.
+- Messaging: dedicated [Messaging](./messaging.md) guide (exclusive vs broadcast, listeners, concurrency, change streams).
+- How‑Tos: focused recipes for common tasks and migrations — browse [How‑Tos](./howtos/basic-setup.md) to get started.
 
 Minimum requirements
 - Java 21+
@@ -21,10 +21,10 @@ Morphium started when there was no official MongoDB object mapper and the then�
 The initial Message Queuing feature was created to synchronize caches across a cluster; it has since evolved into a production‑ready messaging system.
 
 Learn more
-- Object mapping and configuration: see the Developer Guide (./developer-guide.md)
-- Caching: see Caching Examples (./howtos/caching-examples.md) and Cache Patterns (./howtos/cache-patterns.md)
-- Messaging: see Messaging (./messaging.md)
-- Driver: see In‑Memory Driver (./howtos/inmemory-driver.md) and Migration v5 → v6 (./howtos/migration-v5-to-v6.md)
+- Object mapping and configuration: see the [Developer Guide](./developer-guide.md)
+- Caching: see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md)
+- Messaging: see [Messaging](./messaging.md)
+- Driver: see [In‑Memory Driver](./howtos/inmemory-driver.md) and [Migration v5 → v6](./howtos/migration-v5-to-v6.md)
 
 ### Our own driver (since 5.0)
 
@@ -38,4 +38,3 @@ Limitations
 - No MongoDB Atlas support (Atlas requires features like mandatory TLS that are not supported here).
 - No SSL/TLS‑encrypted connections; use plain connections or terminate TLS outside MongoDB. (Some community distributions may not include SSL/TLS.)
 - Some advanced features of the official driver are not available.
-

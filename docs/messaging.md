@@ -3,6 +3,7 @@
 Morphium provides a MongoDB‑backed message queue with topic‑based listeners.
 
 Concepts
+
 - Topic: string category for messages (e.g., `user.created`)
 - Exclusive vs non‑exclusive:
   - Exclusive (`Msg.setExclusive(true)`): exactly one listener processes the message (one‑of‑n); implemented using a lock collection
@@ -44,11 +45,12 @@ Msg resp = messaging.sendAndAwaitFirstAnswer(req, 5000);
 ```
 
 Configuration (via `MessagingSettings`)
-- Queue name: `setMessageQueueName(String)`
-- Window size (IDs marked per fetch): `setMessagingWindowSize(int)`
-- Multithreading: `setMessagingMultithreadded(boolean)`
-- Change streams: `setUseChangeStream(boolean)` (requires replica set)
-- Poll pause (ms, when polling): `setMessagingPollPause(int)`
+
+- Queue name: `setMessageQueueName(String)`: collection suffix used for the queue.
+- Window size: `setMessagingWindowSize(int)`: number of messages processed per batch. Messaging marks up to this many messages and processes them as one window.
+- Multithreading: `setMessagingMultithreadded(boolean)`: process multiple messages in parallel using (virtual) threads; `false` enforces single‑threaded, sequential handling.
+- Change streams: `setUseChangeStream(boolean)`: use MongoDB Change Streams to get push‑style notifications for new messages; when `false`, messaging uses polling. Requires a replica set for Change Streams.
+- Poll pause: `setMessagingPollPause(int)`: pause (in ms) between polling requests when not using Change Streams. Also used as a heartbeat to check for messages outside the current processing window (e.g., if new messages arrive and the queue holds more than `windowSize`, a poll is triggered once after this pause).
 
 Example
 ```java
@@ -64,24 +66,37 @@ mq.init(morphium, ms);
 mq.start();
 ```
 
+Examples and behavior
+
+- Sequential processing: `multithreadded=false`, `windowSize=1` → exactly one message is processed at a time, in order.
+- Batched parallelism: `multithreadded=true`, `windowSize=100` → up to 100 messages are fetched and processed concurrently per window.
+
+Notes
+
+- When Change Streams are disabled, polling respects `messagingPollPause` to reduce load but still peeks for messages beyond the current window so bursts are noticed promptly.
+
 
 ## Benefits & Trade‑offs
 
 Benefits
+
 - Persistent queue: messages are stored in MongoDB by default (durability across restarts); use in‑memory storage only when persistence is not needed.
 - Queryable messages: run ad‑hoc queries for statistics, audits, or status checks without interfering with processing.
 - Change streams: combine with MongoDB change streams to react to new messages transparently (no polling; requires replica set).
 - No extra infrastructure: reuse your existing MongoDB setup—no separate broker or runtime dependency when you already operate a replica set.
 
 Trade‑offs
+
 - Throughput: slower than purpose‑built brokers; every message is a document write/read.
 - Load: very high message rates will add notable database load—plan capacity accordingly or choose a different transport when ultra‑high throughput is critical.
 
 See also
-- In‑memory driver: ./howtos/inmemory-driver.md
+
+- [In‑Memory Driver](./howtos/inmemory-driver.md)
 
 
 Notes and best practices
+
 - No wildcard/global listeners: register explicit topics via `addListenerForTopic(topic, listener)`
 - Non‑exclusive messages are broadcast to all listeners of a topic
 - For delayed/scheduled handling, add your own not‑before timestamp field and have the listener re‑queue or skip until due; `Msg.timestamp` is used for ordering, not scheduling

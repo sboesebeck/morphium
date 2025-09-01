@@ -88,5 +88,5 @@ new MessagingCacheSynchronizer(messaging, morphium).sendClearAllMessage("mainten
 - Prefer projections to keep cached result documents small
 
 See also
-- Caching Examples: ../howtos/caching-examples.md
-- Developer Guide (Caching): ../developer-guide.md
+- [Caching Examples](./caching-examples.md)
+- [Developer Guide](../developer-guide.md)
