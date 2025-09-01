@@ -74,4 +74,4 @@ Notes
   - `REMOVE_ENTRY_FROM_TYPE_CACHE`: remove single entry by ID
   - `UPDATE_ENTRY`: re‑read updated entries
 - Ensure messaging is running on all nodes if you want cluster cache synchronization.
-See also: Cache Patterns, Developer Guide (Caching)
+See also: [Cache Patterns](./cache-patterns.md), [Developer Guide](../developer-guide.md)

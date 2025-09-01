@@ -3,6 +3,7 @@
 This guide explains how to configure Morphium and use its core APIs.
 
 Configuration model
+
 - `MorphiumConfig` aggregates dedicated settings objects. Use these nested accessors:
   - `connectionSettings()` – database name, pool sizes, timeouts
   - `clusterSettings()` – host seed, replica set
@@ -35,6 +36,8 @@ Object mapping
 - Use annotations on POJOs: `@Entity`, `@Embedded`, `@Id`, `@Reference(lazyLoading=true)`, `@Cache`, `@Index`
 - Field‑level encryption: `@Encrypted` (requires an encryption provider/key)
 
+_hint_: All times and timeout settings are in milliseconds throughout whole Morphium 
+
 Example
 ```java
 @Entity(translateCamelCase = true)
@@ -51,6 +54,130 @@ public class Order {
   private Address shippingAddress;
 }
 ```
+
+Embedded vs Reference
+
+- Embedded (`@Embedded`):
+  - No MongoDB `_id` required; data is stored inline inside the parent document.
+  - Ideal for value objects and nested structures (address, money, coords).
+  - One read/write touches a single MongoDB document; deserialization splits into Java objects.
+  - Supports `typeId`, `translateCamelCase`, and `polymorph` like `@Entity`.
+- Reference (`@Reference`):
+  - Stores only the target entity’s ID in the parent; the referenced entity lives in its own collection/document.
+  - Reading references may incur N+1 queries: one for the parent plus one per referenced entity (unless `lazyLoading=true` defers loads until first access).
+  - Use for large/independent aggregates or when the referenced object changes on its own lifecycle.
+
+Simple example
+```java
+@Embedded(typeId = "Address")
+public class Address {
+  private String street;
+  private String city;
+}
+
+@Entity(typeId = "Customer")
+public class Customer {
+  @Id private MorphiumId id;
+  private String name;
+}
+
+@Entity(typeId = "Order")
+public class Order {
+  @Id private MorphiumId id;
+
+  // Embedded: stored inline in the Order document
+  @Embedded private Address shippingAddress;
+
+  // Reference: only the Customer ID is stored in Order; Customer lives in its own collection
+  @Reference(lazyLoading = true) private Customer customer;
+}
+```
+Notes
+- When reading an `Order`, Morphium returns `shippingAddress` from the same document. The `customer` is loaded on first access due to `lazyLoading` (otherwise N+1 reads if you eagerly access many references).
+- The MongoDB `orders` collection holds full address fields inline; customers are separate documents in the `customer` collection.
+
+Further examples in tests
+- `EmbeddedObject` used across tests: src/test/java/de/caluga/test/mongo/suite/data/EmbeddedObject.java
+  - GitHub: https://github.com/sboesebeck/morphium/blob/develop/src/test/java/de/caluga/test/mongo/suite/data/EmbeddedObject.java
+- `ComplexObject` demonstrates embedded lists and references: src/test/java/de/caluga/test/mongo/suite/data/ComplexObject.java
+  - GitHub: https://github.com/sboesebeck/morphium/blob/develop/src/test/java/de/caluga/test/mongo/suite/data/ComplexObject.java
+Note: these test classes are intentionally technical and cover edge cases.
+
+Stable type identification (recommended)
+
+- Prefer specifying a stable type identifier on your classes to avoid coupling persisted data to Java class names. This makes refactors and package/class renames safer.
+- Entities: set `@Entity(typeId = "Order")` (choose any stable string meaningful to your domain).
+- Embedded types: set `@Embedded(typeId = "Address")` likewise.
+- Morphium uses the `typeId` (when provided) instead of the Java class name to identify the target POJO for incoming data. This decouples stored documents from Java class names and eases migrations when packages or class names change.
+```java
+@Entity(typeId = "Order", translateCamelCase = true)
+public class Order { /* ... */ }
+
+@Embedded(typeId = "Address")
+public class Address { /* ... */ }
+```
+Notes
+- `typeId` is available on both `@Entity` and `@Embedded`.
+- For heterogeneous collections/fields, you can also enable `polymorph = true` to include type information in the stored documents.
+- Important: set a `typeId` from the beginning. If you first store documents without `typeId`, Morphium will persist the Java class name; after a rename or package move those documents may no longer deserialize. You can set `typeId` in the new version to the old fully‑qualified class name as a recovery step, but it is ugly and potentially confusing—prefer setting a stable `typeId` from day one.
+
+Renames and schema evolution
+
+- Field renames: use `@Aliases({"oldName1", "oldName2"})` on the new field to accept legacy field names from MongoDB and in queries during migration.
+```java
+public class User {
+  @Aliases({"name", "user_name"})
+  private String userName;
+}
+```
+- Additional/dynamic fields: add a catch‑all `Map<String,Object>` annotated with `@AdditionalData` to retain unknown fields that exist in MongoDB but not in your POJO.
+```java
+public class User {
+  @AdditionalData(readOnly = true) // set false if you want to write them back
+  private Map<String,Object> extras;
+}
+```
+- Combine `typeId` with `@Aliases` and `@AdditionalData` for smoother migrations: keep deserialization working after refactors, accept legacy field names, and preserve unexpected fields.
+
+Example: rename class and fields safely
+
+Version 1 (initial, best practice)
+```java
+// package com.example.v1;
+@Entity(typeId = "User") // set a stable typeId from day one
+public class User {
+  @Id private MorphiumId id;
+  private String name;            // old field name
+  private int age;
+}
+```
+
+Version 2 (after refactor/migration)
+```java
+// package com.example.accounts;    // class/package renamed
+@Entity(typeId = "User")           // stable type identifier
+public class AccountUser {          // class renamed
+  @Id private MorphiumId id;
+
+  // field renamed; accept legacy names from existing MongoDB docs
+  @Aliases({"name", "user_name"})
+  private String userName;
+
+  private int age;
+
+  // capture unknown/dynamic fields to avoid data loss during migration
+  @AdditionalData(readOnly = true)
+  private Map<String,Object> extras;
+}
+```
+
+Recovery (if v1 had no `typeId`)
+- If v1 stored the Java class name, set `@Entity(typeId = "com.example.v1.User")` in v2 so existing documents still deserialize. Then plan a data migration to switch to a clean, stable `typeId` later.
+
+Notes
+- Existing documents continue to deserialize because `typeId = "User"` no longer depends on the Java class name.
+- Legacy documents with `name` (or `user_name` if camelCase translation changed) populate `userName` thanks to `@Aliases`.
+- Any unexpected fields present in legacy documents are preserved in `extras`.
 
 Querying
 ```java
