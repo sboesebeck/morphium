@@ -981,8 +981,24 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
 
     @Override
     public long getNumberOfMessages() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getNumberOfMessages'");
+        long total = 0;
+        // Sum pending per-topic messages this node could process
+        try {
+            for (var msgName : monitorsByTopic.keySet()) {
+                Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
+                // pending = not processed by anyone (exclusive) or not processed by me (broadcast)
+                q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+                total += q1.countAll();
+            }
+
+            // Include direct messages for this node in its DM collection
+            Query<Msg> qdm = morphium.createQueryFor(Msg.class, getDMCollectionName());
+            qdm.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
+            total += qdm.countAll();
+        } catch (Exception e) {
+            log.warn("Error calculating number of messages", e);
+        }
+        return total;
     }
 
     @Override
@@ -1240,4 +1256,3 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     }
 
 }
-
