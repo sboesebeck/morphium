@@ -307,7 +307,7 @@ public abstract class DriverBase implements MorphiumDriver {
 
             if (res.get("databases") != null) {
                 @SuppressWarnings("unchecked")
-                List<Map<String, Object >> lst = (List<Map<String, Object >>) res.get("databases");
+                List<Map<String, Object >> lst = (List<Map<String, Object >> ) res.get("databases");
 
                 for (Map<String, Object> db : lst) {
                     if (db.get("name") != null) {
@@ -635,16 +635,16 @@ public abstract class DriverBase implements MorphiumDriver {
     }
 
     public void setHostSeed(Set<String> hostSeed) {
-        this.hostSeed = hostSeed instanceof SequencedSet ? 
-            (SequencedSet<String>) hostSeed : 
-            Collections.synchronizedSet(new LinkedHashSet<>(hostSeed));
+        this.hostSeed = hostSeed instanceof SequencedSet ?
+                        (SequencedSet<String>) hostSeed :
+                        Collections.synchronizedSet(new LinkedHashSet<>(hostSeed));
     }
-    
+
     // SequencedSet helper methods for better host management
     public String getFirstHost() {
         return hostSeed != null && !hostSeed.isEmpty() ? hostSeed.iterator().next() : null;
     }
-    
+
     public String getLastHost() {
         if (hostSeed != null && !hostSeed.isEmpty()) {
             // Get last element without removing it
@@ -654,17 +654,17 @@ public abstract class DriverBase implements MorphiumDriver {
         }
         return null;
     }
-    
+
     public void addHostFirst(String host) {
         if (hostSeed != null) {
             // For thread-safe SequencedSet operations, we need to create a new set
-            SequencedSet<String> newHostSeed = Collections.synchronizedSet(new LinkedHashSet<>());
+            Set<String> newHostSeed = Collections.synchronizedSet(new LinkedHashSet<>());
             newHostSeed.add(host);
             newHostSeed.addAll(hostSeed);
             this.hostSeed = newHostSeed;
         }
     }
-    
+
     public void addHostLast(String host) {
         if (hostSeed != null) {
             hostSeed.add(host); // LinkedHashSet maintains insertion order

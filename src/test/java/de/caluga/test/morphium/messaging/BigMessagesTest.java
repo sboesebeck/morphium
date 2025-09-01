@@ -30,9 +30,9 @@ public class BigMessagesTest extends MultiDriverTestBase {
             for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
-                try (Morphium m = new Morphium(cfg)) {
-                    MorphiumMessaging sender = m.createMessaging();
-                    MorphiumMessaging receiver = m.createMessaging();
+                try (Morphium mx = new Morphium(cfg)) {
+                    MorphiumMessaging sender = mx.createMessaging();
+                    MorphiumMessaging receiver = mx.createMessaging();
 
             try {
                 sender.setUseChangeStream(true).start();
@@ -77,9 +77,9 @@ public class BigMessagesTest extends MultiDriverTestBase {
 
                     if (System.currentTimeMillis() - start > 10000) {
                         log.error("Message was lost");
-                        log.info("Messagecount: " + m.createQueryFor(Msg.class).countAll());
+                        log.info("Messagecount: " + mx.createQueryFor(Msg.class).countAll());
 
-                        for (Msg msg : m.createQueryFor(Msg.class).asIterable()) {
+                        for (Msg msg : mx.createQueryFor(Msg.class).asIterable()) {
                             log.info("Msg: " + msg.getMsgId());
 
                             if (msg.getProcessedBy() != null) {
