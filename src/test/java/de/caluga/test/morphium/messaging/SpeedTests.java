@@ -138,11 +138,11 @@ public class SpeedTests extends MultiDriverTestBase {
 
             try {
                 final AtomicInteger recCount = new AtomicInteger();
-                receiver.addListenerForTopic("test", (msg, m) -> {
+                receiver.addListenerForTopic("test", (msg, incoming) -> {
                     recCount.incrementAndGet();
                     return null;
                 });
-                receiver2.addListenerForTopic("test", (msg, m) -> {
+                receiver2.addListenerForTopic("test", (msg, incoming) -> {
                     recCount.incrementAndGet();
                     return null;
                 });

@@ -81,26 +81,30 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     public void deleteAfterProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", ()->!morphium.exists(Msg.class));
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setQueueName("t1");
         sender.start();
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
-        StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m1 = morphium.createMessaging();
+        m1.setPause(100).setMultithreadded(true).setWindowSize(1);
         m1.setQueueName("t1");
         m1.addListenerForTopic("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
-        StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m2 = morphium.createMessaging();
+        m2.setPause(100).setMultithreadded(true).setWindowSize(1);
         m2.setQueueName("t1");
         m2.addListenerForTopic("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
-        StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m3 = morphium.createMessaging();
+        m3.setPause(100).setMultithreadded(true).setWindowSize(1);
         m3.setQueueName("t1");
         m3.addListenerForTopic("A message", (msg, m)-> {
             gotMessage3 = true;
@@ -166,23 +170,27 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     public void exclusiveMessageTest() throws Exception {
         morphium.dropCollection(Msg.class);
         TestUtils.waitForConditionToBecomeTrue(1000, "Collection did not drop", ()->!morphium.exists(Msg.class));
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.start();
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         gotMessage4 = false;
-        StdMessaging m1 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m1 = morphium.createMessaging();
+        m1.setPause(100).setMultithreadded(true).setWindowSize(1);
         m1.addListenerForTopic("A message", (msg, m)-> {
             gotMessage1 = true;
             return null;
         });
-        StdMessaging m2 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m2 = morphium.createMessaging();
+        m2.setPause(100).setMultithreadded(true).setWindowSize(1);
         m2.addListenerForTopic("A message", (msg, m)-> {
             // gotMessage2 = true;
             return null;
         });
-        StdMessaging m3 = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging m3 = morphium.createMessaging();
+        m3.setPause(100).setMultithreadded(true).setWindowSize(1);
         m3.addListenerForTopic("A message", (msg, m)-> {
             gotMessage3 = true;
             return null;
@@ -235,20 +243,22 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageCustomQueueTest() throws Exception {
-        StdMessaging sender = null;
-        StdMessaging sender2 = null;
-        StdMessaging m1 = null;
-        StdMessaging m2 = null;
-        StdMessaging m3 = null;
-        StdMessaging m4 = null;
+        MorphiumMessaging sender = null;
+        MorphiumMessaging sender2 = null;
+        MorphiumMessaging m1 = null;
+        MorphiumMessaging m2 = null;
+        MorphiumMessaging m3 = null;
+        MorphiumMessaging m4 = null;
 
         try {
             morphium.dropCollection(Msg.class);
-            sender = new StdMessaging(morphium, "test", 100, false);
+            sender = morphium.createMessaging();
+            sender.setQueueName("test").setPause(100).setMultithreadded(false).setWindowSize(1);
             sender.setSenderId("sender1");
             morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
             sender.start();
-            sender2 = new StdMessaging(morphium, "test2", 100, false);
+            sender2 = morphium.createMessaging();
+            sender2.setQueueName("test2").setPause(100).setMultithreadded(false).setWindowSize(1);
             sender2.setSenderId("sender2");
             morphium.dropCollection(Msg.class, sender2.getCollectionName(), null);
             sender2.start();
@@ -257,28 +267,32 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             gotMessage2 = false;
             gotMessage3 = false;
             gotMessage4 = false;
-            m1 = new StdMessaging(morphium, "test", 100, false);
+            m1 = morphium.createMessaging();
+            m1.setQueueName("test").setPause(100).setMultithreadded(false).setWindowSize(1);
             m1.setSenderId("m1");
             m1.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage1 = true;
                 log.info("Got message m1");
                 return null;
             });
-            m2 = new StdMessaging(morphium, "test", 100, false);
+            m2 = morphium.createMessaging();
+            m2.setQueueName("test").setPause(100).setMultithreadded(false).setWindowSize(1);
             m2.setSenderId("m2");
             m2.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage2 = true;
                 log.info("Got message m2");
                 return null;
             });
-            m3 = new StdMessaging(morphium, "test2", 100, false);
+            m3 = morphium.createMessaging();
+            m3.setQueueName("test2").setPause(100).setMultithreadded(false).setWindowSize(1);
             m3.setSenderId("m3");
             m3.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage3 = true;
                 log.info("Got message m3");
                 return null;
             });
-            m4 = new StdMessaging(morphium, "test2", 100, false);
+            m4 = morphium.createMessaging();
+            m4.setQueueName("test2").setPause(100).setMultithreadded(false).setWindowSize(1);
             m4.setSenderId("m4");
             m4.addListenerForTopic("A message", (msg, m)-> {
                 gotMessage4 = true;
@@ -348,7 +362,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             org.junit.jupiter.api.Assertions.assertEquals(1, rec, "rec is " + rec);
             Thread.sleep(2500);
 
-            for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
+            for (MorphiumMessaging ms : Arrays.asList(m1, m2, m3)) {
                 if (ms.getNumberOfMessages() > 0) {
                     Query<Msg> q1 = morphium.createQueryFor(Msg.class, ms.getCollectionName());
                     q1.f(Msg.Fields.sender).ne(ms.getSenderId());
@@ -361,7 +375,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 }
             }
 
-            for (StdMessaging ms : Arrays.asList(m1, m2, m3)) {
+            for (MorphiumMessaging ms : Arrays.asList(m1, m2, m3)) {
                 org.junit.jupiter.api.Assertions.assertEquals(0, ms.getNumberOfMessages(), "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages());
             }
         } finally {
@@ -377,7 +391,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusivityTest() throws Exception {
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("sender");
         morphium.dropCollection(Msg.class, sender.getCollectionName(), null);
         morphium.dropCollection(MsgLock.class, sender.getLockCollectionName(), null);
@@ -387,28 +402,32 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         morphium2.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium2.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium2.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        StdMessaging receiver = new StdMessaging(morphium2, 10,  true, 15);
+        MorphiumMessaging receiver = morphium2.createMessaging();
+        receiver.setPause(10).setMultithreadded(true).setWindowSize(15);
         receiver.setSenderId("r1");
         receiver.start();
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium3.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium3.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium3.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        StdMessaging receiver2 = new StdMessaging(morphium3, 10,  false, 1);
+        MorphiumMessaging receiver2 = morphium3.createMessaging();
+        receiver2.setPause(10).setMultithreadded(false).setWindowSize(1);
         receiver2.setSenderId("r2");
         receiver2.start();
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium4.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium4.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium4.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        StdMessaging receiver3 = new StdMessaging(morphium4, 10,  false, 15);
+        MorphiumMessaging receiver3 = morphium4.createMessaging();
+        receiver3.setPause(10).setMultithreadded(false).setWindowSize(15);
         receiver3.setSenderId("r3");
         receiver3.start();
         Morphium morphium5 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
         morphium5.getConfig().setThreadPoolMessagingMaxSize(10);
         morphium5.getConfig().setThreadPoolMessagingCoreSize(5);
         morphium5.getConfig().setThreadPoolAsyncOpMaxSize(10);
-        StdMessaging receiver4 = new StdMessaging(morphium5, 10,  true, 1);
+        MorphiumMessaging receiver4 = morphium5.createMessaging();
+        receiver4.setPause(10).setMultithreadded(true).setWindowSize(1);
         receiver4.setSenderId("r4");
         receiver4.start();
         final AtomicInteger received = new AtomicInteger();
@@ -507,7 +526,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 log.info(String.format("Number of ids: %d", ids.size()));
                 org.junit.jupiter.api.Assertions.assertEquals(0, dups.get(), "got duplicate message");
 
-                for (StdMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
+                for (MorphiumMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
                     log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
                 }
 
@@ -544,7 +563,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     @Test
     public void exclusiveMessageStartupTests() throws Exception {
         StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
-        StdMessaging receiverNoListener = new StdMessaging(morphium, 100, true, 10);
+        MorphiumMessaging receiverNoListener = morphium.createMessaging();
+        receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
 
         try {
             sender.setSenderId("sender");
@@ -567,7 +587,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageDelAfterProcessingTimeOffsetTest() throws Exception {
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
         // sender.start();
         Msg m = new Msg("test", "msg", "value");
@@ -578,7 +599,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         sender.sendMessage(m);
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
-        StdMessaging receiver = new StdMessaging(morphium, 100, true);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setPause(100).setMultithreadded(true);
         receiver.addListenerForTopic("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
@@ -617,7 +639,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageCheckOnStartTest() throws Exception {
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
+        sender.setPause(100).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("Sender");
         // sender.start();
         Msg m = new Msg("test", "msg", "value");
@@ -628,7 +651,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         sender.sendMessage(m);
         Thread.sleep(200);
         AtomicInteger recCount = new AtomicInteger(0);
-        StdMessaging receiver = new StdMessaging(morphium, 100, true, 10);
+        MorphiumMessaging receiver = morphium.createMessaging();
+        receiver.setPause(100).setMultithreadded(true).setWindowSize(10);
         receiver.addListenerForTopic("test2", (messaging, msg)-> {
             recCount.incrementAndGet();
             return null;
@@ -651,16 +675,18 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     @Test
     public void exclusiveTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        StdMessaging sender;
-        List<StdMessaging> recs;
-        sender = new StdMessaging(morphium, 1000, true, 1);
+        MorphiumMessaging sender;
+        List<MorphiumMessaging> recs;
+        sender = morphium.createMessaging();
+        sender.setPause(1000).setMultithreadded(true).setWindowSize(1);
         sender.setSenderId("sender");
         //sender.start();
         final AtomicInteger counts = new AtomicInteger();
         recs = new ArrayList<>();
 
         for (int i = 0; i < 10; i++) {
-            StdMessaging r = new StdMessaging(morphium, 100, true, 1);
+            MorphiumMessaging r = morphium.createMessaging();
+            r.setPause(100).setMultithreadded(true).setWindowSize(1);
             r.setSenderId("r" + i);
             recs.add(r);
             r.start();
@@ -703,12 +729,12 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         } finally {
             sender.terminate();
 
-            for (StdMessaging r : recs) {
+            for (MorphiumMessaging r : recs) {
                 r.terminate();
             }
         }
 
-        for (StdMessaging r : recs) {
+        for (MorphiumMessaging r : recs) {
             org.junit.jupiter.api.Assertions.assertFalse(r.isRunning());
         }
     }

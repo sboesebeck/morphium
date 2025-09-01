@@ -1,6 +1,6 @@
 package de.caluga.test.mongo.suite.jms;
 
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -115,10 +115,10 @@ public class BasicJMSTests extends MorphiumTestBase {
 
     @Test
     public void consumerProducerTest() throws Exception {
-        StdMessaging m = new StdMessaging(morphium, 10, true);
+        MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSTopic("jmstopic_test"));
         m.start();
-        StdMessaging m2 = new StdMessaging(morphium, 10, true);
+        MorphiumMessaging m2 = morphium.createMessaging();
         Producer producer = new Producer(m2);
 
         producer.send(new JMSTopic("jmstopic_test"), "This is the body");
@@ -138,13 +138,13 @@ public class BasicJMSTests extends MorphiumTestBase {
 
     @Test
     public void consumerProducerQueueTest() throws Exception {
-        StdMessaging m = new StdMessaging(morphium, 10, true);
+        MorphiumMessaging m = morphium.createMessaging();
         Consumer consumer = new Consumer(m, new JMSQueue());
         m.start();
-        StdMessaging m2 = new StdMessaging(morphium, 10, true);
+        MorphiumMessaging m2 = morphium.createMessaging();
         Producer producer = new Producer(m2);
 
-        StdMessaging m3 = new StdMessaging(morphium, 10, true);
+        MorphiumMessaging m3 = morphium.createMessaging();
         Consumer consumer2 = new Consumer(m3, new JMSQueue());
 
         producer.send(new JMSQueue(), "This is the body");

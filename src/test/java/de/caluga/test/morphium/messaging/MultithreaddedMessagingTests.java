@@ -14,6 +14,7 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import org.junit.jupiter.api.Test;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
 
@@ -34,45 +35,45 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 Thread.sleep(500);
 
                 try {
-            Vector<String> processedIds = new Vector<>();
-            Hashtable<String, Long> processedAt = new Hashtable<>();
-            procCounter.set(0);
-            consumer.addListenerForTopic("test", (msg, m) -> {
-                procCounter.incrementAndGet();
+                    Vector<String> processedIds = new Vector<>();
+                    Hashtable<String, Long> processedAt = new Hashtable<>();
+                    procCounter.set(0);
+                    consumer.addListenerForTopic("test", (msg, message) -> {
+                        procCounter.incrementAndGet();
 
-                if (processedIds.contains(m.getMsgId().toString())) {
-                    log.error("Received msg twice: " + procCounter.get() + "/" + m.getMsgId() + "  - " + (System.currentTimeMillis() - processedAt.get(m.getMsgId().toString())) + "ms ago");
-                    return null;
-                }
-                processedIds.add(m.getMsgId().toString());
-                processedAt.put(m.getMsgId().toString(), System.currentTimeMillis());
-                //simulate processing
-                try {
-                    Thread.sleep((long)(100 * Math.random()));
-                } catch (InterruptedException e) {
-                }
-                return null;
-            });
-            Thread.sleep(2500);
-            int amount = 500;
-            log.info("------------- sending messages");
+                        if (processedIds.contains(message.getMsgId().toString())) {
+                            log.error("Received msg twice: " + procCounter.get() + "/" + message.getMsgId() + "  - " + (System.currentTimeMillis() - processedAt.get(message.getMsgId().toString())) + "ms ago");
+                            return null;
+                        }
+                        processedIds.add(message.getMsgId().toString());
+                        processedAt.put(message.getMsgId().toString(), System.currentTimeMillis());
+                        //simulate processing
+                        try {
+                            Thread.sleep((long)(100 * Math.random()));
+                        } catch (InterruptedException e) {
+                        }
+                        return null;
+                    });
+                    Thread.sleep(2500);
+                    int amount = 500;
+                    log.info("------------- sending messages");
 
-            for (int i = 0; i < amount; i++) {
-                if (i % 1000 == 0) {
-                    log.info("Sending message {} of {} / Processed: {}", i, amount, procCounter.get());
-                }
+                    for (int i = 0; i < amount; i++) {
+                        if (i % 1000 == 0) {
+                            log.info("Sending message {} of {} / Processed: {}", i, amount, procCounter.get());
+                        }
 
-                producer.sendMessage(new Msg("test ", "msg " + i, "value " + i, 30000, false));
-            }
+                        producer.sendMessage(new Msg("test ", "msg " + i, "value " + i, 30000, false));
+                    }
 
-            log.info("--- sending finished");
+                    log.info("--- sending finished");
 
-            for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
-                Thread.sleep(1000);
-                log.info("Still processing: " + procCounter.get());
-            }
+                    for (int i = 0; i < 30 && procCounter.get() < amount; i++) {
+                        Thread.sleep(1000);
+                        log.info("Still processing: " + procCounter.get());
+                    }
 
-            org.junit.jupiter.api.Assertions.assertEquals(amount, procCounter.get(), "Did process " + procCounter.get());
+                    org.junit.jupiter.api.Assertions.assertEquals(amount, procCounter.get(), "Did process " + procCounter.get());
                 } finally {
                     producer.terminate();
                     consumer.terminate();
@@ -95,54 +96,54 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
                 Thread.sleep(500);
 
                 try {
-            final AtomicInteger processed = new AtomicInteger();
-            final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
-            consumer.addListenerForTopic("test", (msg, m) -> {
-                processed.incrementAndGet();
+                    final AtomicInteger processed = new AtomicInteger();
+                    final Map<String, AtomicInteger> msgCountById = new ConcurrentHashMap<>();
+                    consumer.addListenerForTopic("test", (msg, message) -> {
+                        processed.incrementAndGet();
 
-                if (processed.get() % 1000 == 0) {
-                    log.info("Consumed " + processed.get());
-                }
-                org.junit.jupiter.api.Assertions.assertFalse(msgCountById.containsKey(m.getMsgId().toString()));
-                msgCountById.putIfAbsent(m.getMsgId().toString(), new AtomicInteger());
-                msgCountById.get(m.getMsgId().toString()).incrementAndGet();
-                //simulate processing
-                try {
-                    Thread.sleep((long)(10 * Math.random()));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                return null;
-            });
-            int numberOfMessages = 300;
+                        if (processed.get() % 1000 == 0) {
+                            log.info("Consumed " + processed.get());
+                        }
+                        org.junit.jupiter.api.Assertions.assertFalse(msgCountById.containsKey(message.getMsgId().toString()));
+                        msgCountById.putIfAbsent(message.getMsgId().toString(), new AtomicInteger());
+                        msgCountById.get(message.getMsgId().toString()).incrementAndGet();
+                        //simulate processing
+                        try {
+                            Thread.sleep((long)(10 * Math.random()));
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    });
+                    int numberOfMessages = 300;
 
-            for (int i = 0; i < numberOfMessages; i++) {
-                Msg m = new Msg("test", "m", "v");
-                m.setTtl(5 * 60 * 1000);
+                    for (int i = 0; i < numberOfMessages; i++) {
+                        Msg message = new Msg("test", "m", "v");
+                        message.setTtl(5 * 60 * 1000);
 
-                if (i % 1000 == 0) {
-                    log.info("created msg " + i + " / " + numberOfMessages);
-                }
+                        if (i % 1000 == 0) {
+                            log.info("created msg " + i + " / " + numberOfMessages);
+                        }
 
-                producer.sendMessage(m);
-            }
+                        producer.sendMessage(message);
+                    }
 
-            long start = System.currentTimeMillis();
+                    long start = System.currentTimeMillis();
 
-            while (processed.get() < numberOfMessages) {
-                //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
-                //            log.info("Running threads: " + thbean.getThreadCount());
-                log.info("Processed " + processed.get());
-                Thread.sleep(1500);
-            }
+                    while (processed.get() < numberOfMessages) {
+                        //            ThreadMXBean thbean = ManagementFactory.getThreadMXBean();
+                        //            log.info("Running threads: " + thbean.getThreadCount());
+                        log.info("Processed " + processed.get());
+                        Thread.sleep(1500);
+                    }
 
-            long dur = System.currentTimeMillis() - start;
-            log.info("Processing took " + dur + " ms");
-            assert(processed.get() == numberOfMessages);
+                    long dur = System.currentTimeMillis() - start;
+                    log.info("Processing took " + dur + " ms");
+                    assert(processed.get() == numberOfMessages);
 
-            for (String id : msgCountById.keySet()) {
-                org.junit.jupiter.api.Assertions.assertEquals(1, msgCountById.get(id).get());
-            }
+                    for (String id : msgCountById.keySet()) {
+                        org.junit.jupiter.api.Assertions.assertEquals(1, msgCountById.get(id).get());
+                    }
                 } finally {
                     producer.terminate();
                     consumer.terminate();

@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -215,18 +215,18 @@ public class MorphiumTestBase {
         List<ShutdownListener> toRemove = new ArrayList<>();
 
         for (ShutdownListener l : morphium.getShutDownListeners()) {
-            if (l instanceof StdMessaging) {
+            if (l instanceof MorphiumMessaging) {
                 try {
-                    ((StdMessaging) l).terminate();
+                    ((MorphiumMessaging) l).terminate();
                 } catch (Exception e) {
                     log.error("could not terminate messaging!!!");
                 }
 
                 long start = System.currentTimeMillis();
-                var id = ((StdMessaging) l).getSenderId();
+                var id = ((MorphiumMessaging) l).getSenderId();
                 log.info("Terminating still running messaging..." + id);
 
-                while (((StdMessaging) l).isRunning()) {
+                while (((MorphiumMessaging) l).isRunning()) {
                     log.info("Waiting for messaging to finish");
 
                     try {
@@ -241,7 +241,7 @@ public class MorphiumTestBase {
                 }
 
                 toRemove.add(l);
-                morphium.dropCollection(Msg.class, ((StdMessaging) l).getCollectionName(), null);
+                morphium.dropCollection(Msg.class, ((MorphiumMessaging) l).getCollectionName(), null);
             } else if (l instanceof ChangeStreamMonitor) {
                 try {
                     log.info("Changestream Monitor still running");

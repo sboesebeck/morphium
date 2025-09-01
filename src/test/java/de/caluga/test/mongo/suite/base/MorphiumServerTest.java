@@ -297,10 +297,12 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new StdMessaging(morphium, 1000, true);
+            var msg1 = morphium.createMessaging();
+            msg1.setPause(1000).setMultithreadded(true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
+            var msg2 = morphium2.createMessaging();
+            msg2.setPause(10).setMultithreadded(true).setWindowSize(1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
@@ -377,10 +379,12 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new StdMessaging(morphium, 100, true);
+            var msg1 = morphium.createMessaging();
+            msg1.setPause(100).setMultithreadded(true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
+            var msg2 = morphium2.createMessaging();
+            msg2.setPause(10).setMultithreadded(true).setWindowSize(1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             // Thread.sleep(2500);
