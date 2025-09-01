@@ -2,10 +2,25 @@
 
 Morphium is a Java 21+ Object Document Mapper (ODM) and MongoDB‑backed messaging system. It includes a custom MongoDB wire‑protocol driver, distributed caching, and a topic‑based message queue.
 
+## Getting Started
 - Start here: [Overview](./overview.md) of features and a short quick start.
-- Dive deep: [Developer Guide](./developer-guide.md) for mapping, queries, aggregation, caching, configuration, and extension points.
+- Setup: [Developer Guide](./developer-guide.md) for mapping, queries, aggregation, caching, configuration, and extension points.
 - Messaging: dedicated [Messaging](./messaging.md) guide (exclusive vs broadcast, listeners, concurrency, change streams).
 - How‑Tos: focused recipes for common tasks and migrations — browse [How‑Tos](./howtos/basic-setup.md) to get started.
+
+## Production Deployment
+- **[Production Deployment Guide](./production-deployment-guide.md)** - Complete guide for deploying Morphium in production environments
+- **[Configuration Reference](./configuration-reference.md)** - Complete reference for all configuration options
+- **[Performance & Scalability Guide](./performance-scalability-guide.md)** - Optimization strategies from small to large scale
+- **[Security Guide](./security-guide.md)** - Security considerations for MongoDB Community Edition deployments
+
+## Operations & Monitoring  
+- **[Monitoring & Metrics Guide](./monitoring-metrics-guide.md)** - Comprehensive monitoring with DriverStats and performance metrics
+- **[Troubleshooting Guide](./troubleshooting-guide.md)** - Common issues, diagnosis, and solutions
+- **[Architecture Overview](./architecture-overview.md)** - Internal architecture and component relationships
+
+## Reference
+- **[API Reference](./api-reference.md)** - Complete API documentation with examples
 
 Minimum requirements
 - Java 21+
