@@ -8,6 +8,7 @@ theme:
   - Getting Started: overview.md
   - Developer Guide: developer-guide.md
   - Messaging: messaging.md
+  - Messaging Implementations: howtos/messaging-implementations.md
   - How‑To:
       - Basic Setup: howtos/basic-setup.md
       - InMemory Driver: howtos/inmemory-driver.md
