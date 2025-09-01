@@ -4,7 +4,7 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -52,9 +52,10 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(1000);
         List<Morphium> morphiums = new ArrayList<>();
-        List<StdMessaging> messagings = new ArrayList<>();
-        StdMessaging sender = null;
-        sender = new StdMessaging(morphium, 50, true, 1);
+        List<MorphiumMessaging> messagings = new ArrayList<>();
+        MorphiumMessaging sender = null;
+        sender = morphium.createMessaging();
+        sender.setPause(50).setMultithreadded(true).setWindowSize(1).setUseChangeStream(false);
         sender.setSenderId("amsender");
 
         try {
@@ -89,9 +90,10 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
                 Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
                 m.getConfig().getCache().setHouskeepingIntervalPause(100);
                 morphiums.add(m);
-                StdMessaging msg = new StdMessaging(m, 50,  true, (int)(1500 * Math.random()));
+                MorphiumMessaging msg = m.createMessaging();
+                msg.setPause(50).setMultithreadded(true).setWindowSize((int)(1500 * Math.random())).setUseChangeStream(false);
                 msg.setSenderId("msg" + i);
-                msg.setUseChangeStream(true).start();
+                msg.setUseChangeStream(false).start();
                 messagings.add(msg);
                 msg.addListenerForTopic("test", msgMessageListener);
             }
@@ -139,10 +141,10 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
             threads.get(0).start();
             sender.terminate();
 
-            for (StdMessaging m : messagings) {
+            for (MorphiumMessaging m : messagings) {
                 Thread t = new Thread() {
-                    private StdMessaging msg;
-                    public Thread setMessaging(StdMessaging m) {
+                    private MorphiumMessaging msg;
+                    public Thread setMessaging(MorphiumMessaging m) {
                         this.msg = m;
                         return this;
                     }
@@ -198,18 +200,22 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         morphium.dropCollection(Msg.class, "msg", null);
         Thread.sleep(100);
         counts.clear();
-        StdMessaging m1 = new StdMessaging(morphium, 100,  true, 1);
+        MorphiumMessaging m1 = morphium.createMessaging();
+        m1.setPause(100).setMultithreadded(true).setWindowSize(1).setUseChangeStream(false);
         m1.setUseChangeStream(false).start();
         Morphium morphium2 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        StdMessaging m2 = new StdMessaging(morphium2, 100,  true, 1);
+        MorphiumMessaging m2 = morphium2.createMessaging();
+        m2.setPause(100).setMultithreadded(true).setWindowSize(1).setUseChangeStream(false);
         //        m2.setUseChangeStream(false);
         m2.setUseChangeStream(false).start();
         Morphium morphium3 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        StdMessaging m3 = new StdMessaging(morphium3, 100,  true, 1);
+        MorphiumMessaging m3 = morphium3.createMessaging();
+        m3.setPause(100).setMultithreadded(true).setWindowSize(1).setUseChangeStream(false);
         //        m3.setUseChangeStream(false);
         m3.setUseChangeStream(false).start();
         Morphium morphium4 = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
-        StdMessaging m4 = new StdMessaging(morphium4, 100,  true, 1);
+        MorphiumMessaging m4 = morphium4.createMessaging();
+        m4.setPause(100).setMultithreadded(true).setWindowSize(1).setUseChangeStream(false);
         //        m4.setUseChangeStream(false);
         m4.setUseChangeStream(false).start();
 
