@@ -9,6 +9,7 @@ Concepts
   - Exclusive (`Msg.setExclusive(true)`): exactly one listener processes the message (one‑of‑n); implemented using a lock collection
   - Non‑exclusive (default): every registered listener for the topic processes the message (broadcast)
 - Answers: listeners may return a `Msg` as response; senders can wait synchronously or asynchronously
+- Implementations: choose between Standard and Advanced; see [Messaging Implementations](./howtos/messaging-implementations.md) for differences and migration.
 
 Setup
 ```java
@@ -101,4 +102,4 @@ Notes and best practices
 - Non‑exclusive messages are broadcast to all listeners of a topic
 - For delayed/scheduled handling, add your own not‑before timestamp field and have the listener re‑queue or skip until due; `Msg.timestamp` is used for ordering, not scheduling
 - For retries and DLQ, implement logic in listeners (inspect payload, track retry count, re‑queue or redirect to a DLQ topic)
-- For distributed cache synchronization, see Caching Examples and Cache Patterns; Morphium provides `MessagingCacheSynchronizer`
+- For distributed cache synchronization, see [Caching Examples](./howtos/caching-examples.md) and [Cache Patterns](./howtos/cache-patterns.md); Morphium provides `MessagingCacheSynchronizer`.
