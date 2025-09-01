@@ -299,7 +299,7 @@ public class PooledDriver extends DriverBase {
                     if (hostThreads.containsKey(hst))
                         continue;
 
-                    Thread t = new Thread(() -> {
+                    Thread t = Thread.ofVirtual().name("HeartbeatCheck-" + hst).start(() -> {
 
                         try {
                             waitCounter.putIfAbsent(hst, new AtomicInteger());
@@ -377,13 +377,11 @@ public class PooledDriver extends DriverBase {
                         }
                     });
                     hostThreads.put(hst, t);
-                    t.start();
                 }
             }, 0, getHeartbeatFrequency(), TimeUnit.MILLISECONDS);
             // thread to create new connections instantly if a thread is waiting
             // this thread pauses until waitCounter.notifyAll() is called
-            new Thread() {
-                public void run() {
+            Thread.ofVirtual().name("ConnectionWaiter").start(() -> {
                     while (heartbeat != null) {
                         try {
                             synchronized (waitCounterSignal) {
@@ -422,8 +420,7 @@ public class PooledDriver extends DriverBase {
                             stats.get(DriverStatsKey.ERRORS).incrementAndGet();
                         }
                     }
-                }
-            }.start();
+            });
         } else {
             // log.debug("Heartbeat already scheduled...");
         }
