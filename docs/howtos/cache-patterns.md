@@ -29,8 +29,7 @@ Notes
 3) Cluster‑wide synchronization via messaging
 - Ensure every node runs messaging and attach a `MessagingCacheSynchronizer`
 ```java
-StdMessaging messaging = new StdMessaging();
-messaging.init(morphium);
+MorphiumMessaging messaging = morphium.createMessaging();
 messaging.start();
 new MessagingCacheSynchronizer(messaging, morphium);
 ```

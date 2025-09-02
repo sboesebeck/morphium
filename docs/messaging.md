@@ -15,9 +15,9 @@ Setup
 ```java
 import de.caluga.morphium.messaging.*;
 
-// Construct and initialize
-StdMessaging messaging = new StdMessaging();
-messaging.init(morphium);            // or messaging.init(morphium, cfg.messagingSettings())
+// Create via Morphium factory (preferred)
+MorphiumMessaging messaging = morphium.createMessaging();
+// Or with overrides: morphium.createMessaging(cfg.messagingSettings())
 messaging.start();
 
 // Listen to a topic
@@ -62,8 +62,7 @@ ms.setMessagingMultithreadded(true);
 ms.setUseChangeStream(true);
 ms.setMessagingPollPause(250);
 
-StdMessaging mq = new StdMessaging();
-mq.init(morphium, ms);
+MorphiumMessaging mq = morphium.createMessaging(ms);
 mq.start();
 ```
 

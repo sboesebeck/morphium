@@ -2,7 +2,7 @@ package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.config.MessagingSettings;
 
 import javax.jms.*;
 import java.io.Serializable;
@@ -15,8 +15,14 @@ public class Context implements javax.jms.JMSContext {
 
     public Context(Morphium morphium, String name, int sessionMode) {
         this.morphium = morphium;
-        this.messaging = new StdMessaging(morphium, 100, true, 10);
+        try {
+            this.messaging = morphium.createMessaging();
+        } catch (Exception e) {
+            throw new RuntimeException("Could not create MorphiumMessaging via factory", e);
+        }
 
+        // match previous defaults: pause=100, multithreadded=true, windowSize=10
+        this.messaging.setPause(100).setMultithreadded(true).setWindowSize(10);
         if (name != null) this.messaging.setQueueName(name);
     }
 

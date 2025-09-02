@@ -660,8 +660,9 @@ the Morphium cache Syncrhonizer does not issue messages for uncached entities or
 Here is an example on how to use this:
 
 ```java
-    Messaging m=new Messaging(morphium,10000,true);
-    CacheSynchronizer cs=new CacheSynchronizer(m,morphium);
+    MorphiumMessaging m = morphium.createMessaging();
+    m.setPause(10000).setMultithreadded(true);
+    MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(m, morphium);
 ```
 
 Actually this is all there is to do, as the CacheSynchronizer registers itself to both morphium and the messaging system.
