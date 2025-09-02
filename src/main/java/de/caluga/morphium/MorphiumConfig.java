@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.Objects;
 
 import de.caluga.morphium.config.*;
 import org.json.simple.parser.ParseException;
@@ -72,8 +73,31 @@ public class MorphiumConfig {
 
 
     @Transient
-    private List<Settings> settings = List.of(clusterSettings, authSettings, writerSettings, threadPoolSettings, objectMappingSettings, driverSettings, connectionSettings, collectionCheckSettings,
-                                      messagingSettings);
+    private List<Settings> settings = List.of(
+            clusterSettings,
+            authSettings,
+            writerSettings,
+            threadPoolSettings,
+            objectMappingSettings,
+            driverSettings,
+            connectionSettings,
+            collectionCheckSettings,
+            messagingSettings
+                                      );
+
+    private void rebuildSettingsList() {
+        settings = List.of(
+                                   clusterSettings,
+                                   authSettings,
+                                   writerSettings,
+                                   threadPoolSettings,
+                                   objectMappingSettings,
+                                   driverSettings,
+                                   connectionSettings,
+                                   collectionCheckSettings,
+                                   messagingSettings
+                   );
+    }
 
 
     public MessagingSettings messagingSettings() {
@@ -259,7 +283,9 @@ public class MorphiumConfig {
                 }
             }
         }
+        rebuildSettingsList();
     }
+
 
     public MorphiumConfig() {
         this("test", 10, 60000, 10000);
@@ -270,6 +296,7 @@ public class MorphiumConfig {
         connectionSettings.setMaxConnections(maxConnections);
         cacheSettings.setGlobalCacheValidTime(globalCacheValidTime);
         cacheSettings.setHousekeepingTimeout(housekeepingTimeout);
+        rebuildSettingsList();
     }
 
     public static List<String> getPropertyNames(String prefix) {
@@ -733,56 +760,56 @@ public class MorphiumConfig {
         return  authSettings.getMongoAuthDb();
     }
 
-    // public String decryptAuthDb() {
-    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-    //         return getMongoAuthDb();
-    //     }
+// public String decryptAuthDb() {
+//     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+//         return getMongoAuthDb();
+//     }
 
-    //     try {
-    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         var authdb = "admin";
+//     try {
+//         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+//         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+//         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+//         var authdb = "admin";
 
-    //         if (getMongoAuthDb() != null) {
-    //             authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
-    //         }
+//         if (getMongoAuthDb() != null) {
+//             authdb = new String(ve.decrypt(Base64.getDecoder().decode(getMongoAuthDb())));
+//         }
 
-    //         return authdb;
-    //     } catch (Exception e) {
-    //         throw new RuntimeException(e);
-    //     }
-    // }
+//         return authdb;
+//     } catch (Exception e) {
+//         throw new RuntimeException(e);
+//     }
+// }
 
-    // public String decryptMongoLogin() {
-    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-    //         return getMongoLogin();
-    //     }
+// public String decryptMongoLogin() {
+//     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+//         return getMongoLogin();
+//     }
 
-    //     try {
-    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoLogin())));
-    //     } catch (Exception e) {
-    //         throw new RuntimeException(e);
-    //     }
-    // }
+//     try {
+//         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+//         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+//         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+//         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoLogin())));
+//     } catch (Exception e) {
+//         throw new RuntimeException(e);
+//     }
+// }
 
-    // public String decryptMongoPassword() {
-    //     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
-    //         return getMongoLogin();
-    //     }
+// public String decryptMongoPassword() {
+//     if (getCredentialsEncrypted() == null || !getCredentialsEncrypted()) {
+//         return getMongoLogin();
+//     }
 
-    //     try {
-    //         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
-    //         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
-    //         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoPassword())));
-    //     } catch (Exception e) {
-    //         throw new RuntimeException(e);
-    //     }
-    // }
+//     try {
+//         var ve = getValueEncryptionProviderClass().getDeclaredConstructor().newInstance();
+//         ve.setEncryptionKey(getCredentialsEncryptionKey().getBytes(StandardCharsets.UTF_8));
+//         ve.setDecryptionKey(getCredentialsDecryptionKey().getBytes(StandardCharsets.UTF_8));
+//         return new String(ve.decrypt(Base64.getDecoder().decode(getMongoPassword())));
+//     } catch (Exception e) {
+//         throw new RuntimeException(e);
+//     }
+// }
 
     /**
      * use driverSettings
@@ -1197,8 +1224,30 @@ public class MorphiumConfig {
 
 
     public MorphiumConfig createCopy() {
-        return fromProperties(asProperties());
+        MorphiumConfig c = new MorphiumConfig();
+        // deep-copy settings using reflection-based copy to avoid property round-trips
+        c.messagingSettings = this.messagingSettings.copy();
+        c.collectionCheckSettings = this.collectionCheckSettings.copy();
+        c.connectionSettings = this.connectionSettings.copy();
+        c.driverSettings = this.driverSettings.copy();
+        c.encryptionSettings = this.encryptionSettings.copy();
+        c.objectMappingSettings = this.objectMappingSettings.copy();
+        c.threadPoolSettings = this.threadPoolSettings.copy();
+        c.writerSettings = this.writerSettings.copy();
+        c.cacheSettings = this.cacheSettings.copy();
+        c.authSettings = this.authSettings.copy();
+        c.clusterSettings = this.clusterSettings.copy();
+
+        if (this.restoreData != null) {
+            c.restoreData = new LinkedHashMap<>(this.restoreData);
+        }
+
+        // rebind list to copied instances
+        c.rebuildSettingsList();
+        return c;
     }
+
+
     /**
      * @param prefix prefix to use in property keys
      * @param effectiveConfig when true, use the current effective config, including
@@ -1209,6 +1258,26 @@ public class MorphiumConfig {
     public Properties asProperties(String prefix, boolean effectiveConfig) {
         return asProperties(prefix);
     }
+
+    public Properties asProperties(String prefix, Settings setting) {
+        Properties p = new Properties();
+        p.putAll(setting.asProperties(prefix));
+        return p;
+    }
+
+    protected <T extends Settings> T getSettingByType(Class cls) {
+        for (var s : settings) {
+            if (s.getClass().equals(cls)) return (T) s;
+        }
+        return null;
+    }
+
+    public <T extends Settings> T createCopyOf(T setting) {
+        return (T) setting.copy();
+    }
+
+
+
     public Properties asProperties(String prefix) {
         // if (prefix == null) {
         //     prefix = "";
@@ -1217,27 +1286,9 @@ public class MorphiumConfig {
         // }
 
         Properties p = new Properties();
-        AnnotationAndReflectionHelper an = new AnnotationAndReflectionHelper(true);
 
         for (var setting : settings) {
             p.putAll(setting.asProperties(prefix));
-            // List<Field> flds = an.getAllFields(setting.getClass());
-
-            // for (Field f : flds) {
-            //     if (f.isAnnotationPresent(Transient.class)) {
-            //         continue;
-            //     }
-
-            //     try {
-            //         var defaults = setting.getClass().getConstructor().newInstance();
-            //         f.setAccessible(true);
-
-            //         if (f.get(setting) != null && !f.get(setting).equals(f.get(defaults)) || f.getName().equals("database")) {
-            //             p.put(prefix + f.getName(), f.get(setting).toString());
-            //         }
-            //     } catch (Exception e) {
-            //         throw new RuntimeException(e);
-            //     }
         }
 
         // if (effectiveConfig) {
@@ -1255,6 +1306,31 @@ public class MorphiumConfig {
         // }
 
         return p;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (other == null) return false;
+        if (getClass() != other.getClass()) return false;
+        MorphiumConfig that = (MorphiumConfig) other;
+
+        // Compare all setting objects (they have proper equals)
+        for (var s : settings) {
+            if (!Objects.equals(s, that.getSettingByType(s.getClass()))) return false;
+
+        }
+        // AdditionalData contents
+        if (!Objects.equals(this.restoreData, that.restoreData)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int rd = 0;
+        if (restoreData != null) rd = restoreData.hashCode();
+        return Objects.hash(settings.toArray()) + rd;
     }
 
     /**

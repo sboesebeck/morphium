@@ -25,9 +25,8 @@ morphium.getCache().setValidCacheTime(Product.class, 120_000);
 
 3) Cross‑node cache synchronization
 ```java
-// Initialize messaging and start it
-StdMessaging messaging = new StdMessaging();
-messaging.init(morphium);
+// Initialize messaging via factory and start it
+MorphiumMessaging messaging = morphium.createMessaging();
 messaging.start();
 
 // Attach synchronizer: clears caches on other nodes when writes occur

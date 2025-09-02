@@ -30,6 +30,27 @@ public class MorphiumConfigTest {
     public MorphiumConfigTest() {
     }
 
+
+    @Test
+    public void testCopySettings() {
+
+        var cfg = getConfig();
+        var copy = cfg.messagingSettings().copy();
+        assertFalse(cfg.messagingSettings() == copy);
+        assertEquals(cfg.messagingSettings(), copy);
+
+
+        var fullCopy = cfg.createCopy();
+        assertEquals(fullCopy, cfg);
+        assertFalse(fullCopy == cfg);
+
+        log.info("cfg.hash={} copy.hash={}", cfg.hashCode(), fullCopy.hashCode());
+
+        fullCopy.messagingSettings().setMessagingImplementation("Test");
+        log.info("cfg.hash={} copy.hash={}", cfg.hashCode(), fullCopy.hashCode());
+
+
+    }
     private MorphiumConfig getConfig() {
         MorphiumConfig cfg = new MorphiumConfig();
         cfg.connectionSettings().setDatabase("test");

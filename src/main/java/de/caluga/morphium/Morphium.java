@@ -27,6 +27,7 @@ import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
@@ -548,6 +549,12 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public MorphiumMessaging createMessaging() throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
         MorphiumMessaging messaging = messagingClass.getConstructor().newInstance();
         messaging.init(this);
+        return messaging;
+    }
+
+    public MorphiumMessaging createMessaging(MessagingSettings overrides) throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
+        MorphiumMessaging messaging = messagingClass.getConstructor().newInstance();
+        messaging.init(this, overrides);
         return messaging;
     }
 
