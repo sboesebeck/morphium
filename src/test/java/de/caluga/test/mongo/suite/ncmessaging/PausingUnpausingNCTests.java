@@ -28,7 +28,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     public void pauseUnpauseProcessingTest() throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        MorphiumMessaging sender = morphium.createMessaging()(morphium, 10, false, false, 1);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         gotMessage1 = false;
@@ -36,7 +36,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        MorphiumMessaging m1 = morphium.createMessaging()(morphium, 10, false, false, 1);
+        MorphiumMessaging m1 = morphium.createMessaging();
         m1.addListenerForTopic("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getTopic(), "got message", "value", 5000);
@@ -85,10 +85,10 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         Thread.sleep(100);
         list.clear();
         final AtomicInteger cnt = new AtomicInteger(0);
-        MorphiumMessaging sender = morphium.createMessaging()(morphium, 100, false);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.setUseChangeStream(false).start();
 
-        MorphiumMessaging receiver = morphium.createMessaging()(morphium, 10, false, true, 10);
+        MorphiumMessaging receiver = morphium.createMessaging();
         receiver.setUseChangeStream(false).start();
 
         Thread.sleep(1000);
@@ -154,7 +154,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
     private void testPausingUnpausingInListener(boolean multithreadded) throws Exception {
         morphium.dropCollection(Msg.class);
         Thread.sleep(1000);
-        MorphiumMessaging sender = morphium.createMessaging()(morphium, 100, false);
+        MorphiumMessaging sender = morphium.createMessaging();
         sender.setUseChangeStream(false).start();
         Thread.sleep(2500);
         log.info("Sender ID: " + sender.getSenderId());
@@ -162,7 +162,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         gotMessage1 = false;
         gotMessage2 = false;
 
-        MorphiumMessaging m1 = morphium.createMessaging()(morphium, 10, false, multithreadded, 10);
+        MorphiumMessaging m1 = morphium.createMessaging();
         m1.addListenerForTopic("test", (msg, m) -> {
             msg.pauseTopicProcessing("test");
             try {
@@ -227,8 +227,8 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageTest() throws Exception {
-        MorphiumMessaging sender = morphium.createMessaging()(morphium, 100, true, true, 10);
-        MorphiumMessaging receiver = morphium.createMessaging()(morphium, 100, true, true, 10);
+        MorphiumMessaging sender = morphium.createMessaging();
+        MorphiumMessaging receiver = morphium.createMessaging();
         sender.setUseChangeStream(false).start();
         receiver.setUseChangeStream(false).start();
         Thread.sleep(1000);
@@ -263,7 +263,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
         try {
             morphium.dropCollection(Msg.class);
             Thread.sleep(1000);
-            sender = morphium.createMessaging()(morphium, 100, false);
+            sender = morphium.createMessaging();
             sender.setSenderId("Sender");
             // sender.setUseChangeStream(false).start();
             log.info("Sender ID: " + sender.getSenderId());
@@ -271,7 +271,7 @@ public class PausingUnpausingNCTests extends MorphiumTestBase {
             gotMessage1 = false;
             gotMessage2 = false;
             boolean[] fail = {false};
-            m1 = morphium.createMessaging()(morphium, 100, true, multithreadded, 1);
+            m1 = morphium.createMessaging();
             m1.setSenderId("m1");
             m1.addListenerForTopic("test", (msg, m) -> {
                 msg.pauseTopicProcessing("test");
