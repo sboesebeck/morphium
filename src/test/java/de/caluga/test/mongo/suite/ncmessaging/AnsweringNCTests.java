@@ -7,9 +7,12 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.test.OutputHelper;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -18,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class AnsweringNCTests extends MorphiumTestBase {
+public class AnsweringNCTests extends MultiDriverTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
@@ -30,25 +33,38 @@ public class AnsweringNCTests extends MorphiumTestBase {
     public MorphiumId lastMsgId;
     public AtomicInteger procCounter = new AtomicInteger(0);
 
-    @Test
-    public void answeringTest() throws Exception {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void answeringTest(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        
         gotMessage1 = false;
         gotMessage2 = false;
         gotMessage3 = false;
         error = false;
 
-        morphium.clearCollection(Msg.class);
-        final StdMessaging m1;
-        final StdMessaging m2;
-        final StdMessaging onlyAnswers;
-        m1 = new StdMessaging(morphium, 100, true);
-        m2 = new StdMessaging(morphium, 100, true);
-        onlyAnswers = new StdMessaging(morphium, 100, true);
-        try {
+        try (morphium) {
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
-            m1.setUseChangeStream(false).start();
-            m2.setUseChangeStream(false).start();
-            onlyAnswers.setUseChangeStream(false).start();
+                try (Morphium morph = new Morphium(cfg)) {
+                    morph.clearCollection(Msg.class);
+                    final MorphiumMessaging m1;
+                    final MorphiumMessaging m2;
+                    final MorphiumMessaging onlyAnswers;
+                    m1 = morph.createMessaging();
+                    m2 = morph.createMessaging();
+                    onlyAnswers = morph.createMessaging();
+                    try {
+                        m1.start();
+                        m2.start();
+                        onlyAnswers.start();
             Thread.sleep(100);
 
             log.info("m1 ID: " + m1.getSenderId());
@@ -104,13 +120,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return null;
             });
 
-            Msg question = new Msg("QMsg", "This is the message text", "A question param");
-            question.setMsgId(new MorphiumId());
-            lastMsgId = question.getMsgId();
-            onlyAnswers.sendMessage(question);
-            log.info("Send Message with id: " + question.getMsgId());
-            Thread.sleep(3000);
-            long cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                        Msg question = new Msg("QMsg", "This is the message text", "A question param");
+                        question.setMsgId(new MorphiumId());
+                        lastMsgId = question.getMsgId();
+                        onlyAnswers.sendMessage(question);
+                        log.info("Send Message with id: " + question.getMsgId());
+                        Thread.sleep(3000);
+                        long cnt = morph.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             log.info("Answers in mongo: " + cnt);
             assert (cnt == 2);
             assert (gotMessage3) : "no answer got back?";
@@ -125,21 +141,23 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
             assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-            question = new Msg("QMsg", "This is the message text", "A question param", 30000, true);
-            question.setMsgId(new MorphiumId());
-            lastMsgId = question.getMsgId();
-            onlyAnswers.sendMessage(question);
-            log.info("Send Message with id: " + question.getMsgId());
-            Thread.sleep(1000);
-            cnt = morphium.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                        question = new Msg("QMsg", "This is the message text", "A question param", 30000, true);
+                        question.setMsgId(new MorphiumId());
+                        lastMsgId = question.getMsgId();
+                        onlyAnswers.sendMessage(question);
+                        log.info("Send Message with id: " + question.getMsgId());
+                        Thread.sleep(1000);
+                        cnt = morph.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             assert (cnt == 1);
 
-        } finally {
-            m1.terminate();
-            m2.terminate();
-            onlyAnswers.terminate();
-            Thread.sleep(100);
-
+                    } finally {
+                        m1.terminate();
+                        m2.terminate();
+                        onlyAnswers.terminate();
+                        Thread.sleep(100);
+                    }
+                }
+            }
         }
 
     }
