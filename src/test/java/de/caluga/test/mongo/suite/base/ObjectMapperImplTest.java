@@ -322,6 +322,7 @@ public class ObjectMapperImplTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void objectMapperSpeedTest()  {
         //Thread.sleep(20000);
         UncachedObject o = new UncachedObject();
@@ -350,6 +351,7 @@ public class ObjectMapperImplTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void objectMapperSpeedTest2()  {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);

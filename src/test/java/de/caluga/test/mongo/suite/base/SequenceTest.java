@@ -241,6 +241,7 @@ public class SequenceTest extends MorphiumTestBase {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void sequenceSpeedTest() throws Exception {
         morphium.dropCollection(Sequence.class);
         Thread.sleep(100); //wait for the drop to be persisted
