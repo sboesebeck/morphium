@@ -11,19 +11,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.messaging.MorphiumMessaging;
+import de.caluga.test.OutputHelper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 
 
 // @Disabled
-public class MultithreaddedMessagingTests extends MorphiumTestBase {
+public class MultithreaddedMessagingTests extends MultiDriverTestBase {
 
-    @Test
-    public void messagingSendReceiveThreaddedTest() throws Exception {
-        for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void messagingSendReceiveThreaddedTest(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        
+        try (morphium) {
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
             MorphiumConfig cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
@@ -86,6 +96,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void mutlithreaddedMessagingPerformanceTest() throws Exception {
         morphium.clearCollection(Msg.class);
         for (String msgImpl : de.caluga.test.mongo.suite.base.MorphiumTestBase.messagingsToTest) {
@@ -158,16 +169,30 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
         }
     }
 
-    @Test
-    public void waitingForMessagesIfNonMultithreadded() throws Exception {
-        final List<Msg> list = new ArrayList<>();
-        morphium.dropCollection(Msg.class);
-        Thread.sleep(1000);
-        MorphiumMessaging sender = morphium.createMessaging();
-        sender.setMultithreadded(false).setWindowSize(10).start();
-        list.clear();
-        MorphiumMessaging receiver = morphium.createMessaging();
-        receiver.setMultithreadded(false).setWindowSize(10);
+    @ParameterizedTest
+    @MethodSource("getMorphiumInstancesNoSingle")
+    public void waitingForMessagesIfNonMultithreadded(Morphium morphium) throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
+        
+        try (morphium) {
+            for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+                OutputHelper.figletOutput(log, msgImpl);
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                try (Morphium morph = new Morphium(cfg)) {
+                    final List<Msg> list = new ArrayList<>();
+                    morph.dropCollection(Msg.class);
+                    Thread.sleep(1000);
+                    MorphiumMessaging sender = morph.createMessaging();
+                    sender.setMultithreadded(false).setWindowSize(10).start();
+                    list.clear();
+                    MorphiumMessaging receiver = morph.createMessaging();
+                    receiver.setMultithreadded(false).setWindowSize(10);
         receiver.addListenerForTopic("test", (msg, m) -> {
             list.add(m);
 
@@ -241,6 +266,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void multithreaddingTestSingle() throws Exception {
         int amount = 65;
         MorphiumMessaging producer = morphium.createMessaging();
@@ -283,6 +309,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void multithreaddingTestMultiple() throws Exception {
         int amount = 650;
         StdMessaging producer = new StdMessaging(morphium, 500, false);
