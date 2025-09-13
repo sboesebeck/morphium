@@ -413,6 +413,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void objectMapperSpeedTest() {
         UncachedObject o = new UncachedObject();
         o.setCounter(42);

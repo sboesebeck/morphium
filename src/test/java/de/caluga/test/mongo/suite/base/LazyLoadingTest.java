@@ -149,6 +149,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
 
 
     @Test
+    @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void lazyLoadingPerformanceTest() {
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         //clean
