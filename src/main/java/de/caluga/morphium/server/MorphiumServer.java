@@ -423,6 +423,27 @@ public class MorphiumServer {
                         answer = Doc.of("ok", 1.0);
                         break;
 
+                    case "endSessions":
+                        // Session management - just acknowledge since we don't track sessions
+                        answer = Doc.of("ok", 1.0);
+                        break;
+
+                    case "startSession":
+                        // Session management - return a dummy session
+                        answer = Doc.of("id", Map.of("id", java.util.UUID.randomUUID()), "timeoutMinutes", 30, "ok", 1.0);
+                        break;
+
+                    case "refreshSessions":
+                        // Session refresh - just acknowledge
+                        answer = Doc.of("ok", 1.0);
+                        break;
+
+                    case "abortTransaction":
+                    case "commitTransaction":
+                        // Transaction commands - just acknowledge since we don't support transactions
+                        answer = Doc.of("ok", 1.0);
+                        break;
+
                     case "getLog":
                         if (doc.get(cmd).equals("startupWarnings")) {
                             answer = Doc.of("totalLinesWritten", 0, "log", List.of(), "ok", 1.0);
