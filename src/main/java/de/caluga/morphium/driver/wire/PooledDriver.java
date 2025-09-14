@@ -499,13 +499,24 @@ public class PooledDriver extends DriverBase {
     private void onConnectionError(String host) {
         // empty pool for host, as connection to it failed
         stats.get(DriverStatsKey.ERRORS).incrementAndGet();
-        BlockingQueue<ConnectionContainer> connectionsList = null;
+        BlockingQueue<ConnectionContainer> connectionsList;
 
-        if (getHostSeed() != null && !getHostSeed().isEmpty() && !getHostSeed().contains(host)) {
-            synchronized (connectionPool) {
-                // Do not remove ConnectionPool for host, if it is still in host-seed!
-                connectionsList = connectionPool.remove(host);
-            }
+        synchronized (connectionPool) {
+            connectionsList = connectionPool.remove(host);
+        }
+
+        // also reset wait counters for this host
+        synchronized (waitCounter) {
+            waitCounter.remove(host);
+        }
+
+        // If we already discovered the replicaset members and this host is not part of it,
+        // drop it from the host seed to avoid repeated futile connection attempts.
+        if (lastHostsFromHello != null && !lastHostsFromHello.contains(host)) {
+            log.info("Removing unreachable seed host '{}' not present in replicaset members {}", host, lastHostsFromHello);
+            removeFromHostSeed(host);
+            pingTimesPerHost.remove(host);
+            pingStatsPerHost.remove(host);
         }
 
         if (host.equals(primaryNode)) {
