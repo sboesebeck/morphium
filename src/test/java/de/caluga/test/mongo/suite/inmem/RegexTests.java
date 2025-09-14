@@ -3,10 +3,12 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.regex.Pattern;
 
+@Tag("inmemory")
 public class RegexTests extends MorphiumInMemTestBase {
 
     @Test

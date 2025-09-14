@@ -9,11 +9,13 @@ import de.caluga.morphium.encryption.AESEncryptionProvider;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+@Tag("encryption")
 public class EncryptedObjectMappingTests extends MorphiumTestBase {
 
     @Test

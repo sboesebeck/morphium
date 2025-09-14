@@ -11,6 +11,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 
+@Tag("inmemory")
 public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test

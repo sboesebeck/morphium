@@ -6,6 +6,7 @@ import com.ongres.scram.common.ScramMechanisms;
 import com.ongres.scram.common.stringprep.StringPreparations;
 import de.caluga.morphium.Utils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,6 +17,7 @@ import static com.ongres.scram.common.stringprep.StringPreparations.NO_PREPARATI
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
+@Tag("driver")
 public class ScramTests {
 
     Logger log = LoggerFactory.getLogger(ScramTests.class);

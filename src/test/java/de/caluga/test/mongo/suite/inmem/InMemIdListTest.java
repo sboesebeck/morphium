@@ -6,12 +6,14 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("inmemory")
 public class InMemIdListTest extends MorphiumInMemTestBase {
 
     @Test

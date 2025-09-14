@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Disabled
+@Tag("messaging")
 public class BigMessagesTest extends MultiDriverTestBase {
 
     @ParameterizedTest

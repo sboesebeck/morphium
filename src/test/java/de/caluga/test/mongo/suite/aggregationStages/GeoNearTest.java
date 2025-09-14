@@ -9,10 +9,12 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.geospatial.Point;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.Map;
 
+@Tag("aggregation")
 public class GeoNearTest extends MorphiumTestBase {
 
     @Test

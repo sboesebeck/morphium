@@ -7,6 +7,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.List;
 import static de.caluga.morphium.aggregation.Expr.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Tag("aggregation")
 public class BucketTests extends MorphiumTestBase {
 
 

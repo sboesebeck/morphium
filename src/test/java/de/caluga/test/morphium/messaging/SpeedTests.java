@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Disabled("Speed tests don't provide meaningful assertions for test coverage")
+@Tag("messaging")
 public class SpeedTests extends MultiDriverTestBase {
 
     @ParameterizedTest

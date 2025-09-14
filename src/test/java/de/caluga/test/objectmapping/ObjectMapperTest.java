@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,7 @@ import de.caluga.test.mongo.suite.base.BasicFunctionalityTest.ListOfIdsContainer
 import de.caluga.test.mongo.suite.base.ObjectMapperImplTest;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Tag("util")
 public class ObjectMapperTest {
     private Logger log = LoggerFactory.getLogger(ObjectMapperTest.class);
 

@@ -6,11 +6,13 @@ import de.caluga.morphium.encryption.RSAEncryptionProvider;
 import de.caluga.rsa.AES;
 import de.caluga.rsa.RSA;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Properties;
 
+@Tag("encryption")
 public class EncryptionTest {
 
     @Test

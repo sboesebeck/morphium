@@ -10,6 +10,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class ReferenceTest extends MorphiumTestBase {
 
     private final boolean didDeref = false;

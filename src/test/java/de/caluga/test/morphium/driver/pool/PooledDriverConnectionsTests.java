@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +18,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.support.TestConfig;
 
+@Tag("driver")
 public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
 

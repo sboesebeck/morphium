@@ -3,6 +3,7 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
+@Tag("inmemory")
 public class RawQueryTests extends MorphiumInMemTestBase {
 
     @Test

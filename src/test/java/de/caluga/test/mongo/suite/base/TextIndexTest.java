@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
@@ -17,6 +18,7 @@ import de.caluga.morphium.driver.MorphiumId;
  * TODO: Add documentation here
  */
 @Disabled
+@Tag("admin")
 public class TextIndexTest extends MorphiumTestBase {
     //
     //    @Test

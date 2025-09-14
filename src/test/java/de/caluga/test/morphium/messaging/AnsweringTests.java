@@ -24,6 +24,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("messaging")
 public class AnsweringTests extends MultiDriverTestBase {
     public boolean gotMessage = false;
 
