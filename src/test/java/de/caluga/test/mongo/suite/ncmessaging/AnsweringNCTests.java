@@ -5,7 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -169,11 +169,11 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void answerExclusiveMessagesTest() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
-        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
-        StdMessaging m3 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m3 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m3.setSenderId("m3");
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -196,11 +196,11 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void answers3NodesTest() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m1.setSenderId("m1");
-        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         m2.setSenderId("m2");
-        StdMessaging mSrv = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging mSrv = new SingleCollectionMessaging(morphium, 10, false, true, 10);
         mSrv.setSenderId("Srv");
 
         m1.setUseChangeStream(false).start();
@@ -240,9 +240,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
     @Test
     @Disabled
     public void getAnswersTest() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
-        StdMessaging mTst = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging mTst = new SingleCollectionMessaging(morphium, 10, false, true, 10);
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -290,8 +290,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
         MorphiumConfig cfg = MorphiumConfig.createFromJson(morphium.getConfig().toString());
         Morphium mor = new Morphium(cfg);
 
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-        StdMessaging m2 = new StdMessaging(mor, 10, false, true, 10);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(mor, 10, false, true, 10);
         m1.setSenderId("m1");
         m2.setSenderId("m2");
         m1.setUseChangeStream(false).start();
@@ -321,8 +321,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
     @Test
     @Disabled
     public void answerWithoutListener() throws Exception {
-        StdMessaging m1 = new StdMessaging(morphium, 10, false, true, 10);
-        StdMessaging m2 = new StdMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
+        SingleCollectionMessaging m2 = new SingleCollectionMessaging(morphium, 10, false, true, 10);
 
         m1.setUseChangeStream(false).start();
         m2.setUseChangeStream(false).start();
@@ -343,8 +343,8 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
     @Test
     public void answerTestDifferentType() throws Exception {
-        StdMessaging sender = new StdMessaging(morphium, 100, true);
-        StdMessaging recipient = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true);
+        SingleCollectionMessaging recipient = new SingleCollectionMessaging(morphium, 100, true);
         sender.setUseChangeStream(false).start();
         recipient.setUseChangeStream(false).start();
         gotMessage1 = false;
@@ -386,7 +386,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
     @Test
     public void sendAndWaitforAnswerTestFailing() {
         assertThrows(RuntimeException.class, ()-> {
-            StdMessaging m1 = new StdMessaging(morphium, 100, false);
+            SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
             log.info("Upcoming Errormessage is expected!");
             try {
                 m1.addListenerForTopic("test", (msg, m) -> {
@@ -409,7 +409,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
     @Test
     public void sendAndWaitforAnswerTest() throws Exception {
 //        morphium.dropCollection(Msg.class);
-        StdMessaging sender = new StdMessaging(morphium, 100, false);
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false);
         sender.setUseChangeStream(false).start();
 
         gotMessage1 = false;
@@ -417,7 +417,7 @@ public class AnsweringNCTests extends MorphiumTestBase {
         gotMessage3 = false;
         gotMessage4 = false;
 
-        StdMessaging m1 = new StdMessaging(morphium, 100, false);
+        SingleCollectionMessaging m1 = new SingleCollectionMessaging(morphium, 100, false);
         m1.addListenerForTopic("test", (msg, m) -> {
             gotMessage1 = true;
             return new Msg(m.getTopic(), "got message", "value", 5000);

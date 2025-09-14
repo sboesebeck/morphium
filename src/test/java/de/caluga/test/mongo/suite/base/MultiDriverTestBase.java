@@ -182,7 +182,7 @@ public class MultiDriverTestBase {
         }
 
         //dropping all existing test-dbs
-        if (morphiums.get(0).get()[0] instanceof InMemoryDriver) {
+        if (((Morphium) morphiums.get(0).get()[0]).getDriver() instanceof InMemoryDriver) {
             log.info("Not erasing DBs - inMem");
         } else {
             Morphium m = (Morphium) morphiums.get(0).get()[0];

@@ -2,7 +2,7 @@ package de.caluga.test.mongo.suite.ncmessaging;
 
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
@@ -18,7 +18,7 @@ public class SpeedNCTests extends MorphiumTestBase {
     @Test
     public void writeSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
-        StdMessaging msg = new StdMessaging(morphium, 100, false, true, 10);
+        SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, false, true, 10);
         msg.setUseChangeStream(false).start();
 
 

@@ -178,7 +178,7 @@ public class CacheSyncTest extends MorphiumTestBase {
 
 
         morphium.clearCollection(IdCachedObject.class);
-        StdMessaging msg1 = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.start();
 
         MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
