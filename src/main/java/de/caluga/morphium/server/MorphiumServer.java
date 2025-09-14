@@ -341,20 +341,15 @@ public class MorphiumServer {
                     doc = q.getDoc();
 
                     if (doc.containsKey("ismaster") || doc.containsKey("isMaster")) {
-                        // ismaster
-                        log.info("OpMsg->isMaster");
+                        // ismaster via OpQuery (legacy)
+                        log.info("OpQuery->isMaster");
                         var r = new OpReply();
                         r.setFlags(2);
                         r.setMessageId(msgId.incrementAndGet());
                         r.setResponseTo(id);
                         r.setNumReturned(1);
                         var res = getHelloResult();
-                        OpMsg reply = new OpMsg();
-                        reply.setFirstDoc(res.toMsg());
-                        //
-                        // reply.setMessageId(msgId.incrementAndGet());
-                        // reply.setResponseTo(id);
-                        // out.write(reply.bytes());
+                        log.info("Sending isMaster response via OpReply: {}", res.toMsg());
                         r.setDocuments(Arrays.asList(res.toMsg()));
 
                         if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
@@ -362,13 +357,15 @@ public class MorphiumServer {
                             cmp.setMessageId(r.getMessageId());
                             cmp.setResponseTo(id);
                             cmp.setCompressedMessage(r.bytes());
+                            log.info("Sending compressed OpReply: {} bytes", cmp.bytes().length);
                             out.write(cmp.bytes());
                         } else {
+                            log.info("Sending OpReply: {} bytes", r.bytes().length);
                             out.write(r.bytes());
                         }
 
                         out.flush();
-                        // log.info("Sent hello result");
+                        log.info("Sent isMaster result via OpQuery");
                         continue;
                     }
 
@@ -413,17 +410,17 @@ public class MorphiumServer {
                     case "ismaster":
                     case "isMaster":
                     case "hello":
-                        log.info("Master");
+                        log.info("OpMsg->hello/ismaster");
                         answer = getHelloResult().toMsg();
-                        reply.setFirstDoc(answer);
+                        log.info("Hello response: {}", answer);
                         break;
 
                     case "getFreeMonitoringStatus":
-                        answer = Doc.of("state", "disabled", "message", "", "url", "", "userReminder", "");
+                        answer = Doc.of("state", "disabled", "message", "", "url", "", "userReminder", "", "ok", 1.0);
                         break;
 
                     case "ping":
-                        answer = Doc.of();
+                        answer = Doc.of("ok", 1.0);
                         break;
 
                     case "getLog":
@@ -520,6 +517,7 @@ public class MorphiumServer {
                 answer.put("$clusterTime", Doc.of("clusterTime", new MongoTimestamp(System.currentTimeMillis())));
                 answer.put("operationTime", new MongoTimestamp(System.currentTimeMillis()));
                 reply.setFirstDoc(answer);
+                log.info("Final response being sent: {}", answer);
 
                 if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
                     OpCompressed cmsg = new OpCompressed();
@@ -528,16 +526,16 @@ public class MorphiumServer {
                     cmsg.setResponseTo(reply.getResponseTo());
                     cmsg.setCompressedMessage(reply.bytes());
                     var b = cmsg.bytes();
-                    log.info("Server sending {} bytes (compressed)", b.length);
+                    log.info("Server sending {} bytes (compressed), responseTo: {}", b.length, cmsg.getResponseTo());
                     out.write(b);
                 } else {
                     var b = reply.bytes();
-                    log.info("Server sending {} bytes", b.length);
+                    log.info("Server sending {} bytes, responseTo: {}", b.length, reply.getResponseTo());
                     out.write(b);
                 }
 
                 out.flush();
-                log.info("Sent answer!");
+                log.info("Sent answer for cmd: {}", cmd);
             }
 
             s.close();
