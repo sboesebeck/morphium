@@ -27,6 +27,9 @@ public class DriverTestBase {
             drv.setCredentials("admin", "test", "test");
             drv.setMaxWaitTime(1000);
             drv.setHeartbeatFrequency(1000);
+            // Be generous during elections/failover in tests
+            drv.setRetriesOnNetworkError(30);
+            drv.setSleepBetweenErrorRetries(500);
 
             String hostSeed = System.getenv("HOST_SEED");
             if(hostSeed == null) {
