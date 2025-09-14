@@ -84,6 +84,7 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
     echo -e "${BL}--tags$CL ${GN}LIST$CL   - include JUnit5 tags (comma-separated)"
+    echo -e "                   Available: core,messaging,driver,inmemory,aggregation,cache,admin,performance,encryption,jms,geo,util"
     echo -e "${BL}--exclude-tags$CL ${GN}LIST$CL - exclude JUnit5 tags (comma-separated)"
     echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: pooled|single|inmem"
     echo -e "${BL}--uri$CL ${GN}URI$CL     - mongodb connection string (or use MONGODB_URI env)"
@@ -91,6 +92,13 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--external$CL    - enable external-tagged tests (activates -Pexternal)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
+    echo
+    echo -e "${YL}Tag Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --tags core${CL}                    # Run only core functionality tests"
+    echo -e "  ${BL}./runtests.sh --tags messaging,cache${CL}         # Run messaging and cache tests"
+    echo -e "  ${BL}./runtests.sh --exclude-tags performance${CL}     # Skip slow performance tests"
+    echo -e "  ${BL}./runtests.sh --tags inmemory${CL}                # Fast offline testing"
+    echo -e "  ${BL}./runtests.sh --tags core,messaging --exclude-tags admin${CL} # Combined filters"
     echo
     exit 0
   elif [ "q$1" == "q--skip" ]; then
@@ -198,28 +206,79 @@ if [ -n "$includeTags" ]; then
   : > $tmpTagged
   # 1) Collect files explicitly annotated with any requested tag
   rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >> $tmpTagged || true
-  # 2) Directory-based helpers to map common tags to suites
+  # 2) Directory-based helpers to map common tags to suites (backup for missing annotations)
   IFS=',' read -r -a tagArr <<< "$includeTags"
   for tg in "${tagArr[@]}"; do
     case "$tg" in
       core)
-        rg -l "^package .*suite\.base;" src/test/java >> $tmpTagged || true
-        ;;
-      driver)
-        if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
-          find src/test/java/de/caluga/test/morphium/driver -name "*.java" >> $tmpTagged
-        fi
-        ;;
-      inmemory)
-        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpTagged
-        fi
+        # Find core functionality tests (primarily in suite/base)
+        find src/test/java/de/caluga/test/mongo/suite/base -name "*Test*.java" -type f >> $tmpTagged || true
         ;;
       messaging)
-        # already annotated; also include ncmessaging by directory as safety
+        # Messaging tests in multiple locations
+        if [ -d src/test/java/de/caluga/test/morphium/messaging ]; then
+          find src/test/java/de/caluga/test/morphium/messaging -name "*.java" >> $tmpTagged
+        fi
         if [ -d src/test/java/de/caluga/test/mongo/suite/ncmessaging ]; then
           find src/test/java/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >> $tmpTagged
         fi
+        ;;
+      driver)
+        # Driver layer tests
+        if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
+          find src/test/java/de/caluga/test/morphium/driver -name "*.java" >> $tmpTagged
+        fi
+        find src/test/java -name "*DriverTest*.java" -o -name "*ConnectionTest*.java" >> $tmpTagged || true
+        ;;
+      inmemory)
+        # InMemory driver specific tests
+        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpTagged
+        fi
+        find src/test/java -name "*InMem*.java" >> $tmpTagged || true
+        ;;
+      aggregation)
+        # Aggregation pipeline tests
+        if [ -d src/test/java/de/caluga/test/mongo/suite/aggregationStages ]; then
+          find src/test/java/de/caluga/test/mongo/suite/aggregationStages -name "*.java" >> $tmpTagged
+        fi
+        find src/test/java -name "*Aggregation*.java" -o -name "*MapReduce*.java" >> $tmpTagged || true
+        ;;
+      cache)
+        # Caching functionality tests
+        find src/test/java -name "*Cache*.java" >> $tmpTagged || true
+        ;;
+      admin)
+        # Administrative and infrastructure tests
+        find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >> $tmpTagged || true
+        find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >> $tmpTagged || true
+        ;;
+      performance)
+        # Performance and bulk operation tests
+        find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >> $tmpTagged || true
+        find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >> $tmpTagged || true
+        ;;
+      encryption)
+        # Encryption and security tests
+        if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
+          find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >> $tmpTagged
+        fi
+        ;;
+      jms)
+        # JMS integration tests
+        if [ -d src/test/java/de/caluga/test/mongo/suite/jms ]; then
+          find src/test/java/de/caluga/test/mongo/suite/jms -name "*.java" >> $tmpTagged
+        fi
+        ;;
+      geo)
+        # Geospatial functionality tests
+        find src/test/java -name "*Geo*.java" >> $tmpTagged || true
+        ;;
+      util)
+        # Utility and helper tests
+        find src/test/java -name "*Collator*.java" -o -name "*ObjectMapper*.java" >> $tmpTagged || true
+        find src/test/java/de/caluga/test/objectmapping -name "*.java" >> $tmpTagged || true
+        find src/test/java/de/caluga/test/morphium/query -name "*.java" >> $tmpTagged || true
         ;;
     esac
   done
@@ -232,6 +291,49 @@ if [ -n "$includeTags" ]; then
     sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
   fi
   rm -f $tmpTagged
+fi
+
+# Handle exclude tags
+if [ -n "$excludeTags" ]; then
+  excludePattern=$(echo "$excludeTags" | sed 's/,/|/g')
+  tmpExcluded=tmp_exclude_files_$PID.txt
+  : > $tmpExcluded
+  # 1) Collect files explicitly annotated with any excluded tag
+  rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >> $tmpExcluded || true
+  # 2) Directory-based patterns for excluded tags
+  IFS=',' read -r -a excludeArr <<< "$excludeTags"
+  for tg in "${excludeArr[@]}"; do
+    case "$tg" in
+      performance)
+        find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >> $tmpExcluded || true
+        find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >> $tmpExcluded || true
+        ;;
+      admin)
+        find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >> $tmpExcluded || true
+        find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >> $tmpExcluded || true
+        ;;
+      encryption)
+        if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
+          find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >> $tmpExcluded
+        fi
+        ;;
+      inmemory)
+        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpExcluded
+        fi
+        find src/test/java -name "*InMem*.java" >> $tmpExcluded || true
+        ;;
+    esac
+  done
+  sort -u $tmpExcluded -o $tmpExcluded
+  if [ -s $tmpExcluded ]; then
+    # Remove excluded files from the files list
+    grep -v -F -f $tmpExcluded $filesList > files_$PID.tmp || cp $filesList files_$PID.tmp
+    mv files_$PID.tmp $filesList
+    # Rebuild class list from filtered files
+    sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+  fi
+  rm -f $tmpExcluded
 fi
 if [ "$skip" -ne 0 ]; then
   echo -e "${BL}Info:${CL} Skipping tests already run"
