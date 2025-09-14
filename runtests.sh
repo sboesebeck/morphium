@@ -84,12 +84,13 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
     echo -e "${BL}--tags$CL ${GN}LIST$CL   - include JUnit5 tags (comma-separated)"
-    echo -e "                   Available: core,messaging,driver,inmemory,aggregation,cache,admin,performance,encryption,jms,geo,util"
+    echo -e "                   Available: core,messaging,driver,inmemory,aggregation,cache,admin,performance,encryption,jms,geo,util,external"
     echo -e "${BL}--exclude-tags$CL ${GN}LIST$CL - exclude JUnit5 tags (comma-separated)"
     echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: pooled|single|inmem"
     echo -e "${BL}--uri$CL ${GN}URI$CL     - mongodb connection string (or use MONGODB_URI env)"
     echo -e "${BL}--verbose$CL     - enable verbose test logs"
-    echo -e "${BL}--external$CL    - enable external-tagged tests (activates -Pexternal)"
+    echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
+    echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -97,8 +98,14 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --tags core${CL}                    # Run only core functionality tests"
     echo -e "  ${BL}./runtests.sh --tags messaging,cache${CL}         # Run messaging and cache tests"
     echo -e "  ${BL}./runtests.sh --exclude-tags performance${CL}     # Skip slow performance tests"
-    echo -e "  ${BL}./runtests.sh --tags inmemory${CL}                # Fast offline testing"
+    echo -e "  ${BL}./runtests.sh --tags inmemory${CL}                # Fast offline testing (local only)"
+    echo -e "  ${BL}./runtests.sh --external --tags driver${CL}       # External MongoDB driver tests"
     echo -e "  ${BL}./runtests.sh --tags core,messaging --exclude-tags admin${CL} # Combined filters"
+    echo
+    echo -e "${YL}Driver/External Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
+    echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
+    echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
     echo
     exit 0
   elif [ "q$1" == "q--skip" ]; then
@@ -148,6 +155,30 @@ while [ "q$1" != "q" ]; do
     break
   fi
 done
+
+# Conflict detection
+if [ "$useExternal" -eq 1 ] && [ "$driver" == "inmem" ]; then
+  echo -e "${RD}Error:${CL} --external and --driver inmem are conflicting options!"
+  echo -e "  --external: Enables external MongoDB connection tests"
+  echo -e "  --driver inmem: Forces InMemory driver (local only)"
+  echo -e "  ${YL}Suggestion:${CL} Use --external with --driver pooled or --driver single"
+  exit 1
+fi
+
+if [ "$useExternal" -eq 1 ] && [[ "$includeTags" == *"inmemory"* ]]; then
+  echo -e "${YL}Warning:${CL} --external and --tags inmemory may conflict!"
+  echo -e "  --external: Enables external MongoDB tests"
+  echo -e "  --tags inmemory: Runs InMemory driver tests (local only)"
+  echo -e "  ${BL}Continuing...${CL} but results may be inconsistent"
+fi
+
+if [ "$driver" == "inmem" ] && [[ "$includeTags" == *"external"* ]]; then
+  echo -e "${RD}Error:${CL} --driver inmem and --tags external are conflicting!"
+  echo -e "  --driver inmem: Forces InMemory driver (local only)"
+  echo -e "  --tags external: Runs tests requiring external MongoDB"
+  echo -e "  ${YL}Suggestion:${CL} Use --tags external with --driver pooled or remove --tags external"
+  exit 1
+fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   if [ -z "$(ls -A 'test.log')" ]; then
     count=0
@@ -280,6 +311,10 @@ if [ -n "$includeTags" ]; then
         find src/test/java/de/caluga/test/objectmapping -name "*.java" >> $tmpTagged || true
         find src/test/java/de/caluga/test/morphium/query -name "*.java" >> $tmpTagged || true
         ;;
+      external)
+        # External MongoDB connection tests (failover, etc.)
+        find src/test/java -name "*Failover*.java" >> $tmpTagged || true
+        ;;
     esac
   done
   sort -u $tmpTagged -o $tmpTagged
@@ -322,6 +357,10 @@ if [ -n "$excludeTags" ]; then
           find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpExcluded
         fi
         find src/test/java -name "*InMem*.java" >> $tmpExcluded || true
+        ;;
+      external)
+        # External MongoDB connection tests (excluded by default)
+        find src/test/java -name "*Failover*.java" >> $tmpExcluded || true
         ;;
     esac
   done
