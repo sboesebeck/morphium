@@ -6,6 +6,7 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
  * <p>
  * TODO: Add documentation here
  */
+@Tag("messaging")
 public class CustomMsgTest extends MorphiumTestBase {
 
     boolean received = false;

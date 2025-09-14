@@ -3,6 +3,7 @@ package de.caluga.test.morphium.messaging;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.concurrent.PriorityBlockingQueue;
 import static org.junit.jupiter.api.Assertions.*;
 
 
+@Tag("messaging")
 public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test

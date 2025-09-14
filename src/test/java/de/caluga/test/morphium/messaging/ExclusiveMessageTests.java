@@ -22,8 +22,10 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
+@Tag("messaging")
 public class ExclusiveMessageTests extends MorphiumTestBase {
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;

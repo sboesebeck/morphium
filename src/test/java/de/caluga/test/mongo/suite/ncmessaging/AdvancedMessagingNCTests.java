@@ -9,6 +9,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Disabled
+@Tag("messaging")
 public class AdvancedMessagingNCTests extends MorphiumTestBase {
     private final Map<MorphiumId, Integer> counts = new ConcurrentHashMap<>();
 

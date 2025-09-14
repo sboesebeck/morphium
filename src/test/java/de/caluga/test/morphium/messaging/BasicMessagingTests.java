@@ -8,6 +8,7 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Consolidated basic messaging tests providing maximum coverage with minimum number of tests.
  * Tests core messaging functionality: send/receive, timeouts, multithreading, custom queues.
  */
+@Tag("messaging")
 public class BasicMessagingTests extends MultiDriverTestBase {
     
     private boolean gotMessage1 = false;
