@@ -6,7 +6,6 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Property;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
-import de.caluga.morphium.cache.CacheElement;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -15,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -244,7 +244,7 @@ public class CacheTests extends MultiDriverTestBase {
             original.setValue("ID Cache Test");
             morphium.store(original);
             
-            MorphiumId objectId = original.getMorphiumId();
+            MorphiumId objectId = original.getId();
             assertNotNull(objectId);
             
             // Query by ID - should populate cache
@@ -261,7 +261,7 @@ public class CacheTests extends MultiDriverTestBase {
             CachedObject byField = morphium.createQueryFor(CachedObject.class)
                 .f("counter").eq(123).get();
             assertNotNull(byField);
-            assertEquals(objectId, byField.getMorphiumId());
+            assertEquals(objectId, byField.getId());
             
             // Verify cache statistics
             assertTrue(morphium.getStatistics().get("CachedObject-cache-hits") > 0);
@@ -297,7 +297,7 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(i, obj.getCounter());
             }
             
-            long initialCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
+            double initialCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
             
             // Query all objects again - should mostly hit cache
             for (int i = 0; i < objectCount; i++) {
@@ -306,13 +306,16 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(i, obj.getCounter());
             }
             
-            long finalCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
+            double finalCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
             assertTrue(finalCacheHits > initialCacheHits);
             
             // Test cache capacity - cache might evict some entries
             MorphiumCache cache = morphium.getCache();
             assertNotNull(cache);
-            log.info("Cache size after mass operations: " + cache.getCacheSize("CachedObject"));
+            int cachedObjectCacheSize = cache.getSizes().entrySet().stream()
+                    .filter(e -> e.getKey().contains("resultCache|" + CachedObject.class.getName()))
+                    .mapToInt(Map.Entry::getValue).sum();
+            log.info("Cache size after mass operations: " + cachedObjectCacheSize);
         }
     }
 
@@ -336,7 +339,10 @@ public class CacheTests extends MultiDriverTestBase {
             
             // Verify cache exists
             MorphiumCache cache = morphium.getCache();
-            assertTrue(cache.getCacheSize("CustomCacheEntity") > 0);
+            int customCacheSize = cache.getSizes().entrySet().stream()
+                    .filter(e -> e.getKey().contains("resultCache|" + CustomCacheEntity.class.getName()))
+                    .mapToInt(Map.Entry::getValue).sum();
+            assertTrue(customCacheSize > 0);
             
             // Test manual cache operations
             String cacheKey = morphium.getCache().getCacheKey(morphium.createQueryFor(CustomCacheEntity.class));
@@ -344,7 +350,10 @@ public class CacheTests extends MultiDriverTestBase {
             
             // Clear specific cache
             morphium.clearCachefor(CustomCacheEntity.class);
-            assertEquals(0, cache.getCacheSize("CustomCacheEntity"));
+            int sizeAfterClear = cache.getSizes().entrySet().stream()
+                    .filter(e -> e.getKey().contains("resultCache|" + CustomCacheEntity.class.getName()))
+                    .mapToInt(Map.Entry::getValue).sum();
+            assertEquals(0, sizeAfterClear);
         }
     }
 

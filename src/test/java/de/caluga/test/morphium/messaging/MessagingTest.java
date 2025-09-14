@@ -12,14 +12,13 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
-import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @SuppressWarnings("ALL")
-public class MessagingTest extends MultiDriverTestBase {
+public class MessagingTest extends MorphiumTestBase {
     public boolean gotMessage = false;
     public boolean gotMessage1 = false;
     public boolean gotMessage2 = false;
@@ -32,7 +31,7 @@ public class MessagingTest extends MultiDriverTestBase {
     private final AtomicInteger queueCount = new AtomicInteger(1000);
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void execAfterRelease(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {} .getClass().getEnclosingMethod().getName();
@@ -79,7 +78,7 @@ public class MessagingTest extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void testMsgQueName(Morphium morphium) throws Exception {
         try (morphium) {
             String method = new Object() {} .getClass().getEnclosingMethod().getName();
@@ -148,4 +147,3 @@ public class MessagingTest extends MultiDriverTestBase {
 
     // NOTE: Remaining tests from the original class can be migrated similarly if desired.
 }
-

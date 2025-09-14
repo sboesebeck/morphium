@@ -25,6 +25,7 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.CachedObject;
+import de.caluga.test.mongo.suite.data.UncachedObject;
 
 // import de.caluga.morphium.driver.inmem.InMemoryDriver;
 // import de.caluga.morphium.driver.meta.MetaDriver;

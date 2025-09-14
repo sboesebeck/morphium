@@ -46,7 +46,7 @@
     <!--  This is required for later correct replacement of argline -->
     <argLine/>
     <!-- JUnit tag control (defaults) -->
-    <test.includeTags></test.includeTags>
+    <test.includeTags/>
     <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
@@ -69,7 +69,7 @@
             </configurationParameters>
           </properties>
           <systemPropertyVariables>
-            morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
+            <morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
           </systemPropertyVariables>
         </configuration>
       </plugin>
@@ -188,7 +188,7 @@
     <profile>
       <id>external</id>
       <properties>
-        <test.excludeTags></test.excludeTags>
+        <test.excludeTags/>
       </properties>
     </profile>
     <profile>

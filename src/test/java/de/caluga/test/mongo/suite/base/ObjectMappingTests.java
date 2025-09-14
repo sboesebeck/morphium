@@ -314,7 +314,6 @@ public class ObjectMappingTests extends MorphiumTestBase {
         @Property
         public String name;
         
-        @Embedded
         public EmbeddedObject embedded;
     }
 
@@ -377,10 +376,10 @@ public class ObjectMappingTests extends MorphiumTestBase {
         @Id
         public MorphiumId id;
         
-        @Property("external_name")
+        @Property(fieldName = "external_name")
         public String internalName;
-        
-        @Property("very_different")
+
+        @Property(fieldName = "very_different")
         public String differentName;
     }
 
@@ -392,7 +391,6 @@ public class ObjectMappingTests extends MorphiumTestBase {
         @Property
         public String name;
         
-        @Embedded
         public NestedEntity child;
     }
 
