@@ -64,6 +64,12 @@ logLength=15
 numRetries=1
 retried=""
 totalRetries=0
+includeTags=""
+excludeTags=""
+driver=""
+uri=""
+verbose=0
+useExternal=0
 
 while [ "q$1" != "q" ]; do
 
@@ -77,6 +83,12 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--logs$CL ${GN}NUM$CL    - number of log lines to show"
     echo -e "${BL}--refresh$CL ${GN}NUM$CL - refresh view every NUM secs"
     echo -e "${BL}--retry$CL ${GN}NUM$CL   - number of retries on error in tests - default $YL$numRetries$CL"
+    echo -e "${BL}--tags$CL ${GN}LIST$CL   - include JUnit5 tags (comma-separated)"
+    echo -e "${BL}--exclude-tags$CL ${GN}LIST$CL - exclude JUnit5 tags (comma-separated)"
+    echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: pooled|single|inmem"
+    echo -e "${BL}--uri$CL ${GN}URI$CL     - mongodb connection string (or use MONGODB_URI env)"
+    echo -e "${BL}--verbose$CL     - enable verbose test logs"
+    echo -e "${BL}--external$CL    - enable external-tagged tests (activates -Pexternal)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -92,6 +104,28 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--logs" ]; then
     shift
     logLength=$1
+    shift
+  elif [ "q$1" == "q--tags" ]; then
+    shift
+    includeTags=$1
+    shift
+  elif [ "q$1" == "q--exclude-tags" ]; then
+    shift
+    excludeTags=$1
+    shift
+  elif [ "q$1" == "q--driver" ]; then
+    shift
+    driver=$1
+    shift
+  elif [ "q$1" == "q--uri" ]; then
+    shift
+    uri=$1
+    shift
+  elif [ "q$1" == "q--verbose" ]; then
+    verbose=1
+    shift
+  elif [ "q$1" == "q--external" ]; then
+    useExternal=1
     shift
   elif [ "q$1" == "q--retry" ]; then
     shift
@@ -198,7 +232,16 @@ if [ "$nodel" -eq 0 ]; then
   mvn clean >/dev/null
 fi
 echo -e "${BL}Info:${CL} Compiling..."
-mvn compile test-compile >/dev/null || {
+MVN_PROPS=""
+if [ -n "$includeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.includeTags=$includeTags"; fi
+if [ -n "$excludeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.excludeTags=$excludeTags"; fi
+if [ -n "$driver" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.driver=$driver"; fi
+if [ -n "$uri" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$uri"; fi
+if [ -z "$uri" ] && [ -n "$MONGODB_URI" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$MONGODB_URI"; fi
+if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=true"; fi
+if [ "$useExternal" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Pexternal"; fi
+
+mvn $MVN_PROPS compile test-compile >/dev/null || {
   echo -e "${RD}Error:${CL} Compilation failed!"
   exit 1
 }
@@ -236,13 +279,13 @@ for t in $(<$classList); do
   ((tst = tst + 1))
   while true; do
     tm=$(date +%s)
-    if [ "$m" == "." ]; then
+  if [ "$m" == "." ]; then
       echo "Running Tests in $t" >"test.log/$t.log"
-      mvn -Dsurefire.useFile=false test -Dtest="$t" >>"test.log/$t".log 2>&1 &
+      mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
       echo $! >$testPid
     else
       echo "Running $m in $t" >"test.log/$t.log"
-      mvn -Dsurefire.useFile=false test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
+      mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
       echo $! >$testPid
     fi
     while true; do
