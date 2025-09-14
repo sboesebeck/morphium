@@ -602,7 +602,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveMessageStartupTests() throws Exception {
-        StdMessaging sender = new StdMessaging(morphium, 100, true, 1);
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, true, 1);
         MorphiumMessaging receiverNoListener = morphium.createMessaging();
         receiverNoListener.setPause(100).setMultithreadded(true).setWindowSize(10);
 

@@ -42,9 +42,9 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.UpdateMongoCommand;
-import de.caluga.morphium.messaging.StdMessaging.AsyncMessageCallback;
-import de.caluga.morphium.messaging.StdMessaging.MessageTimeoutException;
-import de.caluga.morphium.messaging.StdMessaging.SystemShutdownException;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.AsyncMessageCallback;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.MessageTimeoutException;
+import de.caluga.morphium.messaging.SingleCollectionMessaging.SystemShutdownException;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -109,7 +109,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     };
     private ChangeStreamMonitor directMessagesMonitor;
 
-    public AdvancedSplitCollectionMessaging() {
+    public MultiCollectionMessaging() {
         hostname = System.getenv("HOSTNAME");
 
         if (hostname == null) {
@@ -199,7 +199,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                                 updateProcessedBy(msg);
                             }
                             try {
-                                var ret = l.onMessage(AdvancedSplitCollectionMessaging.this, msg);
+                                var ret = l.onMessage(MultiCollectionMessaging.this, msg);
                                 if (!running.get())
                                     return;
                                 if (ret == null && effectiveSettings.isAutoAnswer()) {

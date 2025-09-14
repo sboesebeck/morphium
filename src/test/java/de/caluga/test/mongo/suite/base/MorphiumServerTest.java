@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -39,10 +39,10 @@ public class MorphiumServerTest {
         var srv = new MorphiumServer(17017, "localhost", 20, 1);
         srv.start();
         Morphium morphium = new Morphium("localhost:17017", "test");
-        StdMessaging msg1 = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.setUseChangeStream(true);
         AtomicInteger received = new AtomicInteger();
-        StdMessaging msg2 = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
         msg2.setUseChangeStream(true);
         msg2.addListenerForTopic("test", (msg, m)-> {
             received.incrementAndGet();
@@ -161,9 +161,9 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new StdMessaging(morphium);
+            var msg1 = new SingleCollectionMessaging(morphium);
             msg1.start();
-            var msg2 = new StdMessaging(morphium);
+            var msg2 = new SingleCollectionMessaging(morphium);
             msg2.start();
             msg2.addListenerForTopic("tstmsg", new MessageListener() {
                 @Override
@@ -206,10 +206,10 @@ public class MorphiumServerTest {
 
         try(morphium) {
             //Messaging test
-            var msg1 = new StdMessaging(morphium, 100, true);
+            var msg1 = new SingleCollectionMessaging(morphium, 100, true);
             msg1.setUseChangeStream(true);
             msg1.start();
-            var msg2 = new StdMessaging(morphium2, 10, true, true, 1000);
+            var msg2 = new SingleCollectionMessaging(morphium2, 10, true, true, 1000);
             msg2.setUseChangeStream(true);
             msg2.start();
             msg2.addListenerForTopic("tstmsg", new MessageListener() {

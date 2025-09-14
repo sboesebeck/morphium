@@ -6,7 +6,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
@@ -307,9 +307,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
     @Test
     public void answerWithDifferentNameTest() throws Exception {
         counts.clear();
-        StdMessaging producer = new StdMessaging(morphium, 100,  true, 1);
+        SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
-        StdMessaging consumer = new StdMessaging(morphium, 100, true, 1);
+        SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100, true, 1);
         consumer.setUseChangeStream(false).start();
         Msg answer;
 
@@ -332,9 +332,9 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
 
     @Test
     public void ownAnsweringHandler() throws Exception {
-        StdMessaging producer = new StdMessaging(morphium, 100,  true, 1);
+        SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 100,  true, 1);
         producer.setUseChangeStream(false).start();
-        StdMessaging consumer = new StdMessaging(morphium, 100,  true, 1);
+        SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100,  true, 1);
         consumer.setUseChangeStream(false).start();
 
         try {

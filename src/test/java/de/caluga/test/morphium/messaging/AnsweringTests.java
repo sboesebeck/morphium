@@ -4,10 +4,10 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.driver.MorphiumId;
-import de.caluga.morphium.messaging.AdvancedSplitCollectionMessaging;
+import de.caluga.morphium.messaging.MultiCollectionMessaging;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -198,11 +198,11 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
-                MorphiumMessaging m1 = morph.createMessaging();//new StdMessaging(morphium, 10, false, true, 10);
+                MorphiumMessaging m1 = morph.createMessaging();//new SingleCollectionMessaging(morphium, 10, false, true, 10);
                 m1.setSenderId("m1");
                 MorphiumMessaging m2 = morph.createMessaging();
                 m2.setSenderId("m2");
-                MorphiumMessaging m3 =  morph.createMessaging();//new StdMessaging(morphium, 10, false, true, 10);
+                MorphiumMessaging m3 =  morph.createMessaging();//new SingleCollectionMessaging(morphium, 10, false, true, 10);
                 m3.setSenderId("m3");
                 m1.start();
                 m2.start();
@@ -246,13 +246,13 @@ public class AnsweringTests extends MultiDriverTestBase {
                 cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
                 Morphium morph = new Morphium(cfg);
-                MorphiumMessaging m1 = morph.createMessaging();// new StdMessaging(morphium, 10, false, true, 10);
+                MorphiumMessaging m1 = morph.createMessaging();// new SingleCollectionMessaging(morphium, 10, false, true, 10);
                 m1.setSenderId("m1");
                 m1.setUseChangeStream(false);
-                MorphiumMessaging m2 = morph.createMessaging();//new StdMessaging(morphium, 10, false, true, 10);
+                MorphiumMessaging m2 = morph.createMessaging();//new SingleCollectionMessaging(morphium, 10, false, true, 10);
                 m2.setSenderId("m2");
                 m2.setUseChangeStream(false);
-                MorphiumMessaging mSrv = morph.createMessaging();//new StdMessaging(morphium, 10, false, true, 10);
+                MorphiumMessaging mSrv = morph.createMessaging();//new SingleCollectionMessaging(morphium, 10, false, true, 10);
                 mSrv.setSenderId("Srv");
                 mSrv.setUseChangeStream(false);
                 m1.start();
