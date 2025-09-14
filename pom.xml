@@ -45,6 +45,9 @@
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
     <argLine/>
+    <!-- JUnit tag control (defaults) -->
+    <test.includeTags></test.includeTags>
+    <test.excludeTags>external</test.excludeTags>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -57,6 +60,17 @@
         <configuration>
           <argLine>${argLine} --add-opens java.base/java.lang=ALL-UNNAMED
                     --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</argLine>
+          <!-- JUnit 5 tag selection -->
+          <includeTags>${test.includeTags}</includeTags>
+          <excludeTags>${test.excludeTags}</excludeTags>
+          <properties>
+            <configurationParameters>
+              junit.jupiter.extensions.autodetection.enabled=true
+            </configurationParameters>
+          </properties>
+          <systemPropertyVariables>
+            morphium.tests.verbose>${morphium.tests.verbose}</morphium.tests.verbose>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
@@ -169,6 +183,31 @@
           </plugin>
         </plugins>
       </build>
+    </profile>
+    <!-- Test execution control profiles -->
+    <profile>
+      <id>external</id>
+      <properties>
+        <test.excludeTags></test.excludeTags>
+      </properties>
+    </profile>
+    <profile>
+      <id>inmem</id>
+      <properties>
+        <morphium.driver>inmem</morphium.driver>
+      </properties>
+    </profile>
+    <profile>
+      <id>pooled</id>
+      <properties>
+        <morphium.driver>pooled</morphium.driver>
+      </properties>
+    </profile>
+    <profile>
+      <id>single</id>
+      <properties>
+        <morphium.driver>single</morphium.driver>
+      </properties>
     </profile>
   </profiles>
   <dependencies>
