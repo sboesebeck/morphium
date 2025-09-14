@@ -1,15 +1,11 @@
 package de.caluga.test.mongo.suite.base;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+// (removed local file config I/O)
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
@@ -17,6 +13,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,14 +21,10 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.ShutdownListener;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
-import de.caluga.morphium.driver.ReadPreference;
-import de.caluga.morphium.driver.commands.ListCollectionsCommand;
-import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.data.CachedObject;
-import de.caluga.test.mongo.suite.data.UncachedObject;
 
 // import de.caluga.morphium.driver.inmem.InMemoryDriver;
 // import de.caluga.morphium.driver.meta.MetaDriver;
@@ -48,8 +41,6 @@ public class MorphiumTestBase {
 
     public static List<String> messagingsToTest = List.of("AdvMessaging", "StandardMessaging" );
     public static Morphium morphium;
-    private static Properties props;
-    private static File configDir;
     protected Logger log;
     public static AtomicInteger number = new AtomicInteger(0);
 
@@ -57,32 +48,7 @@ public class MorphiumTestBase {
         log = LoggerFactory.getLogger(getClass().getName());
     }
 
-    public static synchronized Properties getProps() {
-        if (props == null) {
-            props = new Properties();
-            File f = getFile();
-
-            if (f.exists()) {
-                try {
-                    props.load(new FileReader(f));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-
-        return props;
-    }
-
-    private static File getFile() {
-        configDir = new File(System.getProperty("user.home") + "/.config/");
-
-        if (!configDir.exists()) {
-            configDir.mkdirs();
-        }
-
-        return new File(System.getProperty("user.home") + "/.config/morphiumtest.cfg");
-    }
+    // Local file-based test configuration removed; using centralized TestConfig instead.
 
     @BeforeAll
     public static synchronized void setUpClass() {
@@ -108,84 +74,24 @@ public class MorphiumTestBase {
     //        return morphiums;
     //    }
 
-    private static void storeProps() {
-        File f = getFile();
-
-        try {
-            getProps().store(new FileWriter(f), "created by morphium test");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void init() {
+    private void init(TestInfo info) {
         log.info("in init!");
 
         if (morphium == null) {
-            MorphiumConfig cfg;
-            Properties p = getProps();
-
-            if (p.getProperty("database") != null) {
-                cfg = MorphiumConfig.fromProperties(p);
-                cfg.setMaxConnections(300);
-                cfg.setThreadConnectionMultiplier(2);
-            } else {
-                //creating default config
-                cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
-                cfg.addHostToSeed("localhost", 27017);
-                cfg.addHostToSeed("localhost", 27018);
-                cfg.addHostToSeed("localhost", 27019);
-                cfg.setMongoAuthDb("admin");
-                cfg.setMongoPassword("test");
-                cfg.setMongoLogin("test");
-                cfg.setCompressionType(MorphiumConfig.CompressionType.SNAPPY);
-                cfg.setCredentialsEncrypted(false);
-                cfg.setWriteCacheTimeout(1000);
-                cfg.setConnectionTimeout(2000);
-                cfg.setRetryReads(false);
-                cfg.setRetryWrites(false);
-                cfg.setReadTimeout(1000);
-                cfg.setMaxWaitTime(10000);
-                cfg.setMaxConnectionLifeTime(60000);
-                cfg.setMaxConnectionIdleTime(30000);
-                cfg.setMaxConnections(300);
-                cfg.setMinConnections(1);
-                cfg.setMaximumRetriesBufferedWriter(1000);
-                cfg.setMaximumRetriesWriter(1000);
-                cfg.setMaximumRetriesAsyncWriter(1000);
-                cfg.setRetryWaitTimeAsyncWriter(1000);
-                cfg.setRetryWaitTimeWriter(1000);
-                cfg.setRetryWaitTimeBufferedWriter(1000);
-                cfg.setHeartbeatFrequency(500);
-                cfg.setGlobalCacheValidTime(1000);
-                cfg.setHousekeepingTimeout(500);
-                cfg.setThreadPoolMessagingCoreSize(50);
-                cfg.setThreadPoolMessagingMaxSize(1500);
-                cfg.setThreadPoolMessagingKeepAliveTime(10000);
-                cfg.setCheckForNew(true);
-                //            cfg.setMongoAdminUser("adm");
-                //            cfg.setMongoAdminPwd("adm");
-                ////
-                //            cfg.setMongoLogin("tst");
-                //            cfg.setMongoPassword("tst");
-                //            cfg.setMongoLogin("morphium");
-                //            cfg.setMongoPassword("tst");
-                //necessary for Replicaset Status to work
-                //            cfg.setMongoAdminUser("admin");
-                //            cfg.setMongoAdminPwd("admin");
-                cfg.setDefaultReadPreference(ReadPreference.nearest());
-                p.putAll(cfg.asProperties());
-                p.put("failovertest", "false");
-                cfg.setThreadConnectionMultiplier(2);
-                storeProps();
-            }
-
+            MorphiumConfig cfg = de.caluga.test.support.TestConfig.load();
+            // Per-test unique database name for fast teardown
+            String cls = sanitize(info.getTestClass().map(Class::getSimpleName).orElse("UnknownClass"));
+            String mth = sanitize(info.getDisplayName());
+            String db = String.format("morphium_test_%s_%s_%d", cls, mth, number.incrementAndGet());
+            cfg.connectionSettings().setDatabase(db);
             morphium = new Morphium(cfg);
             log.info("Morphium instanciated");
         }
 
         // int num = number.incrementAndGet();
-        OutputHelper.figletOutput(log, "---------");
+        if (Boolean.getBoolean("morphium.tests.verbose")) {
+            OutputHelper.figletOutput(log, "---------");
+        }
         // OutputHelper.figletOutput(log, "Test#: " + num);
         // try {
         //     if (!morphium.getConfig().isAtlas()) {
@@ -266,59 +172,20 @@ public class MorphiumTestBase {
             morphium.removeShutdownListener(t);
         }
 
-        MongoConnection con = null;
-        ListCollectionsCommand cmd = null;
-
+        // Drop whole database for this test and close the instance
         try {
-            boolean retry = true;
-
-            while (retry) {
-                con = morphium.getDriver().getPrimaryConnection(null);
-                cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-                var lst = cmd.execute();
-                cmd.releaseConnection();
-
-                for (var collMap : lst) {
-                    String coll = (String) collMap.get("name");
-                    log.info("Dropping collection " + coll);
-
-                    morphium.dropCollection(UncachedObject.class, coll, null); //faking it a bit ;-)
-                }
-
-                long start = System.currentTimeMillis();
-                retry = false;
-                boolean collectionsExist = true;
-
-                while (collectionsExist) {
-                    Thread.sleep(100);
-                    con = morphium.getDriver().getPrimaryConnection(null);
-                    cmd = new ListCollectionsCommand(con).setDb(morphium.getDatabase());
-                    lst = cmd.execute();
-                    cmd.releaseConnection();
-
-                    for (var k : lst) {
-                        log.info("Collections still there..." + k.get("name"));
-                    }
-
-                    if (System.currentTimeMillis() - start > 1500) {
-                        retry = true;
-                        break;
-                    }
-
-                    if (lst.size() == 0) {
-                        collectionsExist = false;
-                    }
-                }
-            }
+            var drop = new de.caluga.morphium.driver.commands.DropDatabaseMongoCommand(morphium.getDriver().getPrimaryConnection(null));
+            drop.setDb(morphium.getDatabase());
+            drop.setComment("Dropping from MorphiumTestBase teardown");
+            drop.execute();
+            drop.releaseConnection();
         } catch (Exception e) {
-            log.info("Could not clean up: ", e);
-        } finally {
-            if (cmd != null) {
-                cmd.releaseConnection();
-            }
+            log.info("Could not drop DB '" + morphium.getDatabase() + "': ", e);
         }
 
-        Thread.sleep(150);
+        try { morphium.close(); } catch (Exception ignore) {}
+        morphium = null;
+        Thread.sleep(50);
     }
 
     public boolean waitForAsyncOperationsToStart(long maxWait) {
@@ -400,8 +267,8 @@ public class MorphiumTestBase {
     }
 
     @BeforeEach
-    public void setUp() {
-        init();
+    public void setUp(TestInfo info) {
+        init(info);
     }
 
     public void logStats(Morphium m) {
@@ -442,6 +309,10 @@ public class MorphiumTestBase {
         }
 
         return true;
+    }
+
+    private static String sanitize(String s) {
+        return s.replaceAll("[^A-Za-z0-9_]+", "_");
     }
 
 }

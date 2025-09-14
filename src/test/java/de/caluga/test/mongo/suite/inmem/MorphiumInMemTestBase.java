@@ -33,14 +33,10 @@ public class MorphiumInMemTestBase {
     public void setup() {
         System.gc();
         log.info("creating in Memory instance");
-        Properties p = MorphiumTestBase.getProps();
-        MorphiumConfig cfg = MorphiumConfig.fromProperties(p);
+        MorphiumConfig cfg = de.caluga.test.support.TestConfig.forDriver(InMemoryDriver.driverName);
         cfg.setHostSeed("inMem");
         cfg.setDatabase("test");
-        cfg.setDriverName(InMemoryDriver.driverName);
         cfg.setReplicasetMonitoring(false);
-//        cfg.setAggregatorFactory(new InMemAggregatorFactory());
-//        cfg.setAggregatorClass(InMemAggregator.class);
         cfg.setMaxWaitTime(1550);
         morphium = new Morphium(cfg);
         log.info("Done!");

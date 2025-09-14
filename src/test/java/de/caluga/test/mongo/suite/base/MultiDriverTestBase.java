@@ -1,15 +1,7 @@
 package de.caluga.test.mongo.suite.base;
-
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -25,13 +17,11 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.config.CollectionCheckSettings.CappedCheck;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.driver.MorphiumDriverException;
-import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
-import de.caluga.morphium.encryption.AESEncryptionProvider;
-import de.caluga.morphium.encryption.DefaultEncryptionKeyProvider;
+import de.caluga.test.support.TestConfig;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -51,38 +41,11 @@ public class MultiDriverTestBase {
 
     public static AtomicInteger number = new AtomicInteger(0);
     protected static Logger log = LoggerFactory.getLogger(MultiDriverTestBase.class);
-    private static Properties props;
 
     public MultiDriverTestBase() {
     }
 
-    public static synchronized Properties getProps() {
-        if (props == null) {
-            props = new Properties();
-        }
-
-        File f = getFile();
-
-        if (f.exists()) {
-            try {
-                props.load(new FileReader(f));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        return props;
-    }
-
-    private static File getFile() {
-        var configDir = new File(System.getProperty("user.home") + "/.config/");
-
-        if (!configDir.exists()) {
-            configDir.mkdirs();
-        }
-
-        return new File(System.getProperty("user.home") + "/.config/morphiumtest.cfg");
-    }
+    // Local file-based config removed; using centralized TestConfig.
 
     @BeforeAll
     public static synchronized void setUpClass() {
@@ -108,15 +71,7 @@ public class MultiDriverTestBase {
     //        return morphiums;
     //    }
 
-    private static void storeProps() {
-        File f = getFile();
-
-        try {
-            getProps().store(new FileWriter(f), "created by morphium test");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    // No-op: no property storage in tests anymore.
 
     public static boolean stringWordCompare(String m1, String m2) {
         if (m1 == null && m2 == null) {
@@ -176,22 +131,7 @@ public class MultiDriverTestBase {
     public static Stream<Arguments> getMorphiumAllInstances(boolean includeSingle, boolean includeInMem, boolean includePooled) {
         init();
         List<Arguments> morphiums = new ArrayList<>();
-        var enc = new AESEncryptionProvider();
-        enc.setEncryptionKey("1234567890abcdef".getBytes());
-        enc.setDecryptionKey("1234567890abcdef".getBytes());
-        var p = MorphiumTestBase.getProps();
-        String pwd = (String) p.get("mongoPassword");
-        String login = (String) p.get("mongoLogin");
-        String adb = (String) p.get("mongoAuthDb");
-        String password = null;
-        String user = null;
-        String authDb = null;
-
-        if (adb != null && !adb.isBlank() && !adb.isEmpty()) {
-            password = Base64.getEncoder().encodeToString(enc.encrypt(pwd.getBytes(StandardCharsets.UTF_8)));
-            user = Base64.getEncoder().encodeToString(enc.encrypt(login.getBytes(StandardCharsets.UTF_8)));
-            authDb = Base64.getEncoder().encodeToString(enc.encrypt(adb.getBytes(StandardCharsets.UTF_8)));
-        }
+        MorphiumConfig base = TestConfig.load();
 
         // var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         // var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
@@ -199,46 +139,23 @@ public class MultiDriverTestBase {
 
         //Diferent Drivers
         if (includePooled) {
-            MorphiumConfig pooled = MorphiumConfig.fromProperties(getProps());
-            pooled.encryptionSettings().setCredentialsEncrypted(true)
-                  .setCredentialsEncryptionKey("1234567890abcdef")
-                  .setCredentialsDecryptionKey("1234567890abcdef");
-
-            if (authDb != null) {
-                pooled.authSettings().setMongoAuthDb(authDb)
-                      .setMongoPassword(password)
-                      .setMongoLogin(user);
-            }
-
+            MorphiumConfig pooled = MorphiumConfig.fromProperties(base.asProperties());
             pooled.driverSettings().setDriverName(PooledDriver.driverName);
             pooled.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            pooled.collectionCheckSettings()
-                  .setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
+            pooled.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
                   .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
             log.info("Running test with DB morphium_test_" + number.get() + " for " + pooled.driverSettings().getDriverName());
-            Morphium pooledMorphium = new Morphium(pooled);
-            morphiums.add(Arguments.of(pooledMorphium));
+            morphiums.add(Arguments.of(new Morphium(pooled)));
         }
 
         if (includeSingle) {
-            MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-            singleConnection.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
-            singleConnection.encryptionSettings().setCredentialsEncrypted(true)
-                            .setCredentialsEncryptionKey("1234567890abcdef")
-                            .setCredentialsDecryptionKey("1234567890abcdef");
-
-            if (authDb != null) {
-                singleConnection.authSettings().setMongoAuthDb(authDb)
-                                .setMongoPassword(password)
-                                .setMongoLogin(user);
-            }
-
-            singleConnection.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            singleConnection.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
-                            .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + singleConnection.driverSettings().getDriverName());
-            Morphium singleConMorphium = new Morphium(singleConnection);
-            morphiums.add(Arguments.of(singleConMorphium));
+            MorphiumConfig single = MorphiumConfig.fromProperties(base.asProperties());
+            single.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
+            single.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            single.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP)
+                  .setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + single.driverSettings().getDriverName());
+            morphiums.add(Arguments.of(new Morphium(single)));
         }
 
         //
@@ -249,18 +166,16 @@ public class MultiDriverTestBase {
         //
         //
         if (includeInMem) {
-            MorphiumConfig inMemDriver = MorphiumConfig.fromProperties(getProps());
-            inMemDriver.driverSettings().setDriverName(InMemoryDriver.driverName);
-            inMemDriver.authSettings().setMongoAuthDb(null);
-            inMemDriver.authSettings().setMongoLogin(null);
-            inMemDriver.authSettings().setMongoPassword(null);
-            inMemDriver.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
-            inMemDriver.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP);
-            inMemDriver.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
-            var inMem = new Morphium(inMemDriver);
-            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500); //speed up expiry check
+            MorphiumConfig inMemCfg = MorphiumConfig.fromProperties(base.asProperties());
+            inMemCfg.driverSettings().setDriverName(InMemoryDriver.driverName);
+            inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
+            inMemCfg.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
+            inMemCfg.collectionCheckSettings().setCappedCheck(CappedCheck.CREATE_ON_STARTUP)
+                     .setIndexCheck(IndexCheck.CREATE_ON_STARTUP);
+            Morphium inMem = new Morphium(inMemCfg);
+            ((InMemoryDriver) inMem.getDriver()).setExpireCheck(500);
             morphiums.add(Arguments.of(inMem));
-            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemDriver.driverSettings().getDriverName());
+            log.info("Running test with DB morphium_test_" + number.get() + " for " + inMemCfg.driverSettings().getDriverName());
         }
 
         //dropping all existing test-dbs
@@ -295,56 +210,7 @@ public class MultiDriverTestBase {
 
     private static void init() {
         log.info("in init!");
-        Properties p = getProps();
-
-        if (p.getProperty("database") == null) {
-            MorphiumConfig cfg;
-            //creating default config
-            cfg = new MorphiumConfig("morphium_test", 2055, 50000, 5000);
-            cfg.clusterSettings().addHostToSeed("localhost", 27017)
-               .addHostToSeed("localhost", 27018)
-               .addHostToSeed("localhost", 27019);
-            cfg.connectionSettings()
-               .setMaxWaitTime(2000)
-               .setMaxConnections(100)
-               .setConnectionTimeout(2000)
-               .setMinConnections(1);
-            cfg.encryptionSettings().setCredentialsEncrypted(true)
-               .setValueEncryptionProviderClass(AESEncryptionProvider.class)
-               .setEncryptionKeyProviderClass(DefaultEncryptionKeyProvider.class);
-            cfg.cacheSettings().setWriteCacheTimeout(1000)
-               .setGlobalCacheValidTime(1000)
-               .setHousekeepingTimeout(500);
-            cfg.driverSettings().setRetryReads(false)
-               .setRetryWrites(false)
-               .setReadTimeout(1000)
-               .setDriverName(PooledDriver.driverName)
-               .setMaxConnectionLifeTime(60000)
-               .setMaxConnectionIdleTime(30000)
-               .setHeartbeatFrequency(500)
-               .setDefaultReadPreference(ReadPreference.nearest());
-            cfg.authSettings()
-               .setMongoLogin("test")
-               .setMongoPassword("test")
-               .setMongoAuthDb("admin");
-            cfg.writerSettings().setMaximumRetriesBufferedWriter(1000)
-               .setMaximumRetriesWriter(1000)
-               .setMaximumRetriesAsyncWriter(1000)
-               .setRetryWaitTimeAsyncWriter(1000)
-               .setRetryWaitTimeWriter(1000)
-               .setRetryWaitTimeBufferedWriter(1000)
-               .setThreadConnectionMultiplier(2);
-            cfg.messagingSettings().setThreadPoolMessagingCoreSize(50)
-               .setThreadPoolMessagingMaxSize(1500)
-               .setThreadPoolMessagingKeepAliveTime(10000);
-            cfg.collectionCheckSettings().setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
-               .setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
-            cfg.objectMappingSettings().setCheckForNew(true);
-            p.putAll(cfg.asProperties());
-            p.put("failovertest", "false");
-            storeProps();
-            log.info("created test-settings file");
-        }
+        // No init needed; configuration is provided centrally via TestConfig.
     }
 
     //

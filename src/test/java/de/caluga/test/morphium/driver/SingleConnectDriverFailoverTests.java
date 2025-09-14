@@ -12,6 +12,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import de.caluga.morphium.driver.commands.ReplicastStatusCommand;
@@ -20,6 +21,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 
 
+@Tag("external")
 public class SingleConnectDriverFailoverTests extends DriverTestBase{
     private Logger log=LoggerFactory.getLogger(SingleConnectDriverFailoverTests.class);
     @Test

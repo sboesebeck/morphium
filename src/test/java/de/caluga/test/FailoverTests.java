@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -34,6 +35,7 @@ import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
 @Disabled
+@Tag("external")
 public class FailoverTests extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -217,8 +219,7 @@ public class FailoverTests extends MultiDriverTestBase {
                 var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
                 var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
                 var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
-                MorphiumConfig singleConnection = MorphiumConfig.fromProperties(getProps());
-                singleConnection.setDriverName(SingleMongoConnectDriver.driverName);
+                MorphiumConfig singleConnection = de.caluga.test.support.TestConfig.forDriver(SingleMongoConnectDriver.driverName);
                 singleConnection.setCredentialsEncrypted(true);
                 singleConnection.setCredentialsEncryptionKey("1234567890abcdef");
                 singleConnection.setCredentialsDecryptionKey("1234567890abcdef");
