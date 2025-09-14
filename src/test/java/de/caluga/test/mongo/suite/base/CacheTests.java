@@ -62,7 +62,7 @@ public class CacheTests extends MultiDriverTestBase {
             log.info("First query: {}ms, Second query (cache): {}ms", firstDuration, secondDuration);
             
             // Test cache statistics
-            assertTrue(morphium.getStatistics().get("CachedObject-cache-hits") > 0);
+            assertTrue(morphium.getStatistics().get("CHITS") > 0);
             
             // Test cache invalidation on update
             first.setValue("Updated Value");
@@ -111,10 +111,9 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(2, uncached.getCounter());
             }
             
-            // Cached objects should have cache hits
-            assertTrue(morphium.getStatistics().get("CachedObject-cache-hits") > 0);
-            // Uncached objects should not have cache statistics
-            assertEquals(0, morphium.getStatistics().get("UncachedObject-cache-hits"));
+            // There should be some cache hits (from cached objects)
+            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // Note: Global statistics don't separate cached vs uncached entities
         }
     }
 
@@ -220,7 +219,7 @@ public class CacheTests extends MultiDriverTestBase {
             assertEquals(10, secondList.size());
             
             // Verify cache hits for list queries
-            assertTrue(morphium.getStatistics().get("CachedObject-cache-hits") > 0);
+            assertTrue(morphium.getStatistics().get("CHITS") > 0);
             
             // Test different query - should hit database
             List<CachedObject> differentQuery = morphium.createQueryFor(CachedObject.class)
@@ -264,7 +263,7 @@ public class CacheTests extends MultiDriverTestBase {
             assertEquals(objectId, byField.getId());
             
             // Verify cache statistics
-            assertTrue(morphium.getStatistics().get("CachedObject-cache-hits") > 0);
+            assertTrue(morphium.getStatistics().get("CHITS") > 0);
         }
     }
 
@@ -297,7 +296,7 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(i, obj.getCounter());
             }
             
-            double initialCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
+            double initialCacheHits = morphium.getStatistics().get("CHITS");
             
             // Query all objects again - should mostly hit cache
             for (int i = 0; i < objectCount; i++) {
@@ -306,7 +305,7 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(i, obj.getCounter());
             }
             
-            double finalCacheHits = morphium.getStatistics().get("CachedObject-cache-hits");
+            double finalCacheHits = morphium.getStatistics().get("CHITS");
             assertTrue(finalCacheHits > initialCacheHits);
             
             // Test cache capacity - cache might evict some entries

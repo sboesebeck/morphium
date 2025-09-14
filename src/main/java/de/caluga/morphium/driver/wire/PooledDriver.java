@@ -1129,14 +1129,8 @@ public class PooledDriver extends DriverBase {
     }
 
     public boolean exists(String db) throws MorphiumDriverException {
-        // noinspection EmptyCatchBlock
-        try {
-            getDBStats(db);
-            return true;
-        } catch (MorphiumDriverException e) {
-        }
-
-        return false;
+        List<String> databases = listDatabases();
+        return databases != null && databases.contains(db);
     }
 
     private List<Map<String, Object>> getCollectionInfo(String db, String collection) throws MorphiumDriverException {
