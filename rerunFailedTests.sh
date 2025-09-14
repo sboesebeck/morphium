@@ -52,7 +52,7 @@ for f in $failed; do
   echo -e "----- > Failed test: ${RD}$f$CL"
   cls=${f%#*}
   m=${f#*#}
-  m=${m/(*/}
+  m=$(echo "$m" | sed 's/(.*//')
   m=$(echo "$m" | tr -d '"')
   if [ "$m" == "$cls" ]; then
     m=""
@@ -66,5 +66,9 @@ for f in $failed; do
   [ -n "$uri" ] && args+=(--uri "$uri")
   [ "$useExternal" -eq 1 ] && args+=(--external)
   [ "$verbose" -eq 1 ] && args+=(--verbose)
-  ./runtests.sh "${args[@]}" $cls $m
+  if [ -n "$m" ]; then
+    ./runtests.sh "${args[@]}" "$cls" "$m"
+  else
+    ./runtests.sh "${args[@]}" "$cls"
+  fi
 done
