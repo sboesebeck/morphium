@@ -133,12 +133,15 @@ public class MultiDriverTestBase {
         List<Arguments> morphiums = new ArrayList<>();
         MorphiumConfig base = TestConfig.load();
 
+        boolean externalEnabled = isExternalEnabled();
+        var allowed = getAllowedDrivers(externalEnabled);
+
         // var password = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         // var user = Base64.getEncoder().encodeToString(enc.encrypt("test".getBytes(StandardCharsets.UTF_8)));
         // var authDb = Base64.getEncoder().encodeToString(enc.encrypt("admin".getBytes(StandardCharsets.UTF_8)));
 
         //Diferent Drivers
-        if (includePooled) {
+        if (includePooled && allowed.contains(PooledDriver.driverName)) {
             MorphiumConfig pooled = MorphiumConfig.fromProperties(base.asProperties());
             pooled.driverSettings().setDriverName(PooledDriver.driverName);
             pooled.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
@@ -148,7 +151,7 @@ public class MultiDriverTestBase {
             morphiums.add(Arguments.of(new Morphium(pooled)));
         }
 
-        if (includeSingle) {
+        if (includeSingle && allowed.contains(SingleMongoConnectDriver.driverName)) {
             MorphiumConfig single = MorphiumConfig.fromProperties(base.asProperties());
             single.driverSettings().setDriverName(SingleMongoConnectDriver.driverName);
             single.connectionSettings().setDatabase("morphium_test_" + number.incrementAndGet());
@@ -165,7 +168,7 @@ public class MultiDriverTestBase {
         //        log.info("Running test with DB morphium_test_" + number.get() + " for " + mongoDriver.getDriverName());
         //
         //
-        if (includeInMem) {
+        if (includeInMem && allowed.contains(InMemoryDriver.driverName)) {
             MorphiumConfig inMemCfg = MorphiumConfig.fromProperties(base.asProperties());
             inMemCfg.driverSettings().setDriverName(InMemoryDriver.driverName);
             inMemCfg.authSettings().setMongoAuthDb(null).setMongoLogin(null).setMongoPassword(null);
@@ -206,6 +209,63 @@ public class MultiDriverTestBase {
         }
 
         return morphiums.stream();
+    }
+
+    private static boolean isExternalEnabled() {
+        // Explicit flag from Maven/runner
+        if (Boolean.getBoolean("morphium.tests.external")) return true;
+        String envExt = System.getenv("MORPHIUM_EXTERNAL");
+        if (envExt != null && (envExt.equalsIgnoreCase("true") || envExt.equals("1") || envExt.equalsIgnoreCase("yes"))) return true;
+
+        // Presence of a MongoDB URI implies external
+        String uri = System.getProperty("morphium.uri");
+        if (uri == null) uri = System.getenv("MONGODB_URI");
+        if (uri == null) uri = System.getenv("MORPHIUM_URI");
+        return uri != null && !uri.isBlank();
+    }
+
+    private static java.util.Set<String> getAllowedDrivers(boolean externalEnabled) {
+        var allowed = new java.util.LinkedHashSet<String>();
+        String drvProp = System.getProperty("morphium.driver");
+        if (drvProp == null) drvProp = System.getenv("MORPHIUM_DRIVER");
+
+        if (!externalEnabled) {
+            // Only allow inmem regardless of property
+            allowed.add(InMemoryDriver.driverName);
+            return allowed;
+        }
+
+        if (drvProp == null || drvProp.isBlank()) {
+            allowed.add(PooledDriver.driverName);
+            allowed.add(SingleMongoConnectDriver.driverName);
+            allowed.add(InMemoryDriver.driverName);
+            return allowed;
+        }
+
+        for (String token : drvProp.split(",")) {
+            var t = token.trim().toLowerCase(java.util.Locale.ROOT);
+            switch (t) {
+                case "pooled": case "pooleddriver":
+                    allowed.add(PooledDriver.driverName); break;
+                case "single": case "singleconnect": case "singlemongoconnectdriver":
+                    allowed.add(SingleMongoConnectDriver.driverName); break;
+                case "inmem": case "inmemory": case "inmemorydriver":
+                    allowed.add(InMemoryDriver.driverName); break;
+                case "all":
+                    allowed.add(PooledDriver.driverName);
+                    allowed.add(SingleMongoConnectDriver.driverName);
+                    allowed.add(InMemoryDriver.driverName);
+                    break;
+                default:
+                    allowed.add(token.trim());
+            }
+        }
+
+        if (allowed.isEmpty()) {
+            allowed.add(InMemoryDriver.driverName);
+        }
+
+        return allowed;
     }
 
     private static void init() {

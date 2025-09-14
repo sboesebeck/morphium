@@ -10,10 +10,12 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.PooledDriver;
+import de.caluga.test.support.TestConfig;
 
 public class PooledDriverConnectionsTests {
     private Logger log = LoggerFactory.getLogger(PooledDriverConnectionsTests.class);
@@ -178,25 +180,36 @@ public class PooledDriverConnectionsTests {
     }
 
     private PooledDriver getDriver() throws MorphiumDriverException {
-        String hostSeed = System.getenv("HOST_SEED");
+        MorphiumConfig cfg = TestConfig.load();
         var drv = new PooledDriver();
-        drv.setCredentials("admin", "test", "test");
 
-        if (hostSeed == null) {
-            drv.setHostSeed("127.0.0.1:27017", "127.0.0.1:27018", "127.0.0.1:27019");
-        } else {
-            drv.setHostSeed(hostSeed.split(","));
+        // Host seed
+        var seeds = cfg.clusterSettings().getHostSeed();
+        if (seeds != null && !seeds.isEmpty()) {
+            drv.setHostSeed(seeds.toArray(new String[0]));
         }
 
-        drv.setMaxConnectionsPerHost(10);
-        drv.setHeartbeatFrequency(500);
+        // Credentials (only if provided)
+        var user = cfg.authSettings().getMongoLogin();
+        var pwd = cfg.authSettings().getMongoPassword();
+        var authDb = cfg.authSettings().getMongoAuthDb();
+        if (user != null && pwd != null) {
+            drv.setCredentials(authDb != null ? authDb : "admin", user, pwd);
+        }
+
+        // Pool and timeouts based on test config, with minimal overrides for test expectations
+        drv.setMaxConnections(cfg.connectionSettings().getMaxConnections());
+        drv.setMinConnections(cfg.connectionSettings().getMinConnections());
+        drv.setConnectionTimeout(cfg.connectionSettings().getConnectionTimeout());
+        drv.setMaxConnectionLifetime(cfg.driverSettings().getMaxConnectionLifeTime());
+        drv.setMaxConnectionIdleTime(cfg.driverSettings().getMaxConnectionIdleTime());
+        drv.setDefaultReadPreference(cfg.driverSettings().getDefaultReadPreference() != null
+                ? cfg.driverSettings().getDefaultReadPreference()
+                : ReadPreference.nearest());
+        drv.setHeartbeatFrequency(cfg.driverSettings().getHeartbeatFrequency());
+
+        // Ensure min connections per host match assertions in this test
         drv.setMinConnectionsPerHost(2);
-        drv.setMinConnections(2);
-        drv.setConnectionTimeout(5000);
-        drv.setMaxConnectionLifetime(15000);
-        drv.setMaxConnectionIdleTime(10000);
-        drv.setDefaultReadPreference(ReadPreference.nearest());
-        drv.setHeartbeatFrequency(1000);
         return drv;
     }
 }
