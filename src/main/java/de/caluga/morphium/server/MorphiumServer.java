@@ -50,7 +50,7 @@ public class MorphiumServer {
     private ThreadPoolExecutor executor;
     private boolean running = true;
     private ServerSocket serverSocket;
-    private static int compressorId = OpCompressed.COMPRESSOR_SNAPPY;
+    private static int compressorId = OpCompressed.COMPRESSOR_NOOP;
     private static String rsName;
     private static String hostSeed;
     private static List<String> hosts;
@@ -356,8 +356,12 @@ public class MorphiumServer {
                             OpCompressed cmp = new OpCompressed();
                             cmp.setMessageId(r.getMessageId());
                             cmp.setResponseTo(id);
-                            cmp.setCompressedMessage(r.bytes());
-                            log.info("Sending compressed OpReply: {} bytes", cmp.bytes().length);
+                            cmp.setOriginalOpCode(r.getOpCode());
+                            cmp.setCompressorId(compressorId);
+                            byte[] originalPayload = r.getPayload();
+                            cmp.setUncompressedSize(originalPayload.length);
+                            cmp.setCompressedMessage(originalPayload);
+                            log.info("Sending compressed OpReply: {} bytes (uncompressed: {} bytes)", cmp.bytes().length, originalPayload.length);
                             out.write(cmp.bytes());
                         } else {
                             log.info("Sending OpReply: {} bytes", r.bytes().length);
@@ -542,12 +546,15 @@ public class MorphiumServer {
 
                 if (compressorId != OpCompressed.COMPRESSOR_NOOP) {
                     OpCompressed cmsg = new OpCompressed();
+                    cmsg.setMessageId(reply.getMessageId());
+                    cmsg.setResponseTo(reply.getResponseTo());
                     cmsg.setCompressorId(compressorId);
                     cmsg.setOriginalOpCode(reply.getOpCode());
-                    cmsg.setResponseTo(reply.getResponseTo());
-                    cmsg.setCompressedMessage(reply.bytes());
+                    byte[] originalPayload = reply.getPayload();
+                    cmsg.setUncompressedSize(originalPayload.length);
+                    cmsg.setCompressedMessage(originalPayload);
                     var b = cmsg.bytes();
-                    log.info("Server sending {} bytes (compressed), responseTo: {}", b.length, cmsg.getResponseTo());
+                    log.info("Server sending {} bytes (compressed), uncompressed: {} bytes, responseTo: {}", b.length, originalPayload.length, cmsg.getResponseTo());
                     out.write(b);
                 } else {
                     var b = reply.bytes();
