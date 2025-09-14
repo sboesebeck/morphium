@@ -4,6 +4,7 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.commons.annotation.Testable;
 import org.slf4j.Logger;
@@ -18,6 +19,7 @@ import static de.caluga.morphium.aggregation.Expr.*;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Testable
+@Tag("core")
 public class AggregationExprTest  {
     Logger log = LoggerFactory.getLogger(AggregationExprTest.class);
 
@@ -296,16 +298,16 @@ public class AggregationExprTest  {
     @Test
     public void testReduce() {
         Expr e = reduce(arrayExpr(intExpr(1), intExpr(2), intExpr(3),
-            intExpr(4)),
-            string(""),
-            mapExpr(
-                UtilsMap.of("sum", add(string("$$value.sum"), string("$$this")),
-            "product", multiply(string("$$value.product"), string("$$this")))
-            )
-            );
+                                  intExpr(4)),
+                        string(""),
+                        mapExpr(
+                                        UtilsMap.of("sum", add(string("$$value.sum"), string("$$this")),
+                                            "product", multiply(string("$$value.product"), string("$$this")))
+                        )
+                       );
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$reduce\" : { \"input\" :  [ 1, 2, 3, 4], \"initialValue\" : \"\", \"in\" : { \"sum\" : { \"$add\" :  [ \"$$value.sum\", \"$$this\"] } , \"product\" : { \"$multiply\" :  [ \"$$value.product\", \"$$this\"] }  }  }  } "));
+                               e.toQueryObject()).equals("{ \"$reduce\" : { \"input\" :  [ 1, 2, 3, 4], \"initialValue\" : \"\", \"in\" : { \"sum\" : { \"$add\" :  [ \"$$value.sum\", \"$$this\"] } , \"product\" : { \"$multiply\" :  [ \"$$value.product\", \"$$this\"] }  }  }  } "));
     }
 
     @Test
@@ -338,29 +340,29 @@ public class AggregationExprTest  {
         Expr e = zip(inputs, bool(false), arrayExpr(intExpr(122), intExpr(3), intExpr(17), intExpr(9)));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$zip\" : { \"inputs\" :  [  [ 42, 4, 12, 2],  [ 122, 3, 17, 9],  [ 782, 1234, -5, 6]], \"useLongestLength\" : false, \"defaults\" :  [ 122, 3, 17, 9] }  } "));
+                               e.toQueryObject()).equals("{ \"$zip\" : { \"inputs\" :  [  [ 42, 4, 12, 2],  [ 122, 3, 17, 9],  [ 782, 1234, -5, 6]], \"useLongestLength\" : false, \"defaults\" :  [ 122, 3, 17, 9] }  } "));
     }
 
     @Test
     public void testAnd() {
         Expr e = and (gte(intExpr(12), field("test")),
-            lt(field("count"), doubleExpr(12.2)),
-            anyElementTrue(bool(false), bool(true), field("checker"))
-            );
+                      lt(field("count"), doubleExpr(12.2)),
+                      anyElementTrue(bool(false), bool(true), field("checker"))
+                     );
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$and\" :  [ { \"$gte\" :  [ 12, \"$test\"] } , { \"$lt\" :  [ \"$count\", 12.2] } , { \"$anyElementsTrue\" :  [ false, true, \"$checker\"] } ] } "));
+                               e.toQueryObject()).equals("{ \"$and\" :  [ { \"$gte\" :  [ 12, \"$test\"] } , { \"$lt\" :  [ \"$count\", 12.2] } , { \"$anyElementsTrue\" :  [ false, true, \"$checker\"] } ] } "));
     }
 
     @Test
     public void testOr() {
         Expr e = or (gte(intExpr(12), field("test")),
-            lt(field("count"), doubleExpr(12.2)),
-            anyElementTrue(bool(false), bool(true), field("checker"))
-            );
+                     lt(field("count"), doubleExpr(12.2)),
+                     anyElementTrue(bool(false), bool(true), field("checker"))
+                    );
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$or\" :  [ { \"$gte\" :  [ 12, \"$test\"] } , { \"$lt\" :  [ \"$count\", 12.2] } , { \"$anyElementsTrue\" :  [ false, true, \"$checker\"] } ] } "));
+                               e.toQueryObject()).equals("{ \"$or\" :  [ { \"$gte\" :  [ 12, \"$test\"] } , { \"$lt\" :  [ \"$count\", 12.2] } , { \"$anyElementsTrue\" :  [ false, true, \"$checker\"] } ] } "));
     }
 
     @Test
@@ -452,7 +454,7 @@ public class AggregationExprTest  {
         Expr e = accumulator("init code here", Expr.field("InitArgs"), "Accumulating code", Expr.string("accArgs"), "Merged code", "finalizeCode");
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$accumulator\" : { \"init\" : \"init code here\", \"initArgs\" : \"$InitArgs\", \"accumulate\" : \"Accumulating code\", \"accumulateArgs\" : \"accArgs\", \"merge\" : \"Merged code\", \"finalize\" : \"finalizeCode\", \"lang\" : \"js\" }  } "));
+                               e.toQueryObject()).equals("{ \"$accumulator\" : { \"init\" : \"init code here\", \"initArgs\" : \"$InitArgs\", \"accumulate\" : \"Accumulating code\", \"accumulateArgs\" : \"accArgs\", \"merge\" : \"Merged code\", \"finalize\" : \"finalizeCode\", \"lang\" : \"js\" }  } "));
     }
 
     @Test
@@ -474,7 +476,7 @@ public class AggregationExprTest  {
         Expr e = dateFromParts(intExpr(2020), intExpr(8), intExpr(12), intExpr(22), intExpr(34), intExpr(29), intExpr(123), string("CET"));
         log.info(Utils.toJsonString(e.toQueryObject()));
         assert(Utils.toJsonString(
-            e.toQueryObject()).equals("{ \"$dateFromParts\" : { \"year\" : 2020, \"month\" : 8, \"day\" : 12, \"hour\" : 22, \"minute\" : 34, \"second\" : 29, \"millisecond\" : 123, \"timezone\" : \"CET\" }  } "));
+                               e.toQueryObject()).equals("{ \"$dateFromParts\" : { \"year\" : 2020, \"month\" : 8, \"day\" : 12, \"hour\" : 22, \"minute\" : 34, \"second\" : 29, \"millisecond\" : 123, \"timezone\" : \"CET\" }  } "));
     }
 
     @Test

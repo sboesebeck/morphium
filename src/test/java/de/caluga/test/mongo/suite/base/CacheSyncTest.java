@@ -33,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
+@Tag("cache")
 public class CacheSyncTest extends MorphiumTestBase {
     private boolean preSendClear = false;
     private boolean postSendClear = false;

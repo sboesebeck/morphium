@@ -4,6 +4,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -19,6 +21,7 @@ import java.util.List;
  * Time: 11:17
  * <p/>
  */
+@Tag("core")
 public class WhereTest extends MultiDriverTestBase {
 
     @ParameterizedTest

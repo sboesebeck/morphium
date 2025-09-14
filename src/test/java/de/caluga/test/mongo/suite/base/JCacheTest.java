@@ -9,6 +9,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.ehcache.jcache.JCacheCachingProvider;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,8 @@ import java.util.Map;
  * <p>
  * TODO: Add documentation here
  */
+@Tag("core")
+@Tag("cache")
 public class JCacheTest extends MorphiumTestBase {
     private final Logger log = LoggerFactory.getLogger(JCacheTest.class);
 

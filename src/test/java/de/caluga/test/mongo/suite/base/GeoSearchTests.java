@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -18,6 +20,7 @@ import java.util.List;
  * Time: 08:30
  * <p/>
  */
+@Tag("core")
 public class GeoSearchTests extends MultiDriverTestBase {
 
     @ParameterizedTest

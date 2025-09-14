@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -16,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Created by stephan on 18.11.14.
  */
+@Tag("core")
 public class NonEntitySerialization extends MorphiumTestBase {
 
     @Test
@@ -162,9 +165,9 @@ public class NonEntitySerialization extends MorphiumTestBase {
         @Override
         public String toString() {
             return "NonEntity{" +
-                    "value='" + value + '\'' +
-                    ", integer=" + integer +
-                    '}';
+                   "value='" + value + '\'' +
+                   ", integer=" + integer +
+                   '}';
         }
     }
 }

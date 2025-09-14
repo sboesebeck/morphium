@@ -10,6 +10,8 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ExtendedEmbeddedObject;
 import de.caluga.test.mongo.suite.data.SetContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashSet;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class SetsTests extends MorphiumTestBase {
 
     @Test

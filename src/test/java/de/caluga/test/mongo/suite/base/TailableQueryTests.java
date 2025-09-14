@@ -10,6 +10,8 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CappedCol;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Created by stephan on 29.07.16.
  */
 
+@Tag("core")
 public class TailableQueryTests extends MultiDriverTestBase {
     AtomicInteger found = new AtomicInteger(0);
 

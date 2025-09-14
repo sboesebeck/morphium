@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * Time: 22:59
  * <p/>
  */
+@Tag("core")
 public class LifecycleTest extends MorphiumTestBase {
     private static boolean preStore = false;
     private static boolean postStore = false;

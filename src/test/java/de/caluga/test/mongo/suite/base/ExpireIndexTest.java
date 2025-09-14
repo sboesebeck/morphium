@@ -4,6 +4,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -16,6 +18,7 @@ import java.util.Date;
  * Time: 14:33
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class ExpireIndexTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")

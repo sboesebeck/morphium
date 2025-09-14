@@ -14,6 +14,7 @@ import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigInteger;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Time: 14:04
  * <p/>
  */
+@Tag("core")
 public class ObjectMapperTest extends MorphiumTestBase {
     @Test
     public void mapSerializationTest() {
@@ -98,7 +100,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         String json = "{ \"value\":\"test\",\"counter\":123}";
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject uc = om.deserialize(UncachedObject.class, json);
-        assertEquals (123,uc.getCounter());
+        assertEquals (123, uc.getCounter());
     }
 
     @Test
@@ -106,12 +108,12 @@ public class ObjectMapperTest extends MorphiumTestBase {
         MorphiumObjectMapper om = morphium.getMapper();
         UncachedObject o = new UncachedObject();
         o.setStrValue("A test");
-        o.setLongData(new long[]{1, 23, 4L, 5L});
+        o.setLongData(new long[] {1, 23, 4L, 5L});
         o.setCounter(1234);
         Map<String, Object> dbo = om.serialize(o);
         UncachedObject uc = om.deserialize(UncachedObject.class, dbo);
-        assertEquals (1234,uc.getCounter());
-        assertEquals (1,uc.getLongData()[0] );
+        assertEquals (1234, uc.getCounter());
+        assertEquals (1, uc.getLongData()[0] );
     }
 
 
@@ -126,9 +128,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o.addString("string4");
         Map<String, Object> dbo = om.serialize(o);
         ListContainer uc = om.deserialize(ListContainer.class, dbo);
-        assertEquals (4,uc.getStringList().size());
-        assertEquals("string1",uc.getStringList().get(0));
-        assertEquals(1,uc.getLongList().size());
+        assertEquals (4, uc.getStringList().size());
+        assertEquals("string1", uc.getStringList().get(0));
+        assertEquals(1, uc.getLongList().size());
     }
 
     @Test
@@ -425,7 +427,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         o2.setMorphium(morphium);
         o2.setAnnotationHelper(morphium.getARHelper());
 
-        for (MorphiumObjectMapper om : new MorphiumObjectMapper[]{o2, ob}) {
+        for (MorphiumObjectMapper om : new MorphiumObjectMapper[] {o2, ob}) {
             log.info("--------------  Running with " + om.getClass().getName());
             long start = System.currentTimeMillis();
             for (int i = 0; i < 25000; i++) {
@@ -477,7 +479,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
     @Test
     public void binaryDataTest() {
         UncachedObject o = new UncachedObject();
-        o.setBinaryData(new byte[]{1, 2, 3, 4, 5, 5});
+        o.setBinaryData(new byte[] {1, 2, 3, 4, 5, 5});
 
         Map<String, Object> obj = morphium.getMapper().serialize(o);
         assertNotNull(obj.get("binary_data"));
@@ -522,7 +524,7 @@ public class ObjectMapperTest extends MorphiumTestBase {
         MorphiumObjectMapper map = morphium.getMapper();
         UncachedObject uc = new UncachedObject("value", 123);
         uc.setMorphiumId(new MorphiumId());
-        uc.setLongData(new long[]{1L, 2L});
+        uc.setLongData(new long[] {1L, 2L});
         Map<String, Object> obj = map.serialize(uc);
 
         assertNotNull(obj.get("str_value"));
@@ -923,9 +925,9 @@ public class ObjectMapperTest extends MorphiumTestBase {
             if (!(o instanceof EnumTest)) return false;
             EnumTest enumTest = (EnumTest) o;
             return Objects.equals(id, enumTest.id) &&
-                    anEnum == enumTest.anEnum &&
-                    Objects.equals(aMap, enumTest.aMap) &&
-                    Objects.equals(lst, enumTest.lst);
+                          anEnum == enumTest.anEnum &&
+                          Objects.equals(aMap, enumTest.aMap) &&
+                          Objects.equals(lst, enumTest.lst);
         }
 
         @Override

@@ -11,6 +11,7 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p/>
  * TODO: Add documentation here
  */
+@Tag("core")
 public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
@@ -320,7 +322,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         if (morphium.exists(morphium.getDatabase(), morphium.getMapper().getCollectionName(SimpleObject.class))) {
             morphium.dropCollection(SimpleObject.class);
 
-            TestUtils.waitForCollectionToBeDeleted(morphium,SimpleObject.class);
+            TestUtils.waitForCollectionToBeDeleted(morphium, SimpleObject.class);
         }
         morphium.getDriver().setMaxWaitTime(15000);
         morphium.getConfig().setMaxWaitTime(15000);
@@ -373,7 +375,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
         if (m.exists(m.getDatabase(), m.getMapper().getCollectionName(SimpleObject.class))) {
             m.dropCollection(SimpleObject.class);
 
-            TestUtils.waitForCollectionToBeDeleted(m,SimpleObject.class);
+            TestUtils.waitForCollectionToBeDeleted(m, SimpleObject.class);
         }
 
         for (int i = 0; i < 100; i++) {
@@ -388,7 +390,7 @@ public class BufferedWriterTest extends MorphiumTestBase {
             Thread.sleep(100);
         }
 
-        TestUtils.waitForConditionToBecomeTrue(10000, "data not written", ()->m.createQueryFor(SimpleObject.class).countAll()==100);
+        TestUtils.waitForConditionToBecomeTrue(10000, "data not written", ()->m.createQueryFor(SimpleObject.class).countAll() == 100);
 
         for (int i = 0; i < 100; i++) {
             SimpleObject so = new SimpleObject();

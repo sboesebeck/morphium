@@ -4,6 +4,8 @@ import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -19,12 +21,13 @@ import java.util.Map;
  * Time: 11:43
  * To change this template use File | Settings | File Templates.
  */
+@Tag("core")
 public class FieldListTest extends MorphiumTestBase {
 
     @Test
     public void testFieldList() {
         createUncachedObjects(100);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         q.addProjection(UncachedObject.Fields.counter);
@@ -44,9 +47,9 @@ public class FieldListTest extends MorphiumTestBase {
 
         morphium.store(ro);
         Thread.sleep(250);
-        ro=morphium.reread(ro);
+        ro = morphium.reread(ro);
 
-        assertNull(ro.readOnlyValue, "Value wrong: "+ro.readOnlyValue);
+        assertNull(ro.readOnlyValue, "Value wrong: " + ro.readOnlyValue);
 
         ro.setStrValue("OtherValue");
         ro.readOnlyValue = "must still not be stored, even after update!";

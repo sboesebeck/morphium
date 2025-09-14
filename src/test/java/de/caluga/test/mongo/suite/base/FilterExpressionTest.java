@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.FilterExpression;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.Set;
  * Time: 20:17
  * <p/>
  */
+@Tag("core")
 public class FilterExpressionTest {
 
     private FilterExpression fe;

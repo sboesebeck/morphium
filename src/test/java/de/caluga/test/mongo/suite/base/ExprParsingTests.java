@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +12,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
+@Tag("core")
 public class ExprParsingTests {
     private final Logger log = LoggerFactory.getLogger(ExprParsingTests.class);
 
@@ -71,7 +74,7 @@ public class ExprParsingTests {
                     } else if (m.getParameterCount() == 1 && m.getParameterTypes()[0].isArray()) {
                         count++;
                         log.info("Method with array param: " + m.getName());
-                        expr1 = (Expr) m.invoke(null, new Object[]{new Expr[]{Expr.intExpr(1)}});
+                        expr1 = (Expr) m.invoke(null, new Object[] {new Expr[]{Expr.intExpr(1)}});
                         expr2 = Expr.parse(expr1.toQueryObject());
                     } else if (m.getParameterCount() == 2 && m.getParameterTypes()[0] == Expr.class) {
                         count++;

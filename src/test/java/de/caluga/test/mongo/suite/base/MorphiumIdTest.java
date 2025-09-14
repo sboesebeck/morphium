@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.MorphiumId;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +19,7 @@ import java.util.Vector;
  * <p>
  * TODO: Add documentation here
  */
+@Tag("core")
 public class MorphiumIdTest {
 
     @Test
@@ -61,6 +64,6 @@ public class MorphiumIdTest {
             LoggerFactory.getLogger(MorphiumIdTest.class).info("Waiting for threads..." + thr.size());
             Thread.sleep(1000);
         }
-        assertEquals(100*200*3+3000,ids.size(),"Amount ids created");
+        assertEquals(100 * 200 * 3 + 3000, ids.size(), "Amount ids created");
     }
 }

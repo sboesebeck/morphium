@@ -16,6 +16,7 @@ import de.caluga.test.mongo.suite.data.CustomMappedObjectMapper;
 import de.caluga.test.mongo.suite.data.ObjectWithCustomMappedObject;
 
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -45,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class CustomMapperTest extends MorphiumTestBase {
 
     @Test

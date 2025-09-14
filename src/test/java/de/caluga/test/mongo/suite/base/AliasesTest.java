@@ -7,6 +7,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.AliasesEntity;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 18:02
  * <p/>
  */
+@Tag("core")
 public class AliasesTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
@@ -44,9 +47,9 @@ public class AliasesTest extends MultiDriverTestBase {
         try (morphium) {
             MorphiumId id = new MorphiumId();
             Map<String, Object> stats = morphium.storeMap(ComplexObject.class, UtilsMap.of("last_changed", (Object) System.currentTimeMillis(),
-                "_id", id,
-                "einText", "A little text")
-                );
+                                                "_id", id,
+                                                "einText", "A little text")
+                                                         );
             assertNotNull(stats);
             assertEquals(1, stats.get("n"));
             Thread.sleep(100);

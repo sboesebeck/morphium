@@ -8,6 +8,8 @@ import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Tag("core")
 public class CollationTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -37,7 +40,7 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->TestUtils.countUC(morphium)==6);
+            TestUtils.waitForConditionToBecomeTrue(2500, "store failed", ()->TestUtils.countUC(morphium) == 6);
             Collation col = new Collation("de", false, Collation.CaseFirst.LOWER, Collation.Strength.TERTIARY, false, Collation.Alternate.SHIFTED, Collation.MaxVariable.SPACE, false, false);
             assert(col.getLocale().equals("de"));
             assert(!col.getCaseLevel());
@@ -58,13 +61,13 @@ public class CollationTest extends MultiDriverTestBase {
 
             assert(result.equals("aAbBcC")) : "Wrong ordering: " + result;
             col.normalization(true)
-            .numericOrdering(true)
-            .backwards(true)
-            .alternate(Collation.Alternate.NON_IGNORABLE)
-            .strength(Collation.Strength.SECONDARY)
-            .maxVariable(Collation.MaxVariable.PUNCT)
-            .caseLevel(true)
-            .caseFirst(Collation.CaseFirst.UPPER);
+               .numericOrdering(true)
+               .backwards(true)
+               .alternate(Collation.Alternate.NON_IGNORABLE)
+               .strength(Collation.Strength.SECONDARY)
+               .maxVariable(Collation.MaxVariable.PUNCT)
+               .caseLevel(true)
+               .caseFirst(Collation.CaseFirst.UPPER);
             assert(col.getLocale().equals("de"));
             assert(col.getCaseLevel());
             assert(col.getCaseFirst().equals(Collation.CaseFirst.UPPER));
@@ -156,11 +159,11 @@ public class CollationTest extends MultiDriverTestBase {
             morphium.store(new UncachedObject("a", 1));
             morphium.store(new UncachedObject("b", 1));
             morphium.store(new UncachedObject("c", 1));
-            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write all properly", ()->TestUtils.countUC(morphium)==6);
-           
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not write all properly", ()->TestUtils.countUC(morphium) == 6);
+
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).setCollation(new Collation().locale("de").strength(Collation.Strength.PRIMARY)).f("strValue").eq("a");
             morphium.delete(q);
-            TestUtils.waitForConditionToBecomeTrue(5000, "Did not delete properly", ()->TestUtils.countUC(morphium)==4);
+            TestUtils.waitForConditionToBecomeTrue(5000, "Did not delete properly", ()->TestUtils.countUC(morphium) == 4);
         }
     }
 

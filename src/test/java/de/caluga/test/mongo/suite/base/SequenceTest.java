@@ -5,6 +5,8 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import de.caluga.morphium.Sequence.SeqLock;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Time: 08:09
  * <p/>
  */
+@Tag("core")
 public class SequenceTest extends MorphiumTestBase {
     @Test
     public void singleSequenceTest() {

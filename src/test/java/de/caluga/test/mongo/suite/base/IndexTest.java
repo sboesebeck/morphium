@@ -10,6 +10,8 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CappedCol;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 11:18
  * <p/>
  */
+@Tag("core")
 public class IndexTest extends MultiDriverTestBase {
 
 
@@ -191,7 +194,7 @@ public class IndexTest extends MultiDriverTestBase {
             }
 
             log.info("Found indices id:" + foundId + " timer: " + foundTimer + " TimerName: " + foundTimerName + " name: " + foundName + " TimerName2: " + foundTimerName2 + " SubIndex1: " + foundnew1 +
-                " subIndex2: " + foundnew2);
+                     " subIndex2: " + foundnew2);
             assert(foundnew1 && foundnew2 && foundId && foundTimer && foundTimerName && foundName && foundTimerName2 && foundLst);
         }
     }

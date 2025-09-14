@@ -6,6 +6,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * @author stephan
  */
+@Tag("core")
+@Tag("cache")
 public class MassCacheTest extends MorphiumTestBase {
 
     public static final int NO_OBJECTS = 100;
@@ -64,7 +68,7 @@ public class MassCacheTest extends MorphiumTestBase {
             }
         }
 
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         log.info("Waiting for changes to be propagated...");
         dur = System.currentTimeMillis() - start;
         int goal = NO_OBJECTS * WRITING_THREADS;
@@ -171,7 +175,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 throw new RuntimeException(e);
             }
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         long dur = System.currentTimeMillis() - start;
         log.info("Writing took " + dur + " ms\n");
 
@@ -194,7 +198,7 @@ public class MassCacheTest extends MorphiumTestBase {
                 o.setValue("Test " + j);
                 morphium.store(o);
             }
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             log.info("Done.");
 
             for (int j = 0; j < 3; j++) {
@@ -249,7 +253,7 @@ public class MassCacheTest extends MorphiumTestBase {
             morphium.store(o);
         }
         Thread.sleep(1200);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         Thread.sleep(25000);
         log.info("Done.");
 

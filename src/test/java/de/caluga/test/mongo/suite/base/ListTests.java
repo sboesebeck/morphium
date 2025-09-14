@@ -8,6 +8,8 @@ import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.*;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class ListTests extends MorphiumTestBase {
 
     @Test

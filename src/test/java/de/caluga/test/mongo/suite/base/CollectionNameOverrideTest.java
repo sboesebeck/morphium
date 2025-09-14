@@ -4,6 +4,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -14,6 +16,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * <p/>
  * TODO: Add documentation here
  */
+@Tag("core")
 public class CollectionNameOverrideTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

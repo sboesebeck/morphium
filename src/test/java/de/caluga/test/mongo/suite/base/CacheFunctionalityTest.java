@@ -8,6 +8,8 @@ import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -18,6 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * TODO: Add Documentation here
  **/
+@Tag("core")
+@Tag("cache")
 public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test

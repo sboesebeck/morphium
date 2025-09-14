@@ -4,6 +4,8 @@ import de.caluga.morphium.async.AsyncOperationCallback;
 import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,6 +22,7 @@ import java.util.List;
  * <p/>
  * TODO: Add documentation here
  */
+@Tag("core")
 public class WriteBufferCountTest extends MorphiumTestBase {
     @Test
     public void testWbCount() throws Exception {
@@ -45,7 +48,7 @@ public class WriteBufferCountTest extends MorphiumTestBase {
 
             @Override
             public void onOperationError(AsyncOperationType type, Query<UncachedObject> q, long duration, String error, Throwable t, UncachedObject entity, Object... param) {
-                log.error("Could not write: "+error);
+                log.error("Could not write: " + error);
             }
         });
         waitForWriteProcessToBeScheduled();

@@ -7,6 +7,8 @@ import de.caluga.morphium.async.AsyncOperationType;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.Person;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class BulkInsertTest extends MultiDriverTestBase {
     private boolean asyncSuccess = true;
     private boolean asyncCall = false;
@@ -133,13 +136,13 @@ public class BulkInsertTest extends MultiDriverTestBase {
                     }
                 });
             }
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             long dur = System.currentTimeMillis() - start;
             log.info("storing objects one by one async took " + dur + " ms");
             Thread.sleep(500);
             assertEquals(100, TestUtils.countUC(morphium), "Write wrong!");
-            assertTrue (asyncSuccess,"Async call failed");
-            assertTrue (asyncCall,"Async callback not called");
+            assertTrue (asyncSuccess, "Async call failed");
+            assertTrue (asyncCall, "Async callback not called");
 
             morphium.clearCollection(UncachedObject.class);
 
@@ -154,11 +157,11 @@ public class BulkInsertTest extends MultiDriverTestBase {
             }
             morphium.storeList(lst);
             dur = System.currentTimeMillis() - start;
-            assertEquals (0,morphium.getWriteBufferCount(),"WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
+            assertEquals (0, morphium.getWriteBufferCount(), "WriteBufferCount not 0!? Buffered:" + morphium.getBufferedWriterBufferCount());
             log.info("storing objects one by one took " + dur + " ms");
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY);
-            assertEquals (1000,q.countAll(),"Not all stored yet????");
+            assertEquals (1000, q.countAll(), "Not all stored yet????");
             log.info("Test finished!");
         }
     }

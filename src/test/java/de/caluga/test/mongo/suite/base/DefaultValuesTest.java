@@ -3,8 +3,11 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+@Tag("core")
 public class DefaultValuesTest extends MorphiumTestBase {
 
     @Test

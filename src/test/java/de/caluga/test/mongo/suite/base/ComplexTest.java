@@ -6,6 +6,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -22,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p>
  * testing compley queryies on Morphium
  */
+@Tag("core")
 public class ComplexTest extends MultiDriverTestBase {
 
     @ParameterizedTest

@@ -8,6 +8,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 08:00
  * <p/>
  */
+@Tag("core")
 public class SubDocumentTests extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -56,7 +59,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             co.setEinText("This is a very complex object");
             morphium.store(co);
 
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             Thread.sleep(1500);
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value");
@@ -96,7 +99,7 @@ public class SubDocumentTests extends MultiDriverTestBase {
             co.setEinText("This is a very complex object");
             morphium.store(co);
 
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             Query<ComplexObject> q = morphium.createQueryFor(ComplexObject.class);
             q = q.f("embed.value").eq("A value_not");

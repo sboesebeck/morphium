@@ -7,7 +7,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Tag;
 
+
+@Tag("core")
 public class IndexDescriptionTest {
 
     @Test
@@ -28,11 +31,11 @@ public class IndexDescriptionTest {
         IndexDescription idx = new IndexDescription();
         idx.setBits(12).setKey(Doc.of("_id", 1, "value1", -1));
         idx.setName("Test").setBackground(true).setHidden(false).setMax(10).setMin(4)
-                .setExpireAfterSeconds(1000)
-                .setUnique(true)
-                .setWildcardProjection(Doc.of("$**", 1))
-                .setSparse(true)
-                .setTextIndexVersion(42);
+           .setExpireAfterSeconds(1000)
+           .setUnique(true)
+           .setWildcardProjection(Doc.of("$**", 1))
+           .setSparse(true)
+           .setTextIndexVersion(42);
 
         var m = idx.asMap();
         var idx2 = IndexDescription.fromMap(m);

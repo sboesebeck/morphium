@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -14,6 +16,7 @@ import java.util.List;
  * Time: 15:09
  * <p/>
  */
+@Tag("core")
 public class ListOfListTests extends MorphiumTestBase {
     @Test
     public void storeListOfLists() {

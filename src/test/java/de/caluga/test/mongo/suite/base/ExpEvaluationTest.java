@@ -2,10 +2,13 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.aggregation.Expr;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+@Tag("core")
 public class ExpEvaluationTest {
 
     @Test

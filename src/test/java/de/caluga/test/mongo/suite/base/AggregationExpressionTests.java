@@ -2,12 +2,15 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Expr;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
+@Tag("core")
 public class AggregationExpressionTests {
     private final Logger log = LoggerFactory.getLogger(AggregationExpressionTests.class);
 

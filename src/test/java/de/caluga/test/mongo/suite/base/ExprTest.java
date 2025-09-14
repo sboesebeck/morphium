@@ -3,10 +3,13 @@ package de.caluga.test.mongo.suite.base;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.morphium.driver.Doc;
 
+@Tag("core")
 public class ExprTest {
     @Test
     public void fieldPathExprTest() throws Exception {

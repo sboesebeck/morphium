@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import de.caluga.morphium.Utils;
@@ -12,6 +13,7 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Tag("core")
 public class MultiUpdateTests extends MorphiumTestBase {
 
     @Test
@@ -23,12 +25,12 @@ public class MultiUpdateTests extends MorphiumTestBase {
             var q = morphium.createQueryFor(UncachedObject.class).f("strValue").ne(lockId).sort("counter");
             var start = System.currentTimeMillis();
             var r = q.set("strValue", lockId, true, true);
-            log.info(" Update result   : "+Utils.toJsonString(r));
+            log.info(" Update result   : " + Utils.toJsonString(r));
             var locked = q.q().f("strValue").eq(lockId).asList();
-            int lockedSize=0;
-            for (var uc:locked){
-                uc=morphium.reread(uc);
-                if (uc.getStrValue().equals(lockId)){
+            int lockedSize = 0;
+            for (var uc : locked) {
+                uc = morphium.reread(uc);
+                if (uc.getStrValue().equals(lockId)) {
                     lockedSize++;
                 }
             }
@@ -36,7 +38,7 @@ public class MultiUpdateTests extends MorphiumTestBase {
             log.info("Items lockcheck  : " + lockedSize);
             var dur = System.currentTimeMillis() - start;
             log.info("Duration update  : " + dur);
-            
+
 
         };
         var t1 = new Thread(lock);
@@ -45,7 +47,7 @@ public class MultiUpdateTests extends MorphiumTestBase {
         t2.setName("t2");
         var t3 = new Thread(lock);
         t3.setName("t3");
-        var s1=System.currentTimeMillis();
+        var s1 = System.currentTimeMillis();
         t1.start();
         t2.start();
         t3.start();
@@ -65,30 +67,30 @@ public class MultiUpdateTests extends MorphiumTestBase {
                 toStore.add(u);
             }
             try {
-            morphium.store(toStore);
-            } catch(Exception e){
+                morphium.store(toStore);
+            } catch (Exception e) {
             }
             var dur = System.currentTimeMillis() - start;
             log.info("Duration store: " + dur);
 
         };
 
-        t1=new Thread(lock);
+        t1 = new Thread(lock);
         t1.setName("t1");
-        t2=new Thread(lock);
+        t2 = new Thread(lock);
         t2.setName("t2");
-        t3=new Thread(lock);
+        t3 = new Thread(lock);
         t3.setName("t3");
-        var start=System.currentTimeMillis();
+        var start = System.currentTimeMillis();
         t1.start();
         t2.start();
         t3.start();
         t1.join();
         t2.join();
         t3.join();
-        var dur=System.currentTimeMillis()-start;
-        log.info("Joining threads: "+dur);
-        log.info(" Locked: "+morphium.createQueryFor(UCLock.class).countAll());
+        var dur = System.currentTimeMillis() - start;
+        log.info("Joining threads: " + dur);
+        log.info(" Locked: " + morphium.createQueryFor(UCLock.class).countAll());
 
 
     }

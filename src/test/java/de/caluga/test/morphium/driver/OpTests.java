@@ -2,6 +2,8 @@ package de.caluga.test.morphium.driver;
 
 import de.caluga.morphium.driver.Doc;
 import de.caluga.morphium.driver.wireprotocol.*;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -9,7 +11,7 @@ import java.io.ByteArrayInputStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-
+@Tag("core")
 public class OpTests {
 
     @Test

@@ -4,6 +4,8 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.data.ValidationTestObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.validation.ConstraintViolationException;
@@ -17,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * User: martinstolz
  * Date: 29.08.12
  */
+@Tag("core")
 public class ValidationTest extends MorphiumTestBase {
 
     @Test

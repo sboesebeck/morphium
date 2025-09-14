@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,8 @@ public class PooledDriverTest {
     private Object sync = new Object();
 
     @Test
+    @Tag("external")
+    @Tag("driver")
     public void testPooledConnections() throws Exception {
         PooledDriver drv = getDriver();
         int min = drv.getMinConnectionsPerHost();
@@ -144,6 +148,10 @@ public class PooledDriverTest {
         return wc;
     }
 
+    @Test
+    @Disabled
+    @Tag("driver")
+    @Tag("external")
     public void crudTestMongoDriver() {
         long start = System.currentTimeMillis();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
@@ -189,7 +197,7 @@ public class PooledDriverTest {
 
             col = mongo.getDatabase("morphium_test").getCollection("uncached_object");
             var ret =
-                col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
+                            col.insertMany(Arrays.asList(new Document(om.serialize(new UncachedObject("value_" + (i + amount), i + amount))), new Document(om.serialize(new UncachedObject("value_" + i, i)))));
             assertEquals(2, ret.getInsertedIds().size(), "should insert 2 elements");
         }
 
@@ -236,6 +244,8 @@ public class PooledDriverTest {
 
     @Test
     // @Disabled
+    @Tag("driver")
+    @Tag("external")
     public void testMultithreaddedConnectionPool() throws Exception {
         var drv = getDriver();
         drv.connect();
@@ -322,7 +332,7 @@ public class PooledDriverTest {
         }
 
         assertEquals(driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_OPENED).doubleValue(),
-            driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
+                     driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_CLOSED) + driverStats.get(MorphiumDriver.DriverStatsKey.CONNECTIONS_IN_POOL), 0);
         drv.close();
     }
 
@@ -557,6 +567,8 @@ public class PooledDriverTest {
 
     @Test
     @Disabled
+    @Tag("driver")
+    @Tag("external")
     public void idleTimeoutTest() throws Exception {
         var drv = getDriver();
         drv.setMinConnections(2);
@@ -594,6 +606,8 @@ public class PooledDriverTest {
 
     @Test
     @Disabled
+    @Tag("driver")
+    @Tag("external")
     public void dropCmdTest() throws Exception {
         var drv = getDriver();
         drv.connect();
