@@ -5,11 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.Date;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Index;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Tag("inmemory")
 public class InMemExpireTest extends MorphiumInMemTestBase {
 
     @Test

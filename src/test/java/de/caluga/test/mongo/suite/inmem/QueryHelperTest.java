@@ -11,6 +11,7 @@ import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,6 +21,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Tag("inmemory")
 public class QueryHelperTest extends MorphiumInMemTestBase {
 
     @Test

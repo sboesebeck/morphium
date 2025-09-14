@@ -5,6 +5,7 @@ import de.caluga.morphium.messaging.jms.JMSConnectionFactory;
 import de.caluga.morphium.messaging.jms.*;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import javax.jms.*;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Tag("jms")
 public class BasicJMSTests extends MorphiumTestBase {
 
     @Test

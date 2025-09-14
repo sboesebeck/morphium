@@ -4,6 +4,7 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.List;
@@ -13,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+@Tag("inmemory")
 public class InMemIndexTest extends MorphiumInMemTestBase {
 
     @Test

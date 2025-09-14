@@ -14,6 +14,7 @@ import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.inmem.MorphiumInMemTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("inmemory")
 public class InMemDriverTest extends MorphiumInMemTestBase {
     private Logger log = LoggerFactory.getLogger(InMemDriverTest.class);
     private String db = "testing";

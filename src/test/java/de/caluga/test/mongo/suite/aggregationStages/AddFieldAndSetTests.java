@@ -10,10 +10,12 @@ import de.caluga.morphium.annotations.ReadOnly;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.Arrays;
 import java.util.List;
 
+@Tag("aggregation")
 public class AddFieldAndSetTests extends MorphiumTestBase {
 
     @Test

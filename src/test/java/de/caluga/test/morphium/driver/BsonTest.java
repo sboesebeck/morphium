@@ -10,6 +10,7 @@ import de.caluga.morphium.driver.bson.BsonEncoder;
 import de.caluga.morphium.driver.bson.UUIDRepresentation;
 import de.caluga.test.morphium.driver.connection.BaseTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * TODO: Add Documentation here
  **/
+@Tag("driver")
 public class BsonTest extends BaseTest {
 
     private static Logger log = LoggerFactory.getLogger(BsonTest.class);

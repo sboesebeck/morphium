@@ -5,7 +5,9 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
+@Tag("messaging")
 public class NoListenerTest extends MorphiumTestBase {
 
     @Test

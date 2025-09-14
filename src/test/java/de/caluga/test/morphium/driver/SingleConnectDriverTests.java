@@ -7,6 +7,7 @@ import java.util.Arrays;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import de.caluga.morphium.Utils;
@@ -20,6 +21,7 @@ import de.caluga.morphium.driver.commands.UpdateMongoCommand;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 
+@Tag("driver")
 public class SingleConnectDriverTests extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
 

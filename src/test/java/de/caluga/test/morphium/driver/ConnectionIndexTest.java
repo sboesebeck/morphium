@@ -9,6 +9,7 @@ import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ListIndexesCommand;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 
+@Tag("driver")
 public class ConnectionIndexTest extends ConnectionTestBase {
     private Logger log = LoggerFactory.getLogger(ConnectionIndexTest.class);
 

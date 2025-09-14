@@ -1,6 +1,7 @@
 package de.caluga.test.morphium.driver;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -11,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Test to verify that virtual threads are working in JDK 21
  */
+@Tag("driver")
 public class VirtualThreadTest {
 
     @Test
