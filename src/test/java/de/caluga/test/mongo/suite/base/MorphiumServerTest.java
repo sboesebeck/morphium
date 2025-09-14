@@ -30,7 +30,6 @@ import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.server.MorphiumServer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
-@Disabled
 @Tag("server")
 public class MorphiumServerTest {
     private Logger log = LoggerFactory.getLogger(MorphiumServerTest.class);
