@@ -1,4 +1,19 @@
 # morphium
+## running tests
+
+
+  How to configure now
+
+  - Use a URI:
+      - Env: export MONGODB_URI='mongodb://user:pass@localhost:27017/db?replicaSet=rs0'
+      - Or: mvn -Dmorphium.uri='mongodb://...'
+  - Override individual settings:
+      - Driver: MORPHIUM_DRIVER=pooled|single|inmem or -Dmorphium.driver=...
+      - Host seed: MORPHIUM_HOSTSEED=host1:27017,host2:27018 or -Dmorphium.hostSeed=...
+      - Auth: MORPHIUM_USER, MORPHIUM_PASS, MORPHIUM_AUTHDB or matching -D flags
+  - Increase logs:
+      - -Dmorphium.tests.verbose=true
+
 
 **Want to contribute? Every help is welcome... just contact us**
 
