@@ -191,6 +191,48 @@ fi
 m=$(echo "$m" | tr -d '"')
 
 createFileList
+# If include tags specified, filter classes/files to only those tagged
+if [ -n "$includeTags" ]; then
+  tagPattern=$(echo "$includeTags" | sed 's/,/|/g')
+  tmpTagged=tmp_tag_files_$PID.txt
+  : > $tmpTagged
+  # 1) Collect files explicitly annotated with any requested tag
+  rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >> $tmpTagged || true
+  # 2) Directory-based helpers to map common tags to suites
+  IFS=',' read -r -a tagArr <<< "$includeTags"
+  for tg in "${tagArr[@]}"; do
+    case "$tg" in
+      core)
+        rg -l "^package .*suite\.base;" src/test/java >> $tmpTagged || true
+        ;;
+      driver)
+        if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
+          find src/test/java/de/caluga/test/morphium/driver -name "*.java" >> $tmpTagged
+        fi
+        ;;
+      inmemory)
+        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpTagged
+        fi
+        ;;
+      messaging)
+        # already annotated; also include ncmessaging by directory as safety
+        if [ -d src/test/java/de/caluga/test/mongo/suite/ncmessaging ]; then
+          find src/test/java/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >> $tmpTagged
+        fi
+        ;;
+    esac
+  done
+  sort -u $tmpTagged -o $tmpTagged
+  if [ -s $tmpTagged ]; then
+    # Intersect with current files list (only keep files we already identified as tests)
+    grep -F -f $tmpTagged $filesList > files_$PID.tmp || true
+    mv files_$PID.tmp $filesList
+    # Rebuild class list from filtered files
+    sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+  fi
+  rm -f $tmpTagged
+fi
 if [ "$skip" -ne 0 ]; then
   echo -e "${BL}Info:${CL} Skipping tests already run"
   if [ -z "$(ls -A 'test.log')" ]; then
