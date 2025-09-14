@@ -23,9 +23,10 @@ public class TimeoutTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void timeOutTests(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }.getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-        
+
         try (morphium) {
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
@@ -33,9 +34,12 @@ public class TimeoutTests extends MultiDriverTestBase {
                 OutputHelper.figletOutput(log, msgImpl);
                 MorphiumConfig cfg = morphium.getConfig().createCopy();
                 cfg.messagingSettings().setMessagingImplementation(msgImpl);
-                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
-                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
-                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                cfg.encryptionSettings()
+                        .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(
+                        morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(
+                        morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
                 try (Morphium m = new Morphium(cfg)) {
                     MorphiumMessaging m1 = m.createMessaging();
                     m1.setSenderId("sender");
@@ -44,7 +48,7 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m2.setSenderId("receiver");
                     m2.start();
                     AtomicInteger msgCount = new AtomicInteger(0);
-                    m2.addListenerForTopic("test", (msg, mm)-> {
+                    m2.addListenerForTopic("test", (msg, mm) -> {
                         msgCount.incrementAndGet();
                         return null;
                     });
@@ -54,7 +58,8 @@ public class TimeoutTests extends MultiDriverTestBase {
                         m1.sendMessage(msg);
                     }
 
-                    TestUtils.waitForConditionToBecomeTrue(20000, "Did not get all messages?", ()->msgCount.get() == 50);
+                    TestUtils.waitForConditionToBecomeTrue(20000, "Did not get all messages?",
+                            () -> msgCount.get() == 50);
 
                     for (Msg mm : m.createQueryFor(Msg.class).asIterable()) {
                         assertNull(mm.getDeleteAt());
@@ -73,38 +78,44 @@ public class TimeoutTests extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void timeoutAfterProcessing(Morphium morphium) throws Exception {
-        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        String tstName = new Object() {
+        }.getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
-        
+
         try (morphium) {
             morphium.dropCollection(Msg.class);
             TestUtils.waitForCollectionToBeDeleted(morphium, Msg.class);
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
                 OutputHelper.figletOutput(log, msgImpl);
-            MorphiumConfig cfg = morphium.getConfig().createCopy();
-            cfg.messagingSettings().setMessagingImplementation(msgImpl);
-            cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
-            cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
-            cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
-            try (Morphium m = new Morphium(cfg)) {
-                MorphiumMessaging m1 = m.createMessaging();
-                m1.setSenderId("sender");
-                m1.setUseChangeStream(true);
-                m1.start();
-                m1.sendMessage(new Msg("test", "value0", "").setExclusive(true).setTimingOut(false).setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(1000));
-                TestUtils.wait(1);
-                assertEquals(1, m.createQueryFor(Msg.class).countAll());
-                MorphiumMessaging m2 = m.createMessaging();
-                m2.setUseChangeStream(true);
-                m2.setSenderId("recevier");
-                m2.addListenerForTopic("test", (n, mm)-> null);
-                m2.start();
-                Thread.sleep(300);
-                assertEquals(1, m.createQueryFor(Msg.class).countAll());
-                TestUtils.wait(5);
-                assertEquals(0, m.createQueryFor(Msg.class).countAll());
-                m1.terminate();
-                m2.terminate();
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.messagingSettings().setMessagingImplementation(msgImpl);
+                cfg.encryptionSettings()
+                        .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(
+                        morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(
+                        morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                try (Morphium m = new Morphium(cfg)) {
+                    MorphiumMessaging m1 = m.createMessaging();
+                    m1.setSenderId("sender");
+                    m1.setUseChangeStream(true);
+                    m1.start();
+                    m1.sendMessage(new Msg("test", "value0", "").setExclusive(true).setTimingOut(false)
+                            .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(1000));
+                    TestUtils.wait(1);
+                    assertEquals(1, m.createQueryFor(Msg.class).countAll());
+                    MorphiumMessaging m2 = m.createMessaging();
+                    m2.setUseChangeStream(true);
+                    m2.setSenderId("recevier");
+                    m2.addListenerForTopic("test", (n, mm) -> null);
+                    m2.start();
+                    Thread.sleep(300);
+                    assertEquals(1, m.createQueryFor(Msg.class).countAll());
+                    TestUtils.wait(5);
+                    assertEquals(0, m.createQueryFor(Msg.class).countAll());
+                    m1.terminate();
+                    m2.terminate();
+                }
             }
         }
     }

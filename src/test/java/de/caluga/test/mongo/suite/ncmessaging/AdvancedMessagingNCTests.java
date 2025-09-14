@@ -6,6 +6,7 @@ import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
+import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -129,8 +130,8 @@ public class AdvancedMessagingNCTests extends MorphiumTestBase {
         } finally {
             List<Thread> threads = new ArrayList<>();
             threads.add(new Thread() {
-                private StdMessaging msg;
-                public Thread setMessaging(StdMessaging m) {
+                private MorphiumMessaging msg;
+                public Thread setMessaging(MorphiumMessaging m) {
                     this.msg = m;
                     return this;
                 }

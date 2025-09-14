@@ -8,9 +8,9 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.OutputHelper;
-import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class AnsweringNCTests extends MultiDriverTestBase {
+public class AnsweringNCTests extends MorphiumTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);
     public boolean gotMessage = false;
@@ -34,7 +34,7 @@ public class AnsweringNCTests extends MultiDriverTestBase {
     public AtomicInteger procCounter = new AtomicInteger(0);
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesNoSingle")
+    @MethodSource("de.caluga.test.mongo.suite.base.MultiDriverTestBase#getMorphiumInstancesNoSingle")
     public void answeringTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
