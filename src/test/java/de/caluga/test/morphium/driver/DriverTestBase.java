@@ -1,10 +1,12 @@
 package de.caluga.test.morphium.driver;
 
+import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.commands.DropDatabaseMongoCommand;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 import de.caluga.test.OutputHelper;
+import de.caluga.test.support.TestConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
@@ -23,20 +25,32 @@ public class DriverTestBase {
 
     protected SingleMongoConnectDriver getDriver() throws MorphiumDriverException {
         if (driver == null) {
+            MorphiumConfig cfg = TestConfig.load();
             SingleMongoConnectDriver drv = new SingleMongoConnectDriver();
-            drv.setCredentials("admin", "test", "test");
-            drv.setMaxWaitTime(1000);
-            drv.setHeartbeatFrequency(1000);
+
+            // Host seed
+            var seeds = cfg.clusterSettings().getHostSeed();
+            if (seeds != null && !seeds.isEmpty()) {
+                drv.setHostSeed(seeds.toArray(new String[0]));
+            }
+
+            // Credentials if provided
+            var user = cfg.authSettings().getMongoLogin();
+            var pwd = cfg.authSettings().getMongoPassword();
+            var authDb = cfg.authSettings().getMongoAuthDb();
+            if (user != null && pwd != null) {
+                drv.setCredentials(authDb != null ? authDb : "admin", user, pwd);
+            }
+
+            // Timeouts and heartbeat
+            drv.setMaxWaitTime(cfg.connectionSettings().getMaxWaitTime());
+            drv.setHeartbeatFrequency(cfg.driverSettings().getHeartbeatFrequency());
+            drv.setConnectionTimeout(cfg.connectionSettings().getConnectionTimeout());
+
             // Be generous during elections/failover in tests
             drv.setRetriesOnNetworkError(30);
             drv.setSleepBetweenErrorRetries(500);
 
-            String hostSeed = System.getenv("HOST_SEED");
-            if(hostSeed == null) {
-                drv.setHostSeed("localhost:27017", "localhost:27018", "localhost:27019");
-            } else {
-                drv.setHostSeed(hostSeed.split(","));
-            }
             drv.connect();
             driver = drv;
         }
