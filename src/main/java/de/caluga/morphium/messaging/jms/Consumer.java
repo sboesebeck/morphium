@@ -1,7 +1,6 @@
 package de.caluga.morphium.messaging.jms;
 
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

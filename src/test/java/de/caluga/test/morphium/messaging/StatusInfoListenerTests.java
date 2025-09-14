@@ -187,18 +187,18 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
 
     @Test
     public void prioQueueTest() throws Exception {
-        PriorityBlockingQueue<StdMessaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
-        StdMessaging.ProcessingQueueElement el = new StdMessaging.ProcessingQueueElement(500, 123, new MorphiumId());
+        PriorityBlockingQueue<de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement> qu = new PriorityBlockingQueue<>();
+        de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(500, 123, new MorphiumId());
         qu.add(el);
-        el = new StdMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
         qu.add(el);
-        el = new StdMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
+        el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(500, 124, new MorphiumId());
         qu.add(el);
-        el = new StdMessaging.ProcessingQueueElement(500, 125, new MorphiumId());
+        el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(500, 125, new MorphiumId());
         qu.add(el);
-        el = new StdMessaging.ProcessingQueueElement(5, 128, new MorphiumId());
+        el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(5, 128, new MorphiumId());
         qu.add(el);
-        el = new StdMessaging.ProcessingQueueElement(5, 138, new MorphiumId());
+        el = new de.caluga.morphium.messaging.SingleCollectionMessaging.ProcessingQueueElement(5, 138, new MorphiumId());
         qu.add(el);
         int sz = qu.size();
         log.info("Queue size: " + sz);

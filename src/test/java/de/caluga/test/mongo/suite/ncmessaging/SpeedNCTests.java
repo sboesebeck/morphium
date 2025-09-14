@@ -49,9 +49,9 @@ public class SpeedNCTests extends MorphiumTestBase {
     public void writeRecSpeed() throws Exception {
         morphium.clearCollection(Msg.class);
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
-        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);
         sender.setUseChangeStream(false).start();
-        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 100);
+        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 100, true, true, 100);
         receiver.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
@@ -92,11 +92,11 @@ public class SpeedNCTests extends MorphiumTestBase {
     public void writeExclusiveRec() throws Exception {
 //        morphium.getConfig().setThreadPoolAsyncOpCoreSize(1000);
         morphium.clearCollection(Msg.class);
-        StdMessaging sender = new StdMessaging(morphium, 100, false, true, 10);
+        SingleCollectionMessaging sender = new SingleCollectionMessaging(morphium, 100, false, true, 10);
         sender.setUseChangeStream(false).start();
-        StdMessaging receiver = new StdMessaging(morphium, 100, true, true, 100);
+        SingleCollectionMessaging receiver = new SingleCollectionMessaging(morphium, 100, true, true, 100);
         receiver.setUseChangeStream(false).start();
-        StdMessaging receiver2 = new StdMessaging(morphium, 100, true, true, 100);
+        SingleCollectionMessaging receiver2 = new SingleCollectionMessaging(morphium, 100, true, true, 100);
         receiver2.setUseChangeStream(false).start();
         final AtomicInteger recCount = new AtomicInteger();
 
