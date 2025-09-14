@@ -15,9 +15,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
+@Tag("messaging")
 public class TimeoutTests extends MultiDriverTestBase {
 
     @ParameterizedTest

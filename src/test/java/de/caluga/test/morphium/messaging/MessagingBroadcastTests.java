@@ -16,7 +16,9 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
+import org.junit.jupiter.api.Tag;
 
+@Tag("messaging")
 public class MessagingBroadcastTests extends MultiDriverTestBase {
 
     private boolean gotMessage1, gotMessage2, gotMessage3, gotMessage4, error;

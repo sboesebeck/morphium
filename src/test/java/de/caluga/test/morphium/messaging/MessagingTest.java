@@ -13,11 +13,13 @@ import de.caluga.morphium.messaging.*;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.OutputHelper;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Tag;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 @SuppressWarnings("ALL")
+@Tag("messaging")
 public class MessagingTest extends MorphiumTestBase {
     public boolean gotMessage = false;
     public boolean gotMessage1 = false;

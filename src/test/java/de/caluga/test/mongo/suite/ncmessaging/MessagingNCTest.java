@@ -8,6 +8,7 @@ import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import de.caluga.test.mongo.suite.base.TestUtils;
 
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings("ALL")
 @Disabled
+@Tag("messaging")
 public class MessagingNCTest extends MorphiumTestBase {
     private final List<Msg> list = new ArrayList<>();
     private final AtomicInteger queueCount = new AtomicInteger(1000);

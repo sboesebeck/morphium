@@ -19,8 +19,10 @@ import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import org.junit.jupiter.api.Tag;
 
 // @Disabled
+@Tag("messaging")
 public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
     @ParameterizedTest
