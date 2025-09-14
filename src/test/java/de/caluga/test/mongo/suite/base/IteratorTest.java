@@ -13,6 +13,8 @@ import de.caluga.morphium.query.Query;
 import de.caluga.morphium.query.QueryIterator;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Time: 12:04
  * <p/>
  */
+@Tag("core")
 public class IteratorTest extends MultiDriverTestBase {
 
     private final List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());
@@ -41,11 +44,11 @@ public class IteratorTest extends MultiDriverTestBase {
         try (morphium) {
 
             for (int i = 0; i < 100; i++) {
-                log.info("Storing "+i);
+                log.info("Storing " + i);
                 try {
                     morphium.store(new SimpleEntity(((int)(Math.random() * 5.0)), (long)(Math.random() * 100000.0)));
-                } catch(Exception e){
-                    log.error("Error writing...",e);
+                } catch (Exception e) {
+                    log.error("Error writing...", e);
                 }
             }
 
@@ -110,7 +113,7 @@ public class IteratorTest extends MultiDriverTestBase {
     public void concurrentAccessTest(Morphium morphium) throws Exception {
 
         try (morphium) {
-            log.info("--------> Running test with driver: "+morphium.getDriver().getName());
+            log.info("--------> Running test with driver: " + morphium.getDriver().getName());
             createTestUc(morphium);
             Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class).sort("counter");
             qu.setCollectionName("test_uc");
@@ -124,7 +127,7 @@ public class IteratorTest extends MultiDriverTestBase {
                 //        final MorphiumIterator<UncachedObject> it = qu.asIterable(1000, 15);
                 //            data = Collections.synchronizedList(new ArrayList<>());
                 final Vector<Thread> threads = new Vector<>();
-                final Vector<String> ids=new Vector<>();
+                final Vector<String> ids = new Vector<>();
 
                 for (int i = 0; i < 3; i++) {
                     log.info("Starting thread..." + i);
@@ -139,7 +142,7 @@ public class IteratorTest extends MultiDriverTestBase {
                                         log.info("reached end concurrently - some other thread won!");
 
                                     } else {
-                                        if (ids.contains(uc.getMorphiumId().toString())){
+                                        if (ids.contains(uc.getMorphiumId().toString())) {
                                             log.error("Duplicate entry!!!!");
                                         } else {
                                             ids.add(uc.getMorphiumId().toString());
@@ -153,8 +156,8 @@ public class IteratorTest extends MultiDriverTestBase {
                                         }
                                     }
                                 }
-                            } catch(Exception e){
-                                log.warn("Error: "+e.getMessage(),e);
+                            } catch (Exception e) {
+                                log.warn("Error: " + e.getMessage(), e);
                             } finally {
                                 log.info("Thread finished");
                                 threads.remove(this);
@@ -237,7 +240,7 @@ public class IteratorTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void doubleIteratorTest(Morphium morphium) {
         try (morphium) {
-            log.info("Running test with "+morphium.getDriver().getName());
+            log.info("Running test with " + morphium.getDriver().getName());
             if (morphium.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
                 log.info("Cannot run with single connect");
                 return;
@@ -258,7 +261,7 @@ public class IteratorTest extends MultiDriverTestBase {
                     assert(it.getCursor() == u.getCounter());
 
                     for (CachedObject co : otherIt) {
-                                       // log.info("iterating otherIt "+co.getCounter());
+                        // log.info("iterating otherIt "+co.getCounter());
                         //                Thread.sleep(200);
                         assertNotNull(co.getValue());
                         ;
@@ -289,7 +292,7 @@ public class IteratorTest extends MultiDriverTestBase {
                 o.setStrValue("V" + i);
                 lst.add(o);
             }
-            log.info("Storing list of "+lst.size());
+            log.info("Storing list of " + lst.size());
             morphium.storeList(lst, "test_uc");
             log.info("creation finished");
         } else {

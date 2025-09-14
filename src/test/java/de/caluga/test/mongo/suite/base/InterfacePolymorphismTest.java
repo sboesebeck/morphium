@@ -5,6 +5,8 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +18,7 @@ import java.util.List;
  * Test interface polymorphism mechanism in Morphium
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class InterfacePolymorphismTest extends MorphiumTestBase {
     @Test
     public void polymorphTest() throws Exception {

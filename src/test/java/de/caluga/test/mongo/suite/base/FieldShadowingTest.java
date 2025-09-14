@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import org.junit.jupiter.api.Tag;
+
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class FieldShadowingTest extends MorphiumTestBase {
 
     @Test

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -39,7 +40,8 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
-public class BasicAdminTests extends MultiDriverTestBase{
+@Tag("core")
+public class BasicAdminTests extends MultiDriverTestBase {
 
     @Test
     public void readPreferenceTest() {
@@ -165,13 +167,13 @@ public class BasicAdminTests extends MultiDriverTestBase{
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void exitsDropTest(Morphium morphium) throws Exception {
-        try (morphium){
-            morphium.store(new UncachedObject("str",123));
+        try (morphium) {
+            morphium.store(new UncachedObject("str", 123));
             Thread.sleep(100);
             assertTrue(morphium.exists(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class)));
             morphium.dropCollection(UncachedObject.class);
             Thread.sleep(100);
-            assertFalse(morphium.exists(morphium.getDatabase(),morphium.getMapper().getCollectionName(UncachedObject.class)));
+            assertFalse(morphium.exists(morphium.getDatabase(), morphium.getMapper().getCollectionName(UncachedObject.class)));
         }
     }
     @ParameterizedTest

@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.*;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 
+@Tag("core")
 public class TypeIdTests extends MorphiumTestBase {
 
     @Test

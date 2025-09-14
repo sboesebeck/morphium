@@ -7,6 +7,8 @@ import de.caluga.morphium.aggregation.MorphiumAggregationIterator;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -15,6 +17,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 
+@Tag("core")
 public class AggregationIteratorTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -72,9 +75,9 @@ public class AggregationIteratorTest extends MultiDriverTestBase {
         @Override
         public String toString() {
             return "AggRes{" +
-                    "counter=" + counter +
-                    ", number=" + number +
-                    '}';
+                   "counter=" + counter +
+                   ", number=" + number +
+                   '}';
         }
     }
 }

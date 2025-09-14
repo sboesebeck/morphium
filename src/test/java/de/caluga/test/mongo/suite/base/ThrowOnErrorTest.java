@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.AdditionalDataEntity;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -11,6 +13,7 @@ import java.util.Map;
 import static de.caluga.morphium.ThrowOnError.*;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@Tag("core")
 public class ThrowOnErrorTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -34,8 +37,8 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
 
         assertThatThrownBy(() -> {
             throwOnWriteError(morphium.createQueryFor(AdditionalDataEntity.class)
-                    .f("_id").eq(entity.getMorphiumId())
-                    .set("someStringField.thisCantWork", "pleaseThrowError"));
+                              .f("_id").eq(entity.getMorphiumId())
+                              .set("someStringField.thisCantWork", "pleaseThrowError"));
         }).isInstanceOf(Exception.class);
     }
 
@@ -51,8 +54,8 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
             assertThatThrownBy(() -> {
                 // it's important to know if a query is badly written!
                 throwOnWriteError(morphium.createQueryFor(AdditionalDataEntity.class)
-                        .f("$big$").eq("$nonsense$")
-                        .set("otherwise", "looking good"));
+                                  .f("$big$").eq("$nonsense$")
+                                  .set("otherwise", "looking good"));
             }).isInstanceOf(Exception.class);
         }
     }
@@ -65,7 +68,7 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
         morphium.store(entity);
 
         throwOnErrorOrNotExactlyOneEntityModified(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").eq(entity.getMorphiumId())
                         .set("name", "Spongebob"));
     }
@@ -86,11 +89,11 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
         morphium.store(entity);
 
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").eq(entity.getMorphiumId())
                         .set("name", "Spongebob"),
-                // nothing changes "name" : "Spongebob" should already be there
-                (map) -> 0 == ((Integer) map.get(NUMBER_MODIFIED)).intValue()
+                        // nothing changes "name" : "Spongebob" should already be there
+                        (map) -> 0 == ((Integer) map.get(NUMBER_MODIFIED)).intValue()
         );
     }
 
@@ -109,16 +112,16 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
         morphium.store(entity);
 
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").eq(entity.getMorphiumId())
                         .set("name", "Spongebob"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
 
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").eq(entity.getMorphiumId())
                         .set("name", "Spongebob"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MATCHED);
     }
 
     @ParameterizedTest
@@ -127,7 +130,7 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
 
         assertThatThrownBy(() -> {
             throwOnErrorOrNotExactlyOneEntityModified(
-                    morphium.createQueryFor(AdditionalDataEntity.class)
+                            morphium.createQueryFor(AdditionalDataEntity.class)
                             .f("_id").eq("thisIdDoesntExist")
                             .set("name", "Spongebob"));
         }).isInstanceOf(Exception.class);
@@ -143,38 +146,38 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
 
         // using set
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId()))
                         .set("name", "Spongebob"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
 
         // using unset
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId()))
                         .unset("name", "Spongebob"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
 
         // using push
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId()))
                         .push("myFriendsList", "Thaddäus"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
 
         // using pull
         throwOnErrorOrExpectationMismatch(
-                morphium.createQueryFor(AdditionalDataEntity.class)
+                        morphium.createQueryFor(AdditionalDataEntity.class)
                         .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId()))
                         .pull("myFriendsList", "Thaddäus"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
 
         // using addToSet
         throwOnErrorOrExpectationMismatch(
-                morphium.addToSet(morphium.createQueryFor(AdditionalDataEntity.class)
-                                .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId())),
-                        "myFriendsList", "Thaddäus"),
-                EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
+                        morphium.addToSet(morphium.createQueryFor(AdditionalDataEntity.class)
+                                          .f("_id").in(List.of(entity1.getMorphiumId(), entity2.getMorphiumId())),
+                                          "myFriendsList", "Thaddäus"),
+                        EXPECTATION_AT_LEAST_ONE_ENTITY_MODIFIED);
 
     }
 
@@ -184,7 +187,7 @@ public class ThrowOnErrorTest extends MultiDriverTestBase {
 
         assertThatThrownBy(() -> {
             throwOnErrorOrNotExactlyOneEntityModified(
-                    morphium.createQueryFor(AdditionalDataEntity.class)
+                            morphium.createQueryFor(AdditionalDataEntity.class)
                             .f("_id").eq("thisIdDoesntExist")
                             .set("name", "Spongebob"));
         }).isInstanceOf(Exception.class);

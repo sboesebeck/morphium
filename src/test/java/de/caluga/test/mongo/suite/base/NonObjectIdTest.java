@@ -4,6 +4,8 @@ import de.caluga.morphium.Morphium;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.test.mongo.suite.data.Person;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -19,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class NonObjectIdTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")

@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.test.mongo.suite.data.PlainContainer;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -13,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+@Tag("core")
 public class PlainConatinerTest extends MultiDriverTestBase {
 
     @ParameterizedTest

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,6 +41,7 @@ import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+@Tag("external")
 public class ShardingTests extends MorphiumTestBase {
 
     @Test
@@ -64,7 +66,7 @@ public class ShardingTests extends MorphiumTestBase {
         try {
             MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
             cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)).addKey("key", Doc.of("_id", "hashed"))
-             .setDb("admin");
+            .setDb("admin");
             int msgid = con.sendCommand(cmd);
             // con.sendCommand((Doc.of("shardCollection", ("morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)),
             //                    "key", UtilsMap.of("_id", "hashed"), "$db", "admin")));
@@ -124,7 +126,7 @@ public class ShardingTests extends MorphiumTestBase {
         try {
             MongoConnection con = morphium.getDriver().getPrimaryConnection(null);
             cmd = new GenericCommand(con).addKey("shardCollection", "morphium_test." + morphium.getMapper().getCollectionName(UncachedObject.class)).addKey("key", Doc.of("_id", "hashed"))
-             .setDb("admin");
+            .setDb("admin");
             int msgid = con.sendCommand(cmd);
             Map<String, Object> state = con.readSingleAnswer(msgid);
             log.info("Sharding state: " + Utils.toJsonString(state));

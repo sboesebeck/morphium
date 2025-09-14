@@ -7,6 +7,8 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -16,6 +18,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Time: 15:27
  * <p/>
  */
+@Tag("core")
 public class ArrayTest extends MultiDriverTestBase {
 
     @Entity
@@ -61,8 +64,8 @@ public class ArrayTest extends MultiDriverTestBase {
             morphium.clearCollection(ArrayTestObj.class);
             ArrayTestObj obj = new ArrayTestObj();
             obj.setName("Name");
-            obj.setIntArr(new int[]{1, 5, 3, 2});
-            obj.setStringArr(new String[]{"test", "string", "array"});
+            obj.setIntArr(new int[] {1, 5, 3, 2});
+            obj.setStringArr(new String[] {"test", "string", "array"});
             morphium.store(obj);
 
             Query<ArrayTestObj> q = morphium.createQueryFor(ArrayTestObj.class);

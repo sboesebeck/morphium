@@ -4,6 +4,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
  * Time: 15:54
  * <p/>
  */
+@Tag("core")
 public class LastAccessTest extends MorphiumTestBase {
     @Test
     public void createdTest() throws Exception {

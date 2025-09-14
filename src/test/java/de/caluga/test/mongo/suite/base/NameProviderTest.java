@@ -10,6 +10,8 @@ import de.caluga.morphium.annotations.WriteSafety;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * Time: 11:53
  * <p/>
  */
+@Tag("core")
 public class NameProviderTest extends MorphiumTestBase {
     @Test
     public void testNameProvider() {
@@ -36,8 +39,8 @@ public class NameProviderTest extends MorphiumTestBase {
             lo.setTimestamp(System.currentTimeMillis());
             morphium.store(lo);
         }
-       waitForAsyncOperationsToStart(1000);
-        TestUtils.waitForWrites(morphium,log);
+        waitForAsyncOperationsToStart(1000);
+        TestUtils.waitForWrites(morphium, log);
         String colName = morphium.getMapper().getCollectionName(LogObject.class);
         assert (colName.endsWith("_Test"));
         //        DBCollection col = morphium.getDatabase().getCollection(colName);

@@ -5,13 +5,15 @@ import de.caluga.morphium.MorphiumAccessVetoException;
 import de.caluga.morphium.MorphiumStorageListener;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
+@Tag("core")
 public class MorphiumTest extends MorphiumTestBase {
 
     @Test

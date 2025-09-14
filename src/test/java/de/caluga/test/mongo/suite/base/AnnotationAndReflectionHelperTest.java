@@ -8,6 +8,7 @@ import de.caluga.test.mongo.suite.data.*;
 // import net.sf.cglib.proxy.Enhancer;
 // import net.sf.cglib.proxy.FixedValue;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.cglib.proxy.Enhancer;
 import org.springframework.cglib.proxy.FixedValue;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Created by stephan on 26.11.15.
  */
 @SuppressWarnings({"AssertWithSideEffects", "unchecked"})
+@Tag("core")
 public class AnnotationAndReflectionHelperTest {
 
     private AnnotationAndReflectionHelper helper;
@@ -39,7 +41,7 @@ public class AnnotationAndReflectionHelperTest {
     @Test
     public void returnsTheRealClassFromCache() {
         // Given
-        Map<Class<?>, Class<?>> realClassCache = new HashMap<>();
+        Map < Class<?>, Class<? >> realClassCache = new HashMap<>();
         helper = new AnnotationAndReflectionHelper(true, realClassCache);
         helper.getRealClass(newProxy().getClass());
         // When
@@ -64,7 +66,7 @@ public class AnnotationAndReflectionHelperTest {
         assertNotNull(helper.getAnnotationFromHierarchy(UncachedObject.class, Entity.class));
         assertNotNull(helper.getAnnotationFromHierarchy(new UncachedObject() {
             private String justASubclass;
-        }.getClass(), Entity.class));
+        } .getClass(), Entity.class));
 
     }
 

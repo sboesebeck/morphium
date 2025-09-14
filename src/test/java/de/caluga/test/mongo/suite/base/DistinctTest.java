@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -14,6 +16,7 @@ import java.util.List;
  * Time: 13:24
  * To change this template use File | Settings | File Templates.
  */
+@Tag("core")
 public class DistinctTest extends MultiDriverTestBase {
 
     @ParameterizedTest

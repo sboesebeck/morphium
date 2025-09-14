@@ -16,6 +16,7 @@ import de.caluga.morphium.driver.MorphiumDriver.DriverStatsKey;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * TODO: Add documentation here
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class AsyncOperationTest extends MultiDriverTestBase {
     private boolean asyncCall = false;
     private boolean callback;
@@ -41,20 +43,20 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void asyncStoreTest(Morphium morphium) throws Exception {
         try (morphium) {
-            log.info("=======> Running with "+morphium.getDriver().getName());
+            log.info("=======> Running with " + morphium.getDriver().getName());
 
             asyncCall = false;
             super.createCachedObjects(morphium, 1000);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             log.info("Uncached object preparation");
             super.createUncachedObjects(morphium, 1000);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             Query<UncachedObject> uc = morphium.createQueryFor(UncachedObject.class);
             uc = uc.f(UncachedObject.Fields.counter).lt(100);
             log.info("deleting...");
             morphium.delete(uc, new AsyncCallbackAdapter<Query<UncachedObject>>() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject>> result, Query<UncachedObject> entity, Object... param) {
+                public void onOperationSucceeded(AsyncOperationType type, Query<Query<UncachedObject>> q, long duration, List<Query<UncachedObject >> result, Query<UncachedObject> entity, Object... param) {
                     log.info("Objects deleted");
                     asyncCall = true;
                 }
@@ -80,10 +82,10 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                     log.info("Objects update error", t);
                 }
             });
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             Thread.sleep(100);
             long counter = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(0).countAll();
-            assert counter > 0 : "Counter is: " + counter;
+assert counter > 0 : "Counter is: " + counter;
             assert(asyncCall);
         }
     }
@@ -167,7 +169,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void testAsyncWriter(Morphium morphium) throws Exception {
-        log.info("Running Test with "+morphium.getDriver().getName());
+        log.info("Running Test with " + morphium.getDriver().getName());
         try (morphium) {
             morphium.getDriver().setMaxWaitTime(15000);
             // morphium.dropCollection(AsyncObject.class);
@@ -176,7 +178,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
             //assert (morphium.getDriver().exists("morphium_test", "async_object"));
             var q = morphium.createQueryFor(AsyncObject.class);
             assertEquals(q.countAll(), 0);
-            Runnable r=()->{
+            Runnable r = ()-> {
                 for (int i = 0; i < 125; i++) {
                     if (i % 10 == 0) {
                         log.info("Stored " + i + " objects");
@@ -234,7 +236,7 @@ public class AsyncOperationTest extends MultiDriverTestBase {
                 }
             });
             Thread.sleep(1000);
-            assertTrue(callback,"Callback not called");
+            assertTrue(callback, "Callback not called");
         }
     }
 

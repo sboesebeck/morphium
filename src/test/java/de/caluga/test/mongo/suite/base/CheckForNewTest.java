@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.annotations.CreationTime;
 import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -17,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Time: 12:29
  * To change this template use File | Settings | File Templates.
  */
+@Tag("core")
 public class CheckForNewTest extends MorphiumTestBase {
 
     @Test

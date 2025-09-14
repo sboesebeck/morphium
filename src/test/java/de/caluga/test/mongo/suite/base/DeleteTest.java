@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -14,6 +16,7 @@ import java.util.List;
  * Time: 08:18
  * <p/>
  */
+@Tag("core")
 public class DeleteTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -54,12 +57,12 @@ public class DeleteTest extends MultiDriverTestBase {
         try (morphium) {
             morphium.dropCollection(UncachedObject.class);
             createCachedObjects(morphium, 10);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             long c = morphium.createQueryFor(CachedObject.class).countAll();
             assert (c == 10) : "Count is " + c;
             CachedObject u = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(u);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
 
@@ -82,12 +85,12 @@ public class DeleteTest extends MultiDriverTestBase {
     public void cachedDeleteQuery(Morphium morphium) throws Exception {
         try (morphium) {
             createCachedObjects(morphium, 10);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             long cnt = morphium.createQueryFor(CachedObject.class).countAll();
             assert (cnt == 10) : "Count is " + cnt;
             CachedObject co = morphium.createQueryFor(CachedObject.class).get();
             morphium.delete(morphium.createQueryFor(CachedObject.class).f("counter").eq(co.getCounter()));
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
             Thread.sleep(100);
             cnt = morphium.createQueryFor(CachedObject.class).countAll();
             assert (cnt == 9);

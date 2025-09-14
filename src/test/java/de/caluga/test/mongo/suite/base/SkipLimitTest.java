@@ -1,6 +1,8 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -11,6 +13,7 @@ import java.util.List;
  * Time: 16:46
  * <p/>
  */
+@Tag("core")
 public class SkipLimitTest extends MorphiumTestBase {
     @Test
     public void skipTest() throws Exception {

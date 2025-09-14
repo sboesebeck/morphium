@@ -6,6 +6,8 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.driver.MorphiumCursor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 12:04
  * <p/>
  */
+@Tag("core")
 public class MorphiumCursorTest extends MorphiumTestBase {
 
     private final List<MorphiumId> data = Collections.synchronizedList(new ArrayList<>());

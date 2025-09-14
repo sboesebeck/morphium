@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * Time: 23:18
  * <p/>
  */
+@Tag("core")
 public class SortingTest extends MultiDriverTestBase {
     private void prepare(Morphium morphium) {
         morphium.dropCollection(UncachedObject.class);
@@ -74,7 +77,7 @@ public class SortingTest extends MultiDriverTestBase {
 
                 if (u.getDval() == lastDval) {
                     assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,
-                        u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
+                                                      u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
                 } else {
                     assertThat(lastDval).describedAs("Dval").isLessThanOrEqualTo(u.getDval());
                     lastDval = u.getDval();
@@ -106,7 +109,7 @@ public class SortingTest extends MultiDriverTestBase {
 
             for (UncachedObject u : lst) {
                 assertThat(lastValue).describedAs("Counter not smaller, last %d now: %d", lastValue,
-                    u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
+                                                  u.getCounter()).isGreaterThanOrEqualTo(u.getCounter()); // >= u.getCounter()) : "Counter not smaller, last: " + lastValue + " now:" + u.getCounter();
                 lastValue = u.getCounter();
             }
 

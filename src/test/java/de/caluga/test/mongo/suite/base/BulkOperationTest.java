@@ -4,6 +4,8 @@ import de.caluga.morphium.*;
 import de.caluga.morphium.bulk.MorphiumBulkContext;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -18,6 +20,7 @@ import java.util.Map;
  * To change this template use File | Settings | File Templates.
  */
 @SuppressWarnings({"AssertWithSideEffects", "unchecked"})
+@Tag("core")
 public class BulkOperationTest extends MultiDriverTestBase {
     private boolean preRemove, postRemove;
     private boolean preUpdate, postUpdate;
@@ -30,7 +33,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
             morphium.dropCollection(UncachedObject.class);
 
             createUncachedObjects(morphium, 10);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             UncachedObject uc1 = morphium.createQueryFor(UncachedObject.class).get();
             long s = System.currentTimeMillis();
@@ -82,7 +85,7 @@ public class BulkOperationTest extends MultiDriverTestBase {
     public void bulkTest(Morphium morphium) throws Exception {
         try (morphium) {
             createUncachedObjects(morphium, 100);
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             MorphiumBulkContext c = morphium.createBulkRequestContext(UncachedObject.class, false);
             //        UpdateBulkRequest up = c
@@ -145,12 +148,12 @@ public class BulkOperationTest extends MultiDriverTestBase {
                 }
 
                 @Override
-                public void preUpdate(Morphium m, Class<? extends UncachedObject> cls, Enum updateType) {
+                public void preUpdate(Morphium m, Class <? extends UncachedObject > cls, Enum updateType) {
                     preUpdate = true;
                 }
 
                 @Override
-                public void postUpdate(Morphium m, Class<? extends UncachedObject> cls, Enum updateType) {
+                public void postUpdate(Morphium m, Class <? extends UncachedObject > cls, Enum updateType) {
                     postUpdate = true;
                 }
             };

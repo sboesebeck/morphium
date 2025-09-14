@@ -11,6 +11,8 @@ import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.LazyLoadingObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class LazyLoadingTest extends MorphiumTestBase {
 
     private final boolean wouldDeref = false;
@@ -44,14 +47,14 @@ public class LazyLoadingTest extends MorphiumTestBase {
         co.setValue("A cached Value");
         morphium.store(co);
 
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         lz.setName("Lazy");
         lz.setLazyCached(co);
         lz.setLazyUncached(o);
         morphium.store(lz);
 
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         Query<LazyLoadingObject> q = morphium.createQueryFor(LazyLoadingObject.class);
         q = q.f("name").eq("Lazy");
         LazyLoadingObject lzRead = q.get();
@@ -87,7 +90,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
         co.setValue("A cached Value");
         morphium.store(co);
 
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         lz.setName("Lazy");
         lz.setLazyCached(co);
@@ -104,7 +107,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
 
         morphium.store(lz);
 
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
 
         //Test for lazy loading
 
@@ -169,7 +172,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
             co.setValue("A cached Value " + i);
             morphium.store(co);
 
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             lz.setName("Lazy " + i);
             lz.setLazyCached(co);
@@ -179,7 +182,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
             log.info("Stored object " + i + "/" + 20);
 
         }
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         log.info("done - now creating not lazy referenced objects");
         for (int i = 0; i < numberOfObjects; i++) {
             ComplexObject co = new ComplexObject();
@@ -195,7 +198,7 @@ public class LazyLoadingTest extends MorphiumTestBase {
             cmo.setValue("A cached Value " + i);
             morphium.store(co);
 
-            TestUtils.waitForWrites(morphium,log);
+            TestUtils.waitForWrites(morphium, log);
 
             co.setcRef(cmo);
 

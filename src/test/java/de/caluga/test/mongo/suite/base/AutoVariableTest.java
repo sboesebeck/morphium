@@ -4,6 +4,8 @@ import de.caluga.morphium.annotations.*;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 09:15
  * To change this template use File | Settings | File Templates.
  */
+@Tag("core")
 public class AutoVariableTest extends MorphiumTestBase {
 
     @Test

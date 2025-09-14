@@ -5,6 +5,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 public class InMemTransactionTest extends MorphiumInMemTestBase {
 
     @Test
+    @Tag("core")
     public void transactionTest() throws Exception {
         morphium.dropCollection(UncachedObject.class);
         createUncachedObjects(10);

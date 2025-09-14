@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import org.junit.jupiter.api.Tag;
+
 /**
  * User: Stephan Bösebeck
  * Date: 14.01.16
@@ -17,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p>
  * TODO: Add documentation here
  */
+@Tag("core")
 public class CustomCollectionNameTest extends MorphiumTestBase {
 
 
@@ -31,8 +34,8 @@ public class CustomCollectionNameTest extends MorphiumTestBase {
         Query<EntityCollectionName> q = m.createQueryFor(EntityCollectionName.class).f("value").eq(1);
         q.setCollectionName(collectionName);
         EntityCollectionName eFetched = q.get();
-        assert eFetched != null : "fetched before update";
-        assert eFetched.value == 1 : "fetched s2:";
+assert eFetched != null : "fetched before update";
+assert eFetched.value == 1 : "fetched s2:";
         e.value = 2;
         m.updateUsingFields(e, collectionName, null, new String[] {"value"});
         Query<EntityCollectionName> q2 = m.createQueryFor(EntityCollectionName.class).f("value").eq(2);
@@ -52,10 +55,10 @@ public class CustomCollectionNameTest extends MorphiumTestBase {
         Query<EntityCollectionName> q = m.createQueryFor(EntityCollectionName.class).f("value").eq(1);
         q.setCollectionName(collectionName);
         EntityCollectionName eFetched = q.get();
-        assert eFetched != null : "fetched before delete";
+assert eFetched != null : "fetched before delete";
         m.delete(q, (AsyncOperationCallback<EntityCollectionName>) null);
         EntityCollectionName eFetched2 = q.get();
-        assert eFetched2 == null : "fetched after delete";
+assert eFetched2 == null : "fetched after delete";
     }
 
 

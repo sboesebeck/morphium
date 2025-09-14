@@ -5,6 +5,8 @@ import de.caluga.morphium.Utils;
 import de.caluga.morphium.aggregation.Aggregator;
 import de.caluga.morphium.aggregation.Expr;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -14,6 +16,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 
+@Tag("core")
 public class AggregationCountTest extends MultiDriverTestBase {
 
     @ParameterizedTest
@@ -25,7 +28,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
 
             Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
             agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10))
-                    .project("cnt", Expr.sum(Expr.intExpr(1)));
+               .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
             assertEquals(990, agg.getCount());
@@ -40,7 +43,7 @@ public class AggregationCountTest extends MultiDriverTestBase {
 
             Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
             agg.match(morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(1000))
-                    .project("cnt", Expr.sum(Expr.intExpr(1)));
+               .project("cnt", Expr.sum(Expr.intExpr(1)));
             List<Map> res = agg.aggregate();
             log.info(Utils.toJsonString(res));
             assertEquals(0, agg.getCount());

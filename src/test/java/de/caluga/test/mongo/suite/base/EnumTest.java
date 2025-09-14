@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.query.MorphiumIterator;
 import de.caluga.test.mongo.suite.data.EnumEntity;
 import de.caluga.test.mongo.suite.data.TestEnum;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p/>
  */
 @SuppressWarnings("unchecked")
+@Tag("core")
 public class EnumTest extends MorphiumTestBase {
 
     @Test

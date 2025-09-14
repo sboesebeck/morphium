@@ -17,6 +17,7 @@ import java.util.Map;
 import de.caluga.morphium.annotations.*;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -34,6 +35,7 @@ import de.caluga.morphium.query.Query;
  * @author stephan
  */
 @SuppressWarnings({"AssertWithSideEffects", "Duplicates", "unchecked"})
+@Tag("core")
 public class BasicFunctionalityTest extends MultiDriverTestBase {
     public static final int NO_OBJECTS = 100;
     private static final Logger log = LoggerFactory.getLogger(BasicFunctionalityTest.class);

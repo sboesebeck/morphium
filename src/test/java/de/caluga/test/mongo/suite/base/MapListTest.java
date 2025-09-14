@@ -8,6 +8,8 @@ import de.caluga.morphium.annotations.ReadPreferenceLevel;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.MapListObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Time: 16:20
  * <p/>
  */
+@Tag("core")
 public class MapListTest extends MorphiumTestBase {
     @Test
     public void mapListTest() throws InterruptedException {

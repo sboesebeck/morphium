@@ -7,6 +7,8 @@ import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Test polymorphism mechanism in Morphium
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class PolymorphismTest extends MorphiumTestBase {
     @Test
     public void polymorphTest() throws Exception {

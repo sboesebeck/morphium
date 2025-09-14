@@ -14,6 +14,7 @@ import de.caluga.morphium.ObjectMapperImpl;
 import de.caluga.morphium.replicaset.ReplicaSetConf;
 import de.caluga.test.mongo.suite.data.*;
 import org.bson.types.ObjectId;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Tag("core")
 public class ObjectMapperImplTest {
 
     static final Logger log = LoggerFactory.getLogger(ObjectMapperImpl.class);
@@ -55,7 +57,7 @@ public class ObjectMapperImplTest {
     public void objectToStringParseTest() {
         UncachedObject o = new UncachedObject();
         o.setStrValue("A test");
-        o.setLongData(new long[]{1, 23, 4L, 5L});
+        o.setLongData(new long[] {1, 23, 4L, 5L});
         o.setCounter(1234);
         Map<String, Object> dbo = OM.serialize(o);
         UncachedObject uc = OM.deserialize(UncachedObject.class, dbo);
@@ -219,8 +221,8 @@ public class ObjectMapperImplTest {
         co = OM.deserialize(ComplexObject.class, marshall);
         assert (co.getEntityEmbeded().getMorphiumId() == null) : "Embeded entity got a mongoID?!?!?!";
         co.getEntityEmbeded().setMorphiumId(embedId); // need to set ID
-                                                      // manually, as it won't
-                                                      // be stored!
+        // manually, as it won't
+        // be stored!
         String st2 = Utils.toJsonString(co);
         assert (MorphiumTestBase.stringWordCompare(st, st2)) : "Strings not equal?\n" + st + "\n" + st2;
         assertNotNull(co.getEmbed(), "Embedded value not found!");
@@ -407,7 +409,7 @@ public class ObjectMapperImplTest {
     @Test
     public void binaryDataTest() {
         UncachedObject o = new UncachedObject();
-        o.setBinaryData(new byte[]{1, 2, 3, 4, 5, 5});
+        o.setBinaryData(new byte[] {1, 2, 3, 4, 5, 5});
 
         Map<String, Object> obj = OM.serialize(o);
         assertNotNull(obj.get("binary_data"));
@@ -447,7 +449,7 @@ public class ObjectMapperImplTest {
     public void objectMapperNGTest() {
         UncachedObject uc = new UncachedObject("value", 123);
         uc.setMorphiumId(new MorphiumId());
-        uc.setLongData(new long[]{1L, 2L});
+        uc.setLongData(new long[] {1L, 2L});
         Map<String, Object> obj = OM.serialize(uc);
 
         assertNotNull(obj.get("str_value"));
@@ -903,11 +905,11 @@ public class ObjectMapperImplTest {
         a.timeUnitArr = new TimeUnit[] { TimeUnit.DAYS, TimeUnit.SECONDS };
         a.listTimeUnitArr = Arrays.asList(new TimeUnit[] { TimeUnit.DAYS, TimeUnit.SECONDS }, new TimeUnit[] { TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS });
         a.mapByteArr = new HashMap<>();
-        a.mapByteArr.put("firstByteArray", new byte[]{1, 12, 123});
-        a.mapByteArr.put("secondByteArray", new byte[]{18, 127, -10});
+        a.mapByteArr.put("firstByteArray", new byte[] {1, 12, 123});
+        a.mapByteArr.put("secondByteArray", new byte[] {18, 127, -10});
 
-        a.mapIntArr = Collections.singletonMap("someIntArray", new int[]{199999, 23, 456});
-        a.arrOfMap = new Map[]{Collections.singletonMap("nanos", TimeUnit.NANOSECONDS), Collections.singletonMap("millis", TimeUnit.MILLISECONDS)};
+        a.mapIntArr = Collections.singletonMap("someIntArray", new int[] {199999, 23, 456});
+        a.arrOfMap = new Map[] {Collections.singletonMap("nanos", TimeUnit.NANOSECONDS), Collections.singletonMap("millis", TimeUnit.MILLISECONDS)};
 
         Map<String, Object> obj = OM.serialize(a);
         ArrayTestObj a2 = OM.deserialize(ArrayTestObj.class, obj);
@@ -1411,7 +1413,7 @@ public class ObjectMapperImplTest {
                                 return false;
                             }
                         }
-                     }
+                    }
 
                 } else {
                     if (!value.equals(other.get(key)))

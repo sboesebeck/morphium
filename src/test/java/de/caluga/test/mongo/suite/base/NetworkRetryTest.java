@@ -4,6 +4,8 @@ import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -17,6 +19,8 @@ import java.util.Map;
  * <p/>
  * TODO: Add documentation here
  */
+@Tag("driver")
+@Tag("external")
 public class NetworkRetryTest extends MorphiumTestBase {
     private final boolean doTest = false;
 
@@ -48,7 +52,7 @@ public class NetworkRetryTest extends MorphiumTestBase {
         morphium.getConfig().setRetriesOnNetworkError(10);
         morphium.getConfig().setSleepBetweenNetworkErrorRetries(500);
         waitForAsyncOperationsToStart(morphium, 1000);
-        TestUtils.waitForWrites(morphium,log);
+        TestUtils.waitForWrites(morphium, log);
         log.info("Now disconnect some mongo nodes, please");
         for (int i = 1; i <= 1000; i++) {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);

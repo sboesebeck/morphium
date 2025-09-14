@@ -3,6 +3,8 @@ package de.caluga.test.mongo.suite.base;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.config.CollectionCheckSettings.IndexCheck;
 import de.caluga.morphium.encryption.AESEncryptionProvider;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p/>
  */
 @SuppressWarnings("AssertWithSideEffects")
+@Tag("core")
 public class MorphiumConfigTest {
 
 

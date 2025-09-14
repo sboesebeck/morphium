@@ -2,6 +2,8 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObjectDAO;
+
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -14,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Time: 15:17
  * <p/>
  */
+@Tag("core")
 public class DAOTest extends MorphiumTestBase {
     @Test
     public void daoTest() throws Exception {
