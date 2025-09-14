@@ -7,6 +7,7 @@ import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -37,32 +38,32 @@ public class SpeedTests extends MultiDriverTestBase {
                     MorphiumMessaging msg = m.createMessaging();
                     msg.start();
 
-            try {
-                final long dur = 1000;
-                final long start = System.currentTimeMillis();
+                    try {
+                        final long dur = 1000;
+                        final long start = System.currentTimeMillis();
 
-                for (int i = 0; i < 25; i++) {
-                    new Thread() {
-                        public void run() {
-                            Msg m = new Msg("test", "test", "testval", 30000);
+                        for (int i = 0; i < 25; i++) {
+                            new Thread() {
+                                public void run() {
+                                    Msg m = new Msg("test", "test", "testval", 30000);
 
-                            while (System.currentTimeMillis() < start + dur) {
-                                msg.sendMessage(m);
-                                m.setMsgId(null);
-                            }
+                                    while (System.currentTimeMillis() < start + dur) {
+                                        msg.sendMessage(m);
+                                        m.setMsgId(null);
+                                    }
+                                }
+                            } .start();
                         }
-                    } .start();
-                }
 
-                while (System.currentTimeMillis() < start + dur) {
-                    Thread.sleep(10);
-                }
+                        while (System.currentTimeMillis() < start + dur) {
+                            Thread.sleep(10);
+                        }
 
-                long cnt = m.createQueryFor(Msg.class).countAll();
-                log.info("stored msg: " + cnt + " in " + dur + "ms");
-                } finally {
-                    try { msg.terminate(); } catch (Exception ignored) {}
-                }
+                        long cnt = m.createQueryFor(Msg.class).countAll();
+                        log.info("stored msg: " + cnt + " in " + dur + "ms");
+                    } finally {
+                        try { msg.terminate(); } catch (Exception ignored) {}
+                    }
                 }
             }
         }
@@ -92,40 +93,40 @@ public class SpeedTests extends MultiDriverTestBase {
                     MorphiumMessaging receiver = m.createMessaging();
                     receiver.start();
 
-            try {
-                final AtomicInteger recCount = new AtomicInteger();
-                receiver.addListenerForTopic("test", new MessageListener() {
-                    @Override
-                    public Msg onMessage(MorphiumMessaging msg, Msg m) {
-                        recCount.incrementAndGet();
-                        return null;
-                    }
-                });
-                final long dur = 1000;
-                final long start = System.currentTimeMillis();
-
-                for (int i = 0; i < 15; i++) {
-                    new Thread() {
-                        public void run() {
-                            Msg m = new Msg("test", "test", "testval", 30000);
-
-                            while (System.currentTimeMillis() < start + dur) {
-                                sender.sendMessage(m);
-                                m.setMsgId(null);
+                    try {
+                        final AtomicInteger recCount = new AtomicInteger();
+                        receiver.addListenerForTopic("test", new MessageListener() {
+                            @Override
+                            public Msg onMessage(MorphiumMessaging msg, Msg m) {
+                                recCount.incrementAndGet();
+                                return null;
                             }
+                        });
+                        final long dur = 1000;
+                        final long start = System.currentTimeMillis();
+
+                        for (int i = 0; i < 15; i++) {
+                            new Thread() {
+                                public void run() {
+                                    Msg m = new Msg("test", "test", "testval", 30000);
+
+                                    while (System.currentTimeMillis() < start + dur) {
+                                        sender.sendMessage(m);
+                                        m.setMsgId(null);
+                                    }
+                                }
+                            } .start();
                         }
-                    } .start();
-                }
 
-                while (System.currentTimeMillis() < start + dur) {
-                    Thread.sleep(10);
-                }
+                        while (System.currentTimeMillis() < start + dur) {
+                            Thread.sleep(10);
+                        }
 
-                long cnt = m.createQueryFor(Msg.class).countAll();
-                log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
-                } finally {
-                    try { sender.terminate(); receiver.terminate(); } catch (Exception ignored) {}
-                }
+                        long cnt = m.createQueryFor(Msg.class).countAll();
+                        log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
+                    } finally {
+                        try { sender.terminate(); receiver.terminate(); } catch (Exception ignored) {}
+                    }
                 }
             }
         }
@@ -157,42 +158,42 @@ public class SpeedTests extends MultiDriverTestBase {
                     MorphiumMessaging receiver2 = m.createMessaging();
                     receiver2.start();
 
-            try {
-                final AtomicInteger recCount = new AtomicInteger();
-                receiver.addListenerForTopic("test", (msg, incoming) -> {
-                    recCount.incrementAndGet();
-                    return null;
-                });
-                receiver2.addListenerForTopic("test", (msg, incoming) -> {
-                    recCount.incrementAndGet();
-                    return null;
-                });
-                final long dur = 1000;
-                final long start = System.currentTimeMillis();
+                    try {
+                        final AtomicInteger recCount = new AtomicInteger();
+                        receiver.addListenerForTopic("test", (msg, incoming) -> {
+                            recCount.incrementAndGet();
+                            return null;
+                        });
+                        receiver2.addListenerForTopic("test", (msg, incoming) -> {
+                            recCount.incrementAndGet();
+                            return null;
+                        });
+                        final long dur = 1000;
+                        final long start = System.currentTimeMillis();
 
-                for (int i = 0; i < 15; i++) {
-                    new Thread() {
-                        public void run() {
-                            Msg m = new Msg("test", "test", "testval", 30000);
-                            m.setExclusive(true);
+                        for (int i = 0; i < 15; i++) {
+                            new Thread() {
+                                public void run() {
+                                    Msg m = new Msg("test", "test", "testval", 30000);
+                                    m.setExclusive(true);
 
-                            while (System.currentTimeMillis() < start + dur) {
-                                sender.sendMessage(m);
-                                m.setMsgId(null);
-                            }
+                                    while (System.currentTimeMillis() < start + dur) {
+                                        sender.sendMessage(m);
+                                        m.setMsgId(null);
+                                    }
+                                }
+                            } .start();
                         }
-                    } .start();
-                }
 
-                while (System.currentTimeMillis() < start + dur) {
-                    Thread.sleep(10);
-                }
+                        while (System.currentTimeMillis() < start + dur) {
+                            Thread.sleep(10);
+                        }
 
-                long cnt = m.createQueryFor(Msg.class).countAll();
-                log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
-                } finally {
-                    try { sender.terminate(); receiver.terminate(); receiver2.terminate(); } catch (Exception ignored) {}
-                }
+                        long cnt = m.createQueryFor(Msg.class).countAll();
+                        log.info("Messages sent: " + cnt + " received: " + recCount.get() + " in " + dur + "ms");
+                    } finally {
+                        try { sender.terminate(); receiver.terminate(); receiver2.terminate(); } catch (Exception ignored) {}
+                    }
                 }
             }
         }
