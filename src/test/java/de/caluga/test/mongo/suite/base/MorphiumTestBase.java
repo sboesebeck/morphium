@@ -80,10 +80,10 @@ public class MorphiumTestBase {
 
         if (morphium == null) {
             MorphiumConfig cfg = de.caluga.test.support.TestConfig.load();
-            // Per-test unique database name for fast teardown
+            // Per-test unique database name for fast teardown, enforce 63-char limit
             String cls = sanitize(info.getTestClass().map(Class::getSimpleName).orElse("UnknownClass"));
             String mth = sanitize(info.getDisplayName());
-            String db = String.format("morphium_test_%s_%s_%d", cls, mth, number.incrementAndGet());
+            String db = buildDbName(cls, mth, number.incrementAndGet());
             cfg.connectionSettings().setDatabase(db);
             morphium = new Morphium(cfg);
             log.info("Morphium instanciated");
@@ -314,6 +314,21 @@ public class MorphiumTestBase {
 
     private static String sanitize(String s) {
         return s.replaceAll("[^A-Za-z0-9_]+", "_");
+    }
+
+    private static String buildDbName(String cls, String mth, int counter) {
+        final int MAX = 63;
+        String suffix = "_" + counter;
+        String base = "morphium_test_" + cls + "_" + mth;
+        // Trim if needed to fit 63 chars
+        int allowed = MAX - suffix.length();
+        if (allowed < 1) {
+            // Fallback minimal name
+            return ("mt_" + counter).substring(0, Math.min(MAX, ("mt_" + counter).length()));
+        }
+        String stem = base.length() > allowed ? base.substring(0, allowed) : base;
+        // Ensure no trailing illegal characters (already sanitized to underscores and alnum)
+        return stem + suffix;
     }
 
 }
