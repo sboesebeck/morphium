@@ -48,8 +48,8 @@ import java.util.concurrent.locks.LockSupport;
 
 @SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
 @Messaging(name = "StandardMessaging", description = "Standard message queueing implementation")
-public class StdMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
-    private static final Logger log = LoggerFactory.getLogger(StdMessaging.class);
+public class SingleCollectionMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
+    private static final Logger log = LoggerFactory.getLogger(SingleCollectionMessaging.class);
     private final StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String statusInfoListenerName = "morphium.status_info";
     private boolean statusInfoListenerEnabled = true;
@@ -74,7 +74,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     private int windowSize = 100;
     private boolean useChangeStream = true;
     private ChangeStreamMonitor changeStreamMonitor;
-    private static Vector<StdMessaging> allMessagings = new Vector<>();
+    private static Vector<SingleCollectionMessaging> allMessagings = new Vector<>();
 
     //answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
@@ -87,7 +87,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     private MessagingSettings settings = null;
 
 
-    public StdMessaging() {
+    public SingleCollectionMessaging() {
         allMessagings.add(this);
         id = UUID.randomUUID().toString();
         running = true;
@@ -116,17 +116,17 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @param processMultiple - deprecated, set windowSize to 1 if needed
      */
     @Deprecated
-    public StdMessaging(Morphium m, int pause, boolean processMultiple) {
+    public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
 
         if (!processMultiple) setWindowSize(1);
     }
 
-    public StdMessaging(Morphium m, int pause) {
+    public SingleCollectionMessaging(Morphium m, int pause) {
         this(m, null, pause, true, 10);
     }
 
-    public StdMessaging(Morphium m) {
+    public SingleCollectionMessaging(Morphium m) {
         this(m, null, 500, false, 100);
     }
 
@@ -134,13 +134,13 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public StdMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
+    public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
 
         if (!processMultiple) setWindowSize(1);
     }
 
-    public StdMessaging(Morphium m, int pause, boolean multithreadded, int windowSize) {
+    public SingleCollectionMessaging(Morphium m, int pause, boolean multithreadded, int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
     }
 
@@ -149,13 +149,13 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public StdMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
         this(m, queueName, pause, false, m.getConfig().getMessagingWindowSize());
 
         if (!processMultiple) setWindowSize(1);
     }
 
-    public StdMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize) {
         this(m, queueName, pause, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
     }
 
@@ -163,7 +163,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public StdMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
         this(m, queueName, pause, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
 
         if (!processMultiple) setWindowSize(1);
@@ -173,7 +173,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public StdMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
         this(m, queueName, pause, multithreadded, windowSize, useChangeStream);
 
         if (!processMultiple) setWindowSize(1);
@@ -189,7 +189,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      *                         morphium automatically sets this value accordingly depending on your configuration
      * @prarm pause: when waiting for incoming messages, especially when multithreadded == false, how long to wait between polls
      */
-    public StdMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize, boolean useChangeStream) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize, boolean useChangeStream) {
         this();
         var cfg = m.getConfig().createCopy();
         cfg.messagingSettings().setMessageQueueName(queueName);
@@ -898,7 +898,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                     updateProcessedBy(msg);
                 }
 
-                Msg answer = l.onMessage(StdMessaging.this, msg);
+                Msg answer = l.onMessage(SingleCollectionMessaging.this, msg);
                 wasProcessed = true;
 
                 if (autoAnswer && answer == null) {
@@ -906,7 +906,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
                 }
 
                 if (answer != null) {
-                    msg.sendAnswer(StdMessaging.this, answer);
+                    msg.sendAnswer(SingleCollectionMessaging.this, answer);
 
                     if (answer.getRecipients() == null) {
                         log.warn("Recipient of answer is null?!?!");
@@ -1096,7 +1096,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setSenderId(String id) {
+    public SingleCollectionMessaging setSenderId(String id) {
         this.id = id;
         return this;
     }
@@ -1107,7 +1107,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
     }
 
     @Override
-    public StdMessaging setPause(int pause) {
+    public SingleCollectionMessaging setPause(int pause) {
         this.pause = pause;
         return this;
     }
@@ -1277,7 +1277,7 @@ public class StdMessaging extends Thread implements ShutdownListener, MorphiumMe
      * @parameter cb - the message callback
      */
     @Override
-    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, SingleCollectionMessaging.AsyncMessageCallback cb) {
         if (!running) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }

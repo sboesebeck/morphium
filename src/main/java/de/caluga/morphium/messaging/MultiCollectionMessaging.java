@@ -54,10 +54,10 @@ import de.caluga.morphium.query.Query;
  * - adding capability for streaming data. Usually as an answer, but could also
  * be as "just as is"
  */
-@Messaging(name = "AdvMessaging", description = "Message queueing implementation, that splits messages into different collections in order to reduce overhead on client side and improve effectiveness of changestreams")
-public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
+@Messaging(name = "MultiCollectionMessaging", description = "Advanced multi-collection messaging implementation")
+public class MultiCollectionMessaging implements MorphiumMessaging {
 
-    private Logger log = LoggerFactory.getLogger(AdvancedSplitCollectionMessaging.class);
+    private Logger log = LoggerFactory.getLogger(MultiCollectionMessaging.class);
     private Morphium morphium;
     private MessagingSettings effectiveSettings;
     private ThreadPoolExecutor threadPool;
@@ -73,7 +73,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
     private Map<String, List<Map<MType, Object>>> monitorsByTopic = new ConcurrentHashMap<>();
     private AtomicBoolean running = new AtomicBoolean(false);
     private String lockCollectionName;
-    private static Vector<AdvancedSplitCollectionMessaging> allMessagings = new Vector<>();
+    private static Vector<MultiCollectionMessaging> allMessagings = new Vector<>();
     private Set<String> pausedTopics = ConcurrentHashMap.newKeySet();
     private StatusInfoListener statusInfoListener = new StatusInfoListener();
     private String hostname = null;
@@ -1138,7 +1138,7 @@ public class AdvancedSplitCollectionMessaging implements MorphiumMessaging {
      * @parameter cb - the message callback
      */
     @Override
-    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, AsyncMessageCallback cb) {
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, SingleCollectionMessaging.AsyncMessageCallback cb) {
         if (!running.get()) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }

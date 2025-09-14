@@ -40,7 +40,7 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
  */
 public class MorphiumTestBase {
 
-    public static List<String> messagingsToTest = List.of("AdvMessaging", "StandardMessaging" );
+    public static List<String> messagingsToTest = List.of("MultiCollectionMessaging", "SingleCollectionMessaging" );
     public static Morphium morphium;
     protected Logger log;
     public static AtomicInteger number = new AtomicInteger(0);

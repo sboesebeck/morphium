@@ -96,7 +96,7 @@ public interface MorphiumMessaging {
 
     <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs);
 
-    <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, StdMessaging.AsyncMessageCallback cb);
+    <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, SingleCollectionMessaging.AsyncMessageCallback cb);
 
     <T extends Msg> T sendAndAwaitFirstAnswer(T theMessage, long timeoutInMs, boolean throwExceptionOnTimeout);
 

@@ -10,7 +10,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
@@ -42,7 +42,7 @@ public class CacheSyncTest extends MorphiumTestBase {
     @Test
     public void sendClearMsgTest() throws Exception {
         morphium.dropCollection(Msg.class);
-        StdMessaging msg = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, true);
         msg.start();
         MessagingCacheSynchronizer cs = new MessagingCacheSynchronizer(msg, morphium);
 
@@ -94,9 +94,9 @@ public class CacheSyncTest extends MorphiumTestBase {
     @Test
     public void clearCacheTest() throws Exception {
 
-        StdMessaging msg1 = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.start();
-        StdMessaging msg2 = new StdMessaging(morphium, 100, true);
+        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
         msg2.start();
         MessagingCacheSynchronizer cs1 = new MessagingCacheSynchronizer(msg1, morphium);
         MessagingCacheSynchronizer cs2 = new MessagingCacheSynchronizer(msg2, morphium);
@@ -244,9 +244,9 @@ public class CacheSyncTest extends MorphiumTestBase {
     @Test
     public void testListeners() throws Exception {
         morphium.dropCollection(IdCachedObject.class);
-        final StdMessaging msg1 = new StdMessaging(morphium, 100, true);
+        final SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.start();
-        final StdMessaging msg2 = new StdMessaging(morphium, 100, true);
+        final SingleCollectionMessaging msg2 = new SingleCollectionMessaging(morphium, 100, true);
         msg2.start();
         Thread.sleep(1000);
 
@@ -339,8 +339,8 @@ public class CacheSyncTest extends MorphiumTestBase {
         cfg2.setDatabase(m1.getConfig().getDatabase());
 
         Morphium m2 = new Morphium(cfg2);
-        StdMessaging msg1 = new StdMessaging(m1, 200, true);
-        StdMessaging msg2 = new StdMessaging(m2, 200, true);
+        SingleCollectionMessaging msg1 = new SingleCollectionMessaging(m1, 200, true);
+        SingleCollectionMessaging msg2 = new SingleCollectionMessaging(m2, 200, true);
 
         msg1.start();
         msg2.start();

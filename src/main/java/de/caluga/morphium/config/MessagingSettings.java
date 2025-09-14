@@ -5,7 +5,7 @@ import java.util.UUID;
 import de.caluga.morphium.annotations.Embedded;
 import de.caluga.morphium.annotations.Transient;
 import de.caluga.morphium.messaging.MorphiumMessaging;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 
 @Embedded
 public class MessagingSettings extends Settings {
@@ -25,7 +25,8 @@ public class MessagingSettings extends Settings {
     private boolean processMultiple = true;
 
     @Transient
-    private Class <? extends MorphiumMessaging > messagingClass = StdMessaging.class;
+    // Default class remains StdMessaging for backward compatibility; new alias SingleCollectionMessaging is also available
+    private Class <? extends MorphiumMessaging > messagingClass = SingleCollectionMessaging.class;
 
 
 
@@ -45,7 +46,7 @@ public class MessagingSettings extends Settings {
     }
     public String getMessagingImplementation() {
         if (messagingImplementation == null) {
-            messagingImplementation = "StandardMessaging";
+            messagingImplementation = "SingleCollectionMessaging";
         }
         return messagingImplementation;
     }

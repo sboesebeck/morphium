@@ -17,7 +17,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import de.caluga.morphium.driver.MorphiumDriver;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.StdMessaging;
+import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
 import org.junit.jupiter.api.Tag;
 
@@ -334,7 +334,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
     @org.junit.jupiter.api.Disabled("Performance tests don't provide meaningful assertions for test coverage")
     public void multithreaddingTestMultiple() throws Exception {
         int amount = 650;
-        StdMessaging producer = new StdMessaging(morphium, 500, false);
+        SingleCollectionMessaging producer = new SingleCollectionMessaging(morphium, 500, false);
         producer.start();
         log.info("now multithreadded and multiprocessing");
 
@@ -349,7 +349,7 @@ public class MultithreaddedMessagingTests extends MorphiumTestBase {
 
         final AtomicInteger count = new AtomicInteger();
         count.set(0);
-        StdMessaging consumer = new StdMessaging(morphium, 100, true, true, 121);
+        SingleCollectionMessaging consumer = new SingleCollectionMessaging(morphium, 100, true, true, 121);
         consumer.addListenerForTopic("test", (msg, m) -> {
             // log.info("Got message!");
             count.incrementAndGet();

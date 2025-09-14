@@ -26,7 +26,6 @@ import de.caluga.morphium.encryption.EncryptionKeyProvider;
 import de.caluga.morphium.encryption.ValueEncryptionProvider;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
-import de.caluga.morphium.messaging.StdMessaging;
 import de.caluga.morphium.config.MessagingSettings;
 import de.caluga.morphium.objectmapping.MorphiumObjectMapper;
 import de.caluga.morphium.query.Query;
@@ -237,8 +236,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
         if (messagingClass == null) {
             if (getConfig().messagingSettings().getMessagingImplementation() == null) {
-                messagingClass = StdMessaging.class;
-                log.info("Using Messaging StandardMessaging");
+                messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
+                log.info("Using Messaging SingleCollectionMessaging");
             } else {
                 try (ScanResult scanResult = new ClassGraph().enableAllInfo() // Scan classes, methods, fields, annotations
                     .scan()) {
@@ -264,8 +263,8 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
                         }
                     }
                     if (messagingClass == null) {
-                        log.error("Could not find messaing {}, using standard", config.messagingSettings().getMessagingImplementation());
-                        messagingClass = StdMessaging.class;
+                        log.error("Could not find messaging {}, using default", config.messagingSettings().getMessagingImplementation());
+                        messagingClass = de.caluga.morphium.messaging.SingleCollectionMessaging.class;
                     }
                 } catch (Exception e) {
                     log.error("Could not scan for Messaging implementations", e);
