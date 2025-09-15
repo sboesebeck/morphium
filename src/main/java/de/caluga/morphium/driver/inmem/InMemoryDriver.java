@@ -515,7 +515,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 upsert = Boolean.TRUE.equals(update.get("upsert"));
             }
 
-            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null, (Map<String, Object>) update.get("u"), multi, upsert, null, cmd.getWriteConcern());
+            Map<String,Object> collation = null;
+            if (update.containsKey("collation") && update.get("collation") instanceof Map) {
+                collation = (Map<String, Object>) update.get("collation");
+            }
+            var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null, (Map<String, Object>) update.get("u"), multi, upsert, collation, cmd.getWriteConcern());
 
             for (var e : res.entrySet()) {
                 if (!stats.containsKey(e.getKey())) {
@@ -526,7 +530,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        stats.put("n", stats.get("inserted"));
+        stats.put("n", stats.getOrDefault("modified", 0));
         commandResults.add(prepareResult(stats));
         return ret;
     }
@@ -877,7 +881,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // del.addDelete(Doc.of("q", new HashMap<>(), "limit", 0));
         for (var del : cmd.getDeletes()) {
-            delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, true, null, null);
+            boolean multi = true;
+            if (del.get("limit") != null) {
+                multi = ((int) del.get("limit")) == 0;
+            }
+            Map<String,Object> collation = null;
+            if (del.get("collation") instanceof Map) {
+                collation = (Map<String, Object>) del.get("collation");
+            }
+            delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, multi, collation, null);
         }
 
         commandResults.add(prepareResult());
@@ -959,7 +971,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var m = prepareResult();
-        var cnt = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), null, null, 0, 0).size();
+        var cnt = find(cmd.getDb(), cmd.getColl(), cmd.getQuery(), null, null, cmd.getCollation(), 0, 0, false).size();
         m.put("n", cnt);
         m.put("count", cnt);
         commandResults.add(m);
