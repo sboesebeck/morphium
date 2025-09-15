@@ -164,6 +164,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final AtomicInteger commandNumber = new AtomicInteger(0);
     private final Map<DriverStatsKey, AtomicDecimal> stats = new ConcurrentHashMap<>();
     private final Map<Long, FindCommand> cursors = new ConcurrentHashMap<>();
+    // state for MorphiumCursor-based iterations
+    private final Map<Long, InMemoryCursor> iterationCursors = new ConcurrentHashMap<>();
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(2);
     private boolean running = true;
     private int expireCheck = 10000;
@@ -1498,77 +1500,58 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public MorphiumCursor initIteration(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, int skip, int limit, int batchSize,
                                         ReadPreference readPreference, Collation coll, Map<String, Object> findMetaData) throws MorphiumDriverException {
-        MorphiumCursor crs = new MorphiumCursor() {
-            @Override
-            public Iterator<Map<String, Object >> iterator() {
-                return this;
-            }
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-            @Override
-            public Map<String, Object> next() {
-                return null;
-            }
-            @Override
-            public void close() {
-            }
-            @Override
-            public int available() {
-                return 0;
-            }
-            @Override
-            public List<Map<String, Object >> getAll() throws MorphiumDriverException {
-                return null;
-            }
-            @Override
-            public void ahead(int skip) throws MorphiumDriverException {
-            }
-            @Override
-            public void back(int jump) throws MorphiumDriverException {
-            }
-            @Override
-            public int getCursor() {
-                return 0;
-            }
-            @Override
-            public MongoConnection getConnection() {
-                return null;
-            }
-        };
-        crs.setBatchSize(batchSize);
-        crs.setCursorId(System.currentTimeMillis());
-        InMemoryCursor inCrs = new InMemoryCursor();
-        inCrs.skip = skip;
-        inCrs.limit = limit;
-        inCrs.batchSize = batchSize;
-        if (batchSize == 0) {
-            inCrs.batchSize = 1000;
-        }
+        final InMemoryCursor inCrs = new InMemoryCursor();
+        inCrs.skip = Math.max(0, skip);
+        inCrs.limit = Math.max(0, limit);
+        inCrs.batchSize = (batchSize == 0 ? 1000 : batchSize);
         inCrs.setCollection(collection);
         inCrs.setDb(db);
         inCrs.setProjection(projection);
-        inCrs.setQuery(query);
+        inCrs.setQuery(query == null ? Doc.of() : query);
         inCrs.setFindMetaData(findMetaData);
         inCrs.setReadPreference(readPreference);
         inCrs.setSort(sort);
-        // noinspection unchecked
-        // crs.setInternalCursorObject(inCrs);
-        // int l = batchSize;
-        // if (limit != 0 && limit < batchSize) {
-        // l = limit;
-        // }
-        // List<Map<String,Object>> res = find(db, collection, query, sort, projection,
-        // skip, l, batchSize, readPreference, coll, findMetaData);
-        // crs.setBatch(new CopyOnWriteArrayList<>(res));
-        //
-        // if (res.size() < batchSize) {
-        // //noinspection unchecked
-        // crs.setInternalCursorObject(null); //cursor ended - no more data
-        // } else {
-        // inCrs.dataRead = res.size();
-        // }
+        inCrs.setCollation(coll);
+
+        int l = inCrs.batchSize;
+        if (inCrs.limit != 0) {
+            l = Math.min(l, inCrs.limit);
+        }
+        List<Map<String, Object>> res = find(db, collection, inCrs.getQuery(), sort, projection, coll == null ? null : coll.toQueryObject(), inCrs.skip, l, false);
+        inCrs.dataRead = res.size();
+
+        final List<Map<String, Object>> batch = new CopyOnWriteArrayList<>(res);
+        final long cursorId = System.currentTimeMillis();
+        iterationCursors.put(cursorId, inCrs);
+
+        MorphiumCursor crs = new MorphiumCursor() {
+            private int idx = 0;
+            @Override
+            public Iterator<Map<String, Object>> iterator() { return this; }
+            @Override
+            public boolean hasNext() { return idx < batch.size(); }
+            @Override
+            public Map<String, Object> next() { return batch.get(idx++); }
+            @Override
+            public void close() { iterationCursors.remove(getCursorId()); }
+            @Override
+            public int available() { return Math.max(0, batch.size() - idx); }
+            @Override
+            public List<Map<String, Object>> getAll() { return new ArrayList<>(batch.subList(idx, batch.size())); }
+            @Override
+            public void ahead(int skip) { idx = Math.min(batch.size(), Math.max(0, idx + skip)); }
+            @Override
+            public void back(int jump) { idx = Math.max(0, idx - Math.max(0, jump)); }
+            @Override
+            public int getCursor() { return idx; }
+            @Override
+            public MongoConnection getConnection() { return InMemoryDriver.this; }
+        };
+        crs.setBatchSize(inCrs.batchSize);
+        crs.setCursorId(cursorId);
+        crs.setDb(db);
+        crs.setCollection(collection);
+        crs.setBatch(batch);
         return crs;
     }
 
@@ -1592,6 +1575,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
 
                 if (cb != null) {
+                    // honor fullDocumentOnUpdate
+                    if (!fullDocumentOnUpdate && "update".equals(data.get("operationType"))) {
+                        data.remove("fullDocument");
+                    }
                     cb.incomingData(data, dur);
                     if (!cb.isContinued()) {
                         synchronized (monitor) {
@@ -1631,86 +1618,50 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
+        InMemoryCursor st = iterationCursors.get(crs.getCursorId());
+        if (st == null) return null;
+        int remainingLimit = (st.limit == 0) ? Integer.MAX_VALUE : (st.limit - st.dataRead);
+        if (remainingLimit <= 0) {
+            iterationCursors.remove(crs.getCursorId());
+            return null;
+        }
+        int l = Math.min(st.batchSize, remainingLimit);
+        int nextSkip = st.skip + st.dataRead;
+        List<Map<String, Object>> res = find(st.getDb(), st.getCollection(), st.getQuery(), st.getSort(), st.getProjection(), st.getCollation() == null ? null : st.getCollation().toQueryObject(), nextSkip, l, false);
+        if (res == null || res.isEmpty()) {
+            iterationCursors.remove(crs.getCursorId());
+            return null;
+        }
+        st.dataRead += res.size();
+        final List<Map<String, Object>> batch = new CopyOnWriteArrayList<>(res);
         MorphiumCursor next = new MorphiumCursor() {
+            private int idx = 0;
             @Override
-            public Iterator<Map<String, Object >> iterator() {
-                return this;
-            }
+            public Iterator<Map<String, Object>> iterator() { return this; }
             @Override
-            public boolean hasNext() {
-                return false;
-            }
+            public boolean hasNext() { return idx < batch.size(); }
             @Override
-            public Map<String, Object> next() {
-                return null;
-            }
+            public Map<String, Object> next() { return batch.get(idx++); }
             @Override
-            public void close() {
-            }
+            public void close() { iterationCursors.remove(getCursorId()); }
             @Override
-            public int available() {
-                return 0;
-            }
+            public int available() { return Math.max(0, batch.size() - idx); }
             @Override
-            public List<Map<String, Object >> getAll() throws MorphiumDriverException {
-                return null;
-            }
+            public List<Map<String, Object>> getAll() { return new ArrayList<>(batch.subList(idx, batch.size())); }
             @Override
-            public void ahead(int skip) throws MorphiumDriverException {
-            }
+            public void ahead(int skip) { idx = Math.min(batch.size(), Math.max(0, idx + skip)); }
             @Override
-            public void back(int jump) throws MorphiumDriverException {
-            }
+            public void back(int jump) { idx = Math.max(0, idx - Math.max(0, jump)); }
             @Override
-            public int getCursor() {
-                return 0;
-            }
+            public int getCursor() { return idx; }
             @Override
-            public MongoConnection getConnection() {
-                return null;
-            }
+            public MongoConnection getConnection() { return InMemoryDriver.this; }
         };
         next.setCursorId(crs.getCursorId());
-        // InMemoryCursor oldCrs = (InMemoryCursor) crs.getInternalCursorObject();
-        // if (oldCrs == null) {
-        // return null;
-        // }
-        //
-        // InMemoryCursor inCrs = new InMemoryCursor();
-        // inCrs.setReadPreference(oldCrs.getReadPreference());
-        // inCrs.setFindMetaData(oldCrs.getFindMetaData());
-        // inCrs.setDb(oldCrs.getDb());
-        // inCrs.setQuery(oldCrs.getQuery());
-        // inCrs.setCollection(oldCrs.getCollection());
-        // inCrs.setProjection(oldCrs.getProjection());
-        // inCrs.setBatchSize(oldCrs.getBatchSize());
-        // inCrs.setCollation(oldCrs.getCollation());
-        //
-        // inCrs.setLimit(oldCrs.getLimit());
-        //
-        // inCrs.setSort(oldCrs.getSort());
-        // inCrs.skip = oldCrs.getDataRead() + 1;
-        // int limit = oldCrs.getBatchSize();
-        // if (oldCrs.getLimit() != 0) {
-        // if (oldCrs.getDataRead() + oldCrs.getBatchSize() > oldCrs.getLimit()) {
-        // limit = oldCrs.getLimit() - oldCrs.getDataRead();
-        // }
-        // }
-        // List<Map<String,Object>> res = find(inCrs.getDb(), inCrs.getCollection(),
-        // inCrs.getQuery(), inCrs.getSort(), inCrs.getProjection(), inCrs.getSkip(),
-        // limit, inCrs.getBatchSize(), inCrs.getReadPreference(), inCrs.getCollation(),
-        // inCrs.getFindMetaData());
-        // next.setBatch(new CopyOnWriteArrayList<>(res));
-        // if (res.size() < inCrs.getBatchSize() || (oldCrs.limit != 0 && res.size() +
-        // oldCrs.getDataRead() > oldCrs.limit)) {
-        // //finished!
-        // //noinspection unchecked
-        // next.setInternalCursorObject(null);
-        // } else {
-        // inCrs.setDataRead(oldCrs.getDataRead() + res.size());
-        // //noinspection unchecked
-        // next.setInternalCursorObject(inCrs);
-        // }
+        next.setBatchSize(st.batchSize);
+        next.setDb(st.getDb());
+        next.setCollection(st.getCollection());
+        next.setBatch(batch);
         return next;
     }
 
@@ -2668,6 +2619,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * invalidate
      */
     private void notifyWatchers(String db, String collection, String op, Map doc) {
+        notifyWatchers(db, collection, op, doc, null, null);
+    }
+
+    private void notifyWatchers(String db, String collection, String op, Map doc, Map<String,Object> updatedFields, List<String> removedFields) {
         Runnable r = ()-> {
             // log.info("Notifying watchers for {} / {} operation {}", db, collection, op);
             List<DriverTailableIterationCallback> w = new ArrayList<>();
@@ -2705,6 +2660,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 data.put("ns", m);
                 data.put("txnNumber", tx);
                 data.put("clusterTime", System.currentTimeMillis());
+                if ("update".equals(op)) {
+                    Map<String,Object> upd = new HashMap<>();
+                    upd.put("updatedFields", updatedFields == null ? Map.of() : updatedFields);
+                    upd.put("removedFields", removedFields == null ? List.of() : removedFields);
+                    data.put("updateDescription", upd);
+                }
 
                 if (doc != null) {
                     if (doc.get("_id") != null) {
@@ -2731,7 +2692,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)
     throws MorphiumDriverException {
-        List<Map<String, Object >> toDel = new ArrayList<>(find(db, collection, query, null, UtilsMap.of("_id", 1), 0, multiple ? 0 : 1));
+        List<Map<String, Object >> toDel = new ArrayList<>(find(db, collection, query, null, UtilsMap.of("_id", 1), collation, 0, multiple ? 0 : 1, true));
 
         for (Map<String, Object> o : toDel) {
             for (Map<String, Object> dat : new ArrayList<>(getCollection(db, collection))) {
