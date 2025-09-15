@@ -1619,7 +1619,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } catch (InterruptedException e) {
         }
 
-        watchersByDb.get(db).remove(cb);
+        // remove the wrapped callback, not the original one
+        var lst = watchersByDb.get(db);
+        if (lst != null) {
+            lst.remove(cback);
+            if (lst.isEmpty()) {
+                watchersByDb.remove(db);
+            }
+        }
         log.debug("Exiting");
     }
 
@@ -1837,6 +1844,49 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (QueryHelper.matchesQuery(query, o, collation)) {
                 if (o == null) {
                     o = new HashMap<>();
+                }
+
+                // apply projection if requested
+                if (projection != null && !projection.isEmpty()) {
+                    Map<String, Object> projected = new HashMap<>();
+                    boolean hasInclude = projection.values().stream().anyMatch(v -> {
+                        if (v instanceof Number) return ((Number) v).intValue() == 1;
+                        if (v instanceof Boolean) return (Boolean) v;
+                        return false;
+                    });
+                    boolean hasExclude = projection.values().stream().anyMatch(v -> {
+                        if (v instanceof Number) return ((Number) v).intValue() == 0;
+                        if (v instanceof Boolean) return !(Boolean) v;
+                        return false;
+                    });
+
+                    if (hasInclude && !hasExclude) {
+                        // include only specified fields; _id included by default unless explicitly set to 0
+                        for (var e : projection.entrySet()) {
+                            var k = e.getKey();
+                            var v = e.getValue();
+                            boolean include = (v instanceof Number && ((Number) v).intValue() == 1) || (v instanceof Boolean && (Boolean) v);
+                            if (include && o.containsKey(k)) {
+                                projected.put(k, o.get(k));
+                            }
+                        }
+                        if (!projection.containsKey("_id") || truthy(projection.get("_id"))) {
+                            if (o.containsKey("_id")) projected.put("_id", o.get("_id"));
+                        }
+                        o = projected;
+                    } else {
+                        // exclusion style: start with full doc and remove excluded fields
+                        Map<String, Object> copy = new HashMap<>(o);
+                        for (var e : projection.entrySet()) {
+                            var k = e.getKey();
+                            var v = e.getValue();
+                            boolean exclude = (v instanceof Number && ((Number) v).intValue() == 0) || (v instanceof Boolean && !(Boolean) v);
+                            if (exclude) {
+                                copy.remove(k);
+                            }
+                        }
+                        o = copy;
+                    }
                 }
 
                 ret.add(o);
@@ -2087,6 +2137,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return (bucketId + o.hashCode());
     }
 
+    private static boolean truthy(Object v) {
+        if (v == null) return true;
+        if (v instanceof Number) return ((Number) v).intValue() != 0;
+        if (v instanceof Boolean) return (Boolean) v;
+        return true;
+    }
+
     public synchronized Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
         int upd = 0;
@@ -2095,6 +2152,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
                 o.put("_id", new MorphiumId());
+                // enforce unique indexes before insert
+                enforceUniqueOrThrow(db, collection, o);
                 getCollection(db, collection).add(o);
                 continue;
             }
@@ -2102,10 +2161,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             List<Map<String, Object >> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
             if (!srch.isEmpty()) {
                 getCollection(db, collection).remove(srch.get(0));
+                // enforce unique indexes before replacing
+                enforceUniqueOrThrow(db, collection, o);
                 upd++;
                 notifyWatchers(db, collection, "replace", o);
             }
             else {
+                // unique check for insert
+                enforceUniqueOrThrow(db, collection, o);
                 notifyWatchers(db, collection, "insert", o);
             }
             getCollection(db, collection).add(o);
@@ -2206,6 +2269,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Set<Object> modified = new HashSet<>();
 
         for (Map<String, Object> obj : lst) {
+            Map<String,Object> original = new HashMap<>(obj);
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
@@ -2546,6 +2610,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             count++;
 
             if (!insert) {
+                // enforce uniqueness after modification; rollback if violation
+                try {
+                    enforceUniqueOrThrow(db, collection, obj);
+                } catch (MorphiumDriverException ex) {
+                    // rollback
+                    obj.clear();
+                    obj.putAll(original);
+                    throw ex;
+                }
                 notifyWatchers(db, collection, "update", obj);
             }
         }
@@ -2597,12 +2670,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private void notifyWatchers(String db, String collection, String op, Map doc) {
         Runnable r = ()-> {
             // log.info("Notifying watchers for {} / {} operation {}", db, collection, op);
-            List<DriverTailableIterationCallback> w = null;
+            List<DriverTailableIterationCallback> w = new ArrayList<>();
 
+            // db-level watchers
             if (watchersByDb.containsKey(db)) {
-                w = Collections.synchronizedList(new CopyOnWriteArrayList<>(watchersByDb.get(db)));
-            } else if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-                w = Collections.synchronizedList(new CopyOnWriteArrayList<>(watchersByDb.get(db + "." + collection)));
+                w.addAll(new CopyOnWriteArrayList<>(watchersByDb.get(db)));
+            }
+            // collection-level watchers
+            if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
+                w.addAll(new CopyOnWriteArrayList<>(watchersByDb.get(db + "." + collection)));
             }
 
             if (w == null || w.isEmpty()) {
@@ -2865,8 +2941,43 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return getIndexesForDB(db).get(collection);
     }
 
+    private void enforceUniqueOrThrow(String db, String collection, Map<String, Object> doc) throws MorphiumDriverException {
+        List<Map<String, Object>> indexes = getIndexes(db, collection);
+        if (indexes == null) return;
+        for (var idx : indexes) {
+            Object opt = idx.get("$options");
+            if (!(opt instanceof Map)) continue;
+            Map<String, Object> options = (Map<String, Object>) opt;
+            if (!Boolean.TRUE.equals(options.get("unique")) && !(options.get("unique") instanceof String && "true".equalsIgnoreCase((String) options.get("unique")))) {
+                continue;
+            }
+            // build equality query for all index keys present in doc
+            Doc q = new Doc();
+            boolean hasAll = true;
+            for (var e : idx.entrySet()) {
+                if (e.getKey().startsWith("$")) continue;
+                Object v = doc.get(e.getKey());
+                if (v == null) { hasAll = false; break; }
+                q.put(e.getKey(), v);
+            }
+            if (!hasAll || q.isEmpty()) continue;
+            List<Map<String, Object>> matches = find(db, collection, q, null, null, 0, 0);
+            for (var m : matches) {
+                Object mid = m.get("_id");
+                Object did = doc.get("_id");
+                if (did == null || mid == null || !mid.toString().equals(did.toString())) {
+                    throw new MorphiumDriverException("Duplicate key for unique index: " + options.get("name"), null);
+                }
+            }
+        }
+    }
+
     public List<String> getCollectionNames(String db) {
-        return null;
+        try {
+            return new ArrayList<>(getDB(db).keySet());
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
     }
 
     public Map<String, Object> findAndOneAndDelete(String db, String col, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> collation) throws MorphiumDriverException {
@@ -3103,8 +3214,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         InMemTransactionContext ctx = currentTransaction.get();
+        // replace full database state with transaction snapshot
+        database.clear();
         // noinspection unchecked
         database.putAll(ctx.getDatabase());
+        // rebuild index data to reflect committed dataset
+        indexDataByDBCollection.clear();
+        for (var dbName : database.keySet()) {
+            for (var collName : database.get(dbName).keySet()) {
+                try {
+                    updateIndexData(dbName, collName, null);
+                } catch (Exception e) {
+                    // swallow to avoid breaking commit; indexes will be lazily rebuilt
+                }
+            }
+        }
         currentTransaction.set(null);
     }
 
