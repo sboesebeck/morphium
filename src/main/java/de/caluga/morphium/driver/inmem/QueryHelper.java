@@ -1003,7 +1003,13 @@ public class QueryHelper {
                                 }
                             }
 
-                            return value.equals(query.get(keyQuery));
+                            if (collation != null && value instanceof String && query.get(keyQuery) instanceof String) {
+                                var c = getCollator(collation);
+                                if (c != null) {
+                                    return c.equals((String) value, (String) query.get(keyQuery));
+                                }
+                            }
+                            return value != null && value.equals(query.get(keyQuery));
                         }
 
                         if (toCheck.get(keyQuery) == null && query.get(keyQuery) == null) {
@@ -1022,10 +1028,27 @@ public class QueryHelper {
                         }
 
                         if (toCheck.get(keyQuery) instanceof List) {
-                            return ((List) toCheck.get(keyQuery)).contains(query.get(keyQuery));
+                            List lst = (List) toCheck.get(keyQuery);
+                            Object qv = query.get(keyQuery);
+                            if (collation != null && qv instanceof String) {
+                                var c = getCollator(collation);
+                                if (c != null) {
+                                    for (Object v2 : lst) {
+                                        if (v2 instanceof String && c.equals((String) v2, (String) qv)) return true;
+                                    }
+                                    return false;
+                                }
+                            }
+                            return lst.contains(qv);
                         }
 
-                        return toCheck.get(keyQuery).equals(query.get(keyQuery));
+                        if (collation != null && toCheck.get(keyQuery) instanceof String && query.get(keyQuery) instanceof String) {
+                            var c = getCollator(collation);
+                            if (c != null) {
+                                return c.equals((String) toCheck.get(keyQuery), (String) query.get(keyQuery));
+                            }
+                        }
+                        return toCheck.get(keyQuery) != null && toCheck.get(keyQuery).equals(query.get(keyQuery));
                     }
             }
         }
