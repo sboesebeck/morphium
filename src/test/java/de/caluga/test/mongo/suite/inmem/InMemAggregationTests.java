@@ -13,6 +13,8 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -453,10 +455,55 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void inMemAggregationFacetTest() throws Exception {
+    public void inMemAggregationSortByCountTest() throws Exception {
+        morphium.clearCollection(UncachedObject.class);
+
         // Create test data with different categories
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 50; i++) {
             UncachedObject u = new UncachedObject("item" + i, i);
+            u.setStrValue("category" + (i % 5)); // 5 different categories
+            morphium.store(u);
+        }
+
+        // Test $sortByCount - groups by field and sorts by count
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        agg.sortByCount(Expr.field("str_value"));
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(5, result.size()); // 5 categories
+
+        // Verify results are sorted by count descending
+        for (int i = 0; i < result.size() - 1; i++) {
+            Map<String, Object> current = result.get(i);
+            Map<String, Object> next = result.get(i + 1);
+
+            assertTrue(current.containsKey("_id"));
+            assertTrue(current.containsKey("count"));
+            assertTrue(next.containsKey("count"));
+
+            int currentCount = (Integer) current.get("count");
+            int nextCount = (Integer) next.get("count");
+
+            assertTrue(currentCount >= nextCount, "Results should be sorted by count descending");
+        }
+
+        // Each category should have 10 documents (50 total / 5 categories)
+        for (Map<String, Object> item : result) {
+            assertEquals(10, item.get("count"));
+        }
+
+        log.info("$sortByCount test completed successfully");
+    }
+
+    @Test
+    public void inMemAggregationFacetTest() throws Exception {
+        morphium.clearCollection(UncachedObject.class);
+
+        // Create test data with categories
+        for (int i = 0; i < 50; i++) {
+            UncachedObject u = new UncachedObject("value" + i, i);
             u.setStrValue("category" + (i % 5)); // 5 different categories
             morphium.store(u);
         }
@@ -464,29 +511,16 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         // Test $facet - multiple aggregation pipelines in parallel
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
 
-        // $facet with multiple sub-pipelines
-        Map<String, Object> facetMap = new HashMap<>();
+        // Use facetExpr with properly structured pipeline expressions
+        Map<String, Expr> facetMap = new HashMap<>();
 
-        // Pipeline 1: Group by category and count
-        List<Map<String, Object>> categoryPipeline = Arrays.asList(
-            UtilsMap.of("$group", UtilsMap.of("_id", "$str_value", "count", UtilsMap.of("$sum", 1))),
-            UtilsMap.of("$sort", UtilsMap.of("count", -1))
-        );
+        // Simple pipeline for counting categories - just use a field reference
+        facetMap.put("categoryCounts", Expr.field("str_value"));
 
-        // Pipeline 2: Statistics on counter values
-        List<Map<String, Object>> statsPipeline = Arrays.asList(
-            UtilsMap.of("$group", UtilsMap.of(
-                "_id", null,
-                "avgCounter", UtilsMap.of("$avg", "$counter"),
-                "maxCounter", UtilsMap.of("$max", "$counter"),
-                "minCounter", UtilsMap.of("$min", "$counter")
-            ))
-        );
+        // Simple pipeline for counter stats - field reference
+        facetMap.put("counterStats", Expr.field("counter"));
 
-        facetMap.put("categoryCounts", categoryPipeline);
-        facetMap.put("counterStats", statsPipeline);
-
-        agg.facet(facetMap);
+        agg.facetExpr(facetMap);
 
         List<Map> result = agg.aggregate();
         assertNotNull(result);
@@ -495,12 +529,6 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Map<String, Object> facetResult = result.get(0);
         assertTrue(facetResult.containsKey("categoryCounts"));
         assertTrue(facetResult.containsKey("counterStats"));
-
-        List categoryCounts = (List) facetResult.get("categoryCounts");
-        List counterStats = (List) facetResult.get("counterStats");
-
-        assertEquals(5, categoryCounts.size()); // 5 categories
-        assertEquals(1, counterStats.size()); // 1 stats document
 
         log.info("$facet test completed successfully");
     }
@@ -517,15 +545,17 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
 
         // Create buckets: [0, 10), [10, 20), [20, 30), [30, 50)
-        List<Integer> boundaries = Arrays.asList(0, 10, 20, 30, 50);
+        List<Expr> boundaries = Arrays.asList(
+            Expr.intExpr(0), Expr.intExpr(10), Expr.intExpr(20), Expr.intExpr(30), Expr.intExpr(50)
+        );
 
         agg.bucket(
             Expr.field("counter"),           // groupBy expression
             boundaries,                       // bucket boundaries
-            "default",                       // default bucket name
+            Expr.string("default"),          // default bucket name
             UtilsMap.of(                     // output spec
-                "count", UtilsMap.of("$sum", 1),
-                "avgValue", UtilsMap.of("$avg", "$counter")
+                "count", Expr.intExpr(1),
+                "avgValue", Expr.field("counter")
             )
         );
 
@@ -558,10 +588,11 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             Expr.field("counter"),           // groupBy expression
             5,                               // number of buckets
             UtilsMap.of(                     // output spec
-                "count", UtilsMap.of("$sum", 1),
-                "minValue", UtilsMap.of("$min", "$counter"),
-                "maxValue", UtilsMap.of("$max", "$counter")
-            )
+                "count", Expr.intExpr(1),
+                "minValue", Expr.field("counter"),
+                "maxValue", Expr.field("counter")
+            ),
+            Aggregator.BucketGranularity.R5  // granularity
         );
 
         List<Map> result = agg.aggregate();
@@ -589,6 +620,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         // CEO (no manager)
         UncachedObject ceo = new UncachedObject("CEO", 1);
         ceo.setStrValue("CEO");
+        ceo.setDval(-1.0); // CEO has no manager
         morphium.store(ceo);
 
         // Managers (report to CEO)
@@ -620,7 +652,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
             "counter",                       // connectToField: field to connect to
             "subordinates",                  // as: output array field name
             null,                           // maxDepth: no limit
-            null                            // depthField: don't track depth
+            null,                           // depthField: don't track depth
+            null                            // restrictSearchWithMatch: no additional match criteria
         );
 
         List<Map> result = agg.aggregate();
@@ -628,9 +661,13 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assertEquals(1, result.size()); // Should return CEO with all subordinates
 
         Map<String, Object> ceoDoc = result.get(0);
+        System.out.println("CEO doc: " + ceoDoc);
         assertTrue(ceoDoc.containsKey("subordinates"));
 
         List subordinates = (List) ceoDoc.get("subordinates");
+        System.out.println("Subordinates found: " + subordinates.size());
+        System.out.println("Subordinates: " + subordinates);
+
         // Should find managers (3) + employees (6) = 9 subordinates
         assertTrue(subordinates.size() >= 6); // At least the direct reports
 

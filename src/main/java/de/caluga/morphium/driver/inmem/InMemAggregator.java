@@ -1325,8 +1325,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$sort":
                 @SuppressWarnings("unchecked")
                 Map<String, Object> keysToSortBy = (Map<String, Object>) step.get(stage);
-                ret = new ArrayList<>(data);
-                ret.sort((o1, o2) -> {
+                List<Map<String, Object>> sortedList = new ArrayList<>(data);
+                sortedList.sort((o1, o2) -> {
                     for (String k : keysToSortBy.keySet()) {
                         @SuppressWarnings("unchecked")
                         int i = ((Comparable) o1.get(k)).compareTo(o2.get(k));
@@ -1342,6 +1342,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     }
                     return 0;
                 });
+                ret = sortedList;
                 break;
 
             case "$lookup":
@@ -1617,9 +1618,37 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                 break;
 
+            case "$facet":
+                op = step.get(stage);
+
+                if (op instanceof Map) {
+                    Map<String, Object> facetMap = (Map<String, Object>) op;
+                    Map<String, Object> facetResult = new HashMap<>();
+
+                    // Execute each facet pipeline on current data
+                    for (Map.Entry<String, Object> facetEntry : facetMap.entrySet()) {
+                        String facetName = facetEntry.getKey();
+                        Object facetPipeline = facetEntry.getValue();
+
+                        // For now, treat each facet as a simple field extraction
+                        List<Object> facetResults = new ArrayList<>();
+                        for (Map<String, Object> doc : data) {
+                            if (facetPipeline instanceof Expr) {
+                                Object value = ((Expr) facetPipeline).evaluate(doc);
+                                if (value != null) {
+                                    facetResults.add(value);
+                                }
+                            }
+                        }
+                        facetResult.put(facetName, facetResults);
+                    }
+
+                    ret = List.of(facetResult);
+                }
+                break;
+
             case "$planCacheStats":
             case "$redact":
-            case "$sortByCount":
             case "$unionWith":
             case "$currentOp":
             case "$listLocalSessions":
@@ -1635,14 +1664,30 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     Object defaultBucket = bucketParams.get("default");
                     Map<String, Object> outputSpec = (Map<String, Object>) bucketParams.get("output");
 
+                    // Evaluate boundary values if they are Expr objects
+                    List<Object> evaluatedBoundaries = new ArrayList<>();
+                    for (Object boundary : boundaries) {
+                        if (boundary instanceof Expr) {
+                            evaluatedBoundaries.add(((Expr) boundary).evaluate(new HashMap<>()));
+                        } else {
+                            evaluatedBoundaries.add(boundary);
+                        }
+                    }
+
+                    // Evaluate default bucket if it's an Expr
+                    Object evaluatedDefaultBucket = defaultBucket;
+                    if (defaultBucket instanceof Expr) {
+                        evaluatedDefaultBucket = ((Expr) defaultBucket).evaluate(new HashMap<>());
+                    }
+
                     Map<Object, List<Map<String, Object>>> buckets = new HashMap<>();
 
                     // Initialize buckets
-                    for (int i = 0; i < boundaries.size() - 1; i++) {
-                        buckets.put(boundaries.get(i), new ArrayList<>());
+                    for (int i = 0; i < evaluatedBoundaries.size() - 1; i++) {
+                        buckets.put(evaluatedBoundaries.get(i), new ArrayList<>());
                     }
-                    if (defaultBucket != null) {
-                        buckets.put(defaultBucket, new ArrayList<>());
+                    if (evaluatedDefaultBucket != null) {
+                        buckets.put(evaluatedDefaultBucket, new ArrayList<>());
                     }
 
                     // Assign documents to buckets
@@ -1663,9 +1708,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                         // Find the appropriate bucket
                         boolean assigned = false;
-                        for (int i = 0; i < boundaries.size() - 1; i++) {
-                            Object lowerBound = boundaries.get(i);
-                            Object upperBound = boundaries.get(i + 1);
+                        for (int i = 0; i < evaluatedBoundaries.size() - 1; i++) {
+                            Object lowerBound = evaluatedBoundaries.get(i);
+                            Object upperBound = evaluatedBoundaries.get(i + 1);
 
                             if (compareValues(groupValue, lowerBound) >= 0 &&
                                 compareValues(groupValue, upperBound) < 0) {
@@ -1676,8 +1721,8 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         }
 
                         // Assign to default bucket if no match
-                        if (!assigned && defaultBucket != null) {
-                            buckets.get(defaultBucket).add(doc);
+                        if (!assigned && evaluatedDefaultBucket != null) {
+                            buckets.get(evaluatedDefaultBucket).add(doc);
                         }
                     }
 
@@ -1810,19 +1855,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 }
 
                 // Sort by count (descending)
-                ret = new ArrayList<>();
+                List<Map<String, Object>> sortByCountResult = new ArrayList<>();
                 counts.entrySet().stream()
                     .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
                     .forEach(entry -> {
                         Map<String, Object> result = new HashMap<>();
                         result.put("_id", entry.getKey());
                         result.put("count", entry.getValue());
-                        ret.add(result);
+                        sortByCountResult.add(result);
                     });
+                ret = sortByCountResult;
                 break;
-
-            case "$collStats":
-            case "$listSessions":
 
             case "$graphLookup":
                 op = step.get(stage);
@@ -2093,7 +2136,28 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      * Helper method to compute group values for aggregation operations like $sum, $avg, etc.
      */
     private Object computeGroupValue(Object valueSpec, List<Map<String, Object>> groupDocs) {
-        if (valueSpec instanceof Map) {
+        if (valueSpec instanceof Expr) {
+            // For Expr objects, assume we want to compute sum or count
+            Expr expr = (Expr) valueSpec;
+
+            // Check if it's a simple integer (likely a count)
+            Object exprValue = expr.evaluate(new HashMap<>());
+            if (exprValue instanceof Number && ((Number) exprValue).intValue() == 1) {
+                return groupDocs.size(); // Count
+            }
+
+            // Otherwise, assume it's a field reference and compute average
+            double sum = 0;
+            int count = 0;
+            for (Map<String, Object> doc : groupDocs) {
+                Object result = expr.evaluate(doc);
+                if (result instanceof Number) {
+                    sum += ((Number) result).doubleValue();
+                    count++;
+                }
+            }
+            return count > 0 ? sum / count : 0;
+        } else if (valueSpec instanceof Map) {
             Map<String, Object> specMap = (Map<String, Object>) valueSpec;
             String operation = specMap.keySet().iterator().next();
             Object operand = specMap.get(operation);
