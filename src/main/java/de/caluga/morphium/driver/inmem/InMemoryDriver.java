@@ -1831,6 +1831,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     boolean hasInclude = projection.values().stream().anyMatch(v -> {
                         if (v instanceof Number) return ((Number) v).intValue() == 1;
                         if (v instanceof Boolean) return (Boolean) v;
+                        if (v instanceof Map && (((Map) v).containsKey("$slice") || ((Map) v).containsKey("$elemMatch") || ((Map) v).containsKey("$meta"))) return true;
                         return false;
                     });
                     boolean hasExclude = projection.values().stream().anyMatch(v -> {
@@ -1844,10 +1845,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         for (var e : projection.entrySet()) {
                             var k = e.getKey();
                             var v = e.getValue();
-                            boolean include = (v instanceof Number && ((Number) v).intValue() == 1) || (v instanceof Boolean && (Boolean) v);
-                            if (include && o.containsKey(k)) {
-                                projected.put(k, o.get(k));
+                            boolean include = (v instanceof Number && ((Number) v).intValue() == 1) || (v instanceof Boolean && (Boolean) v) || (v instanceof Map);
+                            if (!include) continue;
+
+                            if (v instanceof Map && ((Map) v).containsKey("$slice")) {
+                                Object arr = getByPath(o, k);
+                                Object sliced = applySlice(arr, ((Map) v).get("$slice"));
+                                if (sliced != null) setByPath(projected, k, sliced);
+                                continue;
                             }
+                            if (v instanceof Map && ((Map) v).containsKey("$elemMatch")) {
+                                Object arr = getByPath(o, k);
+                                Object em = applyElemMatchProjection(k, arr, (Map) ((Map) v).get("$elemMatch"));
+                                if (em != null) setByPath(projected, k, em);
+                                continue;
+                            }
+                            Object val = getByPath(o, k);
+                            if (val != null) setByPath(projected, k, val);
                         }
                         if (!projection.containsKey("_id") || truthy(projection.get("_id"))) {
                             if (o.containsKey("_id")) projected.put("_id", o.get("_id"));
@@ -1855,13 +1869,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         o = projected;
                     } else {
                         // exclusion style: start with full doc and remove excluded fields
-                        Map<String, Object> copy = new HashMap<>(o);
+                        Map<String, Object> copy = deepCopyDoc(o);
                         for (var e : projection.entrySet()) {
                             var k = e.getKey();
                             var v = e.getValue();
                             boolean exclude = (v instanceof Number && ((Number) v).intValue() == 0) || (v instanceof Boolean && !(Boolean) v);
                             if (exclude) {
-                                copy.remove(k);
+                                removeByPath(copy, k);
                             }
                         }
                         o = copy;
@@ -1878,6 +1892,96 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // todo add projection
         }
         return new ArrayList<>(ret);
+    }
+
+    // ---------- Projection helpers (dot-path include/exclude, $slice, $elemMatch) ----------
+    private static Object getByPath(Map<String, Object> doc, String path) {
+        if (doc == null || path == null) return null;
+        String[] parts = path.split("\\.");
+        Object cur = doc;
+        for (String p : parts) {
+            if (!(cur instanceof Map)) {
+                return null;
+            }
+            cur = ((Map) cur).get(p);
+            if (cur == null) return null;
+        }
+        return cur;
+    }
+
+    private static void setByPath(Map<String, Object> target, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Map cur = target;
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object n = cur.get(parts[i]);
+            if (!(n instanceof Map)) {
+                n = new HashMap<>();
+                cur.put(parts[i], n);
+            }
+            cur = (Map) n;
+        }
+        cur.put(parts[parts.length - 1], value);
+    }
+
+    private static void removeByPath(Map<String, Object> target, String path) {
+        String[] parts = path.split("\\.");
+        Map cur = target;
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object n = cur.get(parts[i]);
+            if (!(n instanceof Map)) {
+                return;
+            }
+            cur = (Map) n;
+        }
+        cur.remove(parts[parts.length - 1]);
+    }
+
+    private static Map<String, Object> deepCopyDoc(Map<String, Object> src) {
+        Map<String, Object> out = new HashMap<>();
+        for (var e : src.entrySet()) {
+            Object v = e.getValue();
+            if (v instanceof Map) {
+                v = deepCopyDoc((Map<String, Object>) v);
+            } else if (v instanceof List) {
+                v = new ArrayList<>((List) v);
+            }
+            out.put(e.getKey(), v);
+        }
+        return out;
+    }
+
+    private static Object applySlice(Object arrayVal, Object sliceSpec) {
+        if (!(arrayVal instanceof List)) return null;
+        List lst = (List) arrayVal;
+        if (sliceSpec instanceof Number) {
+            int n = ((Number) sliceSpec).intValue();
+            if (n >= 0) return new ArrayList(lst.subList(0, Math.min(n, lst.size())));
+            int from = Math.max(0, lst.size() + n);
+            return new ArrayList(lst.subList(from, lst.size()));
+        } else if (sliceSpec instanceof List && ((List) sliceSpec).size() == 2) {
+            Object s0 = ((List) sliceSpec).get(0);
+            Object s1 = ((List) sliceSpec).get(1);
+            if (s0 instanceof Number && s1 instanceof Number) {
+                int skip = ((Number) s0).intValue();
+                int lim = ((Number) s1).intValue();
+                int from = Math.max(0, Math.min(skip, lst.size()));
+                int to = Math.max(from, Math.min(from + lim, lst.size()));
+                return new ArrayList(lst.subList(from, to));
+            }
+        }
+        return null;
+    }
+
+    private static Object applyElemMatchProjection(String field, Object arrayVal, Map<String, Object> cond) {
+        if (!(arrayVal instanceof List)) return null;
+        List lst = (List) arrayVal;
+        for (Object el : lst) {
+            Map<String, Object> wrapper = Doc.of(field, el);
+            if (QueryHelper.matchesQuery(Doc.of(field, cond), wrapper, null)) {
+                return new ArrayList<>(List.of(el));
+            }
+        }
+        return new ArrayList<>();
     }
 
     private List<Map<String, Object >> getDataFromIndex(String db, String collection, Map<String, Object> query) {

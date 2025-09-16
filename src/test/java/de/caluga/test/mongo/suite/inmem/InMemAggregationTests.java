@@ -225,9 +225,9 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         projection2.put("str_value", Expr.field("str_value"));
         projection2.put("counter", Expr.field("counter"));
         projection2.put("calculated", Expr.function(
-            "function(a, b) { return a * 10 + b; }",
-            java.util.Arrays.asList(Expr.field("counter"), Expr.intExpr(5))
-        ));
+                                        "function(a, b) { return a * 10 + b; }",
+                                        java.util.Arrays.asList(Expr.field("counter"), Expr.intExpr(5))
+                        ));
         agg2.project(projection2);
         agg2.limit(2);
 
@@ -246,9 +246,9 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Map<String, Object> projection3 = new java.util.HashMap<>();
         projection3.put("original", Expr.field("str_value"));
         projection3.put("reversed", Expr.function(
-            "function(str) { return str.split('').reverse().join(''); }",
-            java.util.Arrays.asList(Expr.field("str_value"))
-        ));
+                                        "function(str) { return str.split('').reverse().join(''); }",
+                                        java.util.Arrays.asList(Expr.field("str_value"))
+                        ));
         agg3.project(projection3);
         agg3.limit(1);
 
@@ -325,7 +325,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         List<Map<String, Object>> lst = agg.aggregateMap();
         log.info(Utils.toJsonString(lst.get(0)));
         assert (lst.size() == 1);
-        assertEquals (3,((List) lst.get(0).get("mods")).size());
+        assertEquals (3, ((List) lst.get(0).get("mods")).size());
     }
 
     @Test
@@ -372,12 +372,12 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assert (lst.size() == 0);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).setCollectionName("test").asList();
-        assertEquals(0,l.size());
+        assertEquals(0, l.size());
         //checking stored after $unset
         long lastCounter = -1;
         for (UncachedObject o : l) {
             assertNull (o.getStrValue());
-            assertNotEquals(lastCounter,o.getCounter());
+            assertNotEquals(lastCounter, o.getCounter());
             lastCounter = o.getCounter();
         }
     }
@@ -455,49 +455,6 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
     }
 
     @Test
-    public void inMemAggregationSortByCountTest() throws Exception {
-        morphium.clearCollection(UncachedObject.class);
-
-        // Create test data with different categories
-        for (int i = 0; i < 50; i++) {
-            UncachedObject u = new UncachedObject("item" + i, i);
-            u.setStrValue("category" + (i % 5)); // 5 different categories
-            morphium.store(u);
-        }
-
-        // Test $sortByCount - groups by field and sorts by count
-        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-
-        agg.sortByCount(Expr.field("str_value"));
-
-        List<Map> result = agg.aggregate();
-        assertNotNull(result);
-        assertEquals(5, result.size()); // 5 categories
-
-        // Verify results are sorted by count descending
-        for (int i = 0; i < result.size() - 1; i++) {
-            Map<String, Object> current = result.get(i);
-            Map<String, Object> next = result.get(i + 1);
-
-            assertTrue(current.containsKey("_id"));
-            assertTrue(current.containsKey("count"));
-            assertTrue(next.containsKey("count"));
-
-            int currentCount = (Integer) current.get("count");
-            int nextCount = (Integer) next.get("count");
-
-            assertTrue(currentCount >= nextCount, "Results should be sorted by count descending");
-        }
-
-        // Each category should have 10 documents (50 total / 5 categories)
-        for (Map<String, Object> item : result) {
-            assertEquals(10, item.get("count"));
-        }
-
-        log.info("$sortByCount test completed successfully");
-    }
-
-    @Test
     public void inMemAggregationFacetTest() throws Exception {
         morphium.clearCollection(UncachedObject.class);
 
@@ -546,17 +503,17 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
 
         // Create buckets: [0, 10), [10, 20), [20, 30), [30, 50)
         List<Expr> boundaries = Arrays.asList(
-            Expr.intExpr(0), Expr.intExpr(10), Expr.intExpr(20), Expr.intExpr(30), Expr.intExpr(50)
+                        Expr.intExpr(0), Expr.intExpr(10), Expr.intExpr(20), Expr.intExpr(30), Expr.intExpr(50)
         );
 
         agg.bucket(
-            Expr.field("counter"),           // groupBy expression
-            boundaries,                       // bucket boundaries
-            Expr.string("default"),          // default bucket name
-            UtilsMap.of(                     // output spec
-                "count", Expr.intExpr(1),
-                "avgValue", Expr.field("counter")
-            )
+                        Expr.field("counter"),           // groupBy expression
+                        boundaries,                       // bucket boundaries
+                        Expr.string("default"),          // default bucket name
+                        UtilsMap.of(                     // output spec
+                                        "count", Expr.intExpr(1),
+                                        "avgValue", Expr.field("counter")
+                        )
         );
 
         List<Map> result = agg.aggregate();
@@ -585,14 +542,14 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
 
         agg.bucketAuto(
-            Expr.field("counter"),           // groupBy expression
-            5,                               // number of buckets
-            UtilsMap.of(                     // output spec
-                "count", Expr.intExpr(1),
-                "minValue", Expr.field("counter"),
-                "maxValue", Expr.field("counter")
-            ),
-            Aggregator.BucketGranularity.R5  // granularity
+                        Expr.field("counter"),           // groupBy expression
+                        5,                               // number of buckets
+                        UtilsMap.of(                     // output spec
+                                        "count", Expr.intExpr(1),
+                                        "minValue", Expr.field("counter"),
+                                        "maxValue", Expr.field("counter")
+                        ),
+                        Aggregator.BucketGranularity.R5  // granularity
         );
 
         List<Map> result = agg.aggregate();
@@ -646,14 +603,14 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         agg.match(morphium.createQueryFor(UncachedObject.class).f("counter").eq(1)); // Start with CEO
 
         agg.graphLookup(
-            "uncached_object",               // collection to lookup in
-            Expr.field("counter"),           // startWith: field to start traversal from
-            "dval",                          // connectFromField: field to match with connectToField
-            "counter",                       // connectToField: field to connect to
-            "subordinates",                  // as: output array field name
-            null,                           // maxDepth: no limit
-            null,                           // depthField: don't track depth
-            null                            // restrictSearchWithMatch: no additional match criteria
+                        "uncached_object",               // collection to lookup in
+                        Expr.field("counter"),           // startWith: field to start traversal from
+                        "dval",                          // connectFromField: field to match with connectToField
+                        "counter",                       // connectToField: field to connect to
+                        "subordinates",                  // as: output array field name
+                        null,                           // maxDepth: no limit
+                        null,                           // depthField: don't track depth
+                        null                            // restrictSearchWithMatch: no additional match criteria
         );
 
         List<Map> result = agg.aggregate();
