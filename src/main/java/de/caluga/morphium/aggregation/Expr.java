@@ -20,10 +20,10 @@ public abstract class Expr {
 
     public abstract Object evaluate(Map<String, Object> context);
 
-    private static Map parseMap(Map<?, ?> o) {
+    private static Map parseMap(Map <?, ? > o) {
         Map<String, Expr> ret = new HashMap<>();
 
-        for (Map.Entry<?, ?> e : o.entrySet()) {
+        for (Map.Entry <?, ? > e : o.entrySet()) {
             ret.put((String) e.getKey(), parse(e.getValue()));
         }
 
@@ -105,7 +105,7 @@ public abstract class Expr {
                             m.setAccessible(true);
                             return (Expr) m.invoke(null, p);
                         } catch (Exception e) {
-                            log.error("Error during parsing of expr",e);
+                            log.error("Error during parsing of expr", e);
                         }
                     }
                 }
@@ -1043,7 +1043,7 @@ public abstract class Expr {
         }
 
         Map<String, Expr> map = UtilsMap.of("init", string(initCode), "initArgs", initArgs, "accumulate", string(accumulateCode), "accumulateArgs", accArgs, "merge", string(mergeCode), "finalize",
-                string(finalizeCode), "lang", string(lang));
+                                            string(finalizeCode), "lang", string(lang));
         return new MapOpExpr("accumulator", map);
     }
 
@@ -1148,7 +1148,7 @@ public abstract class Expr {
 
     public static Expr isoDateFromParts(Expr isoWeekYear, Expr isoWeek, Expr isoDayOfWeek, Expr hour, Expr min, Expr sec, Expr ms, Expr timeZone) {
         return new MapOpExpr("dateFromParts",
-                UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms, "timezone", timeZone));
+                             UtilsMap.of("isoWeekYear", isoWeekYear, "month", isoWeek, "day", isoDayOfWeek, "hour", hour, "minute", min, "second", sec, "millisecond", ms, "timezone", timeZone));
     }
 
     public static Expr dateFromString(Expr dateString, Expr format, Expr timezone, Expr onError, Expr onNull) {
@@ -1425,7 +1425,7 @@ public abstract class Expr {
                     }
 
                     //noinspection unchecked
-                    res.putAll((Map<? extends String, ?>) val);
+                    res.putAll((Map <? extends String, ? >) val);
                 }
 
                 return res;
@@ -2505,12 +2505,6 @@ public abstract class Expr {
         };
     }
 
-    /**
-     * Convenience method for $function with single argument
-     */
-    public static Expr function(String jsFunction, Expr arg) {
-        return function(jsFunction, Arrays.asList(arg));
-    }
 
     /**
      * Convenience method for $function with no arguments
