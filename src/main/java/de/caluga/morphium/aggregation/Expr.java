@@ -2433,6 +2433,92 @@ public abstract class Expr {
         }
     }
 
+    /**
+     * $function operator for executing JavaScript code in aggregation pipeline
+     *
+     * Usage: function("function(arg1, arg2) { return arg1 + arg2; }", Arrays.asList(expr1, expr2))
+     */
+    public static Expr function(String jsFunction, List<Expr> args) {
+        return new Expr() {
+            @Override
+            public Object toQueryObject() {
+                Map<String, Object> functionMap = new HashMap<>();
+                functionMap.put("body", jsFunction);
+                functionMap.put("args", args.stream().map(Expr::toQueryObject).collect(java.util.stream.Collectors.toList()));
+                functionMap.put("lang", "js");
+                return UtilsMap.of("$function", functionMap);
+            }
+
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                try {
+                    // Use same JavaScript engine pattern as QueryHelper
+                    System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+                    javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
+                    javax.script.ScriptEngine engine = mgr.getEngineByExtension("js");
+                    if (engine == null) {
+                        engine = mgr.getEngineByName("js");
+                    }
+                    if (engine == null) {
+                        engine = mgr.getEngineByName("JavaScript");
+                    }
+                    if (engine == null) {
+                        engine = mgr.getEngineByName("Graal.js");
+                    }
+                    if (engine == null) {
+                        // Similar to QueryHelper's $where behavior - return null when JS not available
+                        return null;
+                    }
+
+                    // Evaluate all arguments
+                    List<Object> evaluatedArgs = new ArrayList<>();
+                    for (Expr arg : args) {
+                        evaluatedArgs.add(arg.evaluate(context));
+                    }
+
+                    // Create a wrapper function that calls the user function with evaluated args
+                    StringBuilder funcCall = new StringBuilder();
+                    funcCall.append("(").append(jsFunction).append(")(");
+
+                    for (int i = 0; i < evaluatedArgs.size(); i++) {
+                        if (i > 0) funcCall.append(", ");
+
+                        Object argValue = evaluatedArgs.get(i);
+                        if (argValue instanceof String) {
+                            funcCall.append("\"").append(argValue.toString().replace("\"", "\\\"")).append("\"");
+                        } else if (argValue == null) {
+                            funcCall.append("null");
+                        } else {
+                            funcCall.append(argValue.toString());
+                        }
+                    }
+                    funcCall.append(")");
+
+                    // Execute the JavaScript
+                    Object result = engine.eval(funcCall.toString());
+                    return result;
+
+                } catch (Exception e) {
+                    throw new RuntimeException("$function execution failed: " + e.getMessage(), e);
+                }
+            }
+        };
+    }
+
+    /**
+     * Convenience method for $function with single argument
+     */
+    public static Expr function(String jsFunction, Expr arg) {
+        return function(jsFunction, Arrays.asList(arg));
+    }
+
+    /**
+     * Convenience method for $function with no arguments
+     */
+    public static Expr function(String jsFunction) {
+        return function(jsFunction, Arrays.asList());
+    }
+
     public static abstract class ValueExpr extends Expr {
         @Override
         public Object evaluate(Map<String, Object> context) {
