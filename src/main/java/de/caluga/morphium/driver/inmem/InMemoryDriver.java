@@ -500,6 +500,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         Map<String, Object> stats = new HashMap<>();
+        int totalMatched = 0;
+        int totalModified = 0;
+        int updateIndex = 0;
+        List<Map<String,Object>> upserted = new ArrayList<>();
 
         for (var update : cmd.getUpdates()) {
             // Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
@@ -521,16 +525,28 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
             var res = update(cmd.getDb(), cmd.getColl(), (Map<String, Object>) update.get("q"), null, (Map<String, Object>) update.get("u"), multi, upsert, collation, cmd.getWriteConcern());
 
-            for (var e : res.entrySet()) {
-                if (!stats.containsKey(e.getKey())) {
-                    stats.put(e.getKey(), (Integer) e.getValue());
-                } else {
-                    stats.put(e.getKey(), (Integer) e.getValue() + (Integer) stats.get(e.getKey()));
+            // accumulate matched and modified
+            Object m = res.get("matched");
+            if (m instanceof Number) totalMatched += ((Number) m).intValue();
+            Object nm = res.get("nModified");
+            if (nm instanceof Number) totalModified += ((Number) nm).intValue();
+
+            // convert upsertedIds to wire-format upserted entries with index
+            if (res.containsKey("upsertedIds") && res.get("upsertedIds") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> ids = (List<Object>) res.get("upsertedIds");
+                for (Object id : ids) {
+                    upserted.add(Doc.of("index", updateIndex, "_id", id));
                 }
             }
+            updateIndex++;
         }
 
-        stats.put("n", stats.getOrDefault("modified", 0));
+        stats.put("n", totalMatched);
+        stats.put("nModified", totalModified);
+        if (!upserted.isEmpty()) {
+            stats.put("upserted", upserted);
+        }
         commandResults.add(prepareResult(stats));
         return ret;
     }
@@ -2206,6 +2222,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public synchronized Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
             Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
         List<Map<String, Object >> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
+        int matchedCount = (lst == null) ? 0 : lst.size();
         boolean insert = false;
         int count = 0;
         if (lst == null) {
@@ -2229,10 +2246,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             insert = true;
         }
+        // Track modifications per object and collect upsert ids
         Set<Object> modified = new HashSet<>();
+        List<Object> upsertedIds = new ArrayList<>();
+        int modifiedCount = 0;
 
         for (Map<String, Object> obj : lst) {
-            Map<String,Object> original = new HashMap<>(obj);
+            // keep a deep copy to detect if the object actually changed
+            Map<String,Object> original = deepClone(obj);
+            if (original == null) {
+                original = new HashMap<>(obj); // fallback
+            }
             for (String operand : op.keySet()) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> cmd = (Map<String, Object>) op.get(operand);
@@ -2570,7 +2594,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
 
-            count++;
+            // determine if this document has actually changed
+            boolean objChanged;
+            try {
+                objChanged = !Objects.equals(original, obj) || modified.contains(obj.get("_id"));
+            } catch (Exception ignored) {
+                objChanged = !modified.isEmpty();
+            }
+
+            if (objChanged) {
+                modifiedCount++;
+            }
 
             if (!insert) {
                 // enforce uniqueness after modification; rollback if violation
@@ -2587,10 +2621,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
         if (insert) {
             store(db, collection, lst, wc);
+            // collect upserted ids (single upsert typical)
+            for (Map<String,Object> d : lst) {
+                if (d.get("_id") != null) {
+                    upsertedIds.add(d.get("_id"));
+                }
+            }
         }
         indexDataByDBCollection.get(db).remove(collection);
         updateIndexData(db, collection, null);
-        return Doc.of("matched", (Object) lst.size(), "inserted", insert ? 1 : 0, "nModified", count, "modified", count);
+        Doc res = Doc.of("matched", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
+        if (!upsertedIds.isEmpty()) {
+            res.put("upsertedIds", upsertedIds);
+        }
+        return res;
     }
 
     /**
