@@ -452,4 +452,221 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         public enum Fields {modValue, textRep, id}
     }
 
+    @Test
+    public void inMemAggregationFacetTest() throws Exception {
+        // Create test data with different categories
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("item" + i, i);
+            u.setStrValue("category" + (i % 5)); // 5 different categories
+            morphium.store(u);
+        }
+
+        // Test $facet - multiple aggregation pipelines in parallel
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        // $facet with multiple sub-pipelines
+        Map<String, Object> facetMap = new HashMap<>();
+
+        // Pipeline 1: Group by category and count
+        List<Map<String, Object>> categoryPipeline = Arrays.asList(
+            UtilsMap.of("$group", UtilsMap.of("_id", "$str_value", "count", UtilsMap.of("$sum", 1))),
+            UtilsMap.of("$sort", UtilsMap.of("count", -1))
+        );
+
+        // Pipeline 2: Statistics on counter values
+        List<Map<String, Object>> statsPipeline = Arrays.asList(
+            UtilsMap.of("$group", UtilsMap.of(
+                "_id", null,
+                "avgCounter", UtilsMap.of("$avg", "$counter"),
+                "maxCounter", UtilsMap.of("$max", "$counter"),
+                "minCounter", UtilsMap.of("$min", "$counter")
+            ))
+        );
+
+        facetMap.put("categoryCounts", categoryPipeline);
+        facetMap.put("counterStats", statsPipeline);
+
+        agg.facet(facetMap);
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(1, result.size()); // $facet always returns exactly one document
+
+        Map<String, Object> facetResult = result.get(0);
+        assertTrue(facetResult.containsKey("categoryCounts"));
+        assertTrue(facetResult.containsKey("counterStats"));
+
+        List categoryCounts = (List) facetResult.get("categoryCounts");
+        List counterStats = (List) facetResult.get("counterStats");
+
+        assertEquals(5, categoryCounts.size()); // 5 categories
+        assertEquals(1, counterStats.size()); // 1 stats document
+
+        log.info("$facet test completed successfully");
+    }
+
+    @Test
+    public void inMemAggregationBucketTest() throws Exception {
+        // Create test data with various counter values
+        for (int i = 0; i < 50; i++) {
+            UncachedObject u = new UncachedObject("item" + i, i);
+            morphium.store(u);
+        }
+
+        // Test $bucket - group documents into buckets based on ranges
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        // Create buckets: [0, 10), [10, 20), [20, 30), [30, 50)
+        List<Integer> boundaries = Arrays.asList(0, 10, 20, 30, 50);
+
+        agg.bucket(
+            Expr.field("counter"),           // groupBy expression
+            boundaries,                       // bucket boundaries
+            "default",                       // default bucket name
+            UtilsMap.of(                     // output spec
+                "count", UtilsMap.of("$sum", 1),
+                "avgValue", UtilsMap.of("$avg", "$counter")
+            )
+        );
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(4, result.size()); // 4 buckets
+
+        // Verify bucket structure
+        for (Map bucket : result) {
+            assertTrue(bucket.containsKey("_id"));     // bucket boundary
+            assertTrue(bucket.containsKey("count"));   // count of items
+            assertTrue(bucket.containsKey("avgValue")); // average value
+        }
+
+        log.info("$bucket test completed successfully");
+    }
+
+    @Test
+    public void inMemAggregationBucketAutoTest() throws Exception {
+        // Create test data
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("item" + i, i);
+            morphium.store(u);
+        }
+
+        // Test $bucketAuto - automatically determine bucket boundaries
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        agg.bucketAuto(
+            Expr.field("counter"),           // groupBy expression
+            5,                               // number of buckets
+            UtilsMap.of(                     // output spec
+                "count", UtilsMap.of("$sum", 1),
+                "minValue", UtilsMap.of("$min", "$counter"),
+                "maxValue", UtilsMap.of("$max", "$counter")
+            )
+        );
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(5, result.size()); // 5 auto-generated buckets
+
+        // Verify auto-bucket structure
+        for (Map bucket : result) {
+            assertTrue(bucket.containsKey("_id"));     // bucket range {min, max}
+            assertTrue(bucket.containsKey("count"));   // count of items
+            assertTrue(bucket.containsKey("minValue")); // min value in bucket
+            assertTrue(bucket.containsKey("maxValue")); // max value in bucket
+
+            Map<String, Object> id = (Map<String, Object>) bucket.get("_id");
+            assertTrue(id.containsKey("min"));
+            assertTrue(id.containsKey("max"));
+        }
+
+        log.info("$bucketAuto test completed successfully");
+    }
+
+    @Test
+    public void inMemAggregationGraphLookupTest() throws Exception {
+        // Create hierarchical test data (employee -> manager relationship)
+        // CEO (no manager)
+        UncachedObject ceo = new UncachedObject("CEO", 1);
+        ceo.setStrValue("CEO");
+        morphium.store(ceo);
+
+        // Managers (report to CEO)
+        for (int i = 2; i <= 4; i++) {
+            UncachedObject manager = new UncachedObject("Manager" + i, i);
+            manager.setStrValue("Manager");
+            manager.setDval(1.0); // reports to CEO (counter=1)
+            morphium.store(manager);
+        }
+
+        // Employees (report to managers)
+        for (int i = 5; i <= 10; i++) {
+            UncachedObject employee = new UncachedObject("Employee" + i, i);
+            employee.setStrValue("Employee");
+            employee.setDval((double)(2 + (i % 3))); // reports to manager 2, 3, or 4
+            morphium.store(employee);
+        }
+
+        // Test $graphLookup - recursive lookup for organizational hierarchy
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        // Start from CEO and find all subordinates recursively
+        agg.match(morphium.createQueryFor(UncachedObject.class).f("counter").eq(1)); // Start with CEO
+
+        agg.graphLookup(
+            "uncached_object",               // collection to lookup in
+            Expr.field("counter"),           // startWith: field to start traversal from
+            "dval",                          // connectFromField: field to match with connectToField
+            "counter",                       // connectToField: field to connect to
+            "subordinates",                  // as: output array field name
+            null,                           // maxDepth: no limit
+            null                            // depthField: don't track depth
+        );
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(1, result.size()); // Should return CEO with all subordinates
+
+        Map<String, Object> ceoDoc = result.get(0);
+        assertTrue(ceoDoc.containsKey("subordinates"));
+
+        List subordinates = (List) ceoDoc.get("subordinates");
+        // Should find managers (3) + employees (6) = 9 subordinates
+        assertTrue(subordinates.size() >= 6); // At least the direct reports
+
+        log.info("$graphLookup test completed successfully - found " + subordinates.size() + " subordinates");
+    }
+
+    @Test
+    public void inMemAggregationSortByCountTest() throws Exception {
+        // Create test data with repeated values
+        for (int i = 0; i < 100; i++) {
+            UncachedObject u = new UncachedObject("item" + i, i);
+            u.setStrValue("group" + (i % 7)); // 7 groups with different frequencies
+            morphium.store(u);
+        }
+
+        // Test $sortByCount - group by field and sort by count
+        Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
+
+        agg.sortByCount(Expr.field("str_value"));
+
+        List<Map> result = agg.aggregate();
+        assertNotNull(result);
+        assertEquals(7, result.size()); // 7 different groups
+
+        // Verify sorting by count (descending)
+        int lastCount = Integer.MAX_VALUE;
+        for (Map group : result) {
+            assertTrue(group.containsKey("_id"));     // the grouped field value
+            assertTrue(group.containsKey("count"));   // count of documents
+
+            int currentCount = ((Number) group.get("count")).intValue();
+            assertTrue(currentCount <= lastCount); // Should be sorted descending
+            lastCount = currentCount;
+        }
+
+        log.info("$sortByCount test completed successfully");
+    }
+
 }

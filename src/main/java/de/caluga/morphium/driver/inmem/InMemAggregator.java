@@ -1626,13 +1626,285 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             case "$findAndModyfy":
             case "$update":
             case "$bucket":
+                op = step.get(stage);
+
+                if (op instanceof Map) {
+                    Map<String, Object> bucketParams = (Map<String, Object>) op;
+                    Object groupByObj = bucketParams.get("groupBy");
+                    List<Object> boundaries = (List<Object>) bucketParams.get("boundaries");
+                    Object defaultBucket = bucketParams.get("default");
+                    Map<String, Object> outputSpec = (Map<String, Object>) bucketParams.get("output");
+
+                    Map<Object, List<Map<String, Object>>> buckets = new HashMap<>();
+
+                    // Initialize buckets
+                    for (int i = 0; i < boundaries.size() - 1; i++) {
+                        buckets.put(boundaries.get(i), new ArrayList<>());
+                    }
+                    if (defaultBucket != null) {
+                        buckets.put(defaultBucket, new ArrayList<>());
+                    }
+
+                    // Assign documents to buckets
+                    for (Map<String, Object> doc : data) {
+                        Object groupValue;
+
+                        if (groupByObj instanceof Expr) {
+                            groupValue = ((Expr) groupByObj).evaluate(doc);
+                        } else if (groupByObj instanceof String) {
+                            String fieldName = groupByObj.toString();
+                            if (fieldName.startsWith("$")) {
+                                fieldName = fieldName.substring(1);
+                            }
+                            groupValue = doc.get(fieldName);
+                        } else {
+                            groupValue = groupByObj;
+                        }
+
+                        // Find the appropriate bucket
+                        boolean assigned = false;
+                        for (int i = 0; i < boundaries.size() - 1; i++) {
+                            Object lowerBound = boundaries.get(i);
+                            Object upperBound = boundaries.get(i + 1);
+
+                            if (compareValues(groupValue, lowerBound) >= 0 &&
+                                compareValues(groupValue, upperBound) < 0) {
+                                buckets.get(lowerBound).add(doc);
+                                assigned = true;
+                                break;
+                            }
+                        }
+
+                        // Assign to default bucket if no match
+                        if (!assigned && defaultBucket != null) {
+                            buckets.get(defaultBucket).add(doc);
+                        }
+                    }
+
+                    // Generate bucket results
+                    ret = new ArrayList<>();
+                    for (Map.Entry<Object, List<Map<String, Object>>> bucketEntry : buckets.entrySet()) {
+                        if (!bucketEntry.getValue().isEmpty()) {
+                            Map<String, Object> bucketResult = new HashMap<>();
+                            bucketResult.put("_id", bucketEntry.getKey());
+
+                            // Apply output specifications
+                            if (outputSpec != null) {
+                                for (Map.Entry<String, Object> outputEntry : outputSpec.entrySet()) {
+                                    String outputField = outputEntry.getKey();
+                                    Object outputExpr = outputEntry.getValue();
+
+                                    Object result = computeGroupValue(outputExpr, bucketEntry.getValue());
+                                    bucketResult.put(outputField, result);
+                                }
+                            }
+
+                            ret.add(bucketResult);
+                        }
+                    }
+                }
+                break;
+
             case "$bucketAuto":
+                op = step.get(stage);
+
+                if (op instanceof Map) {
+                    Map<String, Object> bucketAutoParams = (Map<String, Object>) op;
+                    Object groupByObj = bucketAutoParams.get("groupBy");
+                    Integer numBuckets = (Integer) bucketAutoParams.get("buckets");
+                    Map<String, Object> outputSpec = (Map<String, Object>) bucketAutoParams.get("output");
+
+                    if (numBuckets == null) numBuckets = 5; // Default
+
+                    // Extract values for sorting and bucket creation
+                    List<Object> values = new ArrayList<>();
+                    Map<Object, Map<String, Object>> valueToDoc = new HashMap<>();
+
+                    for (Map<String, Object> doc : data) {
+                        Object value;
+                        if (groupByObj instanceof Expr) {
+                            value = ((Expr) groupByObj).evaluate(doc);
+                        } else if (groupByObj instanceof String) {
+                            String fieldName = groupByObj.toString();
+                            if (fieldName.startsWith("$")) {
+                                fieldName = fieldName.substring(1);
+                            }
+                            value = doc.get(fieldName);
+                        } else {
+                            value = groupByObj;
+                        }
+
+                        if (value != null) {
+                            values.add(value);
+                            valueToDoc.put(value, doc);
+                        }
+                    }
+
+                    // Sort values
+                    values.sort((a, b) -> compareValues(a, b));
+
+                    // Create auto buckets
+                    int bucketSize = Math.max(1, values.size() / numBuckets);
+                    ret = new ArrayList<>();
+
+                    for (int i = 0; i < numBuckets && i * bucketSize < values.size(); i++) {
+                        int startIdx = i * bucketSize;
+                        int endIdx = Math.min((i + 1) * bucketSize, values.size());
+
+                        if (i == numBuckets - 1) {
+                            endIdx = values.size(); // Last bucket gets all remaining
+                        }
+
+                        List<Map<String, Object>> bucketDocs = new ArrayList<>();
+                        Object minValue = values.get(startIdx);
+                        Object maxValue = values.get(endIdx - 1);
+
+                        for (int j = startIdx; j < endIdx; j++) {
+                            bucketDocs.add(valueToDoc.get(values.get(j)));
+                        }
+
+                        if (!bucketDocs.isEmpty()) {
+                            Map<String, Object> bucketResult = new HashMap<>();
+                            Map<String, Object> idRange = new HashMap<>();
+                            idRange.put("min", minValue);
+                            idRange.put("max", maxValue);
+                            bucketResult.put("_id", idRange);
+
+                            // Apply output specifications
+                            if (outputSpec != null) {
+                                for (Map.Entry<String, Object> outputEntry : outputSpec.entrySet()) {
+                                    String outputField = outputEntry.getKey();
+                                    Object outputExpr = outputEntry.getValue();
+
+                                    Object result = computeGroupValue(outputExpr, bucketDocs);
+                                    bucketResult.put(outputField, result);
+                                }
+                            }
+
+                            ret.add(bucketResult);
+                        }
+                    }
+                }
+                break;
+
+            case "$sortByCount":
+                op = step.get(stage);
+                Map<Object, Integer> counts = new HashMap<>();
+
+                // Count occurrences
+                for (Map<String, Object> doc : data) {
+                    Object value;
+                    if (op instanceof Expr) {
+                        value = ((Expr) op).evaluate(doc);
+                    } else if (op instanceof String) {
+                        String fieldName = op.toString();
+                        if (fieldName.startsWith("$")) {
+                            fieldName = fieldName.substring(1);
+                        }
+                        value = doc.get(fieldName);
+                    } else {
+                        value = op;
+                    }
+
+                    counts.put(value, counts.getOrDefault(value, 0) + 1);
+                }
+
+                // Sort by count (descending)
+                ret = new ArrayList<>();
+                counts.entrySet().stream()
+                    .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                    .forEach(entry -> {
+                        Map<String, Object> result = new HashMap<>();
+                        result.put("_id", entry.getKey());
+                        result.put("count", entry.getValue());
+                        ret.add(result);
+                    });
+                break;
+
             case "$collStats":
             case "$listSessions":
-            case "$facet":
+
+            case "$graphLookup":
+                op = step.get(stage);
+
+                if (op instanceof Map) {
+                    Map<String, Object> graphParams = (Map<String, Object>) op;
+                    String fromCollection = (String) graphParams.get("from");
+                    Object startWithObj = graphParams.get("startWith");
+                    String connectFromField = (String) graphParams.get("connectFromField");
+                    String connectToField = (String) graphParams.get("connectToField");
+                    String asField = (String) graphParams.get("as");
+                    Integer maxDepth = (Integer) graphParams.get("maxDepth");
+
+                    // Get the foreign collection data
+                    InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
+                    Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                    List<Map<String, Object>> foreignCollection = database.get(fromCollection);
+
+                    if (foreignCollection != null) {
+                        for (Map<String, Object> doc : data) {
+                            List<Map<String, Object>> graphResults = new ArrayList<>();
+
+                            // Get start value
+                            Object startValue;
+                            if (startWithObj instanceof Expr) {
+                                startValue = ((Expr) startWithObj).evaluate(doc);
+                            } else if (startWithObj instanceof String) {
+                                String fieldName = startWithObj.toString();
+                                if (fieldName.startsWith("$")) {
+                                    fieldName = fieldName.substring(1);
+                                }
+                                startValue = doc.get(fieldName);
+                            } else {
+                                startValue = startWithObj;
+                            }
+
+                            // Perform recursive lookup
+                            Set<Object> visited = new HashSet<>();
+                            Queue<Object> toVisit = new LinkedList<>();
+                            toVisit.add(startValue);
+
+                            int currentDepth = 0;
+                            while (!toVisit.isEmpty() && (maxDepth == null || currentDepth < maxDepth)) {
+                                Queue<Object> nextLevel = new LinkedList<>();
+
+                                while (!toVisit.isEmpty()) {
+                                    Object searchValue = toVisit.poll();
+                                    if (visited.contains(searchValue)) continue;
+                                    visited.add(searchValue);
+
+                                    // Find matching documents
+                                    for (Map<String, Object> foreignDoc : foreignCollection) {
+                                        Object connectToValue = foreignDoc.get(connectToField);
+                                        if (Objects.equals(searchValue, connectToValue)) {
+                                            graphResults.add(new HashMap<>(foreignDoc));
+
+                                            // Add connectFromField value for next level
+                                            Object connectFromValue = foreignDoc.get(connectFromField);
+                                            if (connectFromValue != null && !visited.contains(connectFromValue)) {
+                                                nextLevel.add(connectFromValue);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                toVisit = nextLevel;
+                                currentDepth++;
+                            }
+
+                            // Add results to document
+                            doc.put(asField, graphResults);
+                        }
+                    }
+
+                    ret = new ArrayList<>(data);
+                }
+                break;
+
             case "$indexStats":
             case "$geoNear":
-            case "$graphLookup":
+            case "$collStats":
+            case "$listSessions":
             default:
                 log.error("unhandled Aggregation stage " + stage);
         }
@@ -1670,5 +1942,277 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
     @Override
     public Map<String, Object> explain(ExplainVerbosity verbosity) throws MorphiumDriverException {
         return Doc.of("err", "not supported with inMemDriver", "ok", 0.0);
+    }
+
+    /**
+     * Helper method to execute a single aggregation step
+     */
+    private List<Map<String, Object>> executeAggregationStep(Map<String, Object> step, List<Map<String, Object>> inputData, String stageName, Object stageOp) {
+        List<Map<String, Object>> originalData = this.data;
+        this.data = inputData;
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        try {
+            // Execute the step using the existing logic
+            for (Map.Entry<String, Object> entry : step.entrySet()) {
+                String stage = entry.getKey();
+                Object op = entry.getValue();
+
+                switch (stage) {
+                    case "$match":
+                        // Reuse existing $match logic
+                        Query q = null;
+                        if (op instanceof Query) {
+                            q = (Query) op;
+                        } else if (op instanceof Expr) {
+                            // Handle Expr-based match
+                            for (Map<String, Object> doc : data) {
+                                try {
+                                    Object matchResult = ((Expr) op).evaluate(doc);
+                                    if (matchResult instanceof Boolean && (Boolean) matchResult) {
+                                        result.add(doc);
+                                    }
+                                } catch (Exception e) {
+                                    // Skip documents that cause evaluation errors
+                                }
+                            }
+                            return result;
+                        } else if (op instanceof Map) {
+                            q = getMorphium().createQueryFor(getSearchType());
+                            q.setCollectionName(getCollectionName());
+                            QueryHelper.parseQueryObject((Map<String, Object>) op, q);
+                        }
+
+                        if (q != null) {
+                            for (Map<String, Object> o : data) {
+                                if (QueryHelper.matchesQuery(getSearchType(), q, o)) {
+                                    result.add(o);
+                                }
+                            }
+                        }
+                        break;
+
+                    case "$group":
+                        // Reuse existing $group logic - simplified version
+                        if (op instanceof Map) {
+                            Map<String, Object> groupSpec = (Map<String, Object>) op;
+                            Map<Object, List<Map<String, Object>>> groups = new HashMap<>();
+
+                            // Group documents
+                            for (Map<String, Object> doc : data) {
+                                Object groupKey = extractGroupKey(groupSpec.get("_id"), doc);
+                                groups.computeIfAbsent(groupKey, k -> new ArrayList<>()).add(doc);
+                            }
+
+                            // Compute group results
+                            for (Map.Entry<Object, List<Map<String, Object>>> group : groups.entrySet()) {
+                                Map<String, Object> groupResult = new HashMap<>();
+                                groupResult.put("_id", group.getKey());
+
+                                for (Map.Entry<String, Object> spec : groupSpec.entrySet()) {
+                                    if (!"_id".equals(spec.getKey())) {
+                                        Object value = computeGroupValue(spec.getValue(), group.getValue());
+                                        groupResult.put(spec.getKey(), value);
+                                    }
+                                }
+                                result.add(groupResult);
+                            }
+                        }
+                        break;
+
+                    default:
+                        // For other stages, just pass through the data
+                        result = new ArrayList<>(data);
+                }
+            }
+        } finally {
+            this.data = originalData;
+        }
+
+        return result;
+    }
+
+    /**
+     * Helper method to compare values for bucket assignment
+     */
+    private int compareValues(Object value1, Object value2) {
+        if (value1 == null && value2 == null) return 0;
+        if (value1 == null) return -1;
+        if (value2 == null) return 1;
+
+        if (value1 instanceof Number && value2 instanceof Number) {
+            double d1 = ((Number) value1).doubleValue();
+            double d2 = ((Number) value2).doubleValue();
+            return Double.compare(d1, d2);
+        }
+
+        if (value1 instanceof String && value2 instanceof String) {
+            return ((String) value1).compareTo((String) value2);
+        }
+
+        // Fallback to string comparison
+        return value1.toString().compareTo(value2.toString());
+    }
+
+    /**
+     * Helper method to extract group key from group specification
+     */
+    private Object extractGroupKey(Object groupIdSpec, Map<String, Object> doc) {
+        if (groupIdSpec == null) {
+            return null;
+        }
+
+        if (groupIdSpec instanceof String) {
+            String fieldName = groupIdSpec.toString();
+            if (fieldName.startsWith("$")) {
+                fieldName = fieldName.substring(1);
+            }
+            return doc.get(fieldName);
+        }
+
+        if (groupIdSpec instanceof Expr) {
+            return ((Expr) groupIdSpec).evaluate(doc);
+        }
+
+        if (groupIdSpec instanceof Map) {
+            Map<String, Object> result = new HashMap<>();
+            Map<String, Object> groupMap = (Map<String, Object>) groupIdSpec;
+
+            for (Map.Entry<String, Object> entry : groupMap.entrySet()) {
+                Object value = extractGroupKey(entry.getValue(), doc);
+                result.put(entry.getKey(), value);
+            }
+            return result;
+        }
+
+        return groupIdSpec;
+    }
+
+    /**
+     * Helper method to compute group values for aggregation operations like $sum, $avg, etc.
+     */
+    private Object computeGroupValue(Object valueSpec, List<Map<String, Object>> groupDocs) {
+        if (valueSpec instanceof Map) {
+            Map<String, Object> specMap = (Map<String, Object>) valueSpec;
+            String operation = specMap.keySet().iterator().next();
+            Object operand = specMap.get(operation);
+
+            switch (operation) {
+                case "$sum":
+                    double sum = 0;
+                    for (Map<String, Object> doc : groupDocs) {
+                        Object value = extractValue(operand, doc);
+                        if (value instanceof Number) {
+                            sum += ((Number) value).doubleValue();
+                        } else if (value != null && isNumeric(value.toString())) {
+                            sum += Double.parseDouble(value.toString());
+                        } else if (value == null || value.equals(1)) {
+                            sum += 1; // For counting
+                        }
+                    }
+                    return sum;
+
+                case "$avg":
+                    double total = 0;
+                    int count = 0;
+                    for (Map<String, Object> doc : groupDocs) {
+                        Object value = extractValue(operand, doc);
+                        if (value instanceof Number) {
+                            total += ((Number) value).doubleValue();
+                            count++;
+                        }
+                    }
+                    return count > 0 ? total / count : 0;
+
+                case "$min":
+                    Double min = null;
+                    for (Map<String, Object> doc : groupDocs) {
+                        Object value = extractValue(operand, doc);
+                        if (value instanceof Number) {
+                            double d = ((Number) value).doubleValue();
+                            if (min == null || d < min) {
+                                min = d;
+                            }
+                        }
+                    }
+                    return min;
+
+                case "$max":
+                    Double max = null;
+                    for (Map<String, Object> doc : groupDocs) {
+                        Object value = extractValue(operand, doc);
+                        if (value instanceof Number) {
+                            double d = ((Number) value).doubleValue();
+                            if (max == null || d > max) {
+                                max = d;
+                            }
+                        }
+                    }
+                    return max;
+
+                case "$first":
+                    if (!groupDocs.isEmpty()) {
+                        return extractValue(operand, groupDocs.get(0));
+                    }
+                    return null;
+
+                case "$last":
+                    if (!groupDocs.isEmpty()) {
+                        return extractValue(operand, groupDocs.get(groupDocs.size() - 1));
+                    }
+                    return null;
+
+                case "$push":
+                    List<Object> pushList = new ArrayList<>();
+                    for (Map<String, Object> doc : groupDocs) {
+                        pushList.add(extractValue(operand, doc));
+                    }
+                    return pushList;
+
+                case "$addToSet":
+                    Set<Object> uniqueSet = new HashSet<>();
+                    for (Map<String, Object> doc : groupDocs) {
+                        uniqueSet.add(extractValue(operand, doc));
+                    }
+                    return new ArrayList<>(uniqueSet);
+
+                default:
+                    return null;
+            }
+        }
+
+        return valueSpec;
+    }
+
+    /**
+     * Helper method to extract value from document based on field reference or expression
+     */
+    private Object extractValue(Object spec, Map<String, Object> doc) {
+        if (spec instanceof String) {
+            String fieldName = spec.toString();
+            if (fieldName.startsWith("$")) {
+                fieldName = fieldName.substring(1);
+            }
+            return doc.get(fieldName);
+        }
+
+        if (spec instanceof Expr) {
+            return ((Expr) spec).evaluate(doc);
+        }
+
+        return spec;
+    }
+
+    /**
+     * Helper method to check if a string represents a number
+     */
+    private boolean isNumeric(String str) {
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 }
