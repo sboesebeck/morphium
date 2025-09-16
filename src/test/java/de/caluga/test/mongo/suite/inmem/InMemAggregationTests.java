@@ -128,29 +128,44 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
 
     @Test
     public void inMemAggregationLookupTest() throws Exception {
-        for (int i = 0; i < 100; i++) {
-            UncachedObject u = new UncachedObject("mod", i % 3);
+        // Create test data: 3 users with different roles (0, 1, 2)
+        for (int i = 0; i < 9; i++) {
+            UncachedObject u = new UncachedObject("user" + i, i % 3); // counter = role_id
             morphium.store(u);
         }
-        for (int i = 0; i < 5; i++) {
-            ModuloValue mv = new ModuloValue();
-            mv.setModValue(i);
-            mv.setTextRep("Modulo is " + i);
-            morphium.store(mv);
+
+        // Create role definitions
+        for (int i = 0; i < 3; i++) {
+            ModuloValue role = new ModuloValue();
+            role.setModValue(i);
+            role.setTextRep("Role " + i);
+            morphium.store(role);
         }
 
+        // Test $lookup without unwind first to verify actual join behavior
         Aggregator<UncachedObject, Map> agg = morphium.createAggregator(UncachedObject.class, Map.class);
-        agg.lookup(ModuloValue.class, UncachedObject.Fields.counter, ModuloValue.Fields.modValue, "modValue", null, null);
-        agg.unwind("modValue");
-        agg.group(Expr.field("_id")).first("modValue", Expr.field("mod_value"));
-        List<Map> ret = agg.aggregate();
+        agg.lookup(ModuloValue.class, UncachedObject.Fields.counter, ModuloValue.Fields.modValue, "roleInfo", null, null);
+        agg.limit(3); // Just get first 3 to verify structure
 
-        assertNotNull(ret);
-        ;
-        for (Map m : ret) {
-            assertNotNull(m.get("modValue"));
-            ;
-            assert (((Map) m.get("modValue")).get("mod_value").equals(m.get("counter")));
+        List<Map> result = agg.aggregate();
+
+        // Verify the lookup actually worked
+        assertNotNull(result);
+        assertEquals(3, result.size()); // Should have 3 documents
+
+        for (Map doc : result) {
+            assertNotNull(doc.get("roleInfo")); // Each document should have roleInfo
+            assertTrue(doc.get("roleInfo") instanceof List); // roleInfo should be an array
+
+            List roleArray = (List) doc.get("roleInfo");
+            assertEquals(1, roleArray.size()); // Should have exactly 1 matching role
+
+            Map roleDoc = (Map) roleArray.get(0);
+            assertNotNull(roleDoc.get("mod_value"));
+            assertNotNull(roleDoc.get("text_rep"));
+
+            // Verify the join condition: user.counter == role.mod_value
+            assertEquals(doc.get("counter"), roleDoc.get("mod_value"));
         }
     }
 
