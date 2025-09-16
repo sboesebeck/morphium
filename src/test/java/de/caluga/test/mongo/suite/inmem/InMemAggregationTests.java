@@ -189,8 +189,8 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Map<String, Object> projection1 = new java.util.HashMap<>();
         projection1.put("str_value", Expr.field("str_value"));
         projection1.put("counter", Expr.field("counter"));
-        projection1.put("squared", Expr.function("function(x) { return x * x; }", Expr.field("counter")));
-        projection1.put("doubled", Expr.function("function(n) { return n * 2; }", Expr.field("counter")));
+        projection1.put("squared", Expr.function("function(x) { return x * x; }", java.util.Arrays.asList(Expr.field("counter"))));
+        projection1.put("doubled", Expr.function("function(n) { return n * 2; }", java.util.Arrays.asList(Expr.field("counter"))));
         agg1.project(projection1);
         agg1.limit(3);
 
@@ -199,9 +199,19 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         assertEquals(3, result1.size());
 
         for (Map doc : result1) {
+            log.info("Result document: " + Utils.toJsonString(doc));
             Integer counter = (Integer) doc.get("counter");
             Number squared = (Number) doc.get("squared");
             Number doubled = (Number) doc.get("doubled");
+
+            if (squared == null) {
+                log.error("squared is null for counter: " + counter);
+                fail("$function not working - squared is null");
+            }
+            if (doubled == null) {
+                log.error("doubled is null for counter: " + counter);
+                fail("$function not working - doubled is null");
+            }
 
             assertEquals(counter * counter, squared.intValue());
             assertEquals(counter * 2, doubled.intValue());
@@ -235,7 +245,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         projection3.put("original", Expr.field("str_value"));
         projection3.put("reversed", Expr.function(
             "function(str) { return str.split('').reverse().join(''); }",
-            Expr.field("str_value")
+            java.util.Arrays.asList(Expr.field("str_value"))
         ));
         agg3.project(projection3);
         agg3.limit(1);
@@ -266,7 +276,7 @@ public class InMemAggregationTests extends MorphiumInMemTestBase {
         Map<String, Object> projection = new java.util.HashMap<>();
         projection.put("str_value", Expr.field("str_value"));
         projection.put("counter", Expr.field("counter"));
-        projection.put("function_result", Expr.function("function(x) { return x * x; }", Expr.field("counter")));
+        projection.put("function_result", Expr.function("function(x) { return x * x; }", java.util.Arrays.asList(Expr.field("counter"))));
         agg.project(projection);
         agg.limit(2);
 
