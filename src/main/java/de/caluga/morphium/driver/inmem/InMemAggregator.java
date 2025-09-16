@@ -1367,14 +1367,38 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                 for (Map<String, Object> doc : data) {
                     Object localValue = doc.get(localField);
-                    //                    try {
-                    //                        List<Map<String, Object>> other = morphium.getDriver().find(morphium.getConfig().getDatabase(), collection, UtilsMap.of(foreignField, localValue), null, null, 0, 0, 100, null, null, null);
-                    //                        Map<String, Object> o = new HashMap<>(doc);
-                    //                        o.put(as, other);
-                    //                        ret.add(o);
-                    //                    } catch (MorphiumDriverException e) {
-                    //                        throw new RuntimeException(e);
-                    //                    }
+
+                    // Use the InMemoryDriver's private find method via reflection or direct access
+                    // Since we're in the InMemAggregator which is part of the inmem package,
+                    // we can access the InMemoryDriver's data directly
+                    InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
+
+                    try {
+                        // Get the foreign collection data directly from InMemoryDriver
+                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                        List<Map<String, Object>> foreignCollection = database.get(collection);
+
+                        if (foreignCollection == null) {
+                            foreignCollection = new ArrayList<>();
+                        }
+
+                        // Find matching documents
+                        List<Map<String, Object>> matches = new ArrayList<>();
+                        for (Map<String, Object> foreignDoc : foreignCollection) {
+                            Object foreignValue = foreignDoc.get(foreignField);
+                            if ((localValue == null && foreignValue == null) ||
+                                (localValue != null && localValue.equals(foreignValue))) {
+                                matches.add(new HashMap<>(foreignDoc));
+                            }
+                        }
+
+                        // Create new document with joined data
+                        Map<String, Object> resultDoc = new HashMap<>(doc);
+                        resultDoc.put(as, matches);
+                        ret.add(resultDoc);
+                    } catch (Exception e) {
+                        throw new RuntimeException("$lookup failed: " + e.getMessage(), e);
+                    }
                 }
 
                 break;
