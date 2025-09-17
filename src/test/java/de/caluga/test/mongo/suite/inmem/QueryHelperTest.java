@@ -129,6 +129,12 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
         embQ = morphium.createQueryFor(EmbeddedObject.class).f(EmbeddedObject.Fields.testValueLong).gt(45).f(EmbeddedObject.Fields.testValueLong).lt(400);
         query = morphium.createQueryFor(ListContainer.class).f(ListContainer.Fields.embeddedObjectList).elemMatch(embQ).toQueryObject();
         assertFalse(QueryHelper.matchesQuery(query, morphium.getMapper().serialize(c), null));
+
+        assertTrue(QueryHelper.matchesQuery(
+            Doc.of("arr", Doc.of("$elemMatch", Doc.of("x", Doc.of("$gt", 2)))),
+            Doc.of("arr", List.of(Doc.of("x", 3))),
+            null
+        ));
     }
 
     @Test

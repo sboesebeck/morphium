@@ -976,6 +976,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int ret = commandNumber.incrementAndGet();
 
         // del.addDelete(Doc.of("q", new HashMap<>(), "limit", 0));
+        int totalDeleted = 0;
+
         for (var del : cmd.getDeletes()) {
             boolean multi = true;
             if (del.get("limit") != null) {
@@ -985,10 +987,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (del.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) del.get("collation");
             }
-            delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, multi, collation, null);
+            Map<String, Object> deleteStats = delete (cmd.getDb(), cmd.getColl(), (Map) del.get("q"), null, multi, collation, null);
+            if (deleteStats.get("n") instanceof Number n) {
+                totalDeleted += n.intValue();
+            }
         }
 
-        commandResults.add(prepareResult());
+        Map<String, Object> result = prepareResult();
+        result.put("ok", 1.0);
+        result.put("n", totalDeleted);
+        commandResults.add(result);
         return ret;
     }
 
@@ -1994,8 +2002,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (!(arrayVal instanceof List)) return null;
         List lst = (List) arrayVal;
         for (Object el : lst) {
-            Map<String, Object> wrapper = Doc.of(field, el);
-            if (QueryHelper.matchesQuery(Doc.of(field, cond), wrapper, null)) {
+            boolean matches;
+            if (el instanceof Map) {
+                matches = QueryHelper.matchesQuery(cond, (Map<String, Object>) el, null);
+            } else {
+                Map<String, Object> wrapper = Doc.of("value", el);
+                matches = QueryHelper.matchesQuery(Doc.of("value", cond), wrapper, null);
+            }
+            if (matches) {
                 return new ArrayList<>(List.of(el));
             }
         }
@@ -2725,7 +2739,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 objChanged = !modified.isEmpty();
             }
 
-            if (objChanged) {
+            if (!insert && objChanged) {
                 modifiedCount++;
             }
 
@@ -3252,11 +3266,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     throws MorphiumDriverException {
         List<Map<String, Object >> toDel = new ArrayList<>(find(db, collection, query, null, UtilsMap.of("_id", 1), collation, 0, multiple ? 0 : 1, true));
 
+        int deleted = 0;
+
         for (Map<String, Object> o : toDel) {
             for (Map<String, Object> dat : new ArrayList<>(getCollection(db, collection))) {
                 if (dat.get("_id") instanceof ObjectId || dat.get("_id") instanceof MorphiumId) {
                     if (dat.get("_id").toString().equals(o.get("_id").toString())) {
                         getCollection(db, collection).remove(dat);
+                        deleted++;
 
                         // indexDataByDBCollection.get(db).remove(collection);
                         // updateIndexData(db,collection,null);
@@ -3275,6 +3292,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 } else {
                     if (dat.get("_id").equals(o.get("_id"))) {
                         getCollection(db, collection).remove(dat);
+                        deleted++;
                         // indexDataByDBCollection.get(db).remove(collection);
                         // updateIndexData(db,collection,null);
 
@@ -3296,7 +3314,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // updating index data
             notifyWatchers(db, collection, "delete", o, null, null, o);
         }
-        return new ConcurrentHashMap<>();
+
+        return Doc.of("n", deleted, "ok", 1.0);
     }
 
     private List<Map<String, Object >> getCollection(String db, String collection) throws MorphiumDriverException {

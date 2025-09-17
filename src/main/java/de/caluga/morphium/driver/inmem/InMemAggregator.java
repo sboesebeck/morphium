@@ -1905,7 +1905,7 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                             // Perform recursive lookup
                             Set<Object> visited = new HashSet<>();
                             Queue<Object> toVisit = new LinkedList<>();
-                            toVisit.add(startValue);
+                            toVisit.add(normalizeGraphValue(startValue));
 
                             int currentDepth = 0;
                             while (!toVisit.isEmpty() && (maxDepth == null || currentDepth < maxDepth)) {
@@ -1918,14 +1918,17 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
                                     // Find matching documents
                                     for (Map<String, Object> foreignDoc : foreignCollection) {
-                                        Object connectToValue = foreignDoc.get(connectToField);
-                                        if (Objects.equals(searchValue, connectToValue)) {
+                                        Object connectFromValue = foreignDoc.get(connectFromField);
+                                        if (graphValuesEqual(searchValue, connectFromValue)) {
                                             graphResults.add(new HashMap<>(foreignDoc));
 
                                             // Add connectFromField value for next level
-                                            Object connectFromValue = foreignDoc.get(connectFromField);
-                                            if (connectFromValue != null && !visited.contains(connectFromValue)) {
-                                                nextLevel.add(connectFromValue);
+                                            Object connectToValue = foreignDoc.get(connectToField);
+                                            if (connectToValue != null) {
+                                                Object normalized = normalizeGraphValue(connectToValue);
+                                                if (!visited.contains(normalized)) {
+                                                    nextLevel.add(normalized);
+                                                }
                                             }
                                         }
                                     }
@@ -1975,6 +1978,26 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         }
 
         return result;
+    }
+
+    private Object normalizeGraphValue(Object value) {
+        if (value instanceof Number num) {
+            return num.doubleValue();
+        }
+
+        return value;
+    }
+
+    private boolean graphValuesEqual(Object a, Object b) {
+        if (a == null || b == null) {
+            return Objects.equals(a, b);
+        }
+
+        if (a instanceof Number && b instanceof Number) {
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue()) == 0;
+        }
+
+        return Objects.equals(a, b);
     }
 
     @Override
