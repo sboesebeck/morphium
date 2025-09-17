@@ -3,6 +3,12 @@ package de.caluga.test.mongo.suite.inmem;
 import de.caluga.morphium.Utils;
 import de.caluga.morphium.changestream.ChangeStreamEvent;
 import de.caluga.morphium.changestream.ChangeStreamMonitor;
+import de.caluga.morphium.driver.Doc;
+import de.caluga.morphium.driver.DriverTailableIterationCallback;
+import de.caluga.morphium.driver.MorphiumDriverException;
+import de.caluga.morphium.driver.commands.UpdateMongoCommand;
+import de.caluga.morphium.driver.commands.WatchCommand;
+import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.test.mongo.suite.base.TestUtils;
 import de.caluga.test.mongo.suite.data.ComplexObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -10,11 +16,21 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @Tag("inmemory")
 public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
@@ -232,5 +248,208 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
         Thread.sleep(5000);
         m.terminate();
         assert(cnt.get() == 100) : "count is wrong: " + cnt.get();
+    }
+
+    @Test
+    public void changeStreamResumeAfterTest() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
+
+        MongoConnection firstConnection = morphium.getDriver().getPrimaryConnection(null);
+        AtomicReference<Map<String, Object>> firstToken = new AtomicReference<>();
+        CountDownLatch firstLatch = new CountDownLatch(1);
+
+        DriverTailableIterationCallback firstCallback = new DriverTailableIterationCallback() {
+            private volatile boolean running = true;
+
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                firstToken.set((Map<String, Object>) data.get("_id"));
+                running = false;
+                firstLatch.countDown();
+            }
+
+            @Override
+            public boolean isContinued() {
+                return running;
+            }
+        };
+
+        WatchCommand initialWatch = new WatchCommand(firstConnection)
+        .setDb(morphium.getDatabase())
+        .setColl(morphium.getMapper().getCollectionName(UncachedObject.class))
+        .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+        .setBatchSize(1)
+        .setMaxTimeMS(5000)
+        .setCb(firstCallback);
+
+        Thread initialThread = Thread.ofVirtual().start(() -> {
+            try {
+                initialWatch.watch();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            } finally {
+                initialWatch.releaseConnection();
+            }
+        });
+
+        Thread.sleep(100);
+
+        morphium.store(new UncachedObject("resume-initial", 1));
+
+        if (!firstLatch.await(5, TimeUnit.SECONDS)) {
+            fail("did not receive initial change event");
+        }
+
+        initialThread.join();
+        assertNotNull(firstToken.get());
+
+        morphium.store(new UncachedObject("resume-next", 2));
+
+        MongoConnection resumeConnection = morphium.getDriver().getPrimaryConnection(null);
+        CountDownLatch resumeLatch = new CountDownLatch(1);
+        List<Map<String, Object>> resumedEvents = Collections.synchronizedList(new ArrayList<>());
+
+        DriverTailableIterationCallback resumeCallback = new DriverTailableIterationCallback() {
+            private volatile boolean running = true;
+
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                resumedEvents.add(data);
+                running = false;
+                resumeLatch.countDown();
+            }
+
+            @Override
+            public boolean isContinued() {
+                return running;
+            }
+        };
+
+        WatchCommand resumeWatch = new WatchCommand(resumeConnection)
+        .setDb(morphium.getDatabase())
+        .setColl(morphium.getMapper().getCollectionName(UncachedObject.class))
+        .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+        .setResumeAfter(firstToken.get())
+        .setBatchSize(1)
+        .setMaxTimeMS(5000)
+        .setCb(resumeCallback);
+
+        Thread resumeThread = Thread.ofVirtual().start(() -> {
+            try {
+                resumeWatch.watch();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            } finally {
+                resumeWatch.releaseConnection();
+            }
+        });
+
+        if (!resumeLatch.await(5, TimeUnit.SECONDS)) {
+            fail("resumeAfter watch did not receive any event");
+        }
+
+        resumeThread.join();
+
+        assertEquals(1, resumedEvents.size());
+        Map<String, Object> event = resumedEvents.get(0);
+        Map<String, Object> fullDocument = (Map<String, Object>) event.get("fullDocument");
+        assertNotNull(fullDocument);
+        assertEquals(2, ((Number) fullDocument.get("counter")).intValue());
+        assertEquals("resume-next", fullDocument.get("str_value"));
+    }
+
+    @Test
+    public void changeStreamFullDocumentBeforeChangeTest() throws Exception {
+        morphium.dropCollection(UncachedObject.class);
+        TestUtils.waitForCollectionToBeDeleted(morphium, UncachedObject.class);
+
+        UncachedObject obj = new UncachedObject("pre-image", 10);
+        morphium.store(obj);
+
+        MongoConnection watchConnection = morphium.getDriver().getPrimaryConnection(null);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Map<String, Object>> eventRef = new AtomicReference<>();
+
+        DriverTailableIterationCallback callback = new DriverTailableIterationCallback() {
+            private volatile boolean running = true;
+
+            @Override
+            public void incomingData(Map<String, Object> data, long dur) {
+                eventRef.set(data);
+                running = false;
+                latch.countDown();
+            }
+
+            @Override
+            public boolean isContinued() {
+                return running;
+            }
+        };
+
+        WatchCommand watch = new WatchCommand(watchConnection)
+        .setDb(morphium.getDatabase())
+        .setColl(morphium.getMapper().getCollectionName(UncachedObject.class))
+        .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+        .setFullDocumentBeforeChange(WatchCommand.FullDocumentBeforeChangeEnum.whenAvailable)
+        .setBatchSize(1)
+        .setMaxTimeMS(5000)
+        .setCb(callback);
+
+        Thread watcher = Thread.ofVirtual().start(() -> {
+            try {
+                watch.watch();
+            } catch (MorphiumDriverException e) {
+                throw new RuntimeException(e);
+            } finally {
+                watch.releaseConnection();
+            }
+        });
+
+        Thread.sleep(100);
+
+        MongoConnection updateConnection = morphium.getDriver().getPrimaryConnection(null);
+        try {
+            new UpdateMongoCommand(updateConnection)
+            .setDb(morphium.getDatabase())
+            .setColl(morphium.getMapper().getCollectionName(UncachedObject.class))
+            .addUpdate(Doc.of(
+                "q", Doc.of("_id", obj.getMorphiumId()),
+                "u", Doc.of("$set", Doc.of("counter", 77), "$unset", Doc.of("str_value", "")),
+                "multi", false,
+                "upsert", false
+            ))
+            .execute();
+        } finally {
+            morphium.getDriver().releaseConnection(updateConnection);
+        }
+
+        if (!latch.await(5, TimeUnit.SECONDS)) {
+            fail("no change stream event for update");
+        }
+
+        watcher.join();
+
+        Map<String, Object> event = eventRef.get();
+        assertNotNull(event);
+        Map<String, Object> updateDescription = (Map<String, Object>) event.get("updateDescription");
+        assertNotNull(updateDescription);
+
+        Map<String, Object> updatedFields = (Map<String, Object>) updateDescription.get("updatedFields");
+        List<String> removedFields = (List<String>) updateDescription.get("removedFields");
+
+        assertTrue(updatedFields.containsKey("counter"));
+        assertEquals(77, ((Number) updatedFields.get("counter")).intValue());
+        assertTrue(removedFields.contains("str_value"));
+
+        Map<String, Object> beforeDoc = (Map<String, Object>) event.get("fullDocumentBeforeChange");
+        assertNotNull(beforeDoc);
+        assertEquals(10, ((Number) beforeDoc.get("counter")).intValue());
+        assertEquals("pre-image", beforeDoc.get("str_value"));
+
+        Map<String, Object> fullDoc = (Map<String, Object>) event.get("fullDocument");
+        assertNotNull(fullDoc);
+        assertEquals(77, ((Number) fullDoc.get("counter")).intValue());
+        assertFalse(fullDoc.containsKey("str_value"));
     }
 }

@@ -21,6 +21,7 @@ import java.text.Collator;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledFuture;
@@ -154,7 +155,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<String, Map<String, Map<String, Map<Integer, List<Map<String, Object >> >> >> indexDataByDBCollection = new ConcurrentHashMap<>();
     private final ThreadLocal<InMemTransactionContext> currentTransaction = new ThreadLocal<>();
     private final AtomicLong txn = new AtomicLong();
-    private final Map<String, List<DriverTailableIterationCallback >> watchersByDb = new ConcurrentHashMap<>();
+    private final AtomicLong changeStreamSequence = new AtomicLong();
+    private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
+    private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
     private final Map<String, Map<String, Map<String, Integer >>> cappedCollections = new ConcurrentHashMap<>(); // db->coll->Settings
     // size/max
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
@@ -308,7 +312,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         monitors.clear();
-        watchersByDb.clear();
+        changeStreamSubscribers.clear();
+        changeStreamHistory.clear();
+        changeStreamSequence.set(0);
         eventQueue.clear();
         cursors.clear();
         commandResults.clear();
@@ -326,7 +332,63 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public void watch(WatchCommand settings) throws MorphiumDriverException {
-        watch(settings.getDb(), settings.getColl(), settings.getMaxTimeMS(), settings.getFullDocument().equals(WatchCommand.FullDocumentEnum.updateLookup), settings.getPipeline(), settings.getCb());
+        if (settings == null || settings.getCb() == null) {
+            return;
+        }
+
+        String db = settings.getDb();
+
+        if (db == null || db.isBlank()) {
+            db = "admin";
+        }
+
+        String collection = settings.getColl();
+        Object monitor = new Object();
+        monitors.add(monitor);
+
+        ChangeStreamSubscription subscription = new ChangeStreamSubscription(
+            db,
+            collection,
+            settings.getCb(),
+            settings.getPipeline(),
+            settings.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : settings.getFullDocument(),
+            settings.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : settings.getFullDocumentBeforeChange(),
+            Boolean.TRUE.equals(settings.getShowExpandedEvents()),
+            monitor
+        );
+
+        registerSubscription(subscription);
+
+        try {
+            Long resumeAfterToken = extractResumeToken(settings.getResumeAfter());
+            Long startAfterToken = resumeAfterToken == null ? extractResumeToken(settings.getStartAfter()) : null;
+            Long startingToken = resumeAfterToken != null ? resumeAfterToken : startAfterToken;
+
+            if (startingToken != null) {
+                replayHistory(subscription, startingToken);
+            }
+
+            if (!subscription.isActive()) {
+                return;
+            }
+
+            synchronized (monitor) {
+                while (subscription.isActive()) {
+                    Integer maxTime = settings.getMaxTimeMS();
+
+                    if (maxTime != null && maxTime > 0) {
+                        monitor.wait(maxTime);
+                    } else {
+                        monitor.wait();
+                    }
+                }
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } finally {
+            unregisterSubscription(subscription);
+            monitors.remove(monitor);
+        }
     }
 
     @Override
@@ -754,7 +816,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (result == null || result.isEmpty()) {
                 // waiting for some changes
-                watch(cmd.getDb(), cmd.getColl(), cmd.getMaxTimeMS(), true, Arrays.asList(Doc.of("$match", cmd.getFilter())), new DriverTailableIterationCallback() {
+                WatchCommand watchCmd = new WatchCommand(this)
+                .setDb(cmd.getDb())
+                .setColl(cmd.getColl())
+                .setMaxTimeMS(cmd.getMaxTimeMS())
+                .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+                .setPipeline(Arrays.asList(Doc.of("$match", cmd.getFilter())))
+                .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
                         result.add(data);
@@ -764,6 +832,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         return false;
                     }
                 });
+
+                watch(watchCmd);
+                watchCmd.releaseConnection();
             }
         }
 
@@ -814,7 +885,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             if (result == null || result.isEmpty()) {
                 // waiting for some changes
-                watch(fnd.getDb(), fnd.getColl(), fnd.getMaxTimeMS(), true, Arrays.asList(Doc.of("$match", fnd.getFilter())), new DriverTailableIterationCallback() {
+                WatchCommand watchCmd = new WatchCommand(this)
+                .setDb(fnd.getDb())
+                .setColl(fnd.getColl())
+                .setMaxTimeMS(fnd.getMaxTimeMS())
+                .setFullDocument(WatchCommand.FullDocumentEnum.updateLookup)
+                .setPipeline(Arrays.asList(Doc.of("$match", fnd.getFilter())))
+                .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
                         result.add((Map<String, Object>) data.get("fullDocument"));
@@ -824,6 +901,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         return false;
                     }
                 });
+
+                watch(watchCmd);
+                watchCmd.releaseConnection();
             }
             // fnd.setLimit(fnd.getLimit()-result.size());
             // long cursorId = cmd.getCursorId();
@@ -1583,68 +1663,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return crs;
     }
 
-    @SuppressWarnings({"RedundantThrows", "CatchMayIgnoreException"})
-
-    public void watch(String db, String collection, int timeout, boolean fullDocumentOnUpdate, List<Map<String, Object >> pipeline, DriverTailableIterationCallback cb) throws MorphiumDriverException {
-        Object monitor = new Object();
-        monitors.add(monitor);
-        DriverTailableIterationCallback cback = new DriverTailableIterationCallback() {
-            public void incomingData(Map<String, Object> data, long dur) {
-                if (pipeline != null && !pipeline.isEmpty()) {
-                    InMemAggregator agg = new InMemAggregator(null, Map.class, Map.class);
-
-                    for (var step : pipeline) {
-                        List<Map<String, Object >> lst = agg.execStep(step, Arrays.asList(data));
-                        if (lst == null || lst.isEmpty()) {
-                            return;
-                        }
-                        data = lst.get(0);
-                    }
-                }
-
-                if (cb != null) {
-                    // honor fullDocumentOnUpdate
-                    if (!fullDocumentOnUpdate && "update".equals(data.get("operationType"))) {
-                        data.remove("fullDocument");
-                    }
-                    cb.incomingData(data, dur);
-                    if (!cb.isContinued()) {
-                        synchronized (monitor) {
-                            monitor.notifyAll();
-                        }
-                    }
-                }
-            }
-            public boolean isContinued() {
-                return cb.isContinued();
-            }
-        };
-        if (collection != null) {
-            db = db + "." + collection;
-        }
-        watchersByDb.putIfAbsent(db, new CopyOnWriteArrayList<>());
-        watchersByDb.get(db).add(cback);
-
-        // simulate blocking
-        try {
-            synchronized (monitor) {
-                monitor.wait();
-                monitors.remove(monitor);
-            }
-        } catch (InterruptedException e) {
-        }
-
-        // remove the wrapped callback, not the original one
-        var lst = watchersByDb.get(db);
-        if (lst != null) {
-            lst.remove(cback);
-            if (lst.isEmpty()) {
-                watchersByDb.remove(db);
-            }
-        }
-        log.debug("Exiting");
-    }
-
     public MorphiumCursor nextIteration(MorphiumCursor crs) throws MorphiumDriverException {
         InMemoryCursor st = iterationCursors.get(crs.getCursorId());
         if (st == null) return null;
@@ -2243,11 +2261,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             List<Map<String, Object >> srch = findByFieldValue(db, collection, "_id", o.get("_id"));
             if (!srch.isEmpty()) {
+                Map<String, Object> previous = deepCopyDoc(srch.get(0));
                 getCollection(db, collection).remove(srch.get(0));
                 // enforce unique indexes before replacing
                 enforceUniqueOrThrow(db, collection, o);
                 upd++;
-                notifyWatchers(db, collection, "replace", o);
+                notifyWatchers(db, collection, "replace", o, null, null, previous);
             }
             else {
                 // unique check for insert
@@ -2720,7 +2739,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     obj.putAll(original);
                     throw ex;
                 }
-                notifyWatchers(db, collection, "update", obj);
+                Map<String, Object> beforeImage = deepCopyDoc(original);
+                Map<String, Object> updatedMap = computeUpdatedFields(original, obj);
+                List<String> removedList = computeRemovedFields(original, obj);
+                notifyWatchers(db, collection, "update", obj, updatedMap, removedList, beforeImage);
             }
         }
         if (insert) {
@@ -2739,6 +2761,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             res.put("upsertedIds", upsertedIds);
         }
         return res;
+    }
+
+    private void notifyWatchers(String db, String collection, String op, Map doc) {
+        notifyWatchers(db, collection, op, doc, null, null, null);
+    }
+
+    private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields, List<String> removedFields) {
+        notifyWatchers(db, collection, op, doc, updatedFields, removedFields, null);
     }
 
     /**
@@ -2766,88 +2796,456 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * "uid" : <BinData>
      * }
      * }
-     * <p>
-     * The type of operation that occurred. Can be any of the following values:
-     * <p>
-     * insert
-     * delete
-     * replace
-     * update
-     * drop
-     * rename
-     * dropDatabase
-     * invalidate
      */
-    private void notifyWatchers(String db, String collection, String op, Map doc) {
-        notifyWatchers(db, collection, op, doc, null, null);
-    }
-
-    private void notifyWatchers(String db, String collection, String op, Map doc, Map<String,Object> updatedFields, List<String> removedFields) {
+    private void notifyWatchers(String db, String collection, String op, Map doc, Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
         Runnable r = ()-> {
-            // log.info("Notifying watchers for {} / {} operation {}", db, collection, op);
-            List<DriverTailableIterationCallback> w = new ArrayList<>();
+            ChangeStreamEventInfo eventInfo = buildChangeStreamEvent(db, collection, op, doc, updatedFields, removedFields, beforeDocument);
 
-            // db-level watchers
-            if (watchersByDb.containsKey(db)) {
-                w.addAll(new CopyOnWriteArrayList<>(watchersByDb.get(db)));
-            }
-            // collection-level watchers
-            if (collection != null && watchersByDb.containsKey(db + "." + collection)) {
-                w.addAll(new CopyOnWriteArrayList<>(watchersByDb.get(db + "." + collection)));
-            }
-
-            if (w == null || w.isEmpty()) {
+            if (eventInfo == null) {
                 return;
             }
 
-            long tx = txn.incrementAndGet();
-            Collections.shuffle(w);
+            changeStreamHistory.addLast(eventInfo);
 
-            for (DriverTailableIterationCallback cb : w) {
-                Map<String, Object> data = new ConcurrentHashMap<>();
+            while (changeStreamHistory.size() > CHANGE_STREAM_HISTORY_LIMIT) {
+                changeStreamHistory.pollFirst();
+            }
 
-                if (doc != null) {
-                    data.put("fullDocument", doc);
+            dispatchEvent(eventInfo);
+        };
+        eventQueue.add(r);
+    }
+
+    private ChangeStreamEventInfo buildChangeStreamEvent(String db, String collection, String op, Map doc, Map<String, Object> updatedFields, List<String> removedFields, Map<String, Object> beforeDocument) {
+        Map<String, Object> newDocument = cloneAndNormalizeDocument((Map<String, Object>) doc);
+        Map<String, Object> previousDocument = cloneAndNormalizeDocument((Map<String, Object>) beforeDocument);
+
+        Map<String, Object> event = new LinkedHashMap<>();
+        long token = changeStreamSequence.incrementAndGet();
+        event.put("_id", createResumeToken(token));
+        event.put("operationType", op);
+        Map<String, String> ns = new HashMap<>();
+        ns.put("db", db);
+        if (collection != null) {
+            ns.put("coll", collection);
+        }
+        event.put("ns", ns);
+        long clusterTime = System.currentTimeMillis();
+        event.put("clusterTime", clusterTime);
+        event.put("txnNumber", txn.incrementAndGet());
+
+        if (newDocument != null) {
+            event.put("fullDocument", newDocument);
+        }
+
+        if (previousDocument != null) {
+            event.put("fullDocumentBeforeChange", previousDocument);
+        }
+
+        Object documentKey = extractDocumentKey(newDocument, previousDocument);
+
+        if (documentKey != null) {
+            event.put("documentKey", Doc.of("_id", documentKey));
+        }
+
+        if ("update".equals(op)) {
+            Map<String, Object> updated = updatedFields != null ? updatedFields : computeUpdatedFields(previousDocument, newDocument);
+            List<String> removed = removedFields != null ? removedFields : computeRemovedFields(previousDocument, newDocument);
+            Map<String, Object> description = new LinkedHashMap<>();
+            description.put("updatedFields", updated == null ? Map.of() : updated);
+            description.put("removedFields", removed == null ? List.of() : removed);
+            event.put("updateDescription", description);
+        }
+
+        return new ChangeStreamEventInfo(token, db, collection, Collections.unmodifiableMap(event), clusterTime);
+    }
+
+    private void dispatchEvent(ChangeStreamEventInfo eventInfo) {
+        deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db), eventInfo);
+
+        if (eventInfo.collection != null) {
+            deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection), eventInfo);
+        }
+    }
+
+    private void deliverToSubscribers(List<ChangeStreamSubscription> subscriptions, ChangeStreamEventInfo eventInfo) {
+        if (subscriptions == null || subscriptions.isEmpty()) {
+            return;
+        }
+
+        for (ChangeStreamSubscription subscription : subscriptions) {
+            if (!subscription.isActive()) {
+                continue;
+            }
+
+            if (!subscription.matches(eventInfo)) {
+                continue;
+            }
+
+            subscription.deliver(eventInfo);
+
+            if (!subscription.isActive()) {
+                unregisterSubscription(subscription);
+            }
+        }
+    }
+
+    private void registerSubscription(ChangeStreamSubscription subscription) {
+        String namespaceKey = subscription.collection == null ? subscription.db : subscription.db + "." + subscription.collection;
+        subscription.namespaceKey = namespaceKey;
+        changeStreamSubscribers.computeIfAbsent(namespaceKey, k -> new CopyOnWriteArrayList<>()).add(subscription);
+    }
+
+    private void unregisterSubscription(ChangeStreamSubscription subscription) {
+        if (subscription.namespaceKey == null) {
+            return;
+        }
+
+        List<ChangeStreamSubscription> subs = changeStreamSubscribers.get(subscription.namespaceKey);
+
+        if (subs != null) {
+            subs.remove(subscription);
+
+            if (subs.isEmpty()) {
+                changeStreamSubscribers.remove(subscription.namespaceKey);
+            }
+        }
+
+        subscription.deactivate();
+    }
+
+    private void replayHistory(ChangeStreamSubscription subscription, long startingToken) {
+        for (ChangeStreamEventInfo info : changeStreamHistory) {
+            if (info.token <= startingToken) {
+                continue;
+            }
+
+            if (!subscription.matches(info)) {
+                continue;
+            }
+
+            subscription.deliver(info);
+
+            if (!subscription.isActive()) {
+                break;
+            }
+        }
+    }
+
+    private static Long extractResumeToken(Map<String, Object> tokenDocument) {
+        if (tokenDocument == null) {
+            return null;
+        }
+
+        Object data = tokenDocument.get("_data");
+
+        if (data instanceof String str) {
+            try {
+                return Long.parseUnsignedLong(str, 16);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+
+        if (data instanceof Number num) {
+            return num.longValue();
+        }
+
+        return null;
+    }
+
+    private static Map<String, Object> createResumeToken(long token) {
+        return Doc.of("_data", String.format(Locale.ROOT, "%016x", token));
+    }
+
+    private Map<String, Object> cloneAndNormalizeDocument(Map<String, Object> source) {
+        if (source == null) {
+            return null;
+        }
+
+        Map<String, Object> copy = deepCopyDoc(source);
+
+        if (copy.containsKey("_id")) {
+            copy.put("_id", normalizeId(copy.get("_id")));
+        }
+
+        return copy;
+    }
+
+    private Object extractDocumentKey(Map<String, Object> newDocument, Map<String, Object> previousDocument) {
+        Object id = newDocument != null ? newDocument.get("_id") : null;
+
+        if (id == null && previousDocument != null) {
+            id = previousDocument.get("_id");
+        }
+
+        return normalizeId(id);
+    }
+
+    private Object normalizeId(Object value) {
+        if (value instanceof MorphiumId || value == null) {
+            return value;
+        }
+
+        if (value instanceof ObjectId objectId) {
+            return new MorphiumId(objectId);
+        }
+
+        return value;
+    }
+
+    private Map<String, Object> computeUpdatedFields(Map<String, Object> previousDocument, Map<String, Object> newDocument) {
+        if (newDocument == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> beforeFlat = flattenDocument(previousDocument);
+        Map<String, Object> afterFlat = flattenDocument(newDocument);
+        Map<String, Object> updated = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> entry : afterFlat.entrySet()) {
+            if ("_id".equals(entry.getKey())) {
+                continue;
+            }
+
+            Object previous = beforeFlat.get(entry.getKey());
+
+            if (!Objects.equals(previous, entry.getValue())) {
+                updated.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        return updated;
+    }
+
+    private List<String> computeRemovedFields(Map<String, Object> previousDocument, Map<String, Object> newDocument) {
+        if (previousDocument == null) {
+            return List.of();
+        }
+
+        Map<String, Object> beforeFlat = flattenDocument(previousDocument);
+        Map<String, Object> afterFlat = flattenDocument(newDocument);
+        List<String> removed = new ArrayList<>();
+
+        for (String key : beforeFlat.keySet()) {
+            if ("_id".equals(key)) {
+                continue;
+            }
+
+            if (!afterFlat.containsKey(key)) {
+                removed.add(key);
+            }
+        }
+
+        return removed;
+    }
+
+    private Map<String, Object> flattenDocument(Map<String, Object> document) {
+        Map<String, Object> flattened = new LinkedHashMap<>();
+
+        if (document == null) {
+            return flattened;
+        }
+
+        for (Map.Entry<String, Object> entry : document.entrySet()) {
+            flattenValue(flattened, entry.getKey(), entry.getValue());
+        }
+
+        return flattened;
+    }
+
+    private void flattenValue(Map<String, Object> target, String prefix, Object value) {
+        if (value instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) value;
+
+            if (map.isEmpty()) {
+                target.put(prefix, Map.of());
+            }
+
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() == null) {
+                    continue;
+                }
+                String newPrefix = prefix == null || prefix.isEmpty() ? entry.getKey().toString() : prefix + "." + entry.getKey();
+                flattenValue(target, newPrefix, entry.getValue());
+            }
+            return;
+        }
+
+        if (value instanceof List) {
+            List<?> list = (List<?>) value;
+
+            if (list.isEmpty()) {
+                target.put(prefix, List.of());
+                return;
+            }
+
+            for (int i = 0; i < list.size(); i++) {
+                String newPrefix = prefix + "." + i;
+                flattenValue(target, newPrefix, list.get(i));
+            }
+            return;
+        }
+
+        target.put(prefix, value);
+    }
+
+    private static final class ChangeStreamEventInfo {
+        private final long token;
+        private final String db;
+        private final String collection;
+        private final Map<String, Object> event;
+        private final long createdAt;
+
+        private ChangeStreamEventInfo(long token, String db, String collection, Map<String, Object> event, long createdAt) {
+            this.token = token;
+            this.db = db;
+            this.collection = collection;
+            this.event = event;
+            this.createdAt = createdAt;
+        }
+    }
+
+    private class ChangeStreamSubscription {
+        private final String db;
+        private final String collection;
+        private final DriverTailableIterationCallback callback;
+        private final List<Map<String, Object>> pipeline;
+        private final WatchCommand.FullDocumentEnum fullDocumentMode;
+        private final WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode;
+        private final boolean showExpandedEvents;
+        private final Object monitor;
+        private volatile boolean active = true;
+        private String namespaceKey;
+
+        private ChangeStreamSubscription(String db, String collection, DriverTailableIterationCallback callback, List<Map<String, Object>> pipeline,
+                                         WatchCommand.FullDocumentEnum fullDocumentMode, WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode,
+                                         boolean showExpandedEvents, Object monitor) {
+            this.db = db;
+            this.collection = collection;
+            this.callback = callback;
+            this.pipeline = pipeline;
+            this.fullDocumentMode = fullDocumentMode;
+            this.beforeChangeMode = beforeChangeMode;
+            this.showExpandedEvents = showExpandedEvents;
+            this.monitor = monitor;
+        }
+
+        private boolean matches(ChangeStreamEventInfo info) {
+            if (!Objects.equals(db, info.db)) {
+                return false;
+            }
+
+            if (collection == null) {
+                return true;
+            }
+
+            return Objects.equals(collection, info.collection);
+        }
+
+        private boolean isActive() {
+            return active;
+        }
+
+        private void deactivate() {
+            if (!active) {
+                return;
+            }
+
+            active = false;
+
+            synchronized (monitor) {
+                monitor.notifyAll();
+            }
+        }
+
+        private void deliver(ChangeStreamEventInfo info) {
+            if (!active) {
+                return;
+            }
+
+            Map<String, Object> working = deepCopyDoc(info.event);
+            adjustFullDocument(working);
+
+            if (!applyFullDocumentBeforeChange(working)) {
+                return;
+            }
+
+            Map<String, Object> processed = applyPipeline(working);
+
+            if (processed == null) {
+                return;
+            }
+
+            try {
+                callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
+            } catch (Exception e) {
+                log.error("Error calling change-stream callback", e);
+            }
+
+            if (!callback.isContinued()) {
+                deactivate();
+            }
+        }
+
+        private void adjustFullDocument(Map<String, Object> working) {
+            if (fullDocumentMode != WatchCommand.FullDocumentEnum.updateLookup && "update".equals(working.get("operationType"))) {
+                working.remove("fullDocument");
+            }
+        }
+
+        private boolean applyFullDocumentBeforeChange(Map<String, Object> working) {
+            Map<String, Object> before = (Map<String, Object>) working.get("fullDocumentBeforeChange");
+
+            switch (beforeChangeMode) {
+            case off:
+                working.remove("fullDocumentBeforeChange");
+                return true;
+
+            case whenAvailable:
+                if (before == null) {
+                    working.remove("fullDocumentBeforeChange");
                 }
 
-                if (op != null) {
-                    data.put("operationType", op);
+                return true;
+
+            case required:
+                if (before == null) {
+                    return false;
                 }
 
-                Map m = Collections.synchronizedMap(new HashMap<>(UtilsMap.of("db", db)));
-                // noinspection unchecked
-                m.put("coll", collection);
-                data.put("ns", m);
-                data.put("txnNumber", tx);
-                data.put("clusterTime", System.currentTimeMillis());
-                if ("update".equals(op)) {
-                    Map<String,Object> upd = new HashMap<>();
-                    upd.put("updatedFields", updatedFields == null ? Map.of() : updatedFields);
-                    upd.put("removedFields", removedFields == null ? List.of() : removedFields);
-                    data.put("updateDescription", upd);
-                }
+                return true;
 
-                if (doc != null) {
-                    if (doc.get("_id") != null) {
-                        if (doc.get("_id") instanceof ObjectId) {
-                            data.put("documentKey", new MorphiumId((ObjectId)doc.get("_id")));
-                        } else {
-                            data.put("documentKey", doc.get("_id"));
-                        }
-                    }
-                }
+            default:
+                return true;
+            }
+        }
 
-                try {
-                    cb.incomingData(data, System.currentTimeMillis());
-                } catch (Exception e) {
-                    log.error("Error calling watcher", e);
+        private Map<String, Object> applyPipeline(Map<String, Object> working) {
+            if (pipeline == null || pipeline.isEmpty()) {
+                return working;
+            }
+
+            InMemAggregator agg = new InMemAggregator(null, Map.class, Map.class);
+            List<Map<String, Object>> current = new ArrayList<>();
+            current.add(working);
+
+            for (Map<String, Object> stage : pipeline) {
+                current = agg.execStep(stage, current);
+
+                if (current == null || current.isEmpty()) {
+                    return null;
                 }
             }
 
-        };
-        // log.info("Notify watchers -adding event #{}", eventQueue.size());
-        eventQueue.add(r);
-        //r.run();
+            Map<String, Object> result = current.get(0);
+
+            if (result == working) {
+                return working;
+            }
+
+            return deepCopyDoc(result);
+        }
     }
 
     public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)
@@ -2896,7 +3294,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
 
             // updating index data
-            notifyWatchers(db, collection, "delete", o);
+            notifyWatchers(db, collection, "delete", o, null, null, o);
         }
         return new ConcurrentHashMap<>();
     }

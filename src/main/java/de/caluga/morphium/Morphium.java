@@ -2743,8 +2743,11 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     private boolean processEvent(ChangeStreamListener lst, Map<String, Object> doc) {
         Map<String, Object> obj = (Map<String, Object>) doc.get("fullDocument");
         doc.remove("fullDocument");
+        Map<String, Object> before = (Map<String, Object>) doc.get("fullDocumentBeforeChange");
+        doc.remove("fullDocumentBeforeChange");
         ChangeStreamEvent evt = getMapper().deserialize(ChangeStreamEvent.class, doc);
         evt.setFullDocument(obj);
+        evt.setFullDocumentBeforeChange(before);
         return lst.incomingData(evt);
     }
 

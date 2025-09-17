@@ -178,6 +178,9 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> obj = (Map<String, Object>) data.get("fullDocument");
                         data.remove("fullDocument");
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> before = (Map<String, Object>) data.get("fullDocumentBeforeChange");
+                        data.remove("fullDocumentBeforeChange");
 
                         if (data.get("documentKey") instanceof MorphiumId || data.get("documentKey") instanceof ObjectId) {
                             data.put("documentKey", Doc.of("_id", data.get("documentKey")));
@@ -185,6 +188,7 @@ public class ChangeStreamMonitor implements Runnable, ShutdownListener {
 
                         ChangeStreamEvent evt = mapper.deserialize(ChangeStreamEvent.class, data);
                         evt.setFullDocument(obj);
+                        evt.setFullDocumentBeforeChange(before);
                         evt.setDbName(((Map<String, String>)data.get("ns")).get("db"));
                         evt.setCollectionName(((Map<String, String>)data.get("ns")).get("coll"));
                         List<ChangeStreamListener> toRemove = new ArrayList<>();
