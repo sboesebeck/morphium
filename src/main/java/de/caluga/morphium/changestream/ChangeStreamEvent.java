@@ -15,6 +15,7 @@ public class ChangeStreamEvent {
     private Object id;
     private String operationType;
     private Map<String, Object> fullDocument;
+    private Map<String, Object> fullDocumentBeforeChange;
     private Map<String, String> ns;
     private Object documentKey;
     private Map<String, Object> updateDescription;
@@ -54,7 +55,7 @@ public class ChangeStreamEvent {
         return id;
     }
 
-    public void setId(MorphiumId id) {
+    public void setId(Object id) {
         this.id = id;
     }
 
@@ -72,6 +73,14 @@ public class ChangeStreamEvent {
 
     public void setFullDocument(Map<String, Object> fullDocument) {
         this.fullDocument = fullDocument;
+    }
+
+    public Map<String, Object> getFullDocumentBeforeChange() {
+        return fullDocumentBeforeChange;
+    }
+
+    public void setFullDocumentBeforeChange(Map<String, Object> fullDocumentBeforeChange) {
+        this.fullDocumentBeforeChange = fullDocumentBeforeChange;
     }
 
     public Map<String, String> getNs() {

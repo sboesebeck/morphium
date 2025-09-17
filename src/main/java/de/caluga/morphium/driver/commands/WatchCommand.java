@@ -28,6 +28,8 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
     private FullDocumentBeforeChangeEnum fullDocumentBeforeChange;
     private FullDocumentEnum fullDocument;
     private Boolean showExpandedEvents;
+    private Map<String, Object> resumeAfter;
+    private Map<String, Object> startAfter;
 
     public WatchCommand(MongoConnection d) {
         super(d);
@@ -57,6 +59,24 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
 
     public WatchCommand setFullDocument(FullDocumentEnum fullDocument) {
         this.fullDocument = fullDocument;
+        return this;
+    }
+
+    public Map<String, Object> getResumeAfter() {
+        return resumeAfter;
+    }
+
+    public WatchCommand setResumeAfter(Map<String, Object> resumeAfter) {
+        this.resumeAfter = resumeAfter;
+        return this;
+    }
+
+    public Map<String, Object> getStartAfter() {
+        return startAfter;
+    }
+
+    public WatchCommand setStartAfter(Map<String, Object> startAfter) {
+        this.startAfter = startAfter;
         return this;
     }
 
@@ -239,6 +259,16 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
             changeStream.put("showExpandedEvents", showExpandedEvents);
         }
 
+        if (resumeAfter != null) {
+            m.remove("resumeAfter");
+            changeStream.put("resumeAfter", resumeAfter);
+        }
+
+        if (startAfter != null) {
+            m.remove("startAfter");
+            changeStream.put("startAfter", startAfter);
+        }
+
         if (cursor == null) {
             cmd.add("cursor", Doc.of("batchSize", batchSize == null ? getConnection().getDriver().getDefaultBatchSize() : batchSize));
         } //getDefaultBatchSize()
@@ -273,6 +303,14 @@ public class WatchCommand extends MongoCommand<WatchCommand> {
             showExpandedEvents = (Boolean) cstr.get("showExpandedEvents");
         } else {
             showExpandedEvents = "true".equals(cstr.get("showExpandedEvents"));
+        }
+
+        if (cstr.get("resumeAfter") instanceof Map) {
+            resumeAfter = (Map<String, Object>) cstr.get("resumeAfter");
+        }
+
+        if (cstr.get("startAfter") instanceof Map) {
+            startAfter = (Map<String, Object>) cstr.get("startAfter");
         }
 
         return this;
