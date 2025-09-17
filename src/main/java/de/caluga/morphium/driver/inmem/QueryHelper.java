@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -131,6 +132,34 @@ public class QueryHelper {
                         // probably a query operand
                         @SuppressWarnings("unchecked")
                         Map<String, Object> commandMap = (Map<String, Object>) query.get(keyQuery);
+                        List<String> operators = new ArrayList<>();
+
+                        for (String opKey : commandMap.keySet()) {
+                            if (!"$options".equals(opKey)) {
+                                operators.add(opKey);
+                            }
+                        }
+
+                        if (operators.size() > 1) {
+                            for (String opKey : operators) {
+                                Map<String, Object> singleCommand = new LinkedHashMap<>();
+                                singleCommand.put(opKey, commandMap.get(opKey));
+
+                                if (commandMap.containsKey("$options")) {
+                                    singleCommand.put("$options", commandMap.get("$options"));
+                                }
+
+                                Map<String, Object> singleQuery = new LinkedHashMap<>();
+                                singleQuery.put(keyQuery, singleCommand);
+
+                                if (!matchesQuery(singleQuery, toCheck, collation)) {
+                                    return false;
+                                }
+                            }
+
+                            ret = true;
+                            continue;
+                        }
                         var it = commandMap.keySet().iterator();
                         String commandKey = it.next();
 
@@ -201,24 +230,21 @@ public class QueryHelper {
                                     return true;
                                 }
 
-                                if (checkValue != null && commandMap.get(commandKey) == null) {
+                                if (checkValue == null || commandMap.get(commandKey) == null) {
                                     return false;
-                                }
-
-                                if (checkValue == null && commandMap.get(commandKey) != null) {
-                                    return false;
-                                }
-
-                                if (coll != null && (checkValue instanceof String)) {
-                                    return coll.equals((String) checkValue, (String) commandMap.get(commandKey));
                                 }
 
                                 if (checkValue instanceof List) {
-                                    return ((List) checkValue).contains(commandMap.get(commandKey));
+                                    for (Object value : (List) checkValue) {
+                                        if (compareValues(value, commandMap.get(commandKey), coll)) {
+                                            return true;
+                                        }
+                                    }
+
+                                    return false;
                                 }
 
-                                //noinspection unchecked
-                                return checkValue.equals(commandMap.get(commandKey));
+                                return compareValues(checkValue, commandMap.get(commandKey), coll);
 
                             case "$lte":
                             case "$lt":
@@ -231,47 +257,21 @@ public class QueryHelper {
 
                                 if (checkValue instanceof List) {
                                     lst = (List) checkValue;
-                                } else {
-                                    if (checkValue != null) {
-                                        lst = List.of(checkValue);
-                                    } else {
-                                        lst = null;
-                                    }
+                                } else if (checkValue != null) {
+                                    lst = List.of(checkValue);
                                 }
-                                if (lst==null || checkValue==null){
-                                    return true;
+
+                                if (lst == null) {
+                                    return false;
                                 }
+
                                 for (var cv : lst) {
-                                    //noinspection unchecked
-                                    if (coll != null && (cv instanceof String)) {
-                                        if (coll.compare(cv, commandMap.get(commandKey)) <= offset) {
-                                            return true;
-                                        }
-
-                                        continue;
-                                    }
-
                                     if (cv == null) {
-                                        return commandMap.get(commandKey) != null;
-                                    }
-
-                                    if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                        if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) <= offset) {
-                                            return true;
-                                        }
-
                                         continue;
                                     }
 
-                                    try {
-                                        if (((Comparable) cv).compareTo(commandMap.get(commandKey)) <= offset) {
-                                            return true;
-                                        }
-
-                                        continue;
-                                    } catch (Exception e) {
-                                        //type mismatch?
-                                        continue;
+                                    if (compareLessThan(cv, commandMap.get(commandKey), offset, coll)) {
+                                        return true;
                                     }
                                 }
 
@@ -288,41 +288,21 @@ public class QueryHelper {
 
                                 if (checkValue instanceof List) {
                                     lst = (List) checkValue;
-                                } else {
+                                } else if (checkValue != null) {
                                     lst = List.of(checkValue);
                                 }
 
+                                if (lst == null) {
+                                    return false;
+                                }
+
                                 for (var cv : lst) {
-                                    //noinspection unchecked
-                                    if (coll != null && (cv instanceof String)) {
-                                        if (coll.compare(cv, commandMap.get(commandKey)) >= offset) {
-                                            return true;
-                                        }
-
-                                        continue;
-                                    }
-
                                     if (cv == null) {
-                                        return commandMap.get(commandKey) != null;
-                                    }
-
-                                    if (cv instanceof Number && commandMap.get(commandKey) instanceof Number) {
-                                        if (Double.valueOf(((Number) cv).doubleValue()).compareTo(((Number) commandMap.get(commandKey)).doubleValue()) >= offset) {
-                                            return true;
-                                        }
-
                                         continue;
                                     }
 
-                                    try {
-                                        if (((Comparable) cv).compareTo(commandMap.get(commandKey)) >= offset) {
-                                            return true;
-                                        }
-
-                                        continue;
-                                    } catch (Exception e) {
-                                        //type mismatch?
-                                        continue;
+                                    if (compareGreaterThan(cv, commandMap.get(commandKey), offset, coll)) {
+                                        return true;
                                     }
                                 }
 
@@ -336,31 +316,13 @@ public class QueryHelper {
                                 return n.intValue() % div == rem;
 
                             case "$ne":
-                                //noinspection unchecked
-                                boolean contains = false;
-
                                 if (checkValue instanceof List) {
-                                    @SuppressWarnings("unchecked")
-                                    List chk = Collections.synchronizedList(new CopyOnWriteArrayList((List) checkValue));
-
-                                    for (Object o : chk) {
-                                        if (coll != null && (o instanceof String)) {
-                                            if (coll.equals((String) o, (String) commandMap.get(commandKey))) {
-                                                contains = true;
-                                                break;
-                                            }
-                                        }
-
-                                        if (o != null && commandMap.get(commandKey) != null && o.equals(commandMap.get(commandKey))) {
-                                            contains = true;
-                                            break;
+                                    for (Object element : (List) checkValue) {
+                                        if (compareValues(element, commandMap.get(commandKey), coll)) {
+                                            return false;
                                         }
                                     }
 
-                                    return !contains;
-                                }
-
-                                if (checkValue == null && commandMap.get(commandKey) != null) {
                                     return true;
                                 }
 
@@ -368,73 +330,36 @@ public class QueryHelper {
                                     return false;
                                 }
 
-                                //noinspection unchecked
-                                if (coll != null && (checkValue instanceof String)) {
-                                    return coll.compare(checkValue, commandMap.get(commandKey)) != 0;
-                                }
-
-                                if (checkValue instanceof List) {
-                                    return !((List) checkValue).contains(commandMap.get(commandKey));
-                                }
-
-                                return !checkValue.equals(commandMap.get(commandKey));
+                                return !compareValues(checkValue, commandMap.get(commandKey), coll);
 
                             case "$exists":
-                                boolean exists = (checkValue != null);
-
-                                if (exists && (checkValue instanceof List)) {
-                                    exists = !((List) checkValue).isEmpty();
-                                }
+                                boolean exists = fieldExists(toCheck, keyQuery);
 
                                 if (commandMap.get(commandKey).equals(Boolean.TRUE) || commandMap.get(commandKey).equals("true") || commandMap.get(commandKey).equals(1)) {
                                     return exists;
-                                } else {
-                                    return !exists;
                                 }
+
+                                return !exists;
 
                             case "$nin":
                                 boolean found = false;
 
                                 for (Object v : (List) commandMap.get(commandKey)) {
-                                    if (v instanceof MorphiumId) {
-                                        v = new ObjectId(v.toString());
-                                    }
+                                    Object normalized = normalizeId(v);
 
-                                    if (checkValue == null) {
-                                        if (v == null) {
-                                            found = true;
-                                        }
-                                    } else {
-                                        if (coll != null && checkValue instanceof String && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
-                                            found = true;
-                                            break;
-                                        }
-
-                                        if (checkValue instanceof MorphiumId && v instanceof ObjectId) {
-                                            if (checkValue.toString().equals(v.toString())) {
+                                    if (checkValue instanceof List) {
+                                        for (Object element : (List) checkValue) {
+                                            if (compareValues(element, normalized, coll)) {
                                                 found = true;
                                                 break;
                                             }
                                         }
+                                    } else if (compareValues(checkValue, normalized, coll)) {
+                                        found = true;
+                                    }
 
-                                        if (checkValue.equals(v)) {
-                                            found = true;
-                                            break;
-                                        }
-
-                                        if (checkValue instanceof List) {
-                                            for (Object v2 : (List) checkValue) {
-                                                if (coll != null && coll.equals((String) v2, (String) v)) {
-                                                    found = true;
-                                                    break;
-                                                }
-
-                                                if (v2.equals(v)) {
-                                                    found = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
+                                    if (found) {
+                                        break;
                                     }
                                 }
 
@@ -442,28 +367,16 @@ public class QueryHelper {
 
                             case "$in":
                                 for (Object v : (List) commandMap.get(commandKey)) {
-                                    if (v instanceof MorphiumId) {
-                                        v = new ObjectId(v.toString());
-                                    }
+                                    Object normalized = normalizeId(v);
 
-                                    if (checkValue == null && v == null) {
-                                        return true;
-                                    }
-
-                                    if (coll != null && checkValue instanceof String && coll.equals((String) toCheck.get(keyQuery), (String) v)) {
-                                        return true;
-                                    }
-
-                                    if (checkValue != null && toCheck.get(keyQuery).equals(v)) {
-                                        return true;
-                                    }
-
-                                    if (checkValue != null && toCheck.get(keyQuery) instanceof List) {
-                                        for (Object v2 : (List) checkValue) {
-                                            if (v2.equals(v)) {
+                                    if (checkValue instanceof List) {
+                                        for (Object element : (List) checkValue) {
+                                            if (compareValues(element, normalized, coll)) {
                                                 return true;
                                             }
                                         }
+                                    } else if (compareValues(checkValue, normalized, coll)) {
+                                        return true;
                                     }
                                 }
 
@@ -520,26 +433,20 @@ public class QueryHelper {
                                     String opt = commandMap.get("$options").toString().toLowerCase();
 
                                     if (opt.contains("i")) {
-                                        opts = opts | Pattern.CASE_INSENSITIVE;
+                                        opts |= Pattern.CASE_INSENSITIVE;
                                     }
 
                                     if (opt.contains("m")) {
-                                        opts = opts | Pattern.MULTILINE;
+                                        opts |= Pattern.MULTILINE;
                                     }
 
                                     if (opt.contains("s")) {
-                                        opts = opts | Pattern.DOTALL;
+                                        opts |= Pattern.DOTALL;
                                     }
 
                                     if (opt.contains("x")) {
-                                        log.warn("There is no proper equivalent for the 'x' option" + " in mongodb!");
-                                        //
-                                        // opts=opts|Pattern.COMMENTS;
+                                        opts |= Pattern.COMMENTS;
                                     }
-
-                                    //to have the same behaviour: DOTALL needs to be set anyway!
-                                    opts = opts | Pattern.DOTALL;
-                                    opts = opts | Pattern.MULTILINE;
                                 }
 
                                 if (valtoCheck == null) {
@@ -548,73 +455,49 @@ public class QueryHelper {
 
                                 if (commandKey.equals("$text")) {
                                     String srch = commandMap.get("$text").toString().toLowerCase();
-                                    String[] tokens = null;
+                                    List<String> tokens = new ArrayList<>();
 
-                                    if (srch.contains("\"")) {
-                                        // phrase search
-                                        List<String> tks = new ArrayList<>();
-                                        Pattern p = Pattern.compile("\"([^\"]*)\"");
-                                        String t = p.matcher(srch).group(1);
-                                        srch = srch.replaceAll("\"" + t + "\"", "");
-                                        tks.add(t);
-                                        tks.addAll(Arrays.asList(srch.split(" ")));
-                                    } else {
-                                        srch = srch.replaceAll("[^a-zA-Z0-9 ]", " ");
-                                        tokens = srch.split(" ");
+                                    Pattern phrasePattern = Pattern.compile("\"([^\"]+)\"");
+                                    var matcher = phrasePattern.matcher(srch);
+                                    while (matcher.find()) {
+                                        tokens.add(matcher.group(1));
                                     }
 
-                                    var v = valtoCheck.toString().toLowerCase();
-                                    found = true;
+                                    srch = matcher.replaceAll(" ");
+                                    srch = srch.replaceAll("[^a-z0-9 ]", " ");
+                                    tokens.addAll(Arrays.asList(srch.trim().split(" +")));
 
-                                    for (String s : tokens) {
-                                        if (s.isEmpty() || s.isBlank()) {
+                                    String valueText = valtoCheck.toString().toLowerCase();
+
+                                    for (String token : tokens) {
+                                        if (token == null || token.isBlank()) {
                                             continue;
                                         }
 
-                                        if (!v.contains(s)) {
-                                            found = false;
-                                            break;
+                                        if (!valueText.contains(token)) {
+                                            return false;
                                         }
                                     }
 
-                                    return found;
+                                    return !tokens.isEmpty();
                                 } else {
-                                    String regex = null;
+                                    Pattern regexPattern = buildRegexPattern(commandMap, opts);
 
-                                    if (commandMap.get("$regex") != null) {
-                                        if (commandMap.get("$regex") instanceof Map) {
-                                            var r = commandMap.get("$regex");
-
-                                            if (r instanceof Map) {
-                                                regex = (String)((Map) r).get("pattern");
-                                            }
-                                        } else {
-                                            regex = (String) commandMap.get("$regex");
-                                        }
-                                    }
-
-                                    if (regex == null) {
-                                        var r = commandMap.get("$regularExpression");
-
-                                        if (r instanceof Map) {
-                                            regex = (String)((Map) r).get("pattern");
-                                        }
-                                    }
-
-                                    if (regex == null) {
+                                    if (regexPattern == null) {
                                         return false;
                                     }
 
-                                    if (!regex.startsWith("^")) {
-                                        regex = ".*" + regex;
+                                    if (valtoCheck instanceof List) {
+                                        for (Object element : (List) valtoCheck) {
+                                            if (element != null && regexPattern.matcher(element.toString()).find()) {
+                                                return true;
+                                            }
+                                        }
+
+                                        return false;
                                     }
 
-                                    if (!regex.contains("$")) {
-                                        regex = regex + ".*$";
-                                    }
-
-                                    Pattern p = Pattern.compile(regex, opts);
-                                    return p.matcher(valtoCheck.toString()).matches();
+                                    return regexPattern.matcher(valtoCheck.toString()).find();
                                 }
 
                             case "$type":
@@ -637,45 +520,13 @@ public class QueryHelper {
                                     elements.add(checkValue);
                                 }
 
-                                boolean fnd = false;
-
                                 for (Object o : elements) {
-                                    if (o == null) {
-                                        fnd = type.equals(MongoType.NULL);
-                                    } else if (o instanceof byte[]) {
-                                        fnd = type.equals(MongoType.BINARY_DATA);
-                                    } else if ((o instanceof List) || (o.getClass().isArray())) {
-                                        fnd = type.equals(MongoType.ARRAY);
-                                    } else if (o instanceof Pattern) {
-                                        fnd = type.equals(MongoType.REGEX);
-                                    } else if (o instanceof Map) {
-                                        fnd = type.equals(MongoType.OBJECT);
-                                    } else if ((o instanceof Double)) {
-                                        fnd = type.equals(MongoType.DOUBLE);
-                                    } else if ((o instanceof Date)) {
-                                        fnd = type.equals(MongoType.DATE);
-                                    } else if ((o instanceof MorphiumId) || (o instanceof ObjectId)) {
-                                        fnd = type.equals(MongoType.OBJECT_ID);
-                                    } else if ((o instanceof BigDecimal)) {
-                                        fnd = type.equals(MongoType.DECIMAL);
-                                    } else if ((o instanceof String)) {
-                                        fnd = type.equals(MongoType.STRING);
-                                    } else if ((o instanceof Boolean)) {
-                                        fnd = type.equals(MongoType.BOOLEAN);
-                                    } else if ((o instanceof Float)) {
-                                        fnd = type.equals(MongoType.DOUBLE);
-                                    } else if ((o instanceof Long)) {
-                                        fnd = type.equals(MongoType.LONG);
-                                    } else if ((o instanceof Integer)) {
-                                        fnd = type.equals(MongoType.INTEGER);
-                                    }
-
-                                    if (fnd) {
-                                        break;
+                                    if (matchesType(o, type)) {
+                                        return true;
                                     }
                                 }
 
-                                return fnd;
+                                return false;
 
                             case "$jsonSchema":
                             case "$geoIntersects":
@@ -1054,6 +905,260 @@ public class QueryHelper {
         }
 
         return ret;
+    }
+
+    private static boolean compareValues(Object left, Object right, Collator coll) {
+        Object normalizedLeft = normalizeId(left);
+        Object normalizedRight = normalizeId(right);
+
+        if (normalizedLeft == null || normalizedRight == null) {
+            return normalizedLeft == null && normalizedRight == null;
+        }
+
+        if (normalizedLeft instanceof String && normalizedRight instanceof String && coll != null) {
+            return coll.compare((String) normalizedLeft, (String) normalizedRight) == 0;
+        }
+
+        if (normalizedLeft instanceof Number && normalizedRight instanceof Number) {
+            return Double.compare(((Number) normalizedLeft).doubleValue(), ((Number) normalizedRight).doubleValue()) == 0;
+        }
+
+        return normalizedLeft.equals(normalizedRight);
+    }
+
+    private static Object normalizeId(Object value) {
+        if (value instanceof MorphiumId || value instanceof ObjectId) {
+            return value == null ? null : value.toString();
+        }
+
+        return value;
+    }
+
+    private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        if (left instanceof String && right instanceof String && coll != null) {
+            return coll.compare((String) left, (String) right) <= offset;
+        }
+
+        if (left instanceof Number && right instanceof Number) {
+            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) <= offset;
+        }
+
+        if (left instanceof Comparable && right instanceof Comparable) {
+            try {
+                //noinspection unchecked
+                return ((Comparable) left).compareTo(right) <= offset;
+            } catch (ClassCastException ignored) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean compareGreaterThan(Object left, Object right, int offset, Collator coll) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        if (left instanceof String && right instanceof String && coll != null) {
+            return coll.compare((String) left, (String) right) >= offset;
+        }
+
+        if (left instanceof Number && right instanceof Number) {
+            return Double.compare(((Number) left).doubleValue(), ((Number) right).doubleValue()) >= offset;
+        }
+
+        if (left instanceof Comparable && right instanceof Comparable) {
+            try {
+                //noinspection unchecked
+                return ((Comparable) left).compareTo(right) >= offset;
+            } catch (ClassCastException ignored) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private static Pattern buildRegexPattern(Map<String, Object> commandMap, int baseFlags) {
+        int flags = baseFlags;
+        Object regexObject = commandMap.get("$regex");
+
+        if (regexObject instanceof Pattern) {
+            return (Pattern) regexObject;
+        }
+
+        String pattern = null;
+
+        if (regexObject instanceof String) {
+            pattern = (String) regexObject;
+        }
+
+        Object regularExpression = commandMap.get("$regularExpression");
+
+        if (regularExpression instanceof Map) {
+            Map<?, ?> regexMap = (Map<?, ?>) regularExpression;
+
+            if (regexMap.get("pattern") instanceof String) {
+                pattern = (String) regexMap.get("pattern");
+            }
+
+            Object opt = regexMap.get("options");
+            if (opt instanceof String) {
+                flags = applyRegexOptions(((String) opt), flags);
+            }
+        }
+
+        if (pattern == null) {
+            return null;
+        }
+
+        return Pattern.compile(pattern, flags);
+    }
+
+    private static int applyRegexOptions(String options, int flags) {
+        String opt = options.toLowerCase(Locale.ROOT);
+
+        if (opt.contains("i")) {
+            flags |= Pattern.CASE_INSENSITIVE;
+        }
+
+        if (opt.contains("m")) {
+            flags |= Pattern.MULTILINE;
+        }
+
+        if (opt.contains("s")) {
+            flags |= Pattern.DOTALL;
+        }
+
+        if (opt.contains("x")) {
+            flags |= Pattern.COMMENTS;
+        }
+
+        return flags;
+    }
+
+    private static boolean matchesType(Object value, MongoType type) {
+        if (value == null) {
+            return type.equals(MongoType.NULL);
+        }
+
+        if (value instanceof byte[]) {
+            return type.equals(MongoType.BINARY_DATA);
+        }
+
+        if (value instanceof List || value.getClass().isArray()) {
+            return type.equals(MongoType.ARRAY);
+        }
+
+        if (value instanceof Pattern) {
+            return type.equals(MongoType.REGEX);
+        }
+
+        if (value instanceof Map) {
+            return type.equals(MongoType.OBJECT);
+        }
+
+        if (value instanceof Double || value instanceof Float) {
+            return type.equals(MongoType.DOUBLE);
+        }
+
+        if (value instanceof Date) {
+            return type.equals(MongoType.DATE);
+        }
+
+        if (value instanceof MorphiumId || value instanceof ObjectId) {
+            return type.equals(MongoType.OBJECT_ID);
+        }
+
+        if (value instanceof BigDecimal) {
+            return type.equals(MongoType.DECIMAL);
+        }
+
+        if (value instanceof String) {
+            return type.equals(MongoType.STRING);
+        }
+
+        if (value instanceof Boolean) {
+            return type.equals(MongoType.BOOLEAN);
+        }
+
+        if (value instanceof Long) {
+            return type.equals(MongoType.LONG);
+        }
+
+        if (value instanceof Integer || value instanceof Short || value instanceof Byte) {
+            return type.equals(MongoType.INTEGER);
+        }
+
+        return false;
+    }
+
+    private static boolean fieldExists(Map<String, Object> document, String fieldPath) {
+        if (document == null || fieldPath == null) {
+            return false;
+        }
+
+        if (!fieldPath.contains(".")) {
+            return document.containsKey(fieldPath);
+        }
+
+        String[] parts = fieldPath.split("\\.");
+        return fieldExists(document, parts, 0);
+    }
+
+    private static boolean fieldExists(Object current, String[] parts, int idx) {
+        if (current == null) {
+            return false;
+        }
+
+        if (idx >= parts.length) {
+            return true;
+        }
+
+        String part = parts[idx];
+
+        if (current instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) current;
+
+            if (!map.containsKey(part)) {
+                return false;
+            }
+            if (idx + 1 >= parts.length) {
+                return true;
+            }
+
+            return fieldExists(map.get(part), parts, idx + 1);
+        }
+
+        if (current instanceof List) {
+            List<?> list = (List<?>) current;
+
+            if (part.matches("\\d+")) {
+                int pos = Integer.parseInt(part);
+                if (pos < 0 || pos >= list.size()) {
+                    return false;
+                }
+                if (idx + 1 >= parts.length) {
+                    return true;
+                }
+                return fieldExists(list.get(pos), parts, idx + 1);
+            }
+
+            for (Object entry : list) {
+                if (fieldExists(entry, parts, idx)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return false;
     }
 
     private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {

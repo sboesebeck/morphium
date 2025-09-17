@@ -10,8 +10,9 @@ import de.caluga.test.mongo.suite.base.GeoSearchTests;
 import de.caluga.test.mongo.suite.data.EmbeddedObject;
 import de.caluga.test.mongo.suite.data.ListContainer;
 import de.caluga.test.mongo.suite.data.UncachedObject;
-import org.junit.jupiter.api.Test;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,6 +168,74 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
 
+    }
+
+    @Test
+    public void combinedRangeOperatorTest() {
+        Map<String, Object> doc = UtilsMap.of("value", (Object) 10);
+
+        Map<String, Object> query = Doc.of("value", Doc.of("$gte", 5, "$lte", 15));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("value", Doc.of("$gte", 11, "$lte", 12));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void regexOptionsTest() {
+        Map<String, Object> doc = UtilsMap.of("text", (Object) "Hello\nWorld");
+
+        Map<String, Object> query = Doc.of("text", Doc.of("$regex", "world", "$options", "i"));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("text", Doc.of("$regex", "^world", "$options", "im"));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("text", Doc.of("$regex", "^world"));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void textSearchTokenizationTest() {
+        Map<String, Object> doc = UtilsMap.of("description", (Object) "The quick brown fox jumps over the lazy dog");
+
+        Map<String, Object> query = Doc.of("description", Doc.of("$text", "quick \"brown fox\""));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("description", Doc.of("$text", "hedgehog"));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void inOperatorMatchesObjectIds() {
+        MorphiumId morphiumId = new MorphiumId();
+        Map<String, Object> doc = UtilsMap.of("_id", (Object) morphiumId);
+
+        Map<String, Object> query = Doc.of("_id", Doc.of("$in", List.of(morphiumId)));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("_id", Doc.of("$in", List.of(new ObjectId(morphiumId.toString()))));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("_id", Doc.of("$nin", List.of(new ObjectId(morphiumId.toString()))));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+    }
+
+    @Test
+    public void existsOnDottedPathTest() {
+        Map<String, Object> doc = Doc.of("profile", Doc.of("email", null), "items", List.of(Doc.of("name", "foo")));
+
+        Map<String, Object> query = Doc.of("profile.email", Doc.of("$exists", true));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("profile.phone", Doc.of("$exists", true));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("items.name", Doc.of("$exists", true));
+        assertTrue(QueryHelper.matchesQuery(query, doc, null));
+
+        query = Doc.of("items.age", Doc.of("$exists", true));
+        assertFalse(QueryHelper.matchesQuery(query, doc, null));
     }
 
     @Test
