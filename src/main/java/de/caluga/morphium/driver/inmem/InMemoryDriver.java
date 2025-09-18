@@ -605,7 +605,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             updateIndex++;
         }
 
-        stats.put("n", totalMatched);
+        // MongoDB compatibility: "n" represents total documents affected (matched + upserted)
+        stats.put("n", totalMatched + upserted.size());
         stats.put("nModified", totalModified);
         if (!upserted.isEmpty()) {
             stats.put("upserted", upserted);
