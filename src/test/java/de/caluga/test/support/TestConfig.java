@@ -90,6 +90,7 @@ public final class TestConfig {
 
         if (uri != null && !uri.isBlank()) {
             parseMongoUriIntoConfig(cfg, uri.trim());
+            applyExplicitAuth(cfg, props, false);
             return;
         }
 
@@ -112,22 +113,7 @@ public final class TestConfig {
                .addHostToSeed("localhost", 27019);
         }
 
-        // Optional auth via props/env
-        String user = firstNonEmpty(sysProp("morphium.user"), env("MORPHIUM_USER"), props.getProperty("morphium.user"));
-        String pass = firstNonEmpty(sysProp("morphium.pass"), env("MORPHIUM_PASS"), props.getProperty("morphium.pass"));
-        String authDb = firstNonEmpty(sysProp("morphium.authDb"), env("MORPHIUM_AUTHDB"), props.getProperty("morphium.authDb"));
-        if (user != null && pass != null) {
-
-            org.slf4j.LoggerFactory.getLogger(TestConfig.class).info("Authentication used user %s / %s", user, pass);
-            cfg.authSettings().setMongoLogin(user).setMongoPassword(pass);
-            if (authDb != null)
-                cfg.authSettings().setMongoAuthDb(authDb);
-            else
-                cfg.authSettings().setMongoAuthDb("admin");
-        } else {
-
-            org.slf4j.LoggerFactory.getLogger(TestConfig.class).warn("no authenticatton to mongo defined");
-        }
+        applyExplicitAuth(cfg, props, true);
     }
 
     private static void parseMongoUriIntoConfig(MorphiumConfig cfg, String uri) {
@@ -189,6 +175,28 @@ public final class TestConfig {
             String rs = q.get("replicaSet");
             if (rs != null && !rs.isBlank()) cfg.clusterSettings().setRequiredReplicaSetName(rs);
         }
+    }
+
+    private static void applyExplicitAuth(MorphiumConfig cfg, Properties props, boolean logIfMissing) {
+        String user = firstNonEmpty(sysProp("morphium.user"), env("MORPHIUM_USER"), props.getProperty("morphium.user"));
+        String pass = firstNonEmpty(sysProp("morphium.pass"), env("MORPHIUM_PASS"), props.getProperty("morphium.pass"));
+        String authDb = firstNonEmpty(sysProp("morphium.authDb"), env("MORPHIUM_AUTHDB"), props.getProperty("morphium.authDb"));
+
+        boolean hasExisting = cfg.authSettings().getMongoLogin() != null && cfg.authSettings().getMongoPassword() != null;
+
+        if (user != null && pass != null) {
+            org.slf4j.LoggerFactory.getLogger(TestConfig.class).info("Using authentication credentials for user {}", user);
+            cfg.authSettings().setMongoLogin(user).setMongoPassword(pass);
+            cfg.authSettings().setMongoAuthDb(authDb != null && !authDb.isBlank() ? authDb : defaultAuthDb());
+        } else if (!hasExisting && logIfMissing) {
+            org.slf4j.LoggerFactory.getLogger(TestConfig.class).warn("no authentication to mongo defined");
+        } else if (hasExisting && authDb != null && !authDb.isBlank()) {
+            cfg.authSettings().setMongoAuthDb(authDb);
+        }
+    }
+
+    private static String defaultAuthDb() {
+        return "admin";
     }
 
     private static String mapDriverName(String name) {
@@ -263,4 +271,3 @@ public final class TestConfig {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
 }
-
