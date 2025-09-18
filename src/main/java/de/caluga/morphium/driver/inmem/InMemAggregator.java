@@ -149,11 +149,13 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         Map<String, Object> ret = new LinkedHashMap<>();
 
         for (Map.Entry<String, Object> e : m.entrySet()) {
-            if (!(e.getValue() instanceof Expr)) {
-                throw new IllegalArgumentException("InMemAggregator only works with Expr");
+            Object value = e.getValue();
+            if (!(value instanceof Expr)) {
+                // Convert raw aggregation expressions to Expr objects
+                value = Expr.parse(value);
             }
 
-            ret.put(e.getKey(), e.getValue());
+            ret.put(e.getKey(), value);
         }
 
         Map<String, Object> o = UtilsMap.of("$addFields", ret);
@@ -979,14 +981,10 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         } else if (value instanceof Expr) {
                             obj.put(k, ((Expr) value).evaluate(obj));
                         } else if (value instanceof Map) {
+                            // Convert aggregation expression Map to Expr and evaluate
                             //noinspection unchecked
-                            for (String fld : ((Map<String, Object>) value).keySet()) {
-                                if (obj.get(fld) instanceof Expr) {
-                                    obj.put(fld, ((Expr) obj.get(fld)).evaluate(obj));
-                                } else {
-                                    log.error("InMemoryAggregation oly works with Expr");
-                                }
-                            }
+                            Expr expr = Expr.parse(value);
+                            obj.put(k, expr.evaluate(obj));
                         }
                     }
                 }
@@ -1363,7 +1361,71 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                 String as = (String) lookup.get("as");
 
                 if (pipeline != null || let != null) {
-                    throw new IllegalArgumentException("pipeline/let is not supported yet.");
+                    // Advanced $lookup with pipeline and let variables
+                    for (Map<String, Object> doc : data) {
+                        // Process let variables - create a context with variables from the current document
+                        Map<String, Object> letContext = new HashMap<>();
+                        if (let != null) {
+                            for (Map.Entry<String, Object> letEntry : let.entrySet()) {
+                                String varName = letEntry.getKey();
+                                Object varExpr = letEntry.getValue();
+
+                                // Evaluate the let expression against the current document
+                                Object varValue;
+                                if (varExpr instanceof Expr) {
+                                    varValue = ((Expr) varExpr).evaluate(doc);
+                                } else if (varExpr instanceof Map) {
+                                    Expr expr = Expr.parse((Map<String, Object>) varExpr);
+                                    varValue = expr.evaluate(doc);
+                                } else {
+                                    varValue = varExpr;
+                                }
+                                letContext.put("$$" + varName, varValue);
+                            }
+                        }
+
+                        // Get foreign collection data
+                        InMemoryDriver inMemDriver = (InMemoryDriver) morphium.getDriver();
+                        Map<String, List<Map<String, Object>>> database = inMemDriver.getDatabase(morphium.getConfig().getDatabase());
+                        List<Map<String, Object>> foreignCollection = database.get(collection);
+
+                        if (foreignCollection != null) {
+                            // Process the pipeline with let context on the foreign collection data
+                            List<Map<String, Object>> foreignData = new ArrayList<>(foreignCollection);
+                            List<Map<String, Object>> pipelineResults = new ArrayList<>();
+                            if (pipeline != null && !pipeline.isEmpty()) {
+                                // Apply each pipeline stage with let variable substitution
+                                for (Object pipelineItem : pipeline) {
+                                    Map<String, Object> pipelineStage;
+                                    if (pipelineItem instanceof Expr) {
+                                        // Convert Expr to Map representation
+                                        pipelineStage = (Map<String, Object>) ((Expr) pipelineItem).toQueryObject();
+                                    } else if (pipelineItem instanceof Map) {
+                                        pipelineStage = (Map<String, Object>) pipelineItem;
+                                    } else {
+                                        continue; // Skip unknown types
+                                    }
+
+                                    Map<String, Object> processedStage = substituteLetVariables(pipelineStage, letContext);
+                                    foreignData = execStep(processedStage, foreignData);
+                                }
+                                pipelineResults = foreignData;
+                            } else {
+                                pipelineResults = foreignData;
+                            }
+
+                            // Add results to the document
+                            Map<String, Object> resultDoc = new LinkedHashMap<>(doc);
+                            resultDoc.put(as, pipelineResults);
+                            ret.add(resultDoc);
+                        } else {
+                            // Foreign collection doesn't exist, add empty array
+                            Map<String, Object> resultDoc = new LinkedHashMap<>(doc);
+                            resultDoc.put(as, new ArrayList<>());
+                            ret.add(resultDoc);
+                        }
+                    }
+                    break;
                 }
 
                 for (Map<String, Object> doc : data) {
@@ -1630,15 +1692,18 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                         String facetName = facetEntry.getKey();
                         Object facetPipeline = facetEntry.getValue();
 
-                        // For now, treat each facet as a simple field extraction
-                        List<Object> facetResults = new ArrayList<>();
-                        for (Map<String, Object> doc : data) {
-                            if (facetPipeline instanceof Expr) {
-                                Object value = ((Expr) facetPipeline).evaluate(doc);
-                                if (value != null) {
-                                    facetResults.add(value);
-                                }
+                        // Run the aggregation pipeline for this facet
+                        List<Map<String, Object>> facetResults = new ArrayList<>();
+                        if (facetPipeline instanceof List) {
+                            // Process the pipeline steps directly on the data
+                            List<Map<String, Object>> tempData = new ArrayList<>(data);
+                            List<Map<String, Object>> facetSteps = (List<Map<String, Object>>) facetPipeline;
+
+                            // Apply each stage in the pipeline to the data
+                            for (Map<String, Object> facetStep : facetSteps) {
+                                tempData = execStep(facetStep, tempData);
                             }
+                            facetResults = tempData;
                         }
                         facetResult.put(facetName, facetResults);
                     }
@@ -1742,6 +1807,9 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                                     Object result = computeGroupValue(outputExpr, bucketEntry.getValue());
                                     bucketResult.put(outputField, result);
                                 }
+                            } else {
+                                // Default: add count field when no output specification is provided
+                                bucketResult.put("count", bucketEntry.getValue().size());
                             }
 
                             ret.add(bucketResult);
@@ -1788,45 +1856,60 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
                     // Sort values
                     values.sort((a, b) -> compareValues(a, b));
 
-                    // Create auto buckets
-                    int bucketSize = Math.max(1, values.size() / numBuckets);
+                    // Create auto buckets with equal distribution
                     ret = new ArrayList<>();
 
-                    for (int i = 0; i < numBuckets && i * bucketSize < values.size(); i++) {
-                        int startIdx = i * bucketSize;
-                        int endIdx = Math.min((i + 1) * bucketSize, values.size());
+                    if (!values.isEmpty()) {
+                        int totalDocs = values.size();
+                        int docsPerBucket = totalDocs / numBuckets;
+                        int remainder = totalDocs % numBuckets;
 
-                        if (i == numBuckets - 1) {
-                            endIdx = values.size(); // Last bucket gets all remaining
-                        }
+                        int currentIndex = 0;
+                        Object lastMaxValue = null;
 
-                        List<Map<String, Object>> bucketDocs = new ArrayList<>();
-                        Object minValue = values.get(startIdx);
-                        Object maxValue = values.get(endIdx - 1);
+                        for (int bucketNum = 0; bucketNum < numBuckets && currentIndex < totalDocs; bucketNum++) {
+                            // Calculate bucket size (distribute remainder evenly across first buckets)
+                            int currentBucketSize = docsPerBucket + (bucketNum < remainder ? 1 : 0);
+                            int endIndex = Math.min(currentIndex + currentBucketSize, totalDocs);
 
-                        for (int j = startIdx; j < endIdx; j++) {
-                            bucketDocs.add(valueToDoc.get(values.get(j)));
-                        }
-
-                        if (!bucketDocs.isEmpty()) {
-                            Map<String, Object> bucketResult = new HashMap<>();
-                            Map<String, Object> idRange = new HashMap<>();
-                            idRange.put("min", minValue);
-                            idRange.put("max", maxValue);
-                            bucketResult.put("_id", idRange);
-
-                            // Apply output specifications
-                            if (outputSpec != null) {
-                                for (Map.Entry<String, Object> outputEntry : outputSpec.entrySet()) {
-                                    String outputField = outputEntry.getKey();
-                                    Object outputExpr = outputEntry.getValue();
-
-                                    Object result = computeGroupValue(outputExpr, bucketDocs);
-                                    bucketResult.put(outputField, result);
-                                }
+                            if (bucketNum == numBuckets - 1) {
+                                endIndex = totalDocs; // Last bucket gets all remaining documents
                             }
 
-                            ret.add(bucketResult);
+                            List<Map<String, Object>> bucketDocs = new ArrayList<>();
+                            Object minValue = (lastMaxValue != null) ? lastMaxValue : values.get(currentIndex);
+                            Object maxValue = values.get(endIndex - 1);
+
+                            for (int j = currentIndex; j < endIndex; j++) {
+                                bucketDocs.add(valueToDoc.get(values.get(j)));
+                            }
+
+                            if (!bucketDocs.isEmpty()) {
+                                Map<String, Object> bucketResult = new HashMap<>();
+                                Map<String, Object> idRange = new HashMap<>();
+                                idRange.put("min", minValue);
+                                idRange.put("max", maxValue);
+                                bucketResult.put("_id", idRange);
+
+                                // Apply output specifications
+                                if (outputSpec != null) {
+                                    for (Map.Entry<String, Object> outputEntry : outputSpec.entrySet()) {
+                                        String outputField = outputEntry.getKey();
+                                        Object outputExpr = outputEntry.getValue();
+
+                                        Object result = computeGroupValue(outputExpr, bucketDocs);
+                                        bucketResult.put(outputField, result);
+                                    }
+                                } else {
+                                    // Default: add count field when no output specification is provided
+                                    bucketResult.put("count", bucketDocs.size());
+                                }
+
+                                ret.add(bucketResult);
+                                lastMaxValue = maxValue;
+                            }
+
+                            currentIndex = endIndex;
                         }
                     }
                 }
@@ -1949,6 +2032,43 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
 
             case "$indexStats":
             case "$geoNear":
+                op = step.get(stage);
+                if (op instanceof Map) {
+                    Map<String, Object> geoNearParams = (Map<String, Object>) op;
+                    Object nearPoint = geoNearParams.get("near");
+                    String keyField = (String) geoNearParams.get("key");
+                    String distanceField = (String) geoNearParams.get("distanceField");
+                    Map<String, Object> query = (Map<String, Object>) geoNearParams.get("query");
+
+                    List<Map<String, Object>> geoResults = new ArrayList<>();
+
+                    for (Map<String, Object> doc : data) {
+                        // Apply query filter if provided
+                        if (query != null && !QueryHelper.matchesQuery(query, doc, null)) {
+                            continue;
+                        }
+
+                        // Calculate distance
+                        Double distance = calculateDistance(doc, nearPoint, keyField);
+                        if (distance != null) {
+                            // Create a copy of the document and add distance field
+                            Map<String, Object> resultDoc = new LinkedHashMap<>(doc);
+                            setNestedValue(resultDoc, distanceField, distance);
+                            geoResults.add(resultDoc);
+                        }
+                    }
+
+                    // Sort by distance (closest first)
+                    geoResults.sort((a, b) -> {
+                        Double distA = getNestedValue(a, distanceField);
+                        Double distB = getNestedValue(b, distanceField);
+                        return Double.compare(distA != null ? distA : Double.MAX_VALUE,
+                                             distB != null ? distB : Double.MAX_VALUE);
+                    });
+
+                    ret = geoResults;
+                }
+                break;
             case "$collStats":
             case "$listSessions":
             default:
@@ -2071,10 +2191,15 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
      */
     private Object computeGroupValue(Object valueSpec, List<Map<String, Object>> groupDocs) {
         if (valueSpec instanceof Expr) {
-            // For Expr objects, assume we want to compute sum or count
+            // For Expr objects, convert to Map representation and handle as Map
             Expr expr = (Expr) valueSpec;
+            Object queryObj = expr.toQueryObject();
 
-            // Check if it's a simple integer (likely a count)
+            if (queryObj instanceof Map) {
+                return computeGroupValue(queryObj, groupDocs);
+            }
+
+            // Fallback: Check if it's a simple integer (likely a count)
             Object exprValue = expr.evaluate(new HashMap<>());
             if (exprValue instanceof Number && ((Number) exprValue).intValue() == 1) {
                 return groupDocs.size(); // Count
@@ -2199,6 +2324,41 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
             return ((Expr) spec).evaluate(doc);
         }
 
+        // Handle Map that contains expression structures (from mapExpr.toQueryObject())
+        if (spec instanceof Map) {
+            Map<String, Object> specMap = (Map<String, Object>) spec;
+
+            // Create result map by evaluating each field
+            Map<String, Object> result = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : specMap.entrySet()) {
+                String fieldName = entry.getKey();
+                Object fieldValue = entry.getValue();
+
+                // If the field value is an expression structure, parse and evaluate it
+                if (fieldValue instanceof Map) {
+                    try {
+                        Map<String, Object> exprMap = (Map<String, Object>) fieldValue;
+                        Expr fieldExpr = Expr.parse(exprMap);
+                        Object evaluatedValue = fieldExpr.evaluate(doc);
+                        result.put(fieldName, evaluatedValue);
+                    } catch (Exception e) {
+                        // If evaluation fails, use the raw value
+                        result.put(fieldName, fieldValue);
+                    }
+                } else if (fieldValue instanceof String && ((String) fieldValue).startsWith("$")) {
+                    // Handle field references like "$year_born"
+                    String fieldRef = ((String) fieldValue).substring(1);
+                    Object fieldVal = doc.get(fieldRef);
+                    result.put(fieldName, fieldVal);
+                } else {
+                    // Plain value, just copy
+                    result.put(fieldName, fieldValue);
+                }
+            }
+
+            return result;
+        }
+
         return spec;
     }
 
@@ -2212,5 +2372,159 @@ public class InMemAggregator<T, R> implements Aggregator<T, R> {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    /**
+     * Calculate distance between a document's location field and a target point
+     */
+    private Double calculateDistance(Map<String, Object> doc, Object nearPoint, String keyField) {
+        Object locationValue = doc.get(keyField);
+        if (locationValue == null || nearPoint == null) {
+            return null;
+        }
+
+        try {
+            double[] targetCoords = extractCoordinates(nearPoint);
+            double[] docCoords = extractCoordinates(locationValue);
+
+            if (targetCoords == null || docCoords == null) {
+                return null;
+            }
+
+            // Use Haversine formula for distance calculation (same as in QueryHelper)
+            double lon1 = Math.toRadians(targetCoords[0]);
+            double lat1 = Math.toRadians(targetCoords[1]);
+            double lon2 = Math.toRadians(docCoords[0]);
+            double lat2 = Math.toRadians(docCoords[1]);
+
+            double dlon = lon2 - lon1;
+            double dlat = lat2 - lat1;
+            double a = Math.pow(Math.sin(dlat / 2), 2) + Math.cos(lat1) * Math.cos(lat2) * Math.pow(Math.sin(dlon / 2), 2);
+            double c = 2 * Math.asin(Math.sqrt(a));
+            double r = 6371; // Earth's radius in kilometers
+            return c * r;
+        } catch (Exception e) {
+            log.warn("Error calculating distance: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Extract coordinates from various point representations
+     */
+    private double[] extractCoordinates(Object point) {
+        if (point instanceof Map) {
+            Map<String, Object> pointMap = (Map<String, Object>) point;
+
+            // Handle GeoJSON Point format: {"type": "Point", "coordinates": [lon, lat]}
+            if ("Point".equals(pointMap.get("type")) && pointMap.containsKey("coordinates")) {
+                List<?> coords = (List<?>) pointMap.get("coordinates");
+                if (coords != null && coords.size() >= 2) {
+                    return new double[]{
+                        ((Number) coords.get(0)).doubleValue(),
+                        ((Number) coords.get(1)).doubleValue()
+                    };
+                }
+            }
+        } else if (point instanceof List) {
+            // Handle array format: [lon, lat]
+            List<?> coords = (List<?>) point;
+            if (coords.size() >= 2) {
+                return new double[]{
+                    ((Number) coords.get(0)).doubleValue(),
+                    ((Number) coords.get(1)).doubleValue()
+                };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Set a nested value in a map using dot notation (e.g., "dist.calculated")
+     */
+    private void setNestedValue(Map<String, Object> map, String path, Object value) {
+        String[] parts = path.split("\\.");
+        Map<String, Object> current = map;
+
+        for (int i = 0; i < parts.length - 1; i++) {
+            String part = parts[i];
+            if (!current.containsKey(part)) {
+                current.put(part, new LinkedHashMap<String, Object>());
+            }
+            current = (Map<String, Object>) current.get(part);
+        }
+
+        current.put(parts[parts.length - 1], value);
+    }
+
+    /**
+     * Get a nested value from a map using dot notation (e.g., "dist.calculated")
+     */
+    private Double getNestedValue(Map<String, Object> map, String path) {
+        String[] parts = path.split("\\.");
+        Object current = map;
+
+        for (String part : parts) {
+            if (current instanceof Map) {
+                current = ((Map<String, Object>) current).get(part);
+            } else {
+                return null;
+            }
+        }
+
+        return (current instanceof Number) ? ((Number) current).doubleValue() : null;
+    }
+
+    /**
+     * Substitute let variables in a pipeline stage
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> substituteLetVariables(Map<String, Object> stage, Map<String, Object> letContext) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        for (Map.Entry<String, Object> entry : stage.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+
+            if (value instanceof String) {
+                String strValue = (String) value;
+                // Replace let variable references like $$order_item
+                for (Map.Entry<String, Object> letEntry : letContext.entrySet()) {
+                    if (strValue.equals(letEntry.getKey())) {
+                        value = letEntry.getValue();
+                        break;
+                    }
+                }
+                result.put(key, value);
+            } else if (value instanceof Map) {
+                // Recursively substitute in nested maps
+                result.put(key, substituteLetVariables((Map<String, Object>) value, letContext));
+            } else if (value instanceof List) {
+                // Substitute in lists
+                List<Object> newList = new ArrayList<>();
+                for (Object item : (List<?>) value) {
+                    if (item instanceof Map) {
+                        newList.add(substituteLetVariables((Map<String, Object>) item, letContext));
+                    } else if (item instanceof String) {
+                        String strItem = (String) item;
+                        Object substituted = strItem;
+                        for (Map.Entry<String, Object> letEntry : letContext.entrySet()) {
+                            if (strItem.equals(letEntry.getKey())) {
+                                substituted = letEntry.getValue();
+                                break;
+                            }
+                        }
+                        newList.add(substituted);
+                    } else {
+                        newList.add(item);
+                    }
+                }
+                result.put(key, newList);
+            } else {
+                result.put(key, value);
+            }
+        }
+
+        return result;
     }
 }
