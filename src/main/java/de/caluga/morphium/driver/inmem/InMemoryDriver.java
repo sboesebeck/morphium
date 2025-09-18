@@ -627,7 +627,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         var stats = store(cmd.getDb(), cmd.getColl(), cmd.getDocs(), null);
-        commandResults.add(prepareResult(Doc.of("ok", 1.0, "stats", stats)));
+        Map<String, Object> result = new HashMap<>();
+        result.put("ok", 1.0);
+        result.putAll(stats);
+        System.out.println("InMemoryDriver store result: " + result);
+        commandResults.add(prepareResult(result));
         return ret;
     }
 
@@ -2276,6 +2280,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public synchronized Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
         Map<String, Integer> ret = new ConcurrentHashMap<>();
         int upd = 0;
+        int inserted = 0;
         int total = objs.size();
 
         for (Map<String, Object> o : objs) {
@@ -2284,6 +2289,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // enforce unique indexes before insert
                 enforceUniqueOrThrow(db, collection, o);
                 getCollection(db, collection).add(o);
+                inserted++;
                 continue;
             }
 
@@ -2300,6 +2306,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // unique check for insert
                 enforceUniqueOrThrow(db, collection, o);
                 notifyWatchers(db, collection, "insert", o);
+                inserted++;
             }
             getCollection(db, collection).add(o);
             List<Map<String, Object >> idx = getIndexes(db, collection);
@@ -2325,6 +2332,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         ret.put("matched", upd);
         ret.put("updated", upd);
+        ret.put("inserted", inserted);
+        ret.put("n", upd + inserted);
         return ret;
     }
 
