@@ -117,8 +117,16 @@ public final class TestConfig {
         String pass = firstNonEmpty(sysProp("morphium.pass"), env("MORPHIUM_PASS"), props.getProperty("morphium.pass"));
         String authDb = firstNonEmpty(sysProp("morphium.authDb"), env("MORPHIUM_AUTHDB"), props.getProperty("morphium.authDb"));
         if (user != null && pass != null) {
+
+            org.slf4j.LoggerFactory.getLogger(TestConfig.class).info("Authentication used user %s / %s", user, pass);
             cfg.authSettings().setMongoLogin(user).setMongoPassword(pass);
-            if (authDb != null) cfg.authSettings().setMongoAuthDb(authDb);
+            if (authDb != null)
+                cfg.authSettings().setMongoAuthDb(authDb);
+            else
+                cfg.authSettings().setMongoAuthDb("admin");
+        } else {
+
+            org.slf4j.LoggerFactory.getLogger(TestConfig.class).warn("no authenticatton to mongo defined");
         }
     }
 
