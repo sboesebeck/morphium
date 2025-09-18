@@ -871,8 +871,8 @@ public class QueryHelper {
                             return false;
                         }
 
-                        // value comparison - should only be one here
-                        assert(query.size() == 1);
+                        // value comparison - checking specific field in query
+                        // Note: query may contain multiple fields due to auto-variables, but we only check keyQuery
 
                         if (toCheck.get(keyQuery) instanceof MorphiumId || toCheck.get(keyQuery) instanceof ObjectId) {
                             return toCheck.get(keyQuery).toString().equals(query.get(keyQuery).toString());
