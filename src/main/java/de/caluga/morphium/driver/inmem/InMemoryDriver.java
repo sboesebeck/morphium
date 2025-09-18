@@ -166,6 +166,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final List<Map<String, Object >> commandResults = new Vector<>();
     private final Map < String, Class <? extends MongoCommand >> commandsCache = new HashMap<>();
     private final AtomicInteger commandNumber = new AtomicInteger(0);
+    private final AtomicInteger connectionId = new AtomicInteger(0);
     private final Map<DriverStatsKey, AtomicDecimal> stats = new ConcurrentHashMap<>();
     private final Map<Long, FindCommand> cursors = new ConcurrentHashMap<>();
     // state for MorphiumCursor-based iterations
@@ -1154,8 +1155,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // { "ok" : 1.0, "$clusterTime" : { "clusterTime" : 7129872915129958401,
         // "signature" : { "hash" : [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         // 0, 0, 0], "keyId" : 0 } } , "operationTime" : 7129872915129958401 }
+        Map<String, Object> helloResponse = new HashMap<>();
+        helloResponse.put("helloOk", true);
+        helloResponse.put("isWritablePrimary", true);
+        helloResponse.put("ismaster", true);  // Critical for driver compatibility
+        helloResponse.put("secondary", false);
+        helloResponse.put("maxBsonObjectSize", 128 * 1024 * 1024);
+        helloResponse.put("maxWriteBatchSize", 100000);
+        helloResponse.put("maxWireVersion", 21);
+        helloResponse.put("minWireVersion", 0);
+        helloResponse.put("localTime", new Date());
+        helloResponse.put("connectionId", connectionId.incrementAndGet());
+        helloResponse.put("msg", driverName + " - ok");
+
         var m = addCursor(cmd.getDb(), cmd.getColl(), prepareResult(),
-                          Arrays.asList(Doc.of("helloOk", true, "isWritablePrimary", true, "maxBsonObjectSize", 128 * 1024 * 1024, "msg", driverName + " - ok")));
+                          Arrays.asList(helloResponse));
         commandResults.add(m);
         return ret;
     }

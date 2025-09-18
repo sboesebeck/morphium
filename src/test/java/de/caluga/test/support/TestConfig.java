@@ -27,46 +27,46 @@ public final class TestConfig {
 
         // Defaults suitable for tests
         cfg.connectionSettings()
-            .setDatabase(valueOr(props, "morphium.database", "morphium_test"))
-            .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 2000))
-            .setMaxConnections(intProp(props, "morphium.maxConnections", 100))
-            .setConnectionTimeout(intProp(props, "morphium.connectionTimeout", 2000))
-            .setMinConnections(intProp(props, "morphium.minConnections", 1));
+           .setDatabase(valueOr(props, "morphium.database", "morphium_test"))
+           .setMaxWaitTime(intProp(props, "morphium.maxWaitTime", 2000))
+           .setMaxConnections(intProp(props, "morphium.maxConnections", 100))
+           .setConnectionTimeout(intProp(props, "morphium.connectionTimeout", 2000))
+           .setMinConnections(intProp(props, "morphium.minConnections", 1));
 
         cfg.cacheSettings()
-            .setWriteCacheTimeout(intProp(props, "morphium.writeCacheTimeout", 1000))
-            .setGlobalCacheValidTime(intProp(props, "morphium.globalCacheValidTime", 1000))
-            .setHousekeepingTimeout(intProp(props, "morphium.housekeepingTimeout", 500));
+           .setWriteCacheTimeout(intProp(props, "morphium.writeCacheTimeout", 1000))
+           .setGlobalCacheValidTime(intProp(props, "morphium.globalCacheValidTime", 1000))
+           .setHousekeepingTimeout(intProp(props, "morphium.housekeepingTimeout", 500));
 
         cfg.driverSettings()
-            .setRetryReads(booleanProp(props, "morphium.retryReads", false))
-            .setRetryWrites(booleanProp(props, "morphium.retryWrites", false))
-            .setReadTimeout(intProp(props, "morphium.readTimeout", 1000))
-            .setDriverName(mapDriverName(valueOr(props, "morphium.driver", "pooled")))
-            .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
-            .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))
-            .setHeartbeatFrequency(intProp(props, "morphium.heartbeatFrequency", 500))
-            .setDefaultReadPreference(ReadPreference.nearest());
+           .setRetryReads(booleanProp(props, "morphium.retryReads", false))
+           .setRetryWrites(booleanProp(props, "morphium.retryWrites", false))
+           .setReadTimeout(intProp(props, "morphium.readTimeout", 1000))
+           .setDriverName(mapDriverName(valueOr(props, "morphium.driver", "pooled")))
+           .setMaxConnectionLifeTime(intProp(props, "morphium.maxConnectionLifeTime", 60000))
+           .setMaxConnectionIdleTime(intProp(props, "morphium.maxConnectionIdleTime", 30000))
+           .setHeartbeatFrequency(intProp(props, "morphium.heartbeatFrequency", 500))
+           .setDefaultReadPreference(ReadPreference.nearest());
 
         cfg.collectionCheckSettings()
-            .setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
-            .setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
+           .setIndexCheck(IndexCheck.CREATE_ON_WRITE_NEW_COL)
+           .setCappedCheck(CappedCheck.CREATE_ON_WRITE_NEW_COL);
 
         cfg.objectMappingSettings().setCheckForNew(true);
 
         cfg.messagingSettings()
-            .setThreadPoolMessagingCoreSize(intProp(props, "morphium.messaging.core", 50))
-            .setThreadPoolMessagingMaxSize(intProp(props, "morphium.messaging.max", 1500))
-            .setThreadPoolMessagingKeepAliveTime(intProp(props, "morphium.messaging.keepAlive", 10000));
+           .setThreadPoolMessagingCoreSize(intProp(props, "morphium.messaging.core", 50))
+           .setThreadPoolMessagingMaxSize(intProp(props, "morphium.messaging.max", 1500))
+           .setThreadPoolMessagingKeepAliveTime(intProp(props, "morphium.messaging.keepAlive", 10000));
 
         cfg.writerSettings()
-            .setMaximumRetriesBufferedWriter(intProp(props, "morphium.writer.maxRetriesBuffered", 1000))
-            .setMaximumRetriesWriter(intProp(props, "morphium.writer.maxRetries", 1000))
-            .setMaximumRetriesAsyncWriter(intProp(props, "morphium.writer.maxRetriesAsync", 1000))
-            .setRetryWaitTimeAsyncWriter(intProp(props, "morphium.writer.retryWaitAsync", 1000))
-            .setRetryWaitTimeWriter(intProp(props, "morphium.writer.retryWait", 1000))
-            .setRetryWaitTimeBufferedWriter(intProp(props, "morphium.writer.retryWaitBuffered", 1000))
-            .setThreadConnectionMultiplier(intProp(props, "morphium.writer.threadConnMultiplier", 2));
+           .setMaximumRetriesBufferedWriter(intProp(props, "morphium.writer.maxRetriesBuffered", 1000))
+           .setMaximumRetriesWriter(intProp(props, "morphium.writer.maxRetries", 1000))
+           .setMaximumRetriesAsyncWriter(intProp(props, "morphium.writer.maxRetriesAsync", 1000))
+           .setRetryWaitTimeAsyncWriter(intProp(props, "morphium.writer.retryWaitAsync", 1000))
+           .setRetryWaitTimeWriter(intProp(props, "morphium.writer.retryWait", 1000))
+           .setRetryWaitTimeBufferedWriter(intProp(props, "morphium.writer.retryWaitBuffered", 1000))
+           .setThreadConnectionMultiplier(intProp(props, "morphium.writer.threadConnMultiplier", 2));
 
         // Hosts/URI/auth
         applyUriOrSeedsAndAuth(cfg, props);
@@ -82,11 +82,11 @@ public final class TestConfig {
 
     private static void applyUriOrSeedsAndAuth(MorphiumConfig cfg, Properties props) {
         String uri = firstNonEmpty(
-            sysProp("morphium.uri"),
-            env("MONGODB_URI"),
-            env("MORPHIUM_URI"),
-            props.getProperty("morphium.uri")
-        );
+                                     sysProp("morphium.uri"),
+                                     env("MONGODB_URI"),
+                                     env("MORPHIUM_URI"),
+                                     props.getProperty("morphium.uri")
+                     );
 
         if (uri != null && !uri.isBlank()) {
             parseMongoUriIntoConfig(cfg, uri.trim());
@@ -95,10 +95,10 @@ public final class TestConfig {
 
         // host seed via properties/env
         String hostSeed = firstNonEmpty(
-            sysProp("morphium.hostSeed"),
-            env("MORPHIUM_HOSTSEED"),
-            props.getProperty("morphium.hostSeed")
-        );
+                                          sysProp("morphium.hostSeed"),
+                                          env("MORPHIUM_HOSTSEED"),
+                                          props.getProperty("morphium.hostSeed")
+                          );
 
         if (hostSeed != null && !hostSeed.isBlank()) {
             for (String s : hostSeed.split(",")) {
@@ -206,7 +206,7 @@ public final class TestConfig {
     private static Properties loadTestProperties() {
         Properties p = new Properties();
         try (InputStream in = Thread.currentThread().getContextClassLoader()
-            .getResourceAsStream("morphium-test.properties")) {
+                                  .getResourceAsStream("morphium-test.properties")) {
             if (in != null) p.load(in);
         } catch (Exception ignore) {}
         return p;

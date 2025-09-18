@@ -212,6 +212,17 @@ public abstract class Expr {
 
                 return ret;
             }
+
+            @Override
+            public Object evaluate(Map<String, Object> context) {
+                Map<String, Object> ret = new LinkedHashMap<>();
+
+                for (Map.Entry<String, Expr> e : map.entrySet()) {
+                    ret.put(e.getKey(), e.getValue().evaluate(context));
+                }
+
+                return ret;
+            }
         };
     }
 
@@ -2213,7 +2224,20 @@ public abstract class Expr {
         return new OpExprNoList("sum", e) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                return null;
+                Object value = e.evaluate(context);
+                if (value instanceof List) {
+                    // Sum array elements
+                    double sum = 0.0;
+                    for (Object item : (List<?>) value) {
+                        if (item instanceof Number) {
+                            sum += ((Number) item).doubleValue();
+                        }
+                    }
+                    return sum;
+                } else if (value instanceof Number) {
+                    return ((Number) value).doubleValue();
+                }
+                return 0;
             }
         };
     }
@@ -2222,8 +2246,20 @@ public abstract class Expr {
         return new OpExpr("sum", Arrays.asList(e)) {
             @Override
             public Object evaluate(Map<String, Object> context) {
-                LoggerFactory.getLogger(Expr.class).error("not implemented yet,sorry");
-                return null;
+                double sum = 0.0;
+                for (Expr expr : Arrays.asList(e)) {
+                    Object value = expr.evaluate(context);
+                    if (value instanceof Number) {
+                        sum += ((Number) value).doubleValue();
+                    } else if (value instanceof List) {
+                        for (Object item : (List<?>) value) {
+                            if (item instanceof Number) {
+                                sum += ((Number) item).doubleValue();
+                            }
+                        }
+                    }
+                }
+                return sum;
             }
         };
     }
