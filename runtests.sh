@@ -68,6 +68,9 @@ includeTags=""
 excludeTags=""
 driver=""
 uri=""
+user=""
+pass=""
+authdb=""
 verbose=0
 useExternal=0
 
@@ -89,6 +92,9 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--driver$CL ${GN}NAME$CL - morphium driver: pooled|single|inmem"
     echo -e "${BL}--uri$CL ${GN}URI$CL     - mongodb connection string (or use MONGODB_URI env)"
     echo -e "${BL}--verbose$CL     - enable verbose test logs"
+    echo -e "${BL}--user$CL ${GN}USESRNAME$CL     - authenticate as user"
+    echo -e "${BL}--pass$CL ${GN}password$CL     - authenticate with password"
+    echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
     echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
@@ -131,6 +137,18 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--driver" ]; then
     shift
     driver=$1
+    shift
+  elif [ "q$1" == "q--pass" ]; then
+    shift
+    pass=$1
+    shift
+  elif [ "q$1" == "q--user" ]; then
+    shift
+    user=$1
+    shift
+  elif [ "q$1" == "q--authdb" ]; then
+    shift
+    authdb=$1
     shift
   elif [ "q$1" == "q--uri" ]; then
     shift
@@ -234,93 +252,93 @@ createFileList
 if [ -n "$includeTags" ]; then
   tagPattern=$(echo "$includeTags" | sed 's/,/|/g')
   tmpTagged=tmp_tag_files_$PID.txt
-  : > $tmpTagged
+  : >$tmpTagged
   # 1) Collect files explicitly annotated with any requested tag
-  rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >> $tmpTagged || true
+  rg -l "@Tag\\(\\\"($tagPattern)\\\"\\)|@Tags\\(.*($tagPattern).*\\)" src/test/java >>$tmpTagged || true
   # 2) Directory-based helpers to map common tags to suites (backup for missing annotations)
-  IFS=',' read -r -a tagArr <<< "$includeTags"
+  IFS=',' read -r -a tagArr <<<"$includeTags"
   for tg in "${tagArr[@]}"; do
     case "$tg" in
-      core)
-        # Find core functionality tests (primarily in suite/base)
-        find src/test/java/de/caluga/test/mongo/suite/base -name "*Test*.java" -type f >> $tmpTagged || true
-        ;;
-      messaging)
-        # Messaging tests in multiple locations
-        if [ -d src/test/java/de/caluga/test/morphium/messaging ]; then
-          find src/test/java/de/caluga/test/morphium/messaging -name "*.java" >> $tmpTagged
-        fi
-        if [ -d src/test/java/de/caluga/test/mongo/suite/ncmessaging ]; then
-          find src/test/java/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >> $tmpTagged
-        fi
-        ;;
-      driver)
-        # Driver layer tests
-        if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
-          find src/test/java/de/caluga/test/morphium/driver -name "*.java" >> $tmpTagged
-        fi
-        find src/test/java -name "*DriverTest*.java" -o -name "*ConnectionTest*.java" >> $tmpTagged || true
-        ;;
-      inmemory)
-        # InMemory driver specific tests
-        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpTagged
-        fi
-        find src/test/java -name "*InMem*.java" >> $tmpTagged || true
-        ;;
-      aggregation)
-        # Aggregation pipeline tests
-        if [ -d src/test/java/de/caluga/test/mongo/suite/aggregationStages ]; then
-          find src/test/java/de/caluga/test/mongo/suite/aggregationStages -name "*.java" >> $tmpTagged
-        fi
-        find src/test/java -name "*Aggregation*.java" -o -name "*MapReduce*.java" >> $tmpTagged || true
-        ;;
-      cache)
-        # Caching functionality tests
-        find src/test/java -name "*Cache*.java" >> $tmpTagged || true
-        ;;
-      admin)
-        # Administrative and infrastructure tests
-        find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >> $tmpTagged || true
-        find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >> $tmpTagged || true
-        ;;
-      performance)
-        # Performance and bulk operation tests
-        find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >> $tmpTagged || true
-        find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >> $tmpTagged || true
-        ;;
-      encryption)
-        # Encryption and security tests
-        if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
-          find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >> $tmpTagged
-        fi
-        ;;
-      jms)
-        # JMS integration tests
-        if [ -d src/test/java/de/caluga/test/mongo/suite/jms ]; then
-          find src/test/java/de/caluga/test/mongo/suite/jms -name "*.java" >> $tmpTagged
-        fi
-        ;;
-      geo)
-        # Geospatial functionality tests
-        find src/test/java -name "*Geo*.java" >> $tmpTagged || true
-        ;;
-      util)
-        # Utility and helper tests
-        find src/test/java -name "*Collator*.java" -o -name "*ObjectMapper*.java" >> $tmpTagged || true
-        find src/test/java/de/caluga/test/objectmapping -name "*.java" >> $tmpTagged || true
-        find src/test/java/de/caluga/test/morphium/query -name "*.java" >> $tmpTagged || true
-        ;;
-      external)
-        # External MongoDB connection tests (failover, etc.)
-        find src/test/java -name "*Failover*.java" >> $tmpTagged || true
-        ;;
+    core)
+      # Find core functionality tests (primarily in suite/base)
+      find src/test/java/de/caluga/test/mongo/suite/base -name "*Test*.java" -type f >>$tmpTagged || true
+      ;;
+    messaging)
+      # Messaging tests in multiple locations
+      if [ -d src/test/java/de/caluga/test/morphium/messaging ]; then
+        find src/test/java/de/caluga/test/morphium/messaging -name "*.java" >>$tmpTagged
+      fi
+      if [ -d src/test/java/de/caluga/test/mongo/suite/ncmessaging ]; then
+        find src/test/java/de/caluga/test/mongo/suite/ncmessaging -name "*.java" >>$tmpTagged
+      fi
+      ;;
+    driver)
+      # Driver layer tests
+      if [ -d src/test/java/de/caluga/test/morphium/driver ]; then
+        find src/test/java/de/caluga/test/morphium/driver -name "*.java" >>$tmpTagged
+      fi
+      find src/test/java -name "*DriverTest*.java" -o -name "*ConnectionTest*.java" >>$tmpTagged || true
+      ;;
+    inmemory)
+      # InMemory driver specific tests
+      if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+        find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpTagged
+      fi
+      find src/test/java -name "*InMem*.java" >>$tmpTagged || true
+      ;;
+    aggregation)
+      # Aggregation pipeline tests
+      if [ -d src/test/java/de/caluga/test/mongo/suite/aggregationStages ]; then
+        find src/test/java/de/caluga/test/mongo/suite/aggregationStages -name "*.java" >>$tmpTagged
+      fi
+      find src/test/java -name "*Aggregation*.java" -o -name "*MapReduce*.java" >>$tmpTagged || true
+      ;;
+    cache)
+      # Caching functionality tests
+      find src/test/java -name "*Cache*.java" >>$tmpTagged || true
+      ;;
+    admin)
+      # Administrative and infrastructure tests
+      find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpTagged || true
+      find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpTagged || true
+      ;;
+    performance)
+      # Performance and bulk operation tests
+      find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpTagged || true
+      find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpTagged || true
+      ;;
+    encryption)
+      # Encryption and security tests
+      if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
+        find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpTagged
+      fi
+      ;;
+    jms)
+      # JMS integration tests
+      if [ -d src/test/java/de/caluga/test/mongo/suite/jms ]; then
+        find src/test/java/de/caluga/test/mongo/suite/jms -name "*.java" >>$tmpTagged
+      fi
+      ;;
+    geo)
+      # Geospatial functionality tests
+      find src/test/java -name "*Geo*.java" >>$tmpTagged || true
+      ;;
+    util)
+      # Utility and helper tests
+      find src/test/java -name "*Collator*.java" -o -name "*ObjectMapper*.java" >>$tmpTagged || true
+      find src/test/java/de/caluga/test/objectmapping -name "*.java" >>$tmpTagged || true
+      find src/test/java/de/caluga/test/morphium/query -name "*.java" >>$tmpTagged || true
+      ;;
+    external)
+      # External MongoDB connection tests (failover, etc.)
+      find src/test/java -name "*Failover*.java" >>$tmpTagged || true
+      ;;
     esac
   done
   sort -u $tmpTagged -o $tmpTagged
   if [ -s $tmpTagged ]; then
     # Intersect with current files list (only keep files we already identified as tests)
-    grep -F -f $tmpTagged $filesList > files_$PID.tmp || true
+    grep -F -f $tmpTagged $filesList >files_$PID.tmp || true
     mv files_$PID.tmp $filesList
     # Rebuild class list from filtered files
     sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
@@ -332,42 +350,42 @@ fi
 if [ -n "$excludeTags" ]; then
   excludePattern=$(echo "$excludeTags" | sed 's/,/|/g')
   tmpExcluded=tmp_exclude_files_$PID.txt
-  : > $tmpExcluded
+  : >$tmpExcluded
   # 1) Collect files explicitly annotated with any excluded tag
-  rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >> $tmpExcluded || true
+  rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >>$tmpExcluded || true
   # 2) Directory-based patterns for excluded tags
-  IFS=',' read -r -a excludeArr <<< "$excludeTags"
+  IFS=',' read -r -a excludeArr <<<"$excludeTags"
   for tg in "${excludeArr[@]}"; do
     case "$tg" in
-      performance)
-        find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >> $tmpExcluded || true
-        find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >> $tmpExcluded || true
-        ;;
-      admin)
-        find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >> $tmpExcluded || true
-        find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >> $tmpExcluded || true
-        ;;
-      encryption)
-        if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
-          find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >> $tmpExcluded
-        fi
-        ;;
-      inmemory)
-        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >> $tmpExcluded
-        fi
-        find src/test/java -name "*InMem*.java" >> $tmpExcluded || true
-        ;;
-      external)
-        # External MongoDB connection tests (excluded by default)
-        find src/test/java -name "*Failover*.java" >> $tmpExcluded || true
-        ;;
+    performance)
+      find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpExcluded || true
+      find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpExcluded || true
+      ;;
+    admin)
+      find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpExcluded || true
+      find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpExcluded || true
+      ;;
+    encryption)
+      if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
+        find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpExcluded
+      fi
+      ;;
+    inmemory)
+      if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+        find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpExcluded
+      fi
+      find src/test/java -name "*InMem*.java" >>$tmpExcluded || true
+      ;;
+    external)
+      # External MongoDB connection tests (excluded by default)
+      find src/test/java -name "*Failover*.java" >>$tmpExcluded || true
+      ;;
     esac
   done
   sort -u $tmpExcluded -o $tmpExcluded
   if [ -s $tmpExcluded ]; then
     # Remove excluded files from the files list
-    grep -v -F -f $tmpExcluded $filesList > files_$PID.tmp || cp $filesList files_$PID.tmp
+    grep -v -F -f $tmpExcluded $filesList >files_$PID.tmp || cp $filesList files_$PID.tmp
     mv files_$PID.tmp $filesList
     # Rebuild class list from filtered files
     sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
@@ -419,6 +437,9 @@ MVN_PROPS=""
 if [ -n "$includeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.includeTags=$includeTags"; fi
 if [ -n "$excludeTags" ]; then MVN_PROPS="$MVN_PROPS -Dtest.excludeTags=$excludeTags"; fi
 if [ -n "$driver" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.driver=$driver"; fi
+if [ -n "$user" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.user=$user"; fi
+if [ -n "$pass" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.pass=$pass"; fi
+if [ -n "$authdb" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.authdb=$authdb"; fi
 if [ -n "$uri" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$uri"; fi
 if [ -z "$uri" ] && [ -n "$MONGODB_URI" ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.uri=$MONGODB_URI"; fi
 if [ "$verbose" -eq 1 ]; then MVN_PROPS="$MVN_PROPS -Dmorphium.tests.verbose=true"; fi
@@ -462,7 +483,7 @@ for t in $(<$classList); do
   ((tst = tst + 1))
   while true; do
     tm=$(date +%s)
-  if [ "$m" == "." ]; then
+    if [ "$m" == "." ]; then
       echo "Running Tests in $t" >"test.log/$t.log"
       mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
       echo $! >$testPid
