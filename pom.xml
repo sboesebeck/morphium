@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -228,7 +228,7 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-core</artifactId>
-      <version>5.3.37</version>
+      <version>6.2.11</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
