@@ -301,10 +301,11 @@ public class Query<T> implements Cloneable {
     public T findOneAndDelete() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
-        String ck = morphium.getCache().getCacheKey(this);
-        morphium.inc(StatisticKeys.READS);
-
+        String ck = null;
         if (useCache) {
+            ck = morphium.getCache().getCacheKey(this);
+            morphium.inc(StatisticKeys.READS);
+
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 List<T> lst = morphium.getCache().getFromCache(type, ck);
@@ -387,10 +388,11 @@ public class Query<T> implements Cloneable {
     public T findOneAndUpdate(Map<String, Object> update) {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
-        String ck = morphium.getCache().getCacheKey(this);
-        morphium.inc(StatisticKeys.READS);
+        String ck = null;
 
         if (useCache) {
+            ck = morphium.getCache().getCacheKey(this);
+            morphium.inc(StatisticKeys.READS);
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 List<T> lst = morphium.getCache().getFromCache(type, ck);
@@ -1641,11 +1643,13 @@ public class Query<T> implements Cloneable {
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);// type.getAnnotation(Cache.class);
         boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
-        String ck = morphium.getCache().getCacheKey(this);
-        ck += " idlist";
-        morphium.inc(StatisticKeys.READS);
 
+        String ck = null;
         if (useCache) {
+            ck = morphium.getCache().getCacheKey(this);
+            ck += " idlist";
+            morphium.inc(StatisticKeys.READS);
+
             if (morphium.getCache().isCached(type, ck)) {
                 morphium.inc(StatisticKeys.CHITS);
                 // casts are not nice... any idea how to change that?
