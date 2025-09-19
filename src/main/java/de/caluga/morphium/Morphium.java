@@ -985,6 +985,9 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
             getConfig().writerSettings().getWriter().store(storeDirect, callback);
             getConfig().writerSettings().getWriter().insert(insertDirect, callback);
         }
+
+        // Flush all buffered writes to ensure immediate storage
+        flush();
     }
 
     /**
