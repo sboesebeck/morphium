@@ -2549,7 +2549,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 }
                             }
 
-                            if (!obj.get(entry.getKey()).equals(value)) {
+                            Object currentValue = obj.get(entry.getKey());
+                            if (!Objects.equals(currentValue, value)) {
                                 modified.add(obj.get("_id"));
                             }
 
@@ -2585,7 +2586,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 value = (Long) value * ((Long) entry.getValue());
                             }
 
-                            if (!obj.get(entry.getKey()).equals(value)) {
+                            Object currentValue = obj.get(entry.getKey());
+                            if (!Objects.equals(currentValue, value)) {
                                 modified.add(obj.get("_id"));
                             }
 
