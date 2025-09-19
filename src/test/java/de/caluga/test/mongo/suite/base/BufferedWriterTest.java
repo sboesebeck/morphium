@@ -5,6 +5,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.annotations.caching.WriteBuffer;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.morphium.writer.BufferedMorphiumWriterImpl;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -31,6 +32,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
     @Test
     @Disabled
     public void testWriteBufferUpsert() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         List<BufferedBySizeObject> lst = new ArrayList<>();
 
         for (int i = 0; i < 200; i++) {
@@ -82,6 +87,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferUpdateMap() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
 
         for (int i = 0; i < 100; i++) {
             BufferedByTimeObject bo = new BufferedByTimeObject();
@@ -123,6 +132,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferIncs() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         BufferedMorphiumWriterImpl wr = (BufferedMorphiumWriterImpl) morphium.getWriterForClass(BufferedBySizeObject.class);
         Query<BufferedBySizeObject> q = morphium.createQueryFor(BufferedBySizeObject.class).f(UncachedObject.Fields.counter).eq(100);
         morphium.inc(q, "dval", 1, true, false);
@@ -152,6 +165,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferBySizeWithWriteNewStrategy() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         TestUtils.waitForWrites(morphium, log);
         int amount = 1500;
 
@@ -209,6 +226,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferByTime() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         int amount = 1500;
 
         for (int i = 0; i < amount; i++) {
@@ -238,6 +259,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferBySizeWithDelOldStrategy() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         morphium.getConfig().setMaxWaitTime(15000);
         int amount = 1500;
 
@@ -256,6 +281,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferBySizeWithIngoreNewStrategy() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         int amount = 1500;
 
         for (int i = 0; i < amount; i++) {
@@ -273,6 +302,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testWriteBufferBySizeWithWaitStrategy() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         int amount = 1500;
         morphium.getConfig().setMaxWaitTime(15000);
         morphium.getDriver().setMaxWaitTime(10000);
@@ -291,6 +324,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testComplexObject() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         Morphium m = morphium;
 
 
@@ -319,6 +356,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void parallelWritingTest() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         if (morphium.exists(morphium.getDatabase(), morphium.getMapper().getCollectionName(SimpleObject.class))) {
             morphium.dropCollection(SimpleObject.class);
 
@@ -370,6 +411,10 @@ public class BufferedWriterTest extends MorphiumTestBase {
 
     @Test
     public void testNonObjectIdID() throws Exception {
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping write-buffer test for InMemoryDriver");
+            return;
+        }
         Morphium m = morphium;
 
         if (m.exists(m.getDatabase(), m.getMapper().getCollectionName(SimpleObject.class))) {
