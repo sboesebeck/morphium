@@ -130,6 +130,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
                                                    () -> TestUtils.countUC(morphium) == 10);
 
             UncachedObject toDelete = morphium.createQueryFor(UncachedObject.class).get();
+            log.info("First deletion - will delete object with counter: " + toDelete.getCounter());
             morphium.delete(toDelete);
 
             TestUtils.waitForConditionToBecomeTrue(2000, "Object not deleted",
@@ -148,7 +149,24 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
                                                    () -> TestUtils.countUC(morphium) == initialCount - 1);
 
             // Test multiple delete
+            long countBeforeMultiDelete = TestUtils.countUC(morphium);
+            log.info("Count before multiple delete: " + countBeforeMultiDelete);
+
+            // Debug: show all remaining objects
+            var allObjects = morphium.createQueryFor(UncachedObject.class).asList();
+            log.info("All remaining objects: " + allObjects.size());
+            for (var obj : allObjects) {
+                log.info("Remaining object with counter: " + obj.getCounter());
+            }
+
+            var toDeleteList = morphium.createQueryFor(UncachedObject.class).f("counter").lt(5).asList();
+            log.info("Objects to delete: " + toDeleteList.size());
+            for (var obj : toDeleteList) {
+                log.info("Will delete object with counter: " + obj.getCounter());
+            }
             morphium.delete(morphium.createQueryFor(UncachedObject.class).f("counter").lt(5));
+            long countAfterMultiDelete = TestUtils.countUC(morphium);
+            log.info("Count after multiple delete: " + countAfterMultiDelete);
             TestUtils.waitForConditionToBecomeTrue(2000, "Multiple delete failed",
                                                    () -> TestUtils.countUC(morphium) < 5);
         }

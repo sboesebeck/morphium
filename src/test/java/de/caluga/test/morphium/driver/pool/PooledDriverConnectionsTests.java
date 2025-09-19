@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.driver.MorphiumDriverException;
 import de.caluga.morphium.driver.ReadPreference;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.support.TestConfig;
@@ -24,6 +25,9 @@ public class PooledDriverConnectionsTests {
 
     @Test
     public void testLotsConnectionPool() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         var drv = getDriver();
         drv.setMaxWaitTime(2000);
         drv.setHeartbeatFrequency(250);
@@ -119,6 +123,9 @@ public class PooledDriverConnectionsTests {
 
     @Test
     public void testConnectionPool() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         var drv = getDriver();
         drv.connect();
         log.info("MaxWaitTime is: " + drv.getMaxWaitTime());
@@ -206,8 +213,8 @@ public class PooledDriverConnectionsTests {
         drv.setMaxConnectionLifetime(cfg.driverSettings().getMaxConnectionLifeTime());
         drv.setMaxConnectionIdleTime(cfg.driverSettings().getMaxConnectionIdleTime());
         drv.setDefaultReadPreference(cfg.driverSettings().getDefaultReadPreference() != null
-                ? cfg.driverSettings().getDefaultReadPreference()
-                : ReadPreference.nearest());
+                                     ? cfg.driverSettings().getDefaultReadPreference()
+                                     : ReadPreference.nearest());
         drv.setHeartbeatFrequency(cfg.driverSettings().getHeartbeatFrequency());
 
         // Ensure min connections per host match assertions in this test
