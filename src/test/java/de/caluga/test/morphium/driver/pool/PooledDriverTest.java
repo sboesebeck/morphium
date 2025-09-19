@@ -35,8 +35,10 @@ import de.caluga.morphium.driver.commands.FindCommand;
 import de.caluga.morphium.driver.commands.HelloCommand;
 import de.caluga.morphium.driver.commands.InsertMongoCommand;
 import de.caluga.morphium.driver.commands.ShutdownCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.driver.wire.PooledDriver;
 import de.caluga.test.mongo.suite.data.UncachedObject;
+import de.caluga.test.support.TestConfig;
 
 // @Disabled
 public class PooledDriverTest {
@@ -49,6 +51,9 @@ public class PooledDriverTest {
     @Tag("external")
     @Tag("driver")
     public void testPooledConnections() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         PooledDriver drv = getDriver();
         int min = drv.getMinConnectionsPerHost();
         int max = drv.getMaxConnectionsPerHost();
@@ -153,6 +158,9 @@ public class PooledDriverTest {
     @Tag("driver")
     @Tag("external")
     public void crudTestMongoDriver() {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         long start = System.currentTimeMillis();
         MongoClientSettings.Builder o = MongoClientSettings.builder();
         o.writeConcern(toMongoWriteConcern(de.caluga.morphium.driver.WriteConcern.getWc(1, true, 1000)));
@@ -247,6 +255,9 @@ public class PooledDriverTest {
     @Tag("driver")
     @Tag("external")
     public void testMultithreaddedConnectionPool() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         var drv = getDriver();
         drv.connect();
 
@@ -339,6 +350,9 @@ public class PooledDriverTest {
     @Test
     @Disabled
     public void testPrimaryFailover() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         log.info("Not testing failover!!!!");
 
         if (true)return;
@@ -570,6 +584,9 @@ public class PooledDriverTest {
     @Tag("driver")
     @Tag("external")
     public void idleTimeoutTest() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         var drv = getDriver();
         drv.setMinConnections(2);
         drv.setHeartbeatFrequency(250);
@@ -609,6 +626,9 @@ public class PooledDriverTest {
     @Tag("driver")
     @Tag("external")
     public void dropCmdTest() throws Exception {
+        if (TestConfig.load().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            return;
+        }
         var drv = getDriver();
         drv.connect();
         new Thread(()-> {

@@ -23,6 +23,7 @@ public class DefaultValuesTest extends MorphiumTestBase {
         morphium.setInEntity(read, "value", (Object) null);
         morphium.unsetInEntity(read, "value2");
         Thread.sleep(500);
+
         read = morphium.findById(DefaultsTestEntitiy.class, e.id);
         assert(read.value == null);
         assert(read.value2.equals("value2"));

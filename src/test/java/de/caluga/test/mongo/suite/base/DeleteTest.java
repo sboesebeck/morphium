@@ -66,7 +66,7 @@ public class DeleteTest extends MultiDriverTestBase {
 
             String k = "X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject";
 
-            while (morphium.getStatistics().get(k).intValue() != 0) {
+            while (morphium.getStatistics().get(k) != null && morphium.getStatistics().get(k).intValue() != 0) {
                 log.info("Waiting for cache to be cleared");
                 Thread.sleep(250);
             }

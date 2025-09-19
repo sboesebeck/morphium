@@ -878,8 +878,12 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     } catch (Exception e) {
                         retries++;
 
-                        if (retries < morphium.getConfig().getRetriesOnNetworkError()) {
-                            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
+                        if (morphium.getConfig() != null && retries < morphium.getConfig().getRetriesOnNetworkError()) {
+                            if (morphium.getConfig().connectionSettings() != null) {
+                                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries()));
+                            } else {
+                                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100)); // Default 100ms
+                            }
                             // Utils.pause(morphium.getConfig().getRetriesOnNetworkError());
                         } else {
                             callback.onOperationError(AsyncOperationType.WRITE, null, 0, e.getMessage(), e, null);
@@ -2602,13 +2606,9 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                 // WriteAccessType.SINGLE_UPDATE);
                 morphium.getCache().clearCacheIfNecessary(cls);
 
-                try {
-                    if (f != null) {
-                        f.set(toSet, null);
-                    }
-                } catch (IllegalAccessException e) {
-                    // May happen, if null is not allowed for example
-                }
+                // Don't set field to null in Java object after unset operation
+                // Let the object mapper handle default values when object is loaded from DB
+                // This preserves the MongoDB behavior where unset removes field completely
 
                 morphium.firePostUpdateEvent(morphium.getARHelper().getRealClass(cls), MorphiumStorageListener.UpdateTypes.UNSET);
 
