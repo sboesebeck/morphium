@@ -528,7 +528,7 @@ public abstract class MorphiumBase {
         ArrayList<T> bufferedDel = new ArrayList<>();
 
         for (T o : lst) {
-            if (getARHelper().isBufferedWrite(o.getClass())) {
+            if (getARHelper().isBufferedWrite(o.getClass()) && !"InMemDriver".equals(getDriver().getName())) {
                 bufferedDel.add(o);
             } else {
                 directDel.add(o);
@@ -554,7 +554,7 @@ public abstract class MorphiumBase {
         ArrayList<T> bufferedDel = new ArrayList<>();
 
         for (T o : lst) {
-            if (getARHelper().isBufferedWrite(o.getClass())) {
+            if (getARHelper().isBufferedWrite(o.getClass()) && !"InMemDriver".equals(getDriver().getName())) {
                 bufferedDel.add(o);
             } else {
                 directDel.add(o);
