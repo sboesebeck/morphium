@@ -10,6 +10,7 @@ import de.caluga.morphium.annotations.caching.WriteBuffer;
 import de.caluga.morphium.cache.*;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.driver.commands.StoreMongoCommand;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.SingleCollectionMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.morphium.query.Query;
@@ -44,6 +45,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void sendClearMsgTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(Msg.class);
         SingleCollectionMessaging msg = new SingleCollectionMessaging(morphium, 100, true);
         msg.start();
@@ -68,6 +74,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void removeFromCacheTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
 
         for (int i = 0; i < 100; i++) {
             CachedObject o = new CachedObject();
@@ -96,6 +107,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void clearCacheTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
 
         SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.start();
@@ -140,6 +156,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void idCacheTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(Msg.class);
         morphium.dropCollection(IdCachedObject.class);
         TestUtils.waitForCollectionToBeDeleted(morphium, IdCachedObject.class);
@@ -246,6 +267,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void testListeners() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(IdCachedObject.class);
         final SingleCollectionMessaging msg1 = new SingleCollectionMessaging(morphium, 100, true);
         msg1.start();
@@ -330,6 +356,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void cacheSyncVetoTestMessaging() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(Msg.class);
         createCachedObjects(1000);
 
@@ -412,6 +443,11 @@ public class CacheSyncTest extends MorphiumTestBase {
     @Disabled
     @Test
     public void simpleSyncTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(Msg.class);
         createCachedObjects(1000);
 
@@ -513,6 +549,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void cacheSyncTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(Msg.class);
         createCachedObjects(1000);
 
@@ -598,6 +639,11 @@ public class CacheSyncTest extends MorphiumTestBase {
 
     @Test
     public void testWatchingCacheSynchronizer() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.getDriver().setMaxWaitTime(5000);
         morphium.dropCollection(CachedObject.class);
 

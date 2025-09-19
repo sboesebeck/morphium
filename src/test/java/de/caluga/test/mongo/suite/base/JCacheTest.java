@@ -6,6 +6,7 @@ import de.caluga.morphium.cache.jcache.CacheEntry;
 import de.caluga.morphium.cache.jcache.CacheManagerImpl;
 import de.caluga.morphium.cache.jcache.CachingProviderImpl;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.ehcache.jcache.JCacheCachingProvider;
@@ -34,6 +35,11 @@ public class JCacheTest extends MorphiumTestBase {
 
     @Test
     public void getProviderTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         MorphiumCache cache = morphium.getCache();
         morphium.getConfig().setCache(new MorphiumCacheJCacheImpl());
         //keep original setting

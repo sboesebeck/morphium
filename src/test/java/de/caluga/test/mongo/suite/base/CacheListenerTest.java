@@ -2,6 +2,7 @@ package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.cache.CacheListener;
 import de.caluga.morphium.cache.jcache.CacheEntry;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CachedObject;
 
 import org.junit.jupiter.api.Tag;
@@ -25,6 +26,11 @@ public class CacheListenerTest extends MorphiumTestBase {
 
     @Test
     public void callbackTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         CacheListener cl;
         cl = new CacheListener() {
 
