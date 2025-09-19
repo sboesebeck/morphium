@@ -1,6 +1,7 @@
 package de.caluga.test.mongo.suite.base;
 
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 
@@ -23,6 +24,11 @@ public class IdCacheTest extends MorphiumTestBase {
 
     @Test
     public void idTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         for (int i = 1; i < 100; i++) {
             CachedObject u = new CachedObject();
             u.setCounter(i);

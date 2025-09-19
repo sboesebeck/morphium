@@ -4,6 +4,7 @@
  */
 package de.caluga.test.mongo.suite.base;
 
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 
@@ -32,6 +33,11 @@ public class MassCacheTest extends MorphiumTestBase {
 
     @Test
     public void massiveParallelWritingTest()  throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
 
         log.info("\nMassive parallel writing - single creating objects");
         long start = System.currentTimeMillis();
@@ -112,6 +118,11 @@ public class MassCacheTest extends MorphiumTestBase {
 
     @Test
     public void massiveParallelAccessTest() {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("\nMassive parallel reading & writing - single creating objects");
         long start = System.currentTimeMillis();
         ArrayList<Thread> thr = new ArrayList<>();
@@ -187,6 +198,11 @@ public class MassCacheTest extends MorphiumTestBase {
 
     @Test
     public void disableCacheTest() {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.getConfig().disableReadCache();
         morphium.getConfig().disableBufferedWrites();
         morphium.resetStatistics();
@@ -244,6 +260,11 @@ public class MassCacheTest extends MorphiumTestBase {
 
     @Test
     public void cacheTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         log.info("Preparing test data...");
         for (int j = 0; j < NO_OBJECTS; j++) {

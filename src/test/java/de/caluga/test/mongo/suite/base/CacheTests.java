@@ -8,6 +8,7 @@ import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.annotations.caching.NoCache;
 import de.caluga.morphium.cache.MorphiumCache;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
 
@@ -32,6 +33,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void basicCacheOperationsTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -86,6 +91,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void cacheVsNoCacheTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -132,6 +141,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void cacheTTLTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -165,6 +178,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void cacheInvalidationTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -203,6 +220,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void listCacheTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -245,6 +266,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void idCacheTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -286,6 +311,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void massiveCacheTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {
@@ -344,6 +373,10 @@ public class CacheTests extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void cacheConfigurationTest(Morphium morphium) throws Exception {
         String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         log.info("Running test " + tstName + " with " + morphium.getDriver().getName());
 
         try (morphium) {

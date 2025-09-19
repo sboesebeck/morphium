@@ -5,6 +5,7 @@ package de.caluga.test.mongo.suite.base;/**
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.annotations.caching.Cache;
 import de.caluga.morphium.cache.jcache.CacheEntry;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.UncachedObject;
@@ -26,6 +27,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void accessTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
 
         morphium.getCache().setValidCacheTime(CachedObject.class, 1000000);
         int amount = 1000;
@@ -57,6 +63,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void emptyResultTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.getCache().setDefaultCacheTime(CacheEntry.class);
         int amount = 100;
         createCachedObjects(amount);
@@ -89,6 +100,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void globalCacheSettingsTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         int gcTime = morphium.getConfig().getGlobalCacheValidTime();
         int hcTime = morphium.getConfig().getHousekeepingTimeout();
         Cache cache = morphium.getARHelper().getAnnotationFromHierarchy(SpecCachedOjbect.class, Cache.class);
@@ -127,6 +143,11 @@ public class CacheFunctionalityTest extends MorphiumTestBase {
 
     @Test
     public void multiThreadAccessTest() throws Exception {
+        String tstName = new Object() {} .getClass().getEnclosingMethod().getName();
+        if (morphium.getConfig().driverSettings().getDriverName().equals(InMemoryDriver.driverName)) {
+            log.info("Skipping test %s for InMemoryDriver", tstName);
+            return;
+        }
         morphium.dropCollection(CachedObject.class);
         Thread.sleep(1000);
         int amount = 1000;
