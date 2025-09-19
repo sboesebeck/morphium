@@ -670,26 +670,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         try {
             // Execute MapReduce using our implementation
             List<Map<String, Object>> results = mapReduceInternal(
-                cmd.getDb(),
-                cmd.getColl(),
-                cmd.getMap(),
-                cmd.getReduce(),
-                cmd.getQuery(),
-                cmd.getSort(),
-                null, // TODO: Implement proper collation support
-                cmd.getFinalize()
-            );
+                    cmd.getDb(),
+                    cmd.getColl(),
+                    cmd.getMap(),
+                    cmd.getReduce(),
+                    cmd.getQuery(),
+                    cmd.getSort(),
+                    null, // TODO: Implement proper collation support
+                    cmd.getFinalize()
+                                                );
 
             // Format results according to MongoDB MapReduce response format
             Map<String, Object> response = new HashMap<>();
             response.put("result", results);
             response.put("timeMillis", 0); // Could be enhanced to track actual time
             response.put("counts", Map.of(
-                "input", results.size(),
-                "emit", results.size(),
-                "reduce", 0, // Could be enhanced to track actual reduce operations
-                "output", results.size()
-            ));
+                                         "input", results.size(),
+                                         "emit", results.size(),
+                                         "reduce", 0, // Could be enhanced to track actual reduce operations
+                                         "output", results.size()
+                         ));
             response.put("ok", 1.0);
 
             commandResults.add(prepareResult(response));
@@ -1093,7 +1093,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             log.warn("pipeline not supported in memory");
         }
 
-        database.putIfAbsent(cmd.getDb(), new ConcurrentHashMap<>());
+        database.putIfAbsent(cmd.getDb(), new HashMap<>());
 
         if (database.get(cmd.getDb()).containsKey(cmd.getColl())) {
             // throw new IllegalArgumentException("Collection exists");
@@ -2176,7 +2176,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (value == null) {
                 // For null value queries, field must exist and be null
                 if (obj.containsKey(field) && obj.get(field) == null) {
-                    ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
+                    Map<String, Object> add = new HashMap<>(obj);
 
                     if (add.get("_id") instanceof ObjectId) {
                         add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
@@ -2187,7 +2187,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             } else {
                 // For non-null value queries, field must exist and equal the value
                 if (obj.containsKey(field) && Objects.equals(obj.get(field), value)) {
-                    ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
+                    Map<String, Object> add = new HashMap<>(obj);
 
                     if (add.get("_id") instanceof ObjectId) {
                         add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
@@ -2339,7 +2339,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public synchronized Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
-        Map<String, Integer> ret = new ConcurrentHashMap<>();
+        Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
         int inserted = 0;
         int total = objs.size();
@@ -2450,7 +2450,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         if (upsert && lst.isEmpty()) {
-            lst.add(new ConcurrentHashMap<>());
+            lst.add(new HashMap<>());
 
             for (String k : query.keySet()) {
                 if (k.startsWith("$")) {
@@ -3845,7 +3845,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
      * @return List of result documents
      */
     private List<Map<String, Object>> mapReduceInternal(String db, String collection, String mapFunction, String reduceFunction,
-                                                       Object query, Object sort, Collation collation, String finalizeFunction) throws MorphiumDriverException {
+            Object query, Object sort, Collation collation, String finalizeFunction) throws MorphiumDriverException {
 
         // Get documents from collection
         Map<String, Object> queryMap = query instanceof Map ? (Map<String, Object>) query : null;
