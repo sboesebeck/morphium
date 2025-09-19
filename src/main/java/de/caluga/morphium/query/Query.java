@@ -300,7 +300,7 @@ public class Query<T> implements Cloneable {
 
     public T findOneAndDelete() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
 
@@ -386,7 +386,7 @@ public class Query<T> implements Cloneable {
 
     public T findOneAndUpdate(Map<String, Object> update) {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
 
@@ -1245,7 +1245,7 @@ public class Query<T> implements Cloneable {
         morphium.inc(StatisticKeys.READS);
         if (type != null) {
             Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-            boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+            boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
             Class type = Map.class;
             String ck = morphium.getCache().getCacheKey(this);
             if (useCache) {
@@ -1320,7 +1320,7 @@ public class Query<T> implements Cloneable {
 
         morphium.inc(StatisticKeys.READS);
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
         String ck = morphium.getCache().getCacheKey(this);
 
         if (useCache) {
@@ -1540,7 +1540,7 @@ public class Query<T> implements Cloneable {
 
     public T get() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
         String ck = morphium.getCache().getCacheKey(this);
         morphium.inc(StatisticKeys.READS);
 
@@ -1640,7 +1640,7 @@ public class Query<T> implements Cloneable {
 
     public <R> List<R> idList() {
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class);// type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && morphium.isReadCacheEnabledForThread() && !"InMemDriver".equals(morphium.getDriver().getName());
         String ck = morphium.getCache().getCacheKey(this);
         ck += " idlist";
         morphium.inc(StatisticKeys.READS);

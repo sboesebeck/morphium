@@ -65,8 +65,13 @@ public class CacheTests extends MultiDriverTestBase {
             // Cache hit should typically be faster (though not always guaranteed in tests)
             log.info("First query: {}ms, Second query (cache): {}ms", firstDuration, secondDuration);
 
-            // Test cache statistics
-            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // Test cache statistics - InMemory driver doesn't use cache
+            if (!"InMemDriver".equals(morphium.getDriver().getName())) {
+                assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            } else {
+                // For InMemory driver, cache should be disabled, so no cache hits expected
+                assertTrue(morphium.getStatistics().get("CHITS") == 0);
+            }
 
             // Test cache invalidation on update
             first.setValue("Updated Value");
@@ -115,8 +120,10 @@ public class CacheTests extends MultiDriverTestBase {
                 assertEquals(2, uncached.getCounter());
             }
 
-            // There should be some cache hits (from cached objects)
-            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // There should be some cache hits (from cached objects) - unless InMemory driver
+            if (!"InMemDriver".equals(morphium.getDriver().getName())) {
+                assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            }
             // Note: Global statistics don't separate cached vs uncached entities
         }
     }
@@ -222,8 +229,10 @@ public class CacheTests extends MultiDriverTestBase {
                                             .f("counter").lt(10).asList();
             assertEquals(10, secondList.size());
 
-            // Verify cache hits for list queries
-            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // Verify cache hits for list queries - unless InMemory driver
+            if (!"InMemDriver".equals(morphium.getDriver().getName())) {
+                assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            }
 
             // Test different query - should hit database
             List<CachedObject> differentQuery = morphium.createQueryFor(CachedObject.class)
@@ -266,8 +275,10 @@ public class CacheTests extends MultiDriverTestBase {
             assertNotNull(byField);
             assertEquals(objectId, byField.getId());
 
-            // Verify cache statistics
-            assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            // Verify cache statistics - unless InMemory driver
+            if (!"InMemDriver".equals(morphium.getDriver().getName())) {
+                assertTrue(morphium.getStatistics().get("CHITS") > 0);
+            }
         }
     }
 
@@ -310,7 +321,14 @@ public class CacheTests extends MultiDriverTestBase {
             }
 
             double finalCacheHits = morphium.getStatistics().get("CHITS");
-            assertTrue(finalCacheHits > initialCacheHits);
+            // Cache hits should increase unless using InMemory driver
+            if (!"InMemDriver".equals(morphium.getDriver().getName())) {
+                assertTrue(finalCacheHits > initialCacheHits);
+            } else {
+                // For InMemory driver, both should be 0 since caching is disabled
+                assertEquals(0.0, initialCacheHits);
+                assertEquals(0.0, finalCacheHits);
+            }
 
             // Test cache capacity - cache might evict some entries
             MorphiumCache cache = morphium.getCache();

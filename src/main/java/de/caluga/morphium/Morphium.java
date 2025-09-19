@@ -954,7 +954,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
             // checking permission - might take some time ;-(
             for (T o : lst) {
-                if (getARHelper().isBufferedWrite(getARHelper().getRealClass(o.getClass()))) {
+                if (getARHelper().isBufferedWrite(getARHelper().getRealClass(o.getClass())) && !"InMemDriver".equals(getDriver().getName())) {
                     if (getARHelper().getId(o) == null) {
                         insertInBg.add(o);
                     } else {
@@ -1078,7 +1078,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
 
     @Override
     public MorphiumWriter getWriterForClass(Class<?> cls) {
-        if (annotationHelper.isBufferedWrite(cls) && isWriteBufferEnabledForThread()) {
+        if (annotationHelper.isBufferedWrite(cls) && isWriteBufferEnabledForThread() && !"InMemDriver".equals(getDriver().getName())) {
             return getConfig().writerSettings().getBufferedWriter();
         } else if (annotationHelper.isAsyncWrite(cls) && isAsyncWritesEnabledForThread()) {
             return getConfig().writerSettings().getAsyncWriter();
@@ -1672,7 +1672,7 @@ public class Morphium extends MorphiumBase implements AutoCloseable {
     public <T> T findById(Class <? extends T > type, Object id, String collection) {
         inc(StatisticKeys.READS);
         Cache c = getARHelper().getAnnotationFromHierarchy(type, Cache.class); // type.getAnnotation(Cache.class);
-        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread();
+        boolean useCache = c != null && c.readCache() && isReadCacheEnabledForThread() && !"InMemDriver".equals(getDriver().getName());
 
         if (useCache) {
             if (getCache().getFromIDCache(type, id) != null) {
