@@ -666,7 +666,39 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.info(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
-        commandResults.add(prepareResult(Doc.of("ok", 0.0, "errmsg", "MapReduce not possible inMem (yet)")));
+
+        try {
+            // Execute MapReduce using our implementation
+            List<Map<String, Object>> results = mapReduceInternal(
+                cmd.getDb(),
+                cmd.getColl(),
+                cmd.getMap(),
+                cmd.getReduce(),
+                cmd.getQuery(),
+                cmd.getSort(),
+                null, // TODO: Implement proper collation support
+                cmd.getFinalize()
+            );
+
+            // Format results according to MongoDB MapReduce response format
+            Map<String, Object> response = new HashMap<>();
+            response.put("result", results);
+            response.put("timeMillis", 0); // Could be enhanced to track actual time
+            response.put("counts", Map.of(
+                "input", results.size(),
+                "emit", results.size(),
+                "reduce", 0, // Could be enhanced to track actual reduce operations
+                "output", results.size()
+            ));
+            response.put("ok", 1.0);
+
+            commandResults.add(prepareResult(response));
+
+        } catch (Exception e) {
+            log.error("MapReduce error: " + e.getMessage(), e);
+            commandResults.add(prepareResult(Doc.of("ok", 0.0, "errmsg", "MapReduce error: " + e.getMessage())));
+        }
+
         return ret;
     }
 
@@ -3787,16 +3819,123 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public List<Map<String, Object >> mapReduce(String db, String collection, String mapping, String reducing) throws MorphiumDriverException {
-        throw new FunctionNotSupportedException("no map reduce in memory");
+        return mapReduceInternal(db, collection, mapping, reducing, null, null, null, null);
     }
 
     public List<Map<String, Object >> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query) throws MorphiumDriverException {
-        throw new FunctionNotSupportedException("no map reduce in memory");
+        return mapReduceInternal(db, collection, mapping, reducing, query, null, null, null);
     }
 
     public List<Map<String, Object >> mapReduce(String db, String collection, String mapping, String reducing, Map<String, Object> query, Map<String, Object> sorting, Collation collation)
     throws MorphiumDriverException {
-        throw new FunctionNotSupportedException("no map reduce in memory");
+        return mapReduceInternal(db, collection, mapping, reducing, query, sorting, collation, null);
+    }
+
+    /**
+     * Internal MapReduce implementation using JavaScript engine
+     *
+     * @param db Database name
+     * @param collection Collection name
+     * @param mapFunction JavaScript map function as string
+     * @param reduceFunction JavaScript reduce function as string
+     * @param query Optional query to filter documents
+     * @param sort Optional sort specification
+     * @param collation Optional collation
+     * @param finalizeFunction Optional finalize function
+     * @return List of result documents
+     */
+    private List<Map<String, Object>> mapReduceInternal(String db, String collection, String mapFunction, String reduceFunction,
+                                                       Object query, Object sort, Collation collation, String finalizeFunction) throws MorphiumDriverException {
+
+        // Get documents from collection
+        Map<String, Object> queryMap = query instanceof Map ? (Map<String, Object>) query : null;
+        Map<String, Object> sortMap = sort instanceof Map ? (Map<String, Object>) sort : null;
+        List<Map<String, Object>> documents = find(db, collection, queryMap, sortMap, null, collation == null ? null : collation.toQueryObject(), 0, 0, false);
+
+        // Initialize JavaScript engine
+        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+        javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
+        javax.script.ScriptEngine engine = mgr.getEngineByExtension("js");
+
+        if (engine == null) {
+            engine = mgr.getEngineByName("js");
+        }
+        if (engine == null) {
+            engine = mgr.getEngineByName("JavaScript");
+        }
+        if (engine == null) {
+            throw new MorphiumDriverException("JavaScript engine not available for MapReduce");
+        }
+
+        try {
+            // Prepare the JavaScript environment
+            // Add emit function to collect map results
+            List<Map<String, Object>> mapResults = new ArrayList<>();
+
+            // Create a Java object to handle emit calls from JavaScript
+            MapReduceEmitter emitter = new MapReduceEmitter(mapResults);
+            engine.put("emitter", emitter);
+
+            // Define emit function in JavaScript that calls our Java emitter
+            engine.eval("function emit(key, value) { emitter.emit(key, value); }");
+
+            // Phase 1: Map phase - execute map function for each document
+            for (Map<String, Object> doc : documents) {
+                // Set current document in JavaScript context
+                engine.put("this", doc);
+                for (Map.Entry<String, Object> entry : doc.entrySet()) {
+                    engine.put(entry.getKey(), entry.getValue());
+                }
+
+                // Execute map function
+                engine.eval(mapFunction);
+            }
+
+            // Phase 2: Group by key
+            Map<Object, List<Object>> groupedResults = new HashMap<>();
+            for (Map<String, Object> mapResult : mapResults) {
+                Object key = mapResult.get("_id");
+                Object value = mapResult.get("value");
+
+                groupedResults.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+            }
+
+            // Phase 3: Reduce phase - execute reduce function for each key
+            List<Map<String, Object>> finalResults = new ArrayList<>();
+            for (Map.Entry<Object, List<Object>> entry : groupedResults.entrySet()) {
+                Object key = entry.getKey();
+                List<Object> values = entry.getValue();
+
+                Object reducedValue;
+                if (values.size() == 1) {
+                    // If only one value, no reduction needed
+                    reducedValue = values.get(0);
+                } else {
+                    // Execute reduce function
+                    engine.put("key", key);
+                    engine.put("values", values);
+                    reducedValue = engine.eval("(" + reduceFunction + ")(key, values)");
+                }
+
+                // Apply finalize function if provided
+                if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
+                    engine.put("key", key);
+                    engine.put("reducedVal", reducedValue);
+                    reducedValue = engine.eval("(" + finalizeFunction + ")(key, reducedVal)");
+                }
+
+                // Create result document
+                Map<String, Object> result = new HashMap<>();
+                result.put("_id", key);
+                result.put("value", reducedValue);
+                finalResults.add(result);
+            }
+
+            return finalResults;
+
+        } catch (javax.script.ScriptException e) {
+            throw new MorphiumDriverException("JavaScript error in MapReduce: " + e.getMessage(), e);
+        }
     }
 
     public void commitTransaction() {
@@ -3983,5 +4122,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return this;
     }
 
+    /**
+     * Helper class to handle emit() calls from JavaScript MapReduce functions
+     */
+    public static class MapReduceEmitter {
+        private final List<Map<String, Object>> results;
+
+        public MapReduceEmitter(List<Map<String, Object>> results) {
+            this.results = results;
+        }
+
+        public void emit(Object key, Object value) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("_id", key);
+            result.put("value", value);
+            results.add(result);
+        }
+    }
 
 }

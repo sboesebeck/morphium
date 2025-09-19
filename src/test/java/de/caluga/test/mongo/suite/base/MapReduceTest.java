@@ -23,10 +23,6 @@ public class MapReduceTest extends MultiDriverTestBase {
     @MethodSource("getMorphiumInstances")
     public void doSimpleMRTest(Morphium m) throws Exception {
         try (m) {
-            if (m.getDriver() instanceof InMemoryDriver) {
-                log.error("InMemorydriver does not support MapReduce yet");
-                return;
-            }
 
             m.dropCollection(UncachedObject.class);
             TestUtils.waitForConditionToBecomeTrue(1000, "Deletion of collection failed", ()-> {
