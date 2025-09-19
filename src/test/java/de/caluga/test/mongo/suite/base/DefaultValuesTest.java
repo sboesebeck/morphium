@@ -24,6 +24,11 @@ public class DefaultValuesTest extends MorphiumTestBase {
         morphium.unsetInEntity(read, "value2");
         Thread.sleep(500);
 
+        var m = morphium.createQueryFor(DefaultsTestEntitiy.class).f("_id").eq(e.id).asMapList().get(0);
+        for (var en : m.entrySet()) {
+            log.info("Got key: {} = {}", en.getKey(), en.getValue());
+        }
+
         read = morphium.findById(DefaultsTestEntitiy.class, e.id);
         assert(read.value == null);
         assert(read.value2.equals("value2"));

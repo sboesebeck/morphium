@@ -348,14 +348,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         monitors.add(monitor);
 
         ChangeStreamSubscription subscription = new ChangeStreamSubscription(
-            db,
-            collection,
-            settings.getCb(),
-            settings.getPipeline(),
-            settings.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : settings.getFullDocument(),
-            settings.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : settings.getFullDocumentBeforeChange(),
-            Boolean.TRUE.equals(settings.getShowExpandedEvents()),
-            monitor
+                        db,
+                        collection,
+                        settings.getCb(),
+                        settings.getPipeline(),
+                        settings.getFullDocument() == null ? WatchCommand.FullDocumentEnum.defaultValue : settings.getFullDocument(),
+                        settings.getFullDocumentBeforeChange() == null ? WatchCommand.FullDocumentBeforeChangeEnum.off : settings.getFullDocumentBeforeChange(),
+                        Boolean.TRUE.equals(settings.getShowExpandedEvents()),
+                        monitor
         );
 
         registerSubscription(subscription);
@@ -566,7 +566,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int totalMatched = 0;
         int totalModified = 0;
         int updateIndex = 0;
-        List<Map<String,Object>> upserted = new ArrayList<>();
+        List<Map<String, Object>> upserted = new ArrayList<>();
 
         for (var update : cmd.getUpdates()) {
             // Doc.of("q", query, "u", update, "upsert", upsert, "multi", multi);
@@ -582,7 +582,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 upsert = Boolean.TRUE.equals(update.get("upsert"));
             }
 
-            Map<String,Object> collation = null;
+            Map<String, Object> collation = null;
             if (update.containsKey("collation") && update.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) update.get("collation");
             }
@@ -989,7 +989,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (del.get("limit") != null) {
                 multi = ((int) del.get("limit")) == 0;
             }
-            Map<String,Object> collation = null;
+            Map<String, Object> collation = null;
             if (del.get("collation") instanceof Map) {
                 collation = (Map<String, Object>) del.get("collation");
             }
@@ -1906,7 +1906,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                 continue;
                             }
                             Object val = getByPath(o, k);
-                            if (val != null) setByPath(projected, k, val);
+                            boolean fieldExists = containsByPath(o, k);
+                            if (fieldExists) setByPath(projected, k, val);
                         }
                         if (!projection.containsKey("_id") || truthy(projection.get("_id"))) {
                             if (o.containsKey("_id")) projected.put("_id", o.get("_id"));
@@ -1952,6 +1953,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (cur == null) return null;
         }
         return cur;
+    }
+
+    private static boolean containsByPath(Map<String, Object> doc, String path) {
+        if (doc == null || path == null) return false;
+        String[] parts = path.split("\\.");
+        Map<String, Object> cur = doc;
+        for (int i = 0; i < parts.length - 1; i++) {
+            String p = parts[i];
+            if (!cur.containsKey(p) || !(cur.get(p) instanceof Map)) {
+                return false;
+            }
+            cur = (Map<String, Object>) cur.get(p);
+        }
+        // Check if the final field exists (even if it's null)
+        return cur.containsKey(parts[parts.length - 1]);
     }
 
     private static void setByPath(Map<String, Object> target, String path, Object value) {
@@ -2123,18 +2139,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         List<Map<String, Object >> data = new CopyOnWriteArrayList<>(getCollection(db, coll));
 
         for (Map<String, Object> obj : data) {
-            if (obj.get(field) == null && value != null) {
-                continue;
-            }
+            // MongoDB behavior: when searching for null, only match documents where field exists and is null
+            // Missing fields should not match null queries
+            if (value == null) {
+                // For null value queries, field must exist and be null
+                if (obj.containsKey(field) && obj.get(field) == null) {
+                    ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
 
-            if ((obj.get(field) == null && value == null) || obj.get(field).equals(value)) {
-                ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
+                    if (add.get("_id") instanceof ObjectId) {
+                        add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
+                    }
 
-                if (add.get("_id") instanceof ObjectId) {
-                    add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
+                    ret.add(add);
                 }
+            } else {
+                // For non-null value queries, field must exist and equal the value
+                if (obj.containsKey(field) && Objects.equals(obj.get(field), value)) {
+                    ConcurrentHashMap<String, Object> add = new ConcurrentHashMap<>(obj);
 
-                ret.add(add);
+                    if (add.get("_id") instanceof ObjectId) {
+                        add.put("_id", new MorphiumId((ObjectId) add.get("_id")));
+                    }
+
+                    ret.add(add);
+                }
             }
         }
 
@@ -2302,8 +2330,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 enforceUniqueOrThrow(db, collection, o);
                 upd++;
                 notifyWatchers(db, collection, "replace", o, null, null, previous);
-            }
-            else {
+            } else {
                 // unique check for insert
                 enforceUniqueOrThrow(db, collection, o);
                 notifyWatchers(db, collection, "insert", o);
@@ -2414,7 +2441,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         for (Map<String, Object> obj : lst) {
             // keep a deep copy to detect if the object actually changed
-            Map<String,Object> original = deepClone(obj);
+            Map<String, Object> original = deepClone(obj);
             if (original == null) {
                 original = new HashMap<>(obj); // fallback
             }
@@ -2427,65 +2454,65 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                         // $set:{"field":"value", "other_field": 123}
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            if (entry.getValue() != null) {
-                                var v = entry.getValue();
+                            // Process all entries, including null values (unlike $unset which removes fields)
+                            var v = entry.getValue();
 
-                                if (v instanceof Map) {
-                                    try {
-                                        v = Expr.parse(v).evaluate(obj);
-                                    } catch (Exception e) {
-                                        // swallow
-                                    }
-                                }
-
-                                if (entry.getKey().contains(".")) {
-                                    String[] path = entry.getKey().split("\\.");
-                                    var current = obj;
-                                    Map lastEl = null;
-
-                                    for (String p : path) {
-                                        if (current.get(p) != null) {
-                                            if (current.get(p) instanceof Map) {
-                                                ((Map) current.get(p)).put(p, Doc.of());
-                                            } else {
-                                                log.error("could not set value! " + p);
-                                                break;
-                                            }
-                                        } else {
-                                            current.put(p, Doc.of());
-                                        }
-
-                                        lastEl = current;
-                                        current = (Map) current.get(p);
-                                    }
-
-                                    lastEl.put(path[path.length - 1], v);
-                                } else {
-                                    obj.put(entry.getKey(), v);
-                                }
-                            } else {
-                                if (entry.getKey().contains(".")) {
-                                    String[] path = entry.getKey().split("\\.");
-                                    var current = obj;
-                                    Map lastEl = null;
-
-                                    for (String p : path) {
-                                        lastEl = current;
-
-                                        if (current.get(p) != null) {
-                                            current = (Map) current.get(p);
-                                        } else {
-                                            break;
-                                        }
-                                    }
-
-                                    if (lastEl != null) {
-                                        lastEl.remove(path[path.length - 1]);
-                                    }
-                                } else {
-                                    obj.remove(entry.getKey());
+                            if (v instanceof Map) {
+                                try {
+                                    v = Expr.parse(v).evaluate(obj);
+                                } catch (Exception e) {
+                                    // swallow
                                 }
                             }
+
+                            if (entry.getKey().contains(".")) {
+                                String[] path = entry.getKey().split("\\.");
+                                var current = obj;
+                                Map lastEl = null;
+
+                                for (String p : path) {
+                                    if (current.get(p) != null) {
+                                        if (current.get(p) instanceof Map) {
+                                            ((Map) current.get(p)).put(p, Doc.of());
+                                        } else {
+                                            log.error("could not set value! " + p);
+                                            break;
+                                        }
+                                    } else {
+                                        current.put(p, Doc.of());
+                                    }
+
+                                    lastEl = current;
+                                    current = (Map) current.get(p);
+                                }
+
+                                lastEl.put(path[path.length - 1], v);
+                            } else {
+                                obj.put(entry.getKey(), v);
+                            }
+                            // } else {
+                            //     if (entry.getKey().contains(".")) {
+                            //         String[] path = entry.getKey().split("\\.");
+                            //         var current = obj;
+                            //         Map lastEl = null;
+
+                            //         for (String p : path) {
+                            //             lastEl = current;
+
+                            //             if (current.get(p) != null) {
+                            //                 current = (Map) current.get(p);
+                            //             } else {
+                            //                 break;
+                            //             }
+                            //         }
+
+                            //         if (lastEl != null) {
+                            //             lastEl.remove(path[path.length - 1]);
+                            //         }
+                            //     } else {
+                            //         obj.remove(entry.getKey());
+                            //     }
+                            // }
                         }
 
                         break;
@@ -2788,7 +2815,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (insert) {
             store(db, collection, lst, wc);
             // collect upserted ids (single upsert typical)
-            for (Map<String,Object> d : lst) {
+            for (Map<String, Object> d : lst) {
                 if (d.get("_id") != null) {
                     upsertedIds.add(d.get("_id"));
                 }
@@ -3096,13 +3123,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     private void flattenValue(Map<String, Object> target, String prefix, Object value) {
         if (value instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) value;
+            Map <?, ? > map = (Map <?, ? >) value;
 
             if (map.isEmpty()) {
                 target.put(prefix, Map.of());
             }
 
-            for (Map.Entry<?, ?> entry : map.entrySet()) {
+            for (Map.Entry <?, ? > entry : map.entrySet()) {
                 if (entry.getKey() == null) {
                     continue;
                 }
@@ -3238,26 +3265,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             Map<String, Object> before = (Map<String, Object>) working.get("fullDocumentBeforeChange");
 
             switch (beforeChangeMode) {
-            case off:
-                working.remove("fullDocumentBeforeChange");
-                return true;
-
-            case whenAvailable:
-                if (before == null) {
+                case off:
                     working.remove("fullDocumentBeforeChange");
-                }
+                    return true;
 
-                return true;
+                case whenAvailable:
+                    if (before == null) {
+                        working.remove("fullDocumentBeforeChange");
+                    }
 
-            case required:
-                if (before == null) {
-                    return false;
-                }
+                    return true;
 
-                return true;
+                case required:
+                    if (before == null) {
+                        return false;
+                    }
 
-            default:
-                return true;
+                    return true;
+
+                default:
+                    return true;
             }
         }
 
