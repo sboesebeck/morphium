@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * performance benchmarking.
  */
 @Tag("core")
-public class ObjectMappingTests extends MorphiumTestBase {
+public class ObjectMappingTests {
 
     private final ObjectMapperImpl mapper = new ObjectMapperImpl();
 
@@ -42,7 +42,7 @@ public class ObjectMappingTests extends MorphiumTestBase {
         Map<String, Object> serialized = mapper.serialize(obj);
         assertNotNull(serialized);
         assertEquals(42, serialized.get("counter"));
-        assertEquals("Test String", serialized.get("value"));
+        assertEquals("Test String", serialized.get("str_value"));
         assertTrue(serialized.get("_id") instanceof ObjectId);
 
         // Test deserialization
@@ -74,7 +74,7 @@ public class ObjectMappingTests extends MorphiumTestBase {
         assertNotNull(embeddedSerialized);
         assertEquals("Embedded Name", embeddedSerialized.get("name"));
         assertEquals("Embedded Value", embeddedSerialized.get("value"));
-        assertEquals(123, embeddedSerialized.get("test"));
+        assertEquals(123l, embeddedSerialized.get("test_value_long"));
 
         // Test deserialization
         ComplexEntity deserialized = mapper.deserialize(ComplexEntity.class, serialized);
@@ -98,17 +98,17 @@ public class ObjectMappingTests extends MorphiumTestBase {
         assertNotNull(serialized);
 
         @SuppressWarnings("unchecked")
-        List<String> serializedList = (List<String>) serialized.get("stringList");
+        List<String> serializedList = (List<String>) serialized.get("string_list");
         assertEquals(3, serializedList.size());
         assertTrue(serializedList.contains("item2"));
 
         @SuppressWarnings("unchecked")
-        Set<Integer> serializedSet = new HashSet<>((List<Integer>) serialized.get("intSet"));
+        Set<Integer> serializedSet = new HashSet<>((List<Integer>) serialized.get("int_set"));
         assertEquals(5, serializedSet.size());
         assertTrue(serializedSet.contains(3));
 
         @SuppressWarnings("unchecked")
-        Map<String, String> serializedMap = (Map<String, String>) serialized.get("stringMap");
+        Map<String, String> serializedMap = (Map<String, String>) serialized.get("string_map");
         assertEquals(2, serializedMap.size());
         assertEquals("value1", serializedMap.get("key1"));
 
@@ -135,11 +135,11 @@ public class ObjectMappingTests extends MorphiumTestBase {
 
         Map<String, Object> serialized = mapper.serialize(entity);
         assertNotNull(serialized);
-        assertNotNull(serialized.get("bigInteger"));
-        assertNotNull(serialized.get("dateTime"));
-        assertEquals(9223372036854775807L, serialized.get("longValue"));
-        assertEquals(3.141592653589793, serialized.get("doubleValue"));
-        assertEquals(true, serialized.get("booleanValue"));
+        assertNotNull(serialized.get("big_integer"));
+        assertNotNull(serialized.get("date_time"));
+        assertEquals(9223372036854775807L, serialized.get("long_value"));
+        assertEquals(3.141592653589793, serialized.get("double_value"));
+        assertEquals(true, serialized.get("boolean_value"));
 
         TypeConversionEntity deserialized = mapper.deserialize(TypeConversionEntity.class, serialized);
         assertNotNull(deserialized);
@@ -161,7 +161,7 @@ public class ObjectMappingTests extends MorphiumTestBase {
 
         Map<String, Object> serialized = mapper.serialize(entity);
         assertNotNull(serialized);
-        assertEquals("Required", serialized.get("requiredString"));
+        assertEquals("Required", serialized.get("required_string"));
         // Null values might or might not be present in serialized map depending on configuration
 
         NullableEntity deserialized = mapper.deserialize(NullableEntity.class, serialized);
@@ -184,8 +184,8 @@ public class ObjectMappingTests extends MorphiumTestBase {
         assertEquals("Internal", serialized.get("external_name"));
         assertEquals("Different", serialized.get("very_different"));
         // Should not contain the field names from the Java class
-        assertFalse(serialized.containsKey("internalName"));
-        assertFalse(serialized.containsKey("differentName"));
+        assertFalse(serialized.containsKey("internal_name"));
+        assertFalse(serialized.containsKey("different_name"));
 
         CustomPropertyEntity deserialized = mapper.deserialize(CustomPropertyEntity.class, serialized);
         assertNotNull(deserialized);
@@ -243,7 +243,7 @@ public class ObjectMappingTests extends MorphiumTestBase {
         assertNotNull(serialized);
 
         @SuppressWarnings("unchecked")
-        List<String> stringList = (List<String>) serialized.get("stringArray");
+        List<String> stringList = (List<String>) serialized.get("string_array");
         assertEquals(3, stringList.size());
         assertEquals("b", stringList.get(1));
 
@@ -420,6 +420,7 @@ public class ObjectMappingTests extends MorphiumTestBase {
         public List<BaseType> objects;
     }
 
+    @Embedded
     public static abstract class BaseType {
         @Property
         public String commonField;
