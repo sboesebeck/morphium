@@ -168,7 +168,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
             long countAfterMultiDelete = TestUtils.countUC(morphium);
             log.info("Count after multiple delete: " + countAfterMultiDelete);
             TestUtils.waitForConditionToBecomeTrue(2000, "Multiple delete failed",
-                                                   () -> TestUtils.countUC(morphium) < 5);
+                                                   () -> TestUtils.countUC(morphium) == countBeforeMultiDelete - toDeleteList.size());
         }
     }
 

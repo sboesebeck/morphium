@@ -6,6 +6,7 @@ import de.caluga.morphium.annotations.Entity;
 import de.caluga.morphium.annotations.Id;
 import de.caluga.morphium.annotations.Reference;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.data.CachedObject;
 import de.caluga.test.mongo.suite.data.ComplexObject;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * User: Stephan Bösebeck
@@ -132,14 +134,18 @@ public class LazyLoadingTest extends MorphiumTestBase {
         double rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
         assert (rd2 > rd) : "No read?";
 
-        rd = morphium.getStatistics().get(StatisticKeys.READS.name());
-        double crd = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
-        cnt = lzRead.getLazyCached().getCounter();
-        assert (cnt == co.getCounter()) : "Counter (cached) not equal";
-        rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
-        assert (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd) : "Not cached?";
-        assert (rd2 > rd) : "No read?";
-        log.info("Cache Entries:" + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
+        if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
+            log.info("Cannot check for caching, inMemoryDriver enabled");
+        } else {
+            rd = morphium.getStatistics().get(StatisticKeys.READS.name());
+            double crd = morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name());
+            cnt = lzRead.getLazyCached().getCounter();
+            assert (cnt == co.getCounter()) : "Counter (cached) not equal";
+            rd2 = morphium.getStatistics().get(StatisticKeys.READS.name());
+            assert (rd2 > rd) : "No read?";
+            log.info("Cache Entries:" + morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()));
+            assertTrue (morphium.getStatistics().get(StatisticKeys.CACHE_ENTRIES.name()) > crd, "not cached");
+        }
 
         assert (lzRead.getLazyLst().size() == lz.getLazyLst().size()) : "List sizes differ?!?!";
         for (UncachedObject uc : lzRead.getLazyLst()) {

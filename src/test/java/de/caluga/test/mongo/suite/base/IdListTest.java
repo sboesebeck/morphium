@@ -21,7 +21,7 @@ public class IdListTest extends MorphiumTestBase {
     public void idList() throws Exception {
         createUncachedObjects(100);
 
-        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(10);
+        Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gte(10);
         List<Object> lst = q.idList();
         assertEquals(90, lst.size());
         assertThat(lst.get(0)).isInstanceOf(MorphiumId.class);
