@@ -510,8 +510,8 @@ public class AnsweringTests extends MultiDriverTestBase {
 
 
     @ParameterizedTest
-    // @MethodSource("getMorphiumInstancesNoSingle")
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstancesNoSingle")
+    // @MethodSource("getMorphiumInstancesPooledOnly")
     // @MethodSource("getInMemInstanceOnly")
     public void sendAndWaitforAnswerLoadTest(Morphium morphium) throws Exception {
         try (morphium) {

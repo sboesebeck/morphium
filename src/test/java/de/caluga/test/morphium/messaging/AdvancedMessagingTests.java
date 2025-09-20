@@ -140,7 +140,7 @@ public class AdvancedMessagingTests extends MultiDriverTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("getMorphiumInstancesPooledOnly")
+    @MethodSource("getMorphiumInstancesNoSingle")
     public void messageAnswerTest(Morphium baseMorphium) throws Exception {
         try (baseMorphium) {
             for (String msgImpl : MorphiumTestBase.messagingsToTest) {
