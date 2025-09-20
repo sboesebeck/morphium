@@ -196,7 +196,7 @@ public class CoreFunctionalityTests extends MultiDriverTestBase {
 
             // Test batch update
             morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").mod(2, 0),
-                         "strValue", "Even Number");
+                         "strValue", "Even Number", false, true);
 
             long evenCount = morphium.createQueryFor(UncachedObject.class)
                              .f("strValue").eq("Even Number").countAll();

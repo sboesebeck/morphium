@@ -57,7 +57,44 @@ public class MongoFieldImpl<T> implements MongoField<T> {
     @Override
     public void setFieldString(String fldStr) {
         fe = new FilterExpression();
-        fe.setField(fldStr);
+
+        // Handle field name translation for dot notation queries
+        String translatedFieldName = fldStr;
+        if (mapper != null && mapper.getMorphium() != null &&
+            mapper.getMorphium().getConfig().isCamelCaseConversionEnabled()) {
+            if (fldStr.contains(".")) {
+                // Split dot notation and translate each part
+                String[] parts = fldStr.split("\\.");
+                StringBuilder translatedName = new StringBuilder();
+
+                for (int i = 0; i < parts.length; i++) {
+                    if (i == 0) {
+                        // Translate the first part (the field name)
+                        try {
+                            String fieldName = mapper.getMorphium().getARHelper().convertCamelCase(parts[i]);
+                            translatedName.append(fieldName);
+                        } catch (Exception e) {
+                            // If translation fails, use original name
+                            translatedName.append(parts[i]);
+                        }
+                    } else {
+                        // Keep subsequent parts as-is (they are sub-field names)
+                        translatedName.append(".").append(parts[i]);
+                    }
+                }
+                translatedFieldName = translatedName.toString();
+            } else {
+                // Single field name - translate normally
+                try {
+                    translatedFieldName = mapper.getMorphium().getARHelper().convertCamelCase(fldStr);
+                } catch (Exception e) {
+                    // If translation fails, use original name
+                    translatedFieldName = fldStr;
+                }
+            }
+        }
+
+        fe.setField(translatedFieldName);
         this.fldStr = fldStr;
     }
 
