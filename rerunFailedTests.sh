@@ -7,29 +7,60 @@ driver=""
 uri=""
 useExternal=0
 verbose=0
+user=""
+pass=""
 
 pattern=""
 
 while [ $# -ne 0 ]; do
   case "$1" in
-    --tags)
-      shift; includeTags="$1"; shift ;;
-    --exclude-tags)
-      shift; excludeTags="$1"; shift ;;
-    --driver)
-      shift; driver="$1"; shift ;;
-    --uri)
-      shift; uri="$1"; shift ;;
-    --external)
-      useExternal=1; shift ;;
-    --verbose)
-      verbose=1; shift ;;
-    --help|-h)
-      echo "Usage: $0 [--tags LIST] [--exclude-tags LIST] [--driver NAME] [--uri URI] [--external] [--verbose] [PATTERN]"
-      exit 0 ;;
-    *)
-      # treat as grep pattern for class names
-      pattern="$1"; shift ;;
+  --tags)
+    shift
+    includeTags="$1"
+    shift
+    ;;
+  --exclude-tags)
+    shift
+    excludeTags="$1"
+    shift
+    ;;
+  --user)
+    shift
+    user="$1"
+    shift
+    ;;
+  --pass)
+    shift
+    pass="$1"
+    shift
+    ;;
+  --driver)
+    shift
+    driver="$1"
+    shift
+    ;;
+  --uri)
+    shift
+    uri="$1"
+    shift
+    ;;
+  --external)
+    useExternal=1
+    shift
+    ;;
+  --verbose)
+    verbose=1
+    shift
+    ;;
+  --help | -h)
+    echo "Usage: $0 [--tags LIST] [--exclude-tags LIST] [--driver NAME] [--uri URI] [--external] [--verbose] [PATTERN]"
+    exit 0
+    ;;
+  *)
+    # treat as grep pattern for class names
+    pattern="$1"
+    shift
+    ;;
   esac
 done
 
@@ -64,6 +95,9 @@ for f in $failed; do
   [ -n "$excludeTags" ] && args+=(--exclude-tags "$excludeTags")
   [ -n "$driver" ] && args+=(--driver "$driver")
   [ -n "$uri" ] && args+=(--uri "$uri")
+  [ -n "$user" ] && args+=(--user "$user")
+  [ -n "$pass" ] && args+=(--pass "$pass")
+  [ -n "$authdb" ] && args+=(--authdb "$authdb")
   [ "$useExternal" -eq 1 ] && args+=(--external)
   [ "$verbose" -eq 1 ] && args+=(--verbose)
   if [ -n "$m" ]; then
