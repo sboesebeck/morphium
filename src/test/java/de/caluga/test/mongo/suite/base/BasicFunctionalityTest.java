@@ -563,6 +563,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     public void cachedWritingTest(Morphium m) throws Exception {
         if (m.getDriver().getName().equals(InMemoryDriver.driverName)) {
             log.info("Caching not enabled in Memory - skipping");
+            return;
         }
         String tstName = new Object() {
         }
