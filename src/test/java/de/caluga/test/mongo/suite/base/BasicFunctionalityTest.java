@@ -1,6 +1,5 @@
 package de.caluga.test.mongo.suite.base;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -586,7 +585,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             while (q.countAll() < NO_OBJECTS) {
                 Thread.sleep(100);
                 m.clearCachefor(CachedObject.class);
-                assertThat(System.currentTimeMillis() - start < 5000);
+                assertTrue(System.currentTimeMillis() - start < 5000);
             }
 
             dur = System.currentTimeMillis() - start;
@@ -721,6 +720,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
 
             log.info("Writing " + cached + " Cached and " + uncached + " uncached objects!");
             morphium.storeList(tst);
+            log.info("Stored the list of {} elements", tst.size());
             long start = System.currentTimeMillis();
 
             while (true) {
@@ -728,11 +728,13 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 Query<UncachedObject> qu = morphium.createQueryFor(UncachedObject.class);
                 Query<CachedObject> q = morphium.createQueryFor(CachedObject.class);
 
+                log.info("uncached {} -> {}, cached {} -> {}", uncached, qu.countAll(), cached, q.countAll());
                 if (uncached == qu.countAll() && cached == q.countAll()) {
+
                     break;
                 }
 
-                assertThat(System.currentTimeMillis() - start > 5000);
+                assertTrue(System.currentTimeMillis() - start < 5000, "Test timed out waiting for objects to be stored correctly");
             }
         }
     }
