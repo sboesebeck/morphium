@@ -214,106 +214,116 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
                     var allStart = System.currentTimeMillis();
 
                     try {
-                        String collectionName = cn;
 
-                        if (lst == null || lst.isEmpty()) {
-                            return;
+                        Map<Class, List<T>> elementsByType = new HashMap<>();
+                        for (var o : lst) {
+                            elementsByType.putIfAbsent(o.getClass(), new ArrayList<T>());
+                            elementsByType.get(o.getClass()).add(o);
                         }
 
-                        if (collectionName == null) {
-                            collectionName = morphium.getMapper().getCollectionName(lst.get(0).getClass());
-                        }
+                        for (var entry : elementsByType.entrySet()) {
 
-                        List<Map<String, Object>> dbLst = new ArrayList<>();
-                        // DBCollection collection =
-                        // morphium.getDbName().getCollection(collectionName);
-                        WriteConcern wc = morphium.getWriteConcernForClass(lst.get(0).getClass());
-                        HashMap<Object, Boolean> isNew = new HashMap<>();
+                            String collectionName = cn != null ? cn : morphium.getMapper().getCollectionName(entry.getKey());
 
-                        for (Object o : lst) {
-                            boolean isn = true;
-
-                            if (morphium.isAutoValuesEnabledForThread()) {
-                                try {
-                                    isn = morphium.setAutoValues(o);
-                                } catch (IllegalAccessException e) {
-                                    throw new RuntimeException("could not set auto variable!", e);
-                                }
+                            if (entry.getValue() == null || entry.getValue().isEmpty()) {
+                                return;
                             }
 
-                            isNew.put(o, isn);
+                            if (collectionName == null) {
+                                collectionName = morphium.getMapper().getCollectionName(entry.getValue().get(0).getClass());
+                            }
+
+                            List<Map<String, Object>> dbLst = new ArrayList<>();
+                            // DBCollection collection =
+                            // morphium.getDbName().getCollection(collectionName);
+                            WriteConcern wc = morphium.getWriteConcernForClass(entry.getValue().get(0).getClass());
+                            HashMap<Object, Boolean> isNew = new HashMap<>();
+
+                            for (Object o : entry.getValue()) {
+                                boolean isn = true;
+
+                                if (morphium.isAutoValuesEnabledForThread()) {
+                                    try {
+                                        isn = morphium.setAutoValues(o);
+                                    } catch (IllegalAccessException e) {
+                                        throw new RuntimeException("could not set auto variable!", e);
+                                    }
+                                }
+
+                                isNew.put(o, isn);
+
+                                try {
+                                    setIdIfNull(o);
+                                } catch (IllegalAccessException e) {
+                                    throw new RuntimeException(e);
+                                }
+
+                                morphium.inc(StatisticKeys.WRITES);
+                            }
+                            checkIndexAndCaps(entry.getKey(), collectionName, callback);
+                            long start = System.currentTimeMillis();
+                            // int cnt = 0;
+                            morphium.firePreStore(isNew);
+
+                            for (Object o : entry.getValue()) {
+                                dbLst.add(morphium.getMapper().serialize(o));
+                            }
+                            // long dur = System.currentTimeMillis() - start;
+                            // WriteAccessType.BULK_UPDATE);
+                            // start = System.currentTimeMillis();
+                            InsertMongoCommand settings = null;
 
                             try {
-                                setIdIfNull(o);
-                            } catch (IllegalAccessException e) {
-                                throw new RuntimeException(e);
-                            }
+                                while (dbLst.size() != 0) {
+                                    var con = morphium.getDriver().getPrimaryConnection(wc);
+                                    settings = new InsertMongoCommand(con).setDb(morphium.getDatabase()).setColl(collectionName).setOrdered(false)
+                                    // .setBypassDocumentValidation(true)
+                                    ;
 
-                            morphium.inc(StatisticKeys.WRITES);
-                        }
-                        checkIndexAndCaps(lst.get(0).getClass(), collectionName, callback);
-                        long start = System.currentTimeMillis();
-                        // int cnt = 0;
-                        morphium.firePreStore(isNew);
+                                    if (dbLst.size() > morphium.getConfig().getCursorBatchSize()) {
+                                        settings.setDocuments(dbLst.subList(0, morphium.getConfig().getCursorBatchSize()));
+                                        dbLst = dbLst.subList(morphium.getConfig().getCursorBatchSize(), dbLst.size());
+                                    } else {
+                                        settings.setDocuments(dbLst);
+                                        dbLst = new ArrayList<>();
+                                    }
 
-                        for (Object o : lst) {
-                            dbLst.add(morphium.getMapper().serialize(o));
-                        }
-                        // long dur = System.currentTimeMillis() - start;
-                        // WriteAccessType.BULK_UPDATE);
-                        // start = System.currentTimeMillis();
-                        InsertMongoCommand settings = null;
+                                    if (wc != null) {
+                                        settings.setWriteConcern(wc.asMap());
+                                    }
 
-                        try {
-                            while (dbLst.size() != 0) {
-                                var con = morphium.getDriver().getPrimaryConnection(wc);
-                                settings = new InsertMongoCommand(con).setDb(morphium.getDatabase()).setColl(collectionName).setOrdered(false)
-                                // .setBypassDocumentValidation(true)
-                                ;
+                                    var writeResult = settings.execute();
+                                    settings.releaseConnection();
+                                    settings = null;
 
-                                if (dbLst.size() > morphium.getConfig().getCursorBatchSize()) {
-                                    settings.setDocuments(dbLst.subList(0, morphium.getConfig().getCursorBatchSize()));
-                                    dbLst = dbLst.subList(morphium.getConfig().getCursorBatchSize(), dbLst.size());
-                                } else {
-                                    settings.setDocuments(dbLst);
-                                    dbLst = new ArrayList<>();
+                                    if (writeResult.containsKey("writeErrors")) {
+                                        int failedWrites = ((List) writeResult.get("writeErrors")).size();
+                                        int success = (int) writeResult.get("n");
+                                        //                                    con.release();
+                                        throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+                                    }
                                 }
-
-                                if (wc != null) {
-                                    settings.setWriteConcern(wc.asMap());
-                                }
-
-                                var writeResult = settings.execute();
-                                settings.releaseConnection();
-                                settings = null;
-
-                                if (writeResult.containsKey("writeErrors")) {
-                                    int failedWrites = ((List) writeResult.get("writeErrors")).size();
-                                    int success = (int) writeResult.get("n");
-                                    //                                    con.release();
-                                    throw new RuntimeException("Failed to write: " + failedWrites + " - succeeded: " + success);
+                            } finally {
+                                if (settings != null) {
+                                    settings.releaseConnection();
                                 }
                             }
-                        } finally {
-                            if (settings != null) {
-                                settings.releaseConnection();
+                            // dur = System.currentTimeMillis() - start;
+                            List<Class> cleared = new ArrayList<>();
+
+                            for (Object o : entry.getValue()) {
+                                if (cleared.contains(o.getClass())) {
+                                    continue;
+                                }
+
+                                cleared.add(o.getClass());
+                                morphium.getCache().clearCacheIfNecessary(o.getClass());
                             }
-                        }
-                        // dur = System.currentTimeMillis() - start;
-                        List<Class> cleared = new ArrayList<>();
+                            morphium.firePostStore(isNew);
 
-                        for (Object o : lst) {
-                            if (cleared.contains(o.getClass())) {
-                                continue;
+                            if (callback != null) {
+                                callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, entry.getValue());
                             }
-
-                            cleared.add(o.getClass());
-                            morphium.getCache().clearCacheIfNecessary(o.getClass());
-                        }
-                        morphium.firePostStore(isNew);
-
-                        if (callback != null) {
-                            callback.onOperationSucceeded(AsyncOperationType.WRITE, null, System.currentTimeMillis() - allStart, null, null, lst);
                         }
                     } catch (Exception e) {
                         if (callback != null) {
@@ -327,6 +337,7 @@ public class MorphiumWriterImpl implements MorphiumWriter, ShutdownListener {
 
                         throw new RuntimeException(e);
                     }
+
                 }
             };
             submitAndBlockIfNecessary(callback, r);
