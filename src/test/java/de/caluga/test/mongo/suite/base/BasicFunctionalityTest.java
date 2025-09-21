@@ -28,6 +28,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.StatisticKeys;
 import de.caluga.morphium.UtilsMap;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.query.Query;
 
 /**
@@ -163,11 +164,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             q = q.f("embed.testValueLong").eq(null).f("entityEmbeded.binaryData").eq(null);
             String queryString = q.toQueryObject().toString();
             log.info(queryString);
-            assert(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+            assertTrue(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
             q = q.f("embed.test_value_long").eq(null).f("entity_embeded.binary_data").eq(null);
             queryString = q.toQueryObject().toString();
             log.info(queryString);
-            assert(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
+            assertTrue(queryString.contains("embed.test_value_long") && queryString.contains("entityEmbeded.binary_data"));
         }
     }
 
@@ -207,17 +208,17 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q = q.f(UncachedObject.Fields.counter).gt(0).sort("-counter", "strValue");
             List<UncachedObject> lst = q.asList();
-            assert(!lst.get(0).getStrValue().equals(lst.get(1).getStrValue()));
+            assertTrue(!lst.get(0).getStrValue().equals(lst.get(1).getStrValue()));
             q = q.q().f("counter").gt(0).sort("str_value", "-counter");
             List<UncachedObject> lst2 = q.asList();
-            assert(lst2.get(0).getStrValue().equals(lst2.get(1).getStrValue()));
+            assertTrue(lst2.get(0).getStrValue().equals(lst2.get(1).getStrValue()));
             log.info("Sorted");
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(0).limit(5).sort("-counter");
             int st = q.asList().size();
             q = morphium.createQueryFor(UncachedObject.class);
             q = q.f("counter").gt(0).sort("-counter").limit(5);
-            assert(st == q.asList().size()) : "List length differ?";
+            assertTrue(st == q.asList().size(), "List length differ?");
         }
     }
 
@@ -270,23 +271,23 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.reread(o);
 
             for (int i = 0; i < o.getIntData().length; i++) {
-                assert(o.getIntData()[i] == binaryData[i]);
+                assertTrue(o.getIntData()[i] == binaryData[i]);
             }
 
             for (int i = 0; i < o.getLongData().length; i++) {
-                assert(o.getLongData()[i] == longData[i]);
+                assertTrue(o.getLongData()[i] == longData[i]);
             }
 
             for (int i = 0; i < o.getFloatData().length; i++) {
-                assert(o.getFloatData()[i] == floatData[i]);
+                assertTrue(o.getFloatData()[i] == floatData[i]);
             }
 
             for (int i = 0; i < o.getDoubleData().length; i++) {
-                assert(o.getDoubleData()[i] == doubleData[i]);
+                assertTrue(o.getDoubleData()[i] == doubleData[i]);
             }
 
             for (int i = 0; i < o.getBoolData().length; i++) {
-                assert(o.getBoolData()[i] == bd[i]);
+                assertTrue(o.getBoolData()[i] == bd[i]);
             }
         }
     }
@@ -323,7 +324,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             TestUtils.waitForWrites(morphium, log);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {
-                assert(o.getBinaryData()[i] == binaryData[i]);
+                assertTrue(o.getBinaryData()[i] == binaryData[i]);
             }
         }
     }
@@ -351,7 +352,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             morphium.reread(o);
 
             for (int i = 0; i < o.getBinaryData().length; i++) {
-                assert(o.getBinaryData()[i] == binaryData[i]);
+                assertTrue(o.getBinaryData()[i] == binaryData[i]);
             }
         }
     }
@@ -398,11 +399,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             while (uc == null) {
                 Thread.sleep(100);
                 uc = morphium.findById(UncachedObject.class, last.getMorphiumId());
-                assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                assertTrue(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
             }
 
             assertNotNull(uc, "Not found?!?");
-            assert(uc.getCounter() == last.getCounter()) : "Different Object? " + uc.getCounter() + " != " + last.getCounter();
+            assertTrue(uc.getCounter() == last.getCounter(), "Different Object? " + uc.getCounter() + " != " + last.getCounter());
         }
     }
 
@@ -431,7 +432,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             List<UncachedObject> lst = q.asList();
 
             for (UncachedObject o : lst) {
-                assert(o.getCounter() < 10 || o.getStrValue().equals("Uncached 50")) : "Value did not match: " + o;
+                assertTrue(o.getCounter() < 10 || o.getStrValue().equals("Uncached 50"), "Value did not match: " + o);
                 log.info(o.toString());
             }
 
@@ -445,7 +446,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
                 morphium.store(uc);
             }
 
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assertNull(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject"), "Cached Uncached Object?!?!?!");
         }
     }
 
@@ -474,7 +475,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Thread.sleep(500);
             log.info("Searching for objects");
             checkUncached(morphium);
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assertTrue(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null, "Cached Uncached Object?!?!?!");
         }
     }
 
@@ -504,7 +505,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             log.info("Storing a list  took " + dur + " ms");
             Thread.sleep(1000);
             checkUncached(morphium);
-            assert(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null) : "Cached Uncached Object?!?!?!";
+            assertTrue(morphium.getStatistics().get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.UncachedObject") == null, "Cached Uncached Object?!?!?!");
         }
     }
 
@@ -517,11 +518,11 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
             q.f("counter").eq(i);
             List<UncachedObject> l = q.asList();
-            assert(l != null && !l.isEmpty()) : "Nothing found!?!?!?!? Value: " + i;
+            assertTrue(l != null && !l.isEmpty(), "Nothing found!?!?!?!? Value: " + i);
             UncachedObject fnd = l.get(0);
             assertNotNull(fnd, "Error finding element with id " + i);
-            assert(fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
-            assert(fnd.getStrValue().equals("Uncached " + i)) : "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i;
+            assertTrue(fnd.getCounter() == i, "Counter not equal: " + fnd.getCounter() + " vs. " + i);
+            assertTrue(fnd.getStrValue().equals("Uncached " + i), "value not equal: " + fnd.getCounter() + "(" + fnd.getStrValue() + ") vs. " + i);
         }
 
         dur = System.currentTimeMillis() - start;
@@ -548,8 +549,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             assertFalse(l.isEmpty());
             CachedObject fnd = l.get(0);
             assertNotNull(fnd, "Error finding element with id " + i);
-            assert(fnd.getCounter() == i) : "Counter not equal: " + fnd.getCounter() + " vs. " + i;
-            assert(fnd.getValue().equals("Cached " + i)) : "value not equal: " + fnd.getCounter() + " vs. " + i;
+            assertTrue(fnd.getCounter() == i, "Counter not equal: " + fnd.getCounter() + " vs. " + i);
+            assertTrue(fnd.getValue().equals("Cached " + i), "value not equal: " + fnd.getCounter() + " vs. " + i);
         }
 
         dur = System.currentTimeMillis() - start;
@@ -560,6 +561,9 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
     @ParameterizedTest
     @MethodSource("getMorphiumInstances")
     public void cachedWritingTest(Morphium m) throws Exception {
+        if (m.getDriver().getName().equals(InMemoryDriver.driverName)) {
+            log.info("Caching not enabled in Memory - skipping");
+        }
         String tstName = new Object() {
         }
         .getClass().getEnclosingMethod().getName();
@@ -593,8 +597,8 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             randomCheck(m);
             Map<String, Double> statistics = m.getStatistics();
             Double uc = statistics.get("X-Entries resultCache|for: de.caluga.test.mongo.suite.data.UncachedObject");
-            assert(uc == null || uc == 0) : "Cached Uncached Object?!?!?!";
-            assert(statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0) : "No Cached Object cached?!?!?!";
+            assertTrue(uc == null || uc == 0, "Cached Uncached Object?!?!?!");
+            assertTrue(statistics.get("X-Entries for: resultCache|de.caluga.test.mongo.suite.data.CachedObject") > 0, "No Cached Object cached?!?!?!");
         }
     }
 
@@ -618,7 +622,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             }
 
             //noinspection ConstantConditions
-            assert(false) : "Exception missing!";
+            assertTrue(false, "Exception missing!");
         }
     }
 
@@ -649,7 +653,7 @@ public class BasicFunctionalityTest extends MultiDriverTestBase {
             q = morphium.createQueryFor(CachedObject.class);
             q = q.f(CachedObject.Fields.counter).gt(5);
             s = q.toString();
-            assert(!t.equals(s)) : "Values should not be equal: s=" + s + " t=" + t;
+            assertTrue(!t.equals(s), "Values should not be equal: s=" + s + " t=" + t);
         }
     }
 
