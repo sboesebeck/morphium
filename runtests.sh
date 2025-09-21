@@ -97,6 +97,7 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--authdb$CL ${GN}DATABASE$CL     - authentication DB"
     echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
+    echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -112,6 +113,10 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --driver inmem --tags core${CL}     # Local testing with InMemory driver"
     echo -e "  ${BL}./runtests.sh --external --driver pooled${CL}     # External MongoDB with pooled driver"
     echo -e "  ${RD}./runtests.sh --external --driver inmem${CL}      # ERROR: Conflicting options!"
+    echo
+    echo -e "${YL}Parallel Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
+    echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
     echo
     exit 0
   elif [ "q$1" == "q--skip" ]; then
@@ -150,6 +155,14 @@ while [ "q$1" != "q" ]; do
     shift
     authdb=$1
     shift
+  elif [ "q$1" == "q--parallel" ]; then
+    shift
+    parallel=$1
+    shift
+    if ! [[ "$parallel" =~ ^[0-9]+$ ]] || [ "$parallel" -lt 1 ] || [ "$parallel" -gt 16 ]; then
+      echo -e "${RD}Error: --parallel must be a number between 1 and 16${CL}"
+      exit 1
+    fi
   elif [ "q$1" == "q--uri" ]; then
     shift
     uri=$1
@@ -173,6 +186,11 @@ while [ "q$1" != "q" ]; do
     break
   fi
 done
+
+# Set defaults
+if [ -z "$parallel" ]; then
+  parallel=1
+fi
 
 # Conflict detection
 if [ "$useExternal" -eq 1 ] && [ "$driver" == "inmem" ]; then
@@ -475,7 +493,305 @@ unsuc=0
 fail=0
 err=0
 ##################################################################################################################
+#######PARALLEL EXECUTION FUNCTIONS
+function run_test_slot() {
+  local slot_id=$1
+  local test_chunk_file=$2
+  local slot_mvn_props="$MVN_PROPS -Dmorphium.database=morphium_test_$slot_id"
+
+  mkdir -p "test.log/slot_$slot_id"
+
+  local total_tests=$(wc -l < "$test_chunk_file" | tr -d ' ')
+  local current_test=0
+  local failed_tests=0
+
+  while IFS= read -r t; do
+    if grep "$t" $disabledList >/dev/null; then
+      continue
+    fi
+
+    ((current_test++))
+
+    # Update progress before starting test
+    echo "RUNNING:$t:$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
+
+    if [ "$m" == "." ]; then
+      echo "Slot $slot_id: Running $t ($current_test/$total_tests)" >> "test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t" > "test.log/slot_$slot_id/$t.log" 2>&1
+      exit_code=$?
+    else
+      echo "Slot $slot_id: Running $t#$m ($current_test/$total_tests)" >> "test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t#$m" > "test.log/slot_$slot_id/$t.log" 2>&1
+      exit_code=$?
+    fi
+
+    if [ $exit_code -ne 0 ]; then
+      ((failed_tests++))
+      echo "FAILED:$t" >> "test.log/slot_$slot_id/failed_tests"
+    fi
+
+    # Update progress after completing test
+    echo "COMPLETED:$t:$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
+
+  done < "$test_chunk_file"
+
+  echo "DONE::$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
+  echo "Slot $slot_id completed: $current_test tests, $failed_tests failed" >> "test.log/slot_$slot_id/slot.log"
+}
+
+function monitor_parallel_progress() {
+  echo -e "${GN}Monitoring parallel execution...${CL}"
+
+  while true; do
+    all_done=true
+    clear
+    echo -e "Date: $(date) - ${BL}Parallel Test Execution Status${CL}"
+    echo "=========================================================================================================="
+
+    local total_running=0
+    local total_completed=0
+    local total_tests=0
+    local total_failed=0
+
+    for ((slot=1; slot<=parallel; slot++)); do
+      if [ -e "slot_${slot}.pid" ] && kill -0 $(<"slot_${slot}.pid") 2>/dev/null; then
+        all_done=false
+        if [ -e "test.log/slot_$slot/progress" ]; then
+          progress_line=$(cat "test.log/slot_$slot/progress")
+          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<< "$progress_line"
+
+          ((total_tests += total_tests_slot))
+          ((total_completed += current_test))
+          ((total_failed += failed_tests))
+
+          if [ "$status" == "RUNNING" ]; then
+            ((total_running++))
+            echo -e "Slot ${YL}$slot${CL}: ${GN}RUNNING${CL} $test_name (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+          elif [ "$status" == "COMPLETED" ]; then
+            echo -e "Slot ${YL}$slot${CL}: ${BL}READY${CL} Last: $test_name (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+          elif [ "$status" == "DONE" ]; then
+            echo -e "Slot ${YL}$slot${CL}: ${GN}DONE${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+          fi
+        else
+          echo -e "Slot ${YL}$slot${CL}: ${YL}STARTING${CL}..."
+        fi
+      else
+        if [ -e "test.log/slot_$slot/progress" ]; then
+          progress_line=$(cat "test.log/slot_$slot/progress")
+          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<< "$progress_line"
+          echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+          ((total_tests += total_tests_slot))
+          ((total_completed += current_test))
+          ((total_failed += failed_tests))
+        fi
+      fi
+    done
+
+    echo "=========================================================================================================="
+    echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_tests${CL} tests completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
+
+    # Show failed tests in real-time
+    if [ $total_failed -gt 0 ]; then
+      echo -e "\n${RD}Failed tests so far:${CL}"
+      for ((slot=1; slot<=parallel; slot++)); do
+        if [ -e "test.log/slot_$slot/failed_tests" ]; then
+          while IFS= read -r failed_test; do
+            if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
+              test_name="${BASH_REMATCH[1]}"
+              echo -e "  ${RD}•${CL} $test_name (slot $slot)"
+            fi
+          done < "test.log/slot_$slot/failed_tests"
+        fi
+      done
+    fi
+
+    if [ "$all_done" == "true" ]; then
+      echo -e "${GN}All parallel slots completed!${CL}"
+      break
+    fi
+
+    sleep 2
+  done
+}
+
+function cleanup_parallel_execution() {
+  echo -e "\n${YL}Received interrupt signal - cleaning up parallel execution...${CL}"
+
+  # Stop monitoring
+  if [ ! -z "$monitor_pid" ]; then
+    kill $monitor_pid 2>/dev/null
+    wait $monitor_pid 2>/dev/null
+  fi
+
+  # Kill all test slots
+  for ((slot=1; slot<=parallel; slot++)); do
+    if [ -e "slot_${slot}.pid" ]; then
+      slot_pid=$(<"slot_${slot}.pid")
+      if kill -0 $slot_pid 2>/dev/null; then
+        echo "Terminating slot $slot (PID: $slot_pid)"
+        # Kill the slot process
+        kill -TERM $slot_pid 2>/dev/null
+        sleep 1
+        # Force kill if still running
+        if kill -0 $slot_pid 2>/dev/null; then
+          kill -KILL $slot_pid 2>/dev/null
+        fi
+        # Also try to kill any maven processes that might be running
+        pkill -f "morphium_test_$slot" 2>/dev/null
+      fi
+      rm -f "slot_${slot}.pid"
+    fi
+  done
+
+  # Show failed tests summary before cleanup
+  local total_failed=0
+  local failed_tests_list=()
+
+  echo -e "\n${YL}Test Results Summary:${CL}"
+  echo "=========================================================================================================="
+
+  for ((slot=1; slot<=parallel; slot++)); do
+    if [ -e "test.log/slot_$slot/failed_tests" ]; then
+      while IFS= read -r failed_test; do
+        if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
+          test_name="${BASH_REMATCH[1]}"
+          failed_tests_list+=("$test_name (slot $slot)")
+          ((total_failed++))
+        fi
+      done < "test.log/slot_$slot/failed_tests"
+    fi
+  done
+
+  if [ $total_failed -eq 0 ]; then
+    echo -e "${GN}No test failures detected before abort${CL}"
+  else
+    echo -e "${RD}✗ $total_failed test(s) failed before abort:${CL}"
+    echo
+    for failed_test in "${failed_tests_list[@]}"; do
+      echo -e "  ${RD}•${CL} $failed_test"
+    done
+    echo
+    echo -e "${YL}Failed test logs can be found in:${CL}"
+    for failed_test in "${failed_tests_list[@]}"; do
+      test_name=$(echo "$failed_test" | cut -d' ' -f1)
+      slot_num=$(echo "$failed_test" | grep -o "slot [0-9]*" | cut -d' ' -f2)
+      echo -e "  ${BL}test.log/slot_$slot_num/${test_name}.log${CL}"
+    done
+  fi
+  echo "=========================================================================================================="
+
+  # Cleanup temporary files
+  rm -f test_chunk_*.txt
+
+  echo -e "${RD}Parallel execution aborted by user${CL}"
+  exit 130
+}
+
+function run_parallel_tests() {
+  echo -e "${GN}Starting parallel execution with $parallel slots${CL}"
+
+  # Set up signal handling for clean shutdown
+  trap cleanup_parallel_execution SIGINT SIGTERM
+
+  # Split test list into chunks
+  total_tests=$(wc -l < $classList | tr -d ' ')
+  tests_per_slot=$((total_tests / parallel))
+  remainder=$((total_tests % parallel))
+
+  line_start=1
+  for ((slot=1; slot<=parallel; slot++)); do
+    chunk_size=$tests_per_slot
+    if [ $slot -le $remainder ]; then
+      ((chunk_size++))
+    fi
+
+    chunk_file="test_chunk_$slot.txt"
+    sed -n "${line_start},$((line_start + chunk_size - 1))p" $classList > $chunk_file
+    ((line_start += chunk_size))
+
+    echo "Starting slot $slot with $(wc -l < $chunk_file | tr -d ' ') tests, DB: morphium_test_$slot"
+    run_test_slot $slot $chunk_file &
+    echo $! > "slot_${slot}.pid"
+  done
+
+  # Start monitoring in background
+  monitor_parallel_progress &
+  monitor_pid=$!
+
+  # Wait for all slots
+  for ((slot=1; slot<=parallel; slot++)); do
+    if [ -e "slot_${slot}.pid" ]; then
+      wait $(<"slot_${slot}.pid") 2>/dev/null
+      rm -f "slot_${slot}.pid"
+    fi
+  done
+
+  # Stop monitoring
+  kill $monitor_pid 2>/dev/null
+  wait $monitor_pid 2>/dev/null
+
+  # Clear the trap
+  trap - SIGINT SIGTERM
+
+  # Aggregate results and show summary
+  echo -e "${GN}Aggregating results...${CL}"
+
+  local total_failed=0
+  local failed_tests_list=()
+
+  for ((slot=1; slot<=parallel; slot++)); do
+    if [ -d "test.log/slot_$slot" ]; then
+      # Copy log files
+      for log_file in test.log/slot_$slot/*.log; do
+        if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
+          cp "$log_file" "test.log/$(basename "$log_file" .log)_slot${slot}.log"
+        fi
+      done
+
+      # Collect failed tests
+      if [ -e "test.log/slot_$slot/failed_tests" ]; then
+        while IFS= read -r failed_test; do
+          if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
+            test_name="${BASH_REMATCH[1]}"
+            failed_tests_list+=("$test_name (slot $slot)")
+            ((total_failed++))
+          fi
+        done < "test.log/slot_$slot/failed_tests"
+      fi
+    fi
+  done
+
+  # Show results summary
+  echo "=========================================================================================================="
+  if [ $total_failed -eq 0 ]; then
+    echo -e "${GN}✓ All tests passed successfully!${CL}"
+  else
+    echo -e "${RD}✗ $total_failed test(s) failed:${CL}"
+    echo
+    for failed_test in "${failed_tests_list[@]}"; do
+      echo -e "  ${RD}•${CL} $failed_test"
+    done
+    echo
+    echo -e "${YL}Failed test logs can be found in:${CL}"
+    for failed_test in "${failed_tests_list[@]}"; do
+      test_name=$(echo "$failed_test" | cut -d' ' -f1)
+      slot_num=$(echo "$failed_test" | grep -o "slot [0-9]*" | cut -d' ' -f2)
+      echo -e "  ${BL}test.log/${test_name}_slot${slot_num}.log${CL}"
+    done
+  fi
+  echo "=========================================================================================================="
+
+  # Cleanup
+  rm -f test_chunk_*.txt
+  echo -e "${GN}Parallel execution completed${CL}"
+}
+
+##################################################################################################################
 #######MAIN LOOP
+if [ $parallel -gt 1 ]; then
+  run_parallel_tests
+else
+  # Original sequential logic
 for t in $(<$classList); do
   if grep "$t" $disabledList; then
     continue
@@ -647,3 +963,4 @@ else
   quitting
   exit 1
 fi
+fi  # End of sequential execution (else branch)
