@@ -18,7 +18,7 @@ MorphiumDoku.html
 slackurl.inc
 
 .DS_Store
-
+test_chunk*.txt
 #Eclipse
 .classpath
 .settings/
