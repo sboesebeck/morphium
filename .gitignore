@@ -7,7 +7,7 @@ files*.lst
 files*.txt
 classes*
 fail*
-run*.pid
+*.pid
 *.lck
 disabled*
 .idea/
