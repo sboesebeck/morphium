@@ -46,7 +46,7 @@ function quitting() {
     echo -e "${RD}Shutting down...${CL} current test $t"
     echo "Removing unfinished test $t"
     rm -f test.log/$t.log
-    ./getStats.sh >failed.txt
+    get_test_stats >failed.txt 2>/dev/null
     echo "List of failed tests in failed.txt"
     cat failed.txt
   else
@@ -55,6 +55,225 @@ function quitting() {
   rm -f $runLock $disabledList
   rm -f $filesList $classList files_$PID.tmp
   exit
+}
+
+function get_test_stats() {
+  local noreason=0
+  local nosum=0
+
+  # Parse arguments
+  while [ $# -ne 0 ]; do
+    case "$1" in
+    --noreason)
+      noreason=1
+      shift
+      ;;
+    --nosum)
+      nosum=1
+      shift
+      ;;
+    *)
+      echo "Error - only --noreason or --nosum allowed! $1 unknown"
+      return 1
+      ;;
+    esac
+  done
+
+  local total_run=0
+  local total_fail=0
+  local total_err=0
+  local total_build_failures=0
+  local failed_tests=""
+
+  # Handle both sequential and parallel log structures
+  local log_pattern=""
+  if [ -d "test.log" ]; then
+    # Check if we have slot directories (parallel execution)
+    if ls test.log/slot_* >/dev/null 2>&1; then
+      # Parallel execution - prioritize copied logs in main directory, fallback to slot logs
+      if ls test.log/*.log >/dev/null 2>&1; then
+        log_pattern="test.log/*.log"  # Use copied logs if available
+      else
+        log_pattern="test.log/slot_*/*.log"  # Fallback to slot logs
+      fi
+    else
+      # Sequential execution - standard pattern
+      log_pattern="test.log/*.log"
+    fi
+
+    # Use a simple deduplication approach: collect unique test classes and process newest first
+    # This handles parallel execution where same test runs in multiple slots
+
+    # Create a temporary file to store results per test class
+    local temp_results=$(mktemp)
+
+    # First pass: collect all log files with their timestamps and test classes
+    for pattern in $log_pattern; do
+      for logfile in $pattern; do
+        if [ -f "$logfile" ] && [[ "$logfile" =~ \.log$ ]] && [[ ! "$logfile" =~ slot\.log$ ]]; then
+          local test_class=$(basename "$logfile" .log | sed 's/_slot[0-9]*$//')
+          local timestamp=$(stat -f "%m" "$logfile" 2>/dev/null || stat -c "%Y" "$logfile" 2>/dev/null || echo "0")
+          echo "$timestamp:$test_class:$logfile" >> "$temp_results"
+        fi
+      done
+    done
+
+    # Process in three passes to prioritize test information over build failures:
+    # 1. Successful tests (tests ran and passed)
+    # 2. Failed tests (tests ran but failed)
+    # 3. Build failures (no tests ran)
+    local processed_classes=""
+
+    # Function to process a single log file
+    process_logfile() {
+      local test_class="$1"
+      local logfile="$2"
+
+      local has_build_failure=false
+      local has_test_failure=false
+      local run_count=0
+      local fail_count=0
+      local err_count=0
+
+      # Check if tests actually ran and executed properly
+      if grep -q "Tests run: .*in " "$logfile"; then
+        local test_result_line=$(grep -a "Tests run: .*in " "$logfile" | tail -1)
+        local run_count=$(echo "$test_result_line" | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
+        [[ ! "$run_count" =~ ^[0-9]+$ ]] && run_count=0
+
+        # Only treat as test execution if tests actually ran (run_count > 0)
+        if [ "$run_count" -gt 0 ]; then
+          # Tests ran, so build succeeded. Any failures are test failures, not build failures
+          fail_count=$(echo "$test_result_line" | sed -n 's/.*Failures: \([0-9]*\).*/\1/p')
+          err_count=$(echo "$test_result_line" | sed -n 's/.*Errors: \([0-9]*\).*/\1/p')
+
+          # Handle missing values and ensure they're numeric
+          [[ ! "$fail_count" =~ ^[0-9]+$ ]] && fail_count=0
+          [[ ! "$err_count" =~ ^[0-9]+$ ]] && err_count=0
+
+          # Add to totals
+          ((total_run += run_count))
+          if [ "$fail_count" -gt 0 ]; then
+            ((total_fail += fail_count))
+            has_test_failure=true
+          fi
+          if [ "$err_count" -gt 0 ]; then
+            ((total_err += err_count))
+            has_test_failure=true
+          fi
+
+          # Add to failed tests if there were actual test failures
+          if [ "$has_test_failure" == "true" ]; then
+            if [ $noreason -eq 1 ]; then
+              failed_tests="$failed_tests$test_class"$'\n'
+            else
+              failed_tests="$failed_tests$test_class - Tests failed: $fail_count, Errors: $err_count"$'\n'
+            fi
+          fi
+        else
+          # Tests run: 0 - this means the test class failed to execute (build/setup issue)
+          # Check for Maven BUILD FAILURE - only if it's the final result with "Total time"
+          if grep -A5 -B5 "BUILD FAILURE" "$logfile" 2>/dev/null | grep -q "Total time:" && grep -q "BUILD FAILURE" "$logfile"; then
+            has_build_failure=true
+            ((total_build_failures += 1))
+            if [ $noreason -eq 1 ]; then
+              failed_tests="$failed_tests$test_class"$'\n'
+            else
+              failed_tests="$failed_tests$test_class - BUILD FAILURE (no tests executed)"$'\n'
+            fi
+          fi
+        fi
+      else
+        # No "Tests run:" line at all - this is a true build failure (compilation error, dependency issue, etc.)
+        # Check for Maven BUILD FAILURE - only if it's the final result with "Total time"
+        if grep -A5 -B5 "BUILD FAILURE" "$logfile" 2>/dev/null | grep -q "Total time:" && grep -q "BUILD FAILURE" "$logfile"; then
+          has_build_failure=true
+          ((total_build_failures += 1))
+          if [ $noreason -eq 1 ]; then
+            failed_tests="$failed_tests$test_class"$'\n'
+          else
+            failed_tests="$failed_tests$test_class - BUILD FAILURE"$'\n'
+          fi
+        fi
+      fi
+    }
+
+    # Pass 1: Process successful tests (tests ran and passed)
+    while IFS=: read -r timestamp test_class logfile; do
+      if [[ "$processed_classes" == *"|$test_class|"* ]]; then
+        continue
+      fi
+
+      # Check if tests ran and passed
+      if grep -q "Tests run: .*in " "$logfile"; then
+        local test_result_line=$(grep -a "Tests run: .*in " "$logfile" | tail -1)
+        local run_count=$(echo "$test_result_line" | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
+        local fail_count=$(echo "$test_result_line" | sed -n 's/.*Failures: \([0-9]*\).*/\1/p')
+        local err_count=$(echo "$test_result_line" | sed -n 's/.*Errors: \([0-9]*\).*/\1/p')
+        [[ ! "$run_count" =~ ^[0-9]+$ ]] && run_count=0
+        [[ ! "$fail_count" =~ ^[0-9]+$ ]] && fail_count=0
+        [[ ! "$err_count" =~ ^[0-9]+$ ]] && err_count=0
+
+        if [ "$run_count" -gt 0 ] && [ "$fail_count" -eq 0 ] && [ "$err_count" -eq 0 ]; then
+          processed_classes="$processed_classes|$test_class|"
+          process_logfile "$test_class" "$logfile"
+        fi
+      fi
+    done < <(sort -nr "$temp_results")
+
+    # Pass 2: Process failed tests (tests ran but failed) - prioritize over build failures
+    while IFS=: read -r timestamp test_class logfile; do
+      if [[ "$processed_classes" == *"|$test_class|"* ]]; then
+        continue
+      fi
+
+      # Check if tests ran but failed
+      if grep -q "Tests run: .*in " "$logfile"; then
+        local test_result_line=$(grep -a "Tests run: .*in " "$logfile" | tail -1)
+        local run_count=$(echo "$test_result_line" | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
+        [[ ! "$run_count" =~ ^[0-9]+$ ]] && run_count=0
+
+        if [ "$run_count" -gt 0 ]; then
+          # Tests actually ran - process this instead of any build failure
+          processed_classes="$processed_classes|$test_class|"
+          process_logfile "$test_class" "$logfile"
+        fi
+      fi
+    done < <(sort -nr "$temp_results")
+
+    # Pass 3: Process build failures (for classes not yet processed)
+    while IFS=: read -r timestamp test_class logfile; do
+      if [[ "$processed_classes" == *"|$test_class|"* ]]; then
+        continue
+      fi
+
+      # This must be a build failure or other issue - process it
+      processed_classes="$processed_classes|$test_class|"
+      process_logfile "$test_class" "$logfile"
+    done < <(sort -nr "$temp_results")
+
+    rm -f "$temp_results"
+  fi
+
+  # Output summary
+  if [ "$nosum" -eq 0 ]; then
+    echo "Total tests run    : $total_run"
+    echo "Total unsuccessful : $((total_fail + total_err + total_build_failures))"
+    echo "Tests failed       : $total_fail"
+    echo "Tests with errors  : $total_err"
+    if [ "$total_build_failures" -gt 0 ]; then
+      echo "Build failures     : $total_build_failures"
+    fi
+  fi
+
+  # Output failed tests
+  if [ -n "$failed_tests" ] && [ "$total_fail" -gt 0 -o "$total_err" -gt 0 -o "$total_build_failures" -gt 0 ]; then
+    if [ "$nosum" -eq 0 ]; then
+      echo ""
+    fi
+    # Use printf to handle newline-separated entries properly
+    printf "%s" "$failed_tests"
+  fi
 }
 
 nodel=0
@@ -73,6 +292,12 @@ pass=""
 authdb=""
 verbose=0
 useExternal=0
+rerunfailed=0
+explicitRestart=0
+showStats=0
+
+# Save original arguments for stats processing
+original_args=("$@")
 
 while [ "q$1" != "q" ]; do
 
@@ -98,6 +323,9 @@ while [ "q$1" != "q" ]; do
     echo -e "${BL}--external$CL    - enable external MongoDB tests (activates -Pexternal)"
     echo -e "                     ${YL}NOTE:${CL} Conflicts with --driver inmem and --tags inmemory"
     echo -e "${BL}--parallel$CL ${GN}N$CL    - run tests in N parallel slots (1-16, each with unique DB)"
+    echo -e "${BL}--rerunfailed$CL   - rerun only previously failed tests (uses integrated stats)"
+    echo -e "                     ${YL}NOTE:${CL} Conflicts with --restart (which cleans logs)"
+    echo -e "${BL}--stats$CL         - show test statistics and failed tests (replaces getStats.sh)"
     echo -e "if neither ${BL}--restart${CL} nor ${BL}--skip${CL} are set, you will be asked, what to do"
     echo "Test name is the classname to run, and method is method name in that class"
     echo
@@ -118,11 +346,23 @@ while [ "q$1" != "q" ]; do
     echo -e "  ${BL}./runtests.sh --parallel 4 --driver inmem${CL}    # 4 parallel slots with InMemory driver"
     echo -e "  ${BL}./runtests.sh --parallel 8 --tags core${CL}       # 8 parallel slots, core tests only"
     echo
+    echo -e "${YL}Rerun Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --rerunfailed${CL}                  # Rerun all previously failed tests"
+    echo -e "  ${BL}./runtests.sh --rerunfailed --retry 3${CL}        # Rerun with 3 retries per test"
+    echo -e "  ${BL}./runtests.sh --rerunfailed --parallel 4${CL}     # Rerun failed tests in parallel"
+    echo -e "  ${RD}./runtests.sh --rerunfailed --restart${CL}        # ERROR: Conflicting options!"
+    echo
+    echo -e "${YL}Stats Examples:${CL}"
+    echo -e "  ${BL}./runtests.sh --stats${CL}                       # Show test statistics and failed tests"
+    echo -e "  ${BL}./runtests.sh --stats --noreason${CL}             # Show only failed test names"
+    echo -e "  ${BL}./runtests.sh --stats --nosum${CL}                # Show only failed tests (no summary)"
+    echo
     exit 0
   elif [ "q$1" == "q--skip" ]; then
     skip=1
     shift
   elif [ "q$1" == "q--restart" ]; then
+    explicitRestart=1
     rm -rf test.log
     rm -f startTS
     mkdir test.log
@@ -173,6 +413,16 @@ while [ "q$1" != "q" ]; do
   elif [ "q$1" == "q--external" ]; then
     useExternal=1
     shift
+  elif [ "q$1" == "q--rerunfailed" ]; then
+    rerunfailed=1
+    shift
+  elif [ "q$1" == "q--stats" ]; then
+    showStats=1
+    shift
+  elif [ "q$1" == "q--noreason" ] || [ "q$1" == "q--nosum" ]; then
+    # These are stats-specific options, only meaningful with --stats
+    # Skip them in main parsing, they'll be handled in stats processing
+    shift
   elif [ "q$1" == "q--retry" ]; then
     shift
     numRetries=$1
@@ -214,6 +464,80 @@ if [ "$driver" == "inmem" ] && [[ "$includeTags" == *"external"* ]]; then
   echo -e "  --tags external: Runs tests requiring external MongoDB"
   echo -e "  ${YL}Suggestion:${CL} Use --tags external with --driver pooled or remove --tags external"
   exit 1
+fi
+
+if [ "$rerunfailed" -eq 1 ] && [ "$explicitRestart" -eq 1 ]; then
+  echo -e "${RD}Error:${CL} --rerunfailed and --restart are conflicting!"
+  echo -e "  --rerunfailed: Needs existing test logs to identify failed tests"
+  echo -e "  --restart: Cleans all existing test logs"
+  echo -e "  ${YL}Suggestion:${CL} Use --rerunfailed alone or use --restart for a fresh start"
+  exit 1
+fi
+
+# Handle --stats option early to just show statistics and exit
+if [ "$showStats" -eq 1 ]; then
+  # Extract only the stats-specific arguments and pass them to get_test_stats
+  stats_args=""
+  for arg in "${original_args[@]}"; do
+    case "$arg" in
+    --noreason|--nosum)
+      stats_args="$stats_args $arg"
+      ;;
+    esac
+  done
+  get_test_stats $stats_args
+  exit 0
+fi
+
+# Handle --rerunfailed option early to bypass interactive prompts
+if [ "$rerunfailed" -eq 1 ]; then
+  echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
+
+  # For rerunfailed, we want to use existing logs to determine what failed
+  # Set nodel=1 to preserve existing logs for analysis and skip=1 to bypass prompts
+  nodel=1
+  skip=1
+
+  # Get failed tests using integrated stats function
+  failed=$(get_test_stats --noreason --nosum 2>/dev/null || echo "")
+
+  if [ -z "$failed" ]; then
+    echo -e "${GN}No failed tests found to rerun!${CL}"
+    exit 0
+  fi
+
+  # Convert failed tests to class list format
+  failed_classes=""
+  for f in $failed; do
+    cls=${f%#*}
+    # Add to our class list for later processing
+    if [ -z "$failed_classes" ]; then
+      failed_classes="$cls"
+    else
+      failed_classes="$failed_classes\n$cls"
+    fi
+  done
+
+  # Create a temporary class list with just the failed tests
+  echo -e "$failed_classes" | sort -u > $classList
+  echo -e "${BL}Found $(wc -l < $classList | tr -d ' ') failed test classes to rerun${CL}"
+
+  # Create file list based on the failed classes
+  : > $filesList
+  while IFS= read -r cls; do
+    # Convert class name back to file path
+    file_path=$(echo "$cls" | sed 's/\./\//g')
+    file_path="src/test/java/${file_path}.java"
+    if [ -f "$file_path" ]; then
+      echo "$file_path" >> $filesList
+    fi
+  done < $classList
+
+  # Create disabled list (empty for failed test reruns)
+  : > $disabledList
+
+  # Skip the normal file creation logic
+  skip_file_creation=1
 fi
 if [ "$nodel" -eq 0 ] && [ "$skip" -eq 0 ]; then
   if [ -z "$(ls -A 'test.log')" ]; then
@@ -265,7 +589,9 @@ if [ "q$2" == "q" ]; then
 fi
 m=$(echo "$m" | tr -d '"')
 
-createFileList
+if [ "$skip_file_creation" != "1" ]; then
+  createFileList
+fi
 # If include tags specified, filter classes/files to only those tagged
 if [ -n "$includeTags" ]; then
   tagPattern=$(echo "$includeTags" | sed 's/,/|/g')
@@ -474,7 +800,7 @@ echo -e "${GN}Starting tests..${CL}" >failed.txt
 {
   touch $runLock
   while [ -e $runLock ]; do
-    ./getStats.sh >failed.tmp
+    get_test_stats >failed.tmp 2>/dev/null
     mv failed.tmp failed.txt
     sleep $refresh
   done >/dev/null 2>&1
@@ -679,6 +1005,20 @@ function cleanup_parallel_execution() {
     done
   fi
   echo "=========================================================================================================="
+
+  # Copy completed logs to main directory for getStats.sh compatibility
+  echo -e "${BL}Preserving completed test logs...${CL}"
+  for ((slot=1; slot<=parallel; slot++)); do
+    if [ -d "test.log/slot_$slot" ]; then
+      for log_file in test.log/slot_$slot/*.log; do
+        if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
+          base_name=$(basename "$log_file" .log)
+          # Copy to main directory with slot suffix to avoid conflicts
+          cp "$log_file" "test.log/${base_name}_slot${slot}.log"
+        fi
+      done
+    fi
+  done
 
   # Cleanup temporary files
   rm -f test_chunk_*.txt
@@ -919,7 +1259,7 @@ for t in $(<$classList); do
 done
 ##### Mainloop end
 ######################################################
-./getStats.sh >failed.txt
+get_test_stats >failed.txt 2>/dev/null
 
 testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
@@ -933,7 +1273,7 @@ if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
     ((num = num - 1))
     ((totalRetries = totalRetries + 1))
     retried="$retried\n$t"
-    ./getStats.sh >failed.txt
+    get_test_stats >failed.txt 2>/dev/null
     unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
     if [ "$unsuc" -eq 0 ]; then
       break
@@ -941,7 +1281,7 @@ if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
   done
 
 fi
-./getStats.sh >failed.txt
+get_test_stats >failed.txt 2>/dev/null
 
 testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
 unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
