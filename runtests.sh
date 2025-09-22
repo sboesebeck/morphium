@@ -834,8 +834,25 @@ function run_test_slot() {
   mkdir -p "test.log/slot_$slot_id"
   mkdir -p "target/surefire_slot_$slot_id"
 
-  local total_tests=$(wc -l < "$test_chunk_file" | tr -d ' ')
-  local current_test=0
+  # Calculate actual test methods for this slot's test classes (consistent with serial mode)
+  local total_test_classes=$(wc -l < "$test_chunk_file" | tr -d ' ')
+  local slot_testMethods=0
+  while IFS= read -r test_class; do
+    if ! grep "$test_class" $disabledList >/dev/null; then
+      local fn=$(echo "$test_class" | tr "." "/")
+      local test_file=$(grep "$fn" $filesList | head -1 2>/dev/null)
+      if [ -n "$test_file" ] && [ -f "$test_file" ]; then
+        local lmeth=$(grep -E "@Test" "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+        local lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+        local lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+        local lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+        ((slot_testMethods += lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+      fi
+    fi
+  done < "$test_chunk_file"
+
+  local current_test_methods=0
+  local current_test_classes=0
   local failed_tests=0
 
   while IFS= read -r t; do
@@ -843,20 +860,35 @@ function run_test_slot() {
       continue
     fi
 
-    ((current_test++))
+    # Calculate test methods for this class
+    local fn=$(echo "$t" | tr "." "/")
+    local test_file=$(grep "$fn" $filesList | head -1 2>/dev/null)
+    local class_test_methods=0
+    if [ -n "$test_file" ] && [ -f "$test_file" ]; then
+      local class_lmeth=$(grep -E "@Test" "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+      local class_lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+      local class_lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+      local class_lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' "$test_file" 2>/dev/null | grep -vc '^ *//' 2>/dev/null | tr -d '\n' || echo "0")
+      class_test_methods=$((class_lmeth + class_lmeth3 * 2 + class_lmeth2 * 2 + class_lmeth1))
+    fi
+
+    ((current_test_classes++))
 
     # Update progress before starting test
-    echo "RUNNING:$t:$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
+    echo "RUNNING:$t:$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
 
     if [ "$m" == "." ]; then
-      echo "Slot $slot_id: Running $t ($current_test/$total_tests)" >> "test.log/slot_$slot_id/slot.log"
+      echo "Slot $slot_id: Running $t ($current_test_classes/$total_test_classes, $current_test_methods methods)" >> "test.log/slot_$slot_id/slot.log"
       mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t" > "test.log/slot_$slot_id/$t.log" 2>&1
       exit_code=$?
     else
-      echo "Slot $slot_id: Running $t#$m ($current_test/$total_tests)" >> "test.log/slot_$slot_id/slot.log"
+      echo "Slot $slot_id: Running $t#$m ($current_test_classes/$total_test_classes, $current_test_methods methods)" >> "test.log/slot_$slot_id/slot.log"
       mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t#$m" > "test.log/slot_$slot_id/$t.log" 2>&1
       exit_code=$?
     fi
+
+    # Add the class's methods to our running total after completion
+    ((current_test_methods += class_test_methods))
 
     if [ $exit_code -ne 0 ]; then
       ((failed_tests++))
@@ -864,12 +896,12 @@ function run_test_slot() {
     fi
 
     # Update progress after completing test
-    echo "COMPLETED:$t:$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
+    echo "COMPLETED:$t:$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
 
   done < "$test_chunk_file"
 
-  echo "DONE::$current_test:$total_tests:$failed_tests" > "test.log/slot_$slot_id/progress"
-  echo "Slot $slot_id completed: $current_test tests, $failed_tests failed" >> "test.log/slot_$slot_id/slot.log"
+  echo "DONE::$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
+  echo "Slot $slot_id completed: $current_test_classes classes ($current_test_methods test methods), $failed_tests failed" >> "test.log/slot_$slot_id/slot.log"
 }
 
 function monitor_parallel_progress() {
@@ -921,7 +953,7 @@ function monitor_parallel_progress() {
     done
 
     echo "=========================================================================================================="
-    echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_tests${CL} tests completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
+    echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_test_methods${CL} test methods completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
 
     # Show failed tests in real-time
     if [ $total_failed -gt 0 ]; then
@@ -1040,10 +1072,21 @@ function run_parallel_tests() {
   # Set up signal handling for clean shutdown
   trap cleanup_parallel_execution SIGINT SIGTERM
 
-  # Split test list into chunks
-  total_tests=$(wc -l < $classList | tr -d ' ')
-  tests_per_slot=$((total_tests / parallel))
-  remainder=$((total_tests % parallel))
+  # Calculate total test methods (consistent with serial mode)
+  total_test_classes=$(wc -l < $classList | tr -d ' ')
+  disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | cut -f1 -d: | wc -l)
+  disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | cut -f1 -d: | wc -l)
+  disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | cut -f1 -d: | wc -l)
+  disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | cut -f1 -d: | wc -l)
+  testMethods=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E "@Test" | grep -vc '^ *//' | tr -d '\n' || echo "0")
+  testMethods3=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstances"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
+  testMethods2=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
+  testMethods1=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
+  ((total_test_methods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+
+  # Split test list into chunks (still use class count for chunk distribution)
+  tests_per_slot=$((total_test_classes / parallel))
+  remainder=$((total_test_classes % parallel))
 
   line_start=1
   for ((slot=1; slot<=parallel; slot++)); do
