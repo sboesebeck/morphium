@@ -92,9 +92,9 @@ function get_test_stats() {
     if ls test.log/slot_* >/dev/null 2>&1; then
       # Parallel execution - prioritize copied logs in main directory, fallback to slot logs
       if ls test.log/*.log >/dev/null 2>&1; then
-        log_pattern="test.log/*.log"  # Use copied logs if available
+        log_pattern="test.log/*.log" # Use copied logs if available
       else
-        log_pattern="test.log/slot_*/*.log"  # Fallback to slot logs
+        log_pattern="test.log/slot_*/*.log" # Fallback to slot logs
       fi
     else
       # Sequential execution - standard pattern
@@ -113,7 +113,7 @@ function get_test_stats() {
         if [ -f "$logfile" ] && [[ "$logfile" =~ \.log$ ]] && [[ ! "$logfile" =~ slot\.log$ ]]; then
           local test_class=$(basename "$logfile" .log | sed 's/_slot[0-9]*$//')
           local timestamp=$(stat -f "%m" "$logfile" 2>/dev/null || stat -c "%Y" "$logfile" 2>/dev/null || echo "0")
-          echo "$timestamp:$test_class:$logfile" >> "$temp_results"
+          echo "$timestamp:$test_class:$logfile" >>"$temp_results"
         fi
       done
     done
@@ -486,7 +486,7 @@ if [ "$showStats" -eq 1 ]; then
   stats_args=""
   for arg in "${original_args[@]}"; do
     case "$arg" in
-    --noreason|--nosum)
+    --noreason | --nosum)
       stats_args="$stats_args $arg"
       ;;
     esac
@@ -525,22 +525,22 @@ if [ "$rerunfailed" -eq 1 ]; then
   done
 
   # Create a temporary class list with just the failed tests
-  echo -e "$failed_classes" | sort -u > $classList
-  echo -e "${BL}Found $(wc -l < $classList | tr -d ' ') failed test classes to rerun${CL}"
+  echo -e "$failed_classes" | sort -u >$classList
+  echo -e "${BL}Found $(wc -l <$classList | tr -d ' ') failed test classes to rerun${CL}"
 
   # Create file list based on the failed classes
-  : > $filesList
+  : >$filesList
   while IFS= read -r cls; do
     # Convert class name back to file path
     file_path=$(echo "$cls" | sed 's/\./\//g')
     file_path="src/test/java/${file_path}.java"
     if [ -f "$file_path" ]; then
-      echo "$file_path" >> $filesList
+      echo "$file_path" >>$filesList
     fi
-  done < $classList
+  done <$classList
 
   # Create disabled list (empty for failed test reruns)
-  : > $disabledList
+  : >$disabledList
 
   # Skip the normal file creation logic
   skip_file_creation=1
@@ -835,7 +835,7 @@ function run_test_slot() {
   mkdir -p "target/surefire_slot_$slot_id"
 
   # Calculate actual test methods for this slot's test classes (consistent with serial mode)
-  local total_test_classes=$(wc -l < "$test_chunk_file" | tr -d ' ')
+  local total_test_classes=$(wc -l <"$test_chunk_file" | tr -d ' ')
   local slot_testMethods=0
   while IFS= read -r test_class; do
     if ! grep "$test_class" $disabledList >/dev/null; then
@@ -849,7 +849,7 @@ function run_test_slot() {
         ((slot_testMethods += lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
       fi
     fi
-  done < "$test_chunk_file"
+  done <"$test_chunk_file"
 
   local current_test_methods=0
   local current_test_classes=0
@@ -875,15 +875,15 @@ function run_test_slot() {
     ((current_test_classes++))
 
     # Update progress before starting test
-    echo "RUNNING:$t:$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
+    echo "RUNNING:$t:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
 
     if [ "$m" == "." ]; then
-      echo "Slot $slot_id: Running $t ($current_test_classes/$total_test_classes, $current_test_methods methods)" >> "test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t" > "test.log/slot_$slot_id/$t.log" 2>&1
+      echo "Slot $slot_id: Running $t ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t" >"test.log/slot_$slot_id/$t.log" 2>&1
       exit_code=$?
     else
-      echo "Slot $slot_id: Running $t#$m ($current_test_classes/$total_test_classes, $current_test_methods methods)" >> "test.log/slot_$slot_id/slot.log"
-      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t#$m" > "test.log/slot_$slot_id/$t.log" 2>&1
+      echo "Slot $slot_id: Running $t#$m ($current_test_classes/$total_test_classes, $current_test_methods methods)" >>"test.log/slot_$slot_id/slot.log"
+      mvn -Dsurefire.useFile=false $slot_mvn_props test -Dtest="$t#$m" >"test.log/slot_$slot_id/$t.log" 2>&1
       exit_code=$?
     fi
 
@@ -892,16 +892,16 @@ function run_test_slot() {
 
     if [ $exit_code -ne 0 ]; then
       ((failed_tests++))
-      echo "FAILED:$t" >> "test.log/slot_$slot_id/failed_tests"
+      echo "FAILED:$t" >>"test.log/slot_$slot_id/failed_tests"
     fi
 
     # Update progress after completing test
-    echo "COMPLETED:$t:$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
+    echo "COMPLETED:$t:$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
 
-  done < "$test_chunk_file"
+  done <"$test_chunk_file"
 
-  echo "DONE::$current_test_methods:$slot_testMethods:$failed_tests" > "test.log/slot_$slot_id/progress"
-  echo "Slot $slot_id completed: $current_test_classes classes ($current_test_methods test methods), $failed_tests failed" >> "test.log/slot_$slot_id/slot.log"
+  echo "DONE::$current_test_methods:$slot_testMethods:$failed_tests" >"test.log/slot_$slot_id/progress"
+  echo "Slot $slot_id completed: $current_test_classes classes ($current_test_methods test methods), $failed_tests failed" >>"test.log/slot_$slot_id/slot.log"
 }
 
 function monitor_parallel_progress() {
@@ -918,12 +918,12 @@ function monitor_parallel_progress() {
     local total_tests=0
     local total_failed=0
 
-    for ((slot=1; slot<=parallel; slot++)); do
+    for ((slot = 1; slot <= parallel; slot++)); do
       if [ -e "slot_${slot}.pid" ] && kill -0 $(<"slot_${slot}.pid") 2>/dev/null; then
         all_done=false
         if [ -e "test.log/slot_$slot/progress" ]; then
           progress_line=$(cat "test.log/slot_$slot/progress")
-          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<< "$progress_line"
+          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
 
           ((total_tests += total_tests_slot))
           ((total_completed += current_test))
@@ -943,7 +943,7 @@ function monitor_parallel_progress() {
       else
         if [ -e "test.log/slot_$slot/progress" ]; then
           progress_line=$(cat "test.log/slot_$slot/progress")
-          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<< "$progress_line"
+          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
           echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
           ((total_tests += total_tests_slot))
           ((total_completed += current_test))
@@ -958,14 +958,14 @@ function monitor_parallel_progress() {
     # Show failed tests in real-time
     if [ $total_failed -gt 0 ]; then
       echo -e "\n${RD}Failed tests so far:${CL}"
-      for ((slot=1; slot<=parallel; slot++)); do
+      for ((slot = 1; slot <= parallel; slot++)); do
         if [ -e "test.log/slot_$slot/failed_tests" ]; then
           while IFS= read -r failed_test; do
             if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
               test_name="${BASH_REMATCH[1]}"
               echo -e "  ${RD}•${CL} $test_name (slot $slot)"
             fi
-          done < "test.log/slot_$slot/failed_tests"
+          done <"test.log/slot_$slot/failed_tests"
         fi
       done
     fi
@@ -989,7 +989,7 @@ function cleanup_parallel_execution() {
   fi
 
   # Kill all test slots
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     if [ -e "slot_${slot}.pid" ]; then
       slot_pid=$(<"slot_${slot}.pid")
       if kill -0 $slot_pid 2>/dev/null; then
@@ -1015,7 +1015,7 @@ function cleanup_parallel_execution() {
   echo -e "\n${YL}Test Results Summary:${CL}"
   echo "=========================================================================================================="
 
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     if [ -e "test.log/slot_$slot/failed_tests" ]; then
       while IFS= read -r failed_test; do
         if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
@@ -1023,7 +1023,7 @@ function cleanup_parallel_execution() {
           failed_tests_list+=("$test_name (slot $slot)")
           ((total_failed++))
         fi
-      done < "test.log/slot_$slot/failed_tests"
+      done <"test.log/slot_$slot/failed_tests"
     fi
   done
 
@@ -1047,7 +1047,7 @@ function cleanup_parallel_execution() {
 
   # Copy completed logs to main directory for getStats.sh compatibility
   echo -e "${BL}Preserving completed test logs...${CL}"
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     if [ -d "test.log/slot_$slot" ]; then
       for log_file in test.log/slot_$slot/*.log; do
         if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
@@ -1073,7 +1073,7 @@ function run_parallel_tests() {
   trap cleanup_parallel_execution SIGINT SIGTERM
 
   # Calculate total test methods (consistent with serial mode)
-  total_test_classes=$(wc -l < $classList | tr -d ' ')
+  total_test_classes=$(wc -l <$classList | tr -d ' ')
   disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | cut -f1 -d: | wc -l)
   disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | cut -f1 -d: | wc -l)
   disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | cut -f1 -d: | wc -l)
@@ -1089,19 +1089,19 @@ function run_parallel_tests() {
   remainder=$((total_test_classes % parallel))
 
   line_start=1
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     chunk_size=$tests_per_slot
     if [ $slot -le $remainder ]; then
       ((chunk_size++))
     fi
 
     chunk_file="test_chunk_$slot.txt"
-    sed -n "${line_start},$((line_start + chunk_size - 1))p" $classList > $chunk_file
+    sed -n "${line_start},$((line_start + chunk_size - 1))p" $classList >$chunk_file
     ((line_start += chunk_size))
 
-    echo "Starting slot $slot with $(wc -l < $chunk_file | tr -d ' ') tests, DB: morphium_test_$slot"
+    echo "Starting slot $slot with $(wc -l <$chunk_file | tr -d ' ') tests, DB: morphium_test_$slot"
     run_test_slot $slot $chunk_file &
-    echo $! > "slot_${slot}.pid"
+    echo $! >"slot_${slot}.pid"
   done
 
   # Start monitoring in background
@@ -1109,7 +1109,7 @@ function run_parallel_tests() {
   monitor_pid=$!
 
   # Wait for all slots
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     if [ -e "slot_${slot}.pid" ]; then
       wait $(<"slot_${slot}.pid") 2>/dev/null
       rm -f "slot_${slot}.pid"
@@ -1129,7 +1129,7 @@ function run_parallel_tests() {
   local total_failed=0
   local failed_tests_list=()
 
-  for ((slot=1; slot<=parallel; slot++)); do
+  for ((slot = 1; slot <= parallel; slot++)); do
     if [ -d "test.log/slot_$slot" ]; then
       # Copy log files
       for log_file in test.log/slot_$slot/*.log; do
@@ -1146,7 +1146,7 @@ function run_parallel_tests() {
             failed_tests_list+=("$test_name (slot $slot)")
             ((total_failed++))
           fi
-        done < "test.log/slot_$slot/failed_tests"
+        done <"test.log/slot_$slot/failed_tests"
       fi
     fi
   done
@@ -1182,175 +1182,169 @@ if [ $parallel -gt 1 ]; then
   run_parallel_tests
 else
   # Original sequential logic
-for t in $(<$classList); do
-  if grep "$t" $disabledList; then
-    continue
-  fi
-  ((tst = tst + 1))
-  while true; do
-    tm=$(date +%s)
-    if [ "$m" == "." ]; then
-      echo "Running Tests in $t" >"test.log/$t.log"
-      mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
-      echo $! >$testPid
-    else
-      echo "Running $m in $t" >"test.log/$t.log"
-      mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
-      echo $! >$testPid
+  for t in $(<$classList); do
+    if grep "$t" $disabledList; then
+      continue
     fi
+    ((tst = tst + 1))
     while true; do
-      testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+      tm=$(date +%s)
+      if [ "$m" == "." ]; then
+        echo "Running Tests in $t" >"test.log/$t.log"
+        mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
+        echo $! >$testPid
+      else
+        echo "Running $m in $t" >"test.log/$t.log"
+        mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
+        echo $! >$testPid
+      fi
+      while true; do
+        testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+        unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+        fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+        err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+        ((d = $(date +%s) - start))
+        # echo "Checking $fn"
+        fn=$(echo "$t" | tr "." "/")
+        lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+        lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+        lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+        lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
+        ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
+
+        clear
+
+        if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
+          ((spt = d / testsRun))
+          ((etl = spt * testMethods - d))
+          ((etlm = etl / 60))
+          echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
+        elif [ "$m" != "." ]; then
+          echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Runing Tests matching ${BL}$m$CL  in ${YL}$t$CL ($lmeth methods)"
+        else
+          echo -e "Date: $(date) - ${BL}Startup...$CL"
+
+        fi
+        echo "---------------------------------------------------------------------------------------------------------"
+        echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
+        echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
+        echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
+        if [ "$totalRetries" -ne 0 ]; then
+          echo -e "--------------------------${MG}Retries${CL}-----------------------------------------------------------------------"
+          echo -e "Had to retry ${YL}$totalRetries${CL} times:"
+          echo -e "Classes retried:$retried" | sort -u
+        fi
+        if [ "$m" != "." ]; then
+          echo -e " Tests matching: ${BL}$m${CL}"
+        fi
+
+        C1="$GN"
+        C2="$GN"
+        C3="$GN"
+
+        ((dur = $(date +%s) - tm))
+        if [ -z "$testsRun" ]; then
+          echo -e "....."
+        elif [ "$m" != "." ] || [ "$p" != "." ]; then
+          ((testsRun = testsRun - lmeth))
+
+          echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL"
+          echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+          echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+          echo -e "Duration: ${MG}${dur}s${CL}"
+          if [ "$unsuc" -gt 0 ]; then
+            echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+            tail -n+5 failed.txt
+          fi
+          echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+          tail -n $logLength test.log/"$t".log
+          echo "---------------------------------------------------------------------------------------------------------"
+        else
+          if [ "$unsuc" -gt 0 ]; then
+            C1=$RD
+          fi
+          if [ "$fail" -gt 0 ]; then
+            C2=$RD
+          fi
+          if [ "$err" -gt 0 ]; then
+            C3=$RD
+          fi
+          ((prc = (testsRun + lmeth) * 100 / testMethods))
+          echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
+          echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
+          echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
+          echo -e "Duration: ${MG}${dur}s${CL}"
+          if [ "$unsuc" -gt 0 ]; then
+            echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
+            tail -n+5 failed.txt
+          fi
+          echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
+          tail -n $logLength test.log/"$t".log
+          echo "---------------------------------------------------------------------------------------------------------"
+        fi
+        # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
+
+        # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
+        # egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
+        jobs >/dev/null
+        j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
+        if [ "$j" -lt 2 ]; then
+          break
+        fi
+        if [ $dur -gt 600 ]; then
+          echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
+          echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
+          kill $(<$testPid)
+        fi
+        sleep $refresh
+      done
+      break
+    done
+  done
+  ##### Mainloop end
+  ######################################################
+  get_test_stats >failed.txt 2>/dev/null
+
+  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+  num=$numRetries
+  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
+    while [ "$num" -gt 0 ]; do
+      echo -e "${YL}Some tests failed$CL - retrying...."
+      ./rerunFailedTests.sh
+      ((num = num - 1))
+      ((totalRetries = totalRetries + 1))
+      retried="$retried\n$t"
+      get_test_stats >failed.txt 2>/dev/null
       unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-      fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-      err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-      ((d = $(date +%s) - start))
-      # echo "Checking $fn"
-      fn=$(echo "$t" | tr "." "/")
-      lmeth=$(grep -E "@Test" $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-      lmeth3=$(grep -E '@MethodSource\("getMorphiumInstances"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-      lmeth2=$(grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-      lmeth1=$(grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' $(grep "$fn" $filesList) | cut -f2 -d: | grep -vc '^ *//')
-      ((lmeth = lmeth + lmeth3 * 2 + lmeth2 * 2 + lmeth1))
-
-      clear
-
-      if [ ! -z "$testsRun" ] && [ "$testsRun" -ne 0 ] && [ "$m" == "." ] && [ "$p" == "." ]; then
-        ((spt = d / testsRun))
-        ((etl = spt * testMethods - d))
-        ((etlm = etl / 60))
-        echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Tests run: ${BL}$testsRun${CL} ~ ${YL}$spt${CL} sec per test - ETL: ${MG}$etl${CL} =~ $etlm minutes"
-      elif [ "$m" != "." ]; then
-        echo -e "Date: $(date) - Running ${MG}$d${CL}sec - Runing Tests matching ${BL}$m$CL  in ${YL}$t$CL ($lmeth methods)"
-      else
-        echo -e "Date: $(date) - ${BL}Startup...$CL"
-
-      fi
-      echo "---------------------------------------------------------------------------------------------------------"
-      echo -e "Running tests in ${YL}$t${CL}  - #${MG}$tst${CL}/${BL}$cnt$CL"
-      echo -e "Total number methods to run in matching classes ${CN}$testMethods$CL"
-      echo -e "Number of test methods in ${YL}$t${CL}: ${GN}$lmeth$CL"
-      if [ "$totalRetries" -ne 0 ]; then
-        echo -e "--------------------------${MG}Retries${CL}-----------------------------------------------------------------------"
-        echo -e "Had to retry ${YL}$totalRetries${CL} times:"
-        echo -e "Classes retried:$retried" | sort -u
-      fi
-      if [ "$m" != "." ]; then
-        echo -e " Tests matching: ${BL}$m${CL}"
-      fi
-
-      C1="$GN"
-      C2="$GN"
-      C3="$GN"
-
-      ((dur = $(date +%s) - tm))
-      if [ -z "$testsRun" ]; then
-        echo -e "....."
-      elif [ "$m" != "." ] || [ "$p" != "." ]; then
-        ((testsRun = testsRun - lmeth))
-
-        echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL"
-        echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
-        echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
-        echo -e "Duration: ${MG}${dur}s${CL}"
-        if [ "$unsuc" -gt 0 ]; then
-          echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
-          tail -n+5 failed.txt
-        fi
-        echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-        tail -n $logLength test.log/"$t".log
-        echo "---------------------------------------------------------------------------------------------------------"
-      else
-        if [ "$unsuc" -gt 0 ]; then
-          C1=$RD
-        fi
-        if [ "$fail" -gt 0 ]; then
-          C2=$RD
-        fi
-        if [ "$err" -gt 0 ]; then
-          C3=$RD
-        fi
-        ((prc = (testsRun + lmeth) * 100 / testMethods))
-        echo -e "Total Tests run           :  ${BL}$testsRun${CL} done + ${CN}$lmeth$CL in progress / ${GN}$testMethods$CL ~ ${MB}$prc %${CL}"
-        echo -e "Tests fails / errors      : ${C2}$fail${CL} /${C3}$err$CL"
-        echo -e "Total Tests unsuccessful  :  ${C1}$unsuc${CL}"
-        echo -e "Duration: ${MG}${dur}s${CL}"
-        if [ "$unsuc" -gt 0 ]; then
-          echo -e "----------${RD} Failed Tests: $CL---------------------------------------------------------------------------------"
-          tail -n+5 failed.txt
-        fi
-        echo -e "---------- ${CN}LOG:$CL--------------------------------------------------------------------------------------"
-        tail -n $logLength test.log/"$t".log
-        echo "---------------------------------------------------------------------------------------------------------"
-      fi
-      # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--' | pr -l1 -3 -t -w 280 || echo "none"
-
-      # egrep "] Running |Tests run: " test.log/* | grep -B1 FAILURE | cut -f2 -d']' |grep -v "Tests run: " | sed -e 's/Running //' | grep -v -- '--'  || echo "none"
-      # egrep "] Running |Tests run:" test.log/* | grep -B1 FAILURE | cut -f2 -d']' || echo "none"
-      jobs >/dev/null
-      j=$(jobs | grep -E '\[[0-9]+\]' | wc -l)
-      if [ "$j" -lt 2 ]; then
+      if [ "$unsuc" -eq 0 ]; then
         break
       fi
-      if [ $dur -gt 600 ]; then
-        echo -e "${RD}Error:${CL} Test class runs longer than 10 minutes - killing it!"
-        echo "TERMINATED DUE TO TIMEOUT" >>test.log/$t.log
-        kill $(<$testPid)
-      fi
-      sleep $refresh
     done
-    if grep -A3 "Results:" test.log/$t.log | grep "Tests run: 0,"; then
-      echo -e "${RD}Error:$CL No tests run in $t - enter to retry"
-      read </dev/tty
-      mvn clean compile test-compile
-    else
-      break
-    fi
-  done
-done
-##### Mainloop end
-######################################################
-get_test_stats >failed.txt 2>/dev/null
 
-testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-num=$numRetries
-if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
-  while [ "$num" -gt 0 ]; do
-    echo -e "${YL}Some tests failed$CL - retrying...."
-    ./rerunFailedTests.sh
-    ((num = num - 1))
-    ((totalRetries = totalRetries + 1))
-    retried="$retried\n$t"
-    get_test_stats >failed.txt 2>/dev/null
-    unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-    if [ "$unsuc" -eq 0 ]; then
-      break
-    fi
-  done
+  fi
+  get_test_stats >failed.txt 2>/dev/null
 
-fi
-get_test_stats >failed.txt 2>/dev/null
+  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
+  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
+  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+  rm -f $runLock
+  sleep 5
+  t=""
+  # kill $(<$failPid) >/dev/null 2>&1
+  rm -f $failPid >/dev/null 2>&1
+  echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc - Retries: $totalRetries"
 
-testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
-rm -f $runLock
-sleep 5
-t=""
-# kill $(<$failPid) >/dev/null 2>&1
-rm -f $failPid >/dev/null 2>&1
-echo -e "${GN}Finished!${CL} - total run: $testsRun - total unsuccessful: $unsuc - Retries: $totalRetries"
-
-if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
-  echo -e "${GN}no errors recorded$CL"
-  rm -f failed.txt
-  quitting
-else
-  echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
-  quitting
-  exit 1
-fi
-fi  # End of sequential execution (else branch)
+  if [ -z "$unsuc" ] || [ "$unsuc" -eq 0 ]; then
+    echo -e "${GN}no errors recorded$CL"
+    rm -f failed.txt
+    quitting
+  else
+    echo -e "${RD}There were errors$CL: fails $fail + errors $err = $unsuc - List of failed tests in ./failed.txt "
+    quitting
+    exit 1
+  fi
+fi # End of sequential execution (else branch)
