@@ -800,6 +800,8 @@ mvn $MVN_PROPS compile test-compile >/dev/null || {
   exit 1
 }
 
+TEST_MVN_PROPS="$MVN_PROPS -Dmaven.compiler.skip=true"
+
 tst=0
 echo -e "${GN}Starting tests..${CL}" >failed.txt
 # running getfailedTests in background
@@ -829,7 +831,7 @@ err=0
 function run_test_slot() {
   local slot_id=$1
   local test_chunk_file=$2
-  local slot_mvn_props="$MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=target/surefire-reports-$slot_id"
+  local slot_mvn_props="$TEST_MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=target/surefire-reports-$slot_id"
 
   mkdir -p "test.log/slot_$slot_id"
   mkdir -p "target/surefire_slot_$slot_id"
@@ -1191,11 +1193,11 @@ else
       tm=$(date +%s)
       if [ "$m" == "." ]; then
         echo "Running Tests in $t" >"test.log/$t.log"
-        mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$t" >>"test.log/$t".log 2>&1 &
         echo $! >$testPid
       else
         echo "Running $m in $t" >"test.log/$t.log"
-        mvn -Dsurefire.useFile=false $MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
+        mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$t#$m" >>"test.log/$t.log" 2>&1 &
         echo $! >$testPid
       fi
       while true; do
