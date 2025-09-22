@@ -487,9 +487,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // Create a basic explain response compatible with MongoDB
         Map<String, Object> winningPlan = Doc.of(
-            "stage", "COLLSCAN",
-            "direction", "forward"
-        );
+                "stage", "COLLSCAN",
+                "direction", "forward"
+                                          );
 
         Map<String, Object> queryPlanner = new HashMap<>();
         queryPlanner.put("namespace", cmd.getDb() + "." + cmd.getColl());
@@ -518,10 +518,10 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         queryPlanner.put("rejectedPlans", new ArrayList<>());
 
         Map<String, Object> explainResult = Doc.of(
-            "explainVersion", "1",
-            "queryPlanner", queryPlanner,
-            "ok", 1.0
-        );
+                "explainVersion", "1",
+                "queryPlanner", queryPlanner,
+                "ok", 1.0
+                                            );
 
         commandResults.add(prepareResult(explainResult));
         return ret;
@@ -656,9 +656,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             stats.put("upserted", upserted);
         }
 
-        System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
+        // System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
         Map<String, Object> preparedResult = prepareResult(stats);
-        System.out.println("[DEBUG_LOG] UpdateMongoCommand result after prepareResult: " + preparedResult);
+        // System.out.println("[DEBUG_LOG] UpdateMongoCommand result after prepareResult: " + preparedResult);
         commandResults.add(preparedResult);
         return ret;
     }
@@ -687,9 +687,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             result.put("n", matched + inserted);
         }
 
-        System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result before prepareResult: " + result);
+        // System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result before prepareResult: " + result);
         Map<String, Object> preparedResult = prepareResult(result);
-        System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result after prepareResult: " + preparedResult);
+        // System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result after prepareResult: " + preparedResult);
         commandResults.add(preparedResult);
         return ret;
     }
@@ -1845,20 +1845,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         // Special handling for map field queries like "stringMap.key1"
-        System.out.println("[DEBUG_LOG] Original query: " + query);
+        // System.out.println("[DEBUG_LOG] Original query: " + query);
         Map<String, Object> modifiedQuery = new LinkedHashMap<>(query);
         for (String key : new ArrayList<>(query.keySet())) {
             if (key.contains(".") && !key.startsWith("$")) {
                 String[] parts = key.split("\\.", 2);
                 if (parts.length == 2) {
-                    System.out.println("[DEBUG_LOG] Found dot notation field: " + key);
-                    System.out.println("[DEBUG_LOG] Split into: " + parts[0] + " and " + parts[1]);
+                    // System.out.println("[DEBUG_LOG] Found dot notation field: " + key);
+                    // System.out.println("[DEBUG_LOG] Split into: " + parts[0] + " and " + parts[1]);
                     // Create a new query that will match documents where the map field contains the key
                     modifiedQuery.remove(key);
 
                     // Convert camelCase to snake_case for the field name
                     String fieldName = camelToSnakeCase(parts[0]);
-                    System.out.println("[DEBUG_LOG] Converted field name: " + parts[0] + " -> " + fieldName);
+                    // System.out.println("[DEBUG_LOG] Converted field name: " + parts[0] + " -> " + fieldName);
 
                     // Check if the map field already exists in the query
                     if (!modifiedQuery.containsKey(fieldName)) {
@@ -1872,12 +1872,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
                     // Add the key-value pair to the map field
                     ((Map<String, Object>)modifiedQuery.get(fieldName)).put(parts[1], query.get(key));
-                    System.out.println("[DEBUG_LOG] Modified query part: " + fieldName + " = " + modifiedQuery.get(fieldName));
+                    // System.out.println("[DEBUG_LOG] Modified query part: " + fieldName + " = " + modifiedQuery.get(fieldName));
                 }
             }
         }
         query = modifiedQuery;
-        System.out.println("[DEBUG_LOG] Modified query: " + query);
+        // System.out.println("[DEBUG_LOG] Modified query: " + query);
         if (query.containsKey("$and")) {
             // and complex query handling ?!?!?
             List<Map<String, Object >> m = (List<Map<String, Object >> ) query.get("$and");
@@ -2452,7 +2452,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         int upd = 0;
         int inserted = 0;
         int total = objs.size();
-        System.out.println("[DEBUG_LOG] store method called with db=" + db + ", collection=" + collection + ", objs=" + objs);
+        // System.out.println("[DEBUG_LOG] store method called with db=" + db + ", collection=" + collection + ", objs=" + objs);
 
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
@@ -2504,7 +2504,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ret.put("updated", upd);
         ret.put("inserted", inserted);
         ret.put("n", upd + inserted);
-        System.out.println("[DEBUG_LOG] store method returning stats: " + ret);
+        // System.out.println("[DEBUG_LOG] store method returning stats: " + ret);
         return ret;
     }
 
@@ -4012,9 +4012,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Create a JavaScript array and define emit function to use it
             engine.eval("var jsEmitResults = [];");
             engine.eval("function emit(key, value) { " +
-                       "  var result = { _id: key, value: value }; " +
-                       "  jsEmitResults.push(result); " +
-                       "}");
+                        "  var result = { _id: key, value: value }; " +
+                        "  jsEmitResults.push(result); " +
+                        "}");
 
             // Test emit function
             try {
@@ -4331,12 +4331,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         public void emit(Object key, Object value) {
-            System.out.println("EMIT called with key=" + key + ", value=" + value);
+            // System.out.println("EMIT called with key=" + key + ", value=" + value);
             Map<String, Object> result = new HashMap<>();
             result.put("_id", key);
             result.put("value", value);
             results.add(result);
-            System.out.println("Total emit results now: " + results.size());
+            // System.out.println("Total emit results now: " + results.size());
         }
     }
 
