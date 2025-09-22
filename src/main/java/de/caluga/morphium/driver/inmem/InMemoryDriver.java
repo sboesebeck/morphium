@@ -484,7 +484,46 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     public int runCommand(ExplainCommand cmd) {
         int ret = commandNumber.incrementAndGet();
-        commandResults.add(prepareResult(Doc.of("ok", 0, "errmsg", "no explain possible yet - in Memory!")));
+
+        // Create a basic explain response compatible with MongoDB
+        Map<String, Object> winningPlan = Doc.of(
+            "stage", "COLLSCAN",
+            "direction", "forward"
+        );
+
+        Map<String, Object> queryPlanner = new HashMap<>();
+        queryPlanner.put("namespace", cmd.getDb() + "." + cmd.getColl());
+        queryPlanner.put("indexFilterSet", false);
+        // Try to get the filter from the command, default to empty query if not available
+        Object parsedQuery = Doc.of();
+        try {
+            Object findCommand = cmd.getCommand().get("find");
+            if (findCommand instanceof Map) {
+                Object filter = ((Map<String, Object>) findCommand).get("filter");
+                if (filter != null) {
+                    parsedQuery = filter;
+                }
+            }
+        } catch (Exception e) {
+            // Use empty query as fallback
+            parsedQuery = Doc.of();
+        }
+        queryPlanner.put("parsedQuery", parsedQuery);
+        queryPlanner.put("queryHash", "InMemoryDriver");
+        queryPlanner.put("planCacheKey", "InMemoryDriver");
+        queryPlanner.put("maxIndexedOrSolutionsReached", false);
+        queryPlanner.put("maxIndexedAndSolutionsReached", false);
+        queryPlanner.put("maxScansToExplodeReached", false);
+        queryPlanner.put("winningPlan", winningPlan);
+        queryPlanner.put("rejectedPlans", new ArrayList<>());
+
+        Map<String, Object> explainResult = Doc.of(
+            "explainVersion", "1",
+            "queryPlanner", queryPlanner,
+            "ok", 1.0
+        );
+
+        commandResults.add(prepareResult(explainResult));
         return ret;
     }
 
@@ -663,8 +702,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public int runCommand(MapReduceCommand cmd) {
-        // log.info(cmd.getCommandName() + " - incoming (" +
-        // cmd.getClass().getSimpleName() + ")");
+        log.info("MapReduce command received: db={}, collection={}, map={}, reduce={}",
+                 cmd.getDb(), cmd.getColl(), cmd.getMap(), cmd.getReduce());
         int ret = commandNumber.incrementAndGet();
 
         try {
@@ -679,6 +718,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     null, // TODO: Implement proper collation support
                     cmd.getFinalize()
                                                 );
+
+            log.info("MapReduce completed with {} results", results.size());
 
             // Format results according to MongoDB MapReduce response format
             Map<String, Object> response = new HashMap<>();
@@ -3852,6 +3893,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> sortMap = sort instanceof Map ? (Map<String, Object>) sort : null;
         List<Map<String, Object>> documents = find(db, collection, queryMap, sortMap, null, collation == null ? null : collation.toQueryObject(), 0, 0, false);
 
+        log.info("MapReduce internal: found {} documents to process", documents.size());
+
         // Initialize JavaScript engine
         System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
         javax.script.ScriptEngineManager mgr = new javax.script.ScriptEngineManager();
@@ -3867,6 +3910,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             throw new MorphiumDriverException("JavaScript engine not available for MapReduce");
         }
 
+        log.info("JavaScript engine found: {}", engine.getClass().getName());
+
         try {
             // Prepare the JavaScript environment
             // Add emit function to collect map results
@@ -3874,13 +3919,44 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             // Create a Java object to handle emit calls from JavaScript
             MapReduceEmitter emitter = new MapReduceEmitter(mapResults);
-            engine.put("emitter", emitter);
+
+            // Create a simple proxy object that GraalJS can call
+            Object emitProxy = new Object() {
+                public void emit(Object key, Object value) {
+                    System.out.println("EmitProxy called with key=" + key + ", value=" + value);
+                    emitter.emit(key, value);
+                }
+            };
+
+            engine.put("emitter", emitProxy);
+
+            // Test basic JavaScript functionality
+            Object basicTest = engine.eval("1 + 1");
+            log.info("Basic JS test (1+1): {}", basicTest);
 
             // Define emit function in JavaScript that calls our Java emitter
-            engine.eval("function emit(key, value) { emitter.emit(key, value); }");
+            log.debug("Setting up emit function with emitter: {}", emitter);
+
+            // Define emit function by putting it directly in the bindings
+            engine.put("emit", new Object() {
+                public void emit(Object key, Object value) {
+                    log.info("Java emit function called with key={}, value={}", key, value);
+                    emitter.emit(key, value);
+                }
+            });
+
+            // Test emit function
+            try {
+                engine.eval("emit('test', 'testValue')");
+                log.info("Emit function test successful");
+            } catch (Exception e) {
+                log.error("Emit function test failed: {}", e.getMessage());
+            }
 
             // Phase 1: Map phase - execute map function for each document
+            log.info("Starting map phase with {} documents", documents.size());
             for (Map<String, Object> doc : documents) {
+                log.debug("Processing document: {}", doc);
                 // Set current document in JavaScript context
                 engine.put("this", doc);
                 for (Map.Entry<String, Object> entry : doc.entrySet()) {
@@ -3888,8 +3964,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
 
                 // Execute map function
-                engine.eval(mapFunction);
+                log.debug("Executing map function: {}", mapFunction);
+                try {
+                    // Test JavaScript execution
+                    Object testResult = engine.eval("this.counter");
+                    log.debug("Test JS access to this.counter: {}", testResult);
+
+                    // Test emitter availability
+                    Object emitterTest = engine.eval("emitter");
+                    log.debug("Test emitter availability: {}", emitterTest);
+
+                    // Test direct emitter call
+                    try {
+                        engine.eval("emitter.emit('testKey', 'testValue')");
+                        log.info("Direct emitter.emit() call successful");
+                    } catch (Exception e) {
+                        log.error("Direct emitter.emit() call failed: {}", e.getMessage());
+                    }
+
+                    // Transform the map function to replace emit() calls with direct emitter calls
+                    String transformedMapFunction = mapFunction
+                        .replace("emit(", "emitter.emit(")
+                        .replace("function(){", "function(){ ")
+                        .replace("}", " }");
+
+                    // Execute the transformed map function
+                    String executableMapFunction = "var mapFunc = " + transformedMapFunction + "; mapFunc();";
+                    log.debug("Executing transformed map function: {}", executableMapFunction);
+                    Object result = engine.eval(executableMapFunction);
+                    log.debug("Map function result: {}", result);
+                } catch (Exception e) {
+                    log.error("JavaScript execution error: {}", e.getMessage(), e);
+                }
+                log.debug("Map results so far: {}", mapResults.size());
             }
+            log.info("Map phase completed with {} emissions", mapResults.size());
 
             // Phase 2: Group by key
             Map<Object, List<Object>> groupedResults = new HashMap<>();
@@ -4133,10 +4242,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         public void emit(Object key, Object value) {
+            System.out.println("EMIT called with key=" + key + ", value=" + value);
             Map<String, Object> result = new HashMap<>();
             result.put("_id", key);
             result.put("value", value);
             results.add(result);
+            System.out.println("Total emit results now: " + results.size());
         }
     }
 
