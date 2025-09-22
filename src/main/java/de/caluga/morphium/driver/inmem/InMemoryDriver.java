@@ -3920,15 +3920,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // Create a Java object to handle emit calls from JavaScript
             MapReduceEmitter emitter = new MapReduceEmitter(mapResults);
 
-            // Create a simple proxy object that GraalJS can call
-            Object emitProxy = new Object() {
-                public void emit(Object key, Object value) {
-                    System.out.println("EmitProxy called with key=" + key + ", value=" + value);
-                    emitter.emit(key, value);
-                }
-            };
-
-            engine.put("emitter", emitProxy);
+            // Create a simple approach using a List that GraalJS can access
+            List<Map<String, Object>> emitResults = new ArrayList<>();
+            engine.put("emitResults", emitResults);
 
             // Test basic JavaScript functionality
             Object basicTest = engine.eval("1 + 1");
@@ -3945,12 +3939,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             });
 
+            // Create a JavaScript array and define emit function to use it
+            engine.eval("var jsEmitResults = [];");
+            engine.eval("function emit(key, value) { " +
+                       "  var result = { _id: key, value: value }; " +
+                       "  jsEmitResults.push(result); " +
+                       "}");
+
             // Test emit function
             try {
-                engine.eval("emit('test', 'testValue')");
-                log.info("Emit function test successful");
+                engine.eval("emit('globalTest', 'globalTestValue')");
+                Object jsArraySize = engine.eval("jsEmitResults.length");
+                log.info("Global emit test successful, jsEmitResults size: {}", jsArraySize);
             } catch (Exception e) {
-                log.error("Emit function test failed: {}", e.getMessage());
+                log.error("Global emit test failed: {}", e.getMessage());
             }
 
             // Phase 1: Map phase - execute map function for each document
@@ -3970,35 +3972,52 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                     Object testResult = engine.eval("this.counter");
                     log.debug("Test JS access to this.counter: {}", testResult);
 
-                    // Test emitter availability
-                    Object emitterTest = engine.eval("emitter");
-                    log.debug("Test emitter availability: {}", emitterTest);
+                    // Test emit function availability
+                    Object emitFunctionTest = engine.eval("emit");
+                    log.debug("Test emit function availability: {}", emitFunctionTest);
 
-                    // Test direct emitter call
+                    // Test direct emit call
                     try {
-                        engine.eval("emitter.emit('testKey', 'testValue')");
-                        log.info("Direct emitter.emit() call successful");
+                        engine.eval("emit('testKey', 'testValue')");
+                        log.info("Direct emit() call successful");
                     } catch (Exception e) {
-                        log.error("Direct emitter.emit() call failed: {}", e.getMessage());
+                        log.error("Direct emit() call failed: {}", e.getMessage());
                     }
 
-                    // Transform the map function to replace emit() calls with direct emitter calls
-                    String transformedMapFunction = mapFunction
-                        .replace("emit(", "emitter.emit(")
-                        .replace("function(){", "function(){ ")
-                        .replace("}", " }");
-
-                    // Execute the transformed map function
-                    String executableMapFunction = "var mapFunc = " + transformedMapFunction + "; mapFunc();";
-                    log.debug("Executing transformed map function: {}", executableMapFunction);
+                    // Execute the original map function directly (emit is now defined)
+                    String executableMapFunction = "var mapFunc = " + mapFunction + "; mapFunc();";
+                    log.debug("Executing map function: {}", executableMapFunction);
                     Object result = engine.eval(executableMapFunction);
                     log.debug("Map function result: {}", result);
                 } catch (Exception e) {
                     log.error("JavaScript execution error: {}", e.getMessage(), e);
                 }
-                log.debug("Map results so far: {}", mapResults.size());
+                Object jsArraySize = engine.eval("jsEmitResults.length");
+                log.debug("Map results so far: {}", jsArraySize);
             }
-            log.info("Map phase completed with {} emissions", mapResults.size());
+
+            // Get the final JavaScript array size and convert to Java objects
+            Object finalJsArraySize = engine.eval("jsEmitResults.length");
+            log.info("Map phase completed with {} emissions", finalJsArraySize);
+
+            // Convert JavaScript array to Java List using standard ScriptEngine approach
+            Object jsArrayLength = engine.eval("jsEmitResults.length");
+            if (jsArrayLength instanceof Number) {
+                int arrayLength = ((Number) jsArrayLength).intValue();
+                log.info("Converting {} JavaScript results to Java", arrayLength);
+
+                for (int i = 0; i < arrayLength; i++) {
+                    Object jsResult = engine.eval("jsEmitResults[" + i + "]");
+                    Object key = engine.eval("jsEmitResults[" + i + "]._id");
+                    Object value = engine.eval("jsEmitResults[" + i + "].value");
+
+                    Map<String, Object> javaResult = new HashMap<>();
+                    javaResult.put("_id", key);
+                    javaResult.put("value", value);
+                    mapResults.add(javaResult);
+                    log.debug("Converted result {}: key={}, value={}", i, key, value);
+                }
+            }
 
             // Phase 2: Group by key
             Map<Object, List<Object>> groupedResults = new HashMap<>();
