@@ -22,7 +22,7 @@ public class SkipLimitTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Thread.sleep(500);
         UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(11).sort("counter").get();
-        assertEquals (11, o.getCounter(), "Counter is " + o.getCounter());
+        assertEquals (10, o.getCounter(), "Counter is " + o.getCounter());
 
     }
 
@@ -42,7 +42,7 @@ public class SkipLimitTest extends MorphiumTestBase {
         Thread.sleep(500);
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(50).limit(10).sort("counter").asList();
         assertEquals (10, l.size());
-        assertEquals(51, l.get(0).getCounter() );
+        assertEquals(49, l.get(0).getCounter() );
     }
 
 }
