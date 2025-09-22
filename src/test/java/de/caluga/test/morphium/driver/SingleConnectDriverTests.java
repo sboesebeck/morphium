@@ -22,6 +22,7 @@ import de.caluga.morphium.driver.wire.MongoConnection;
 import de.caluga.morphium.driver.wire.SingleMongoConnectDriver;
 
 @Tag("driver")
+@Tag("external")
 public class SingleConnectDriverTests extends DriverTestBase {
     private Logger log = LoggerFactory.getLogger(SingleConnectDriverTests.class);
 
