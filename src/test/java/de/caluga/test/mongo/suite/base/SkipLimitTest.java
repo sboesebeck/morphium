@@ -5,6 +5,8 @@ import de.caluga.test.mongo.suite.data.UncachedObject;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.util.List;
 
 /**
@@ -19,8 +21,8 @@ public class SkipLimitTest extends MorphiumTestBase {
     public void skipTest() throws Exception {
         createUncachedObjects(100);
         Thread.sleep(500);
-        UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(10).sort("counter").get();
-        assert (o.getCounter() == 11) : "Counter is " + o.getCounter();
+        UncachedObject o = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(11).sort("counter").get();
+        assertEquals (11, o.getCounter(), "Counter is " + o.getCounter());
 
     }
 
@@ -31,7 +33,7 @@ public class SkipLimitTest extends MorphiumTestBase {
         Thread.sleep(500);
 
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).limit(10).sort("counter").asList();
-        assert (l.size() == 10);
+        assertEquals(10, l.size() );
     }
 
     @Test
@@ -39,8 +41,8 @@ public class SkipLimitTest extends MorphiumTestBase {
         createUncachedObjects(100);
         Thread.sleep(500);
         List<UncachedObject> l = morphium.createQueryFor(UncachedObject.class).f("counter").lt(100).skip(50).limit(10).sort("counter").asList();
-        assert (l.size() == 10);
-        assert (l.get(0).getCounter() == 51);
+        assertEquals (10, l.size());
+        assertEquals(51, l.get(0).getCounter() );
     }
 
 }
