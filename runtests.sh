@@ -823,9 +823,10 @@ err=0
 function run_test_slot() {
   local slot_id=$1
   local test_chunk_file=$2
-  local slot_mvn_props="$MVN_PROPS -Dmorphium.database=morphium_test_$slot_id"
+  local slot_mvn_props="$MVN_PROPS -Dmorphium.database=morphium_test_$slot_id -DtempDir=surefire_slot_$slot_id -DreportsDirectory=target/surefire-reports-$slot_id"
 
   mkdir -p "test.log/slot_$slot_id"
+  mkdir -p "target/surefire_slot_$slot_id"
 
   local total_tests=$(wc -l < "$test_chunk_file" | tr -d ' ')
   local current_test=0
