@@ -238,7 +238,7 @@ public abstract class Expr {
                     if (v instanceof Number) {
                         sum = sum.doubleValue() + ((Number) v).doubleValue();
                     } else {
-                        System.out.println("Cannot evaluate");
+                        LoggerFactory.getLogger(Expr.class).error("Cannot evaluate");
                     }
                 }
 

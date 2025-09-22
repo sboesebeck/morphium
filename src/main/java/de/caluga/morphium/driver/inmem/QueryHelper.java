@@ -34,8 +34,6 @@ public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
 
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
-        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - query: " + query);
-        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - toCheck: " + toCheck);
         if (query.isEmpty()) {
             return true;
         }
@@ -46,9 +44,6 @@ public class QueryHelper {
                 Map<String, Object> queryMap = (Map<String, Object>) query.get(key);
                 Map<String, Object> checkMap = (Map<String, Object>) toCheck.get(key);
 
-                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - Found map field: " + key);
-                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - queryMap: " + queryMap);
-                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - checkMap: " + checkMap);
 
                 // Check if all key-value pairs in the query map are present in the check map
                 boolean allMatched = true;
@@ -60,7 +55,6 @@ public class QueryHelper {
                 }
 
                 if (allMatched) {
-                    System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - All map keys matched");
                     return true;
                 }
             }
@@ -94,7 +88,7 @@ public class QueryHelper {
                 case "$and": {
                         // list of field queries
                         @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
+                        List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
                             if (!matchesQuery(q, toCheck, collation)) {
@@ -108,7 +102,7 @@ public class QueryHelper {
                 case "$or": {
                         // list of or queries
                         @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
+                        List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
                             if (matchesQuery(q, toCheck, collation)) {
@@ -127,7 +121,7 @@ public class QueryHelper {
                 case "$nor": {
                         // list of or queries
                         @SuppressWarnings("unchecked")
-                        List<Map<String, Object>> lst = ((List<Map<String, Object>>) query.get(keyQuery));
+                        List<Map<String, Object>> lst = ((List<Map<String, Object >> ) query.get(keyQuery));
 
                         for (Map<String, Object> q : lst) {
                             if (matchesQuery(q, toCheck, collation)) {
@@ -288,7 +282,6 @@ public class QueryHelper {
                             checkValue = toCheck.get(keyQuery);
                         }
 
-                        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - commandKey: " + commandKey);
                         switch (commandKey) {
                             case "$where":
                                 return runWhere(query, toCheck);
@@ -726,7 +719,7 @@ public class QueryHelper {
                                     }
 
                                     for (Object o : coordToCheckWithin) {
-                                        for (List<Double> coord : ((List<List<Double>>) o)) {
+                                        for (List<Double> coord : ((List<List<Double >> ) o)) {
                                             var x = coord.get(0);
                                             var y = coord.get(1);
 
@@ -1069,7 +1062,7 @@ public class QueryHelper {
         Object regularExpression = commandMap.get("$regularExpression");
 
         if (regularExpression instanceof Map) {
-            Map<?, ?> regexMap = (Map<?, ?>) regularExpression;
+            Map <?, ? > regexMap = (Map <?, ? >) regularExpression;
 
             if (regexMap.get("pattern") instanceof String) {
                 pattern = (String) regexMap.get("pattern");
@@ -1191,7 +1184,7 @@ public class QueryHelper {
         String part = parts[idx];
 
         if (current instanceof Map) {
-            Map<?, ?> map = (Map<?, ?>) current;
+            Map <?, ? > map = (Map <?, ? >) current;
 
             if (!map.containsKey(part)) {
                 return false;
@@ -1274,7 +1267,7 @@ public class QueryHelper {
             if (Collation.CaseFirst.UPPER.getMongoText().equals(collation.get("caseFirst"))) {
                 try {
                     coll = new RuleBasedCollator(
-                        ((RuleBasedCollator) coll).getRules() + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
+                                    ((RuleBasedCollator) coll).getRules() + ",A<a,B<b,C<c,D<d,E<e,F<f,G<g,H<h,I<i,J<j,K<k,L<l,M<m,N<n,O<o,P<p,Q<q,R<r,S<s,T<t,U<u,V<v,W<w,X<x,Y<y,Z<z,Ö<ö,Ü<ü,Ä<ä");
                 } catch (ParseException e) {
                     throw new RuntimeException(e);
                 }
