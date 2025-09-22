@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -109,11 +110,11 @@ public class ListTests extends MorphiumTestBase {
 
         Thread.sleep(1000);
         q = morphium.createQueryFor(ListContainer.class).f("refList").eq(lst2.getRefList().get(0));
-        assert(q.countAll() != 0);
+        assertNotEquals(0, q.countAll());
         log.info("found " + q.countAll() + " entries");
-        assert(q.countAll() == 1);
+        assertEquals(1, q.countAll());
         ListContainer c = q.get();
-        assert(c.getId().equals(lst2.getId()));
+        assertEquals(c.getId(), lst2.getId());
     }
 
     @Test
