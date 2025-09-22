@@ -414,11 +414,11 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             .setDb(morphium.getDatabase())
             .setColl(morphium.getMapper().getCollectionName(UncachedObject.class))
             .addUpdate(Doc.of(
-                "q", Doc.of("_id", obj.getMorphiumId()),
-                "u", Doc.of("$set", Doc.of("counter", 77), "$unset", Doc.of("str_value", "")),
-                "multi", false,
-                "upsert", false
-            ))
+                                       "q", Doc.of("_id", obj.getMorphiumId()),
+                                       "u", Doc.of("$set", Doc.of("counter", 77), "$unset", Doc.of("str_value", "")),
+                                       "multi", false,
+                                       "upsert", false
+                       ))
             .execute();
         } finally {
             morphium.getDriver().releaseConnection(updateConnection);
