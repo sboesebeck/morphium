@@ -442,6 +442,12 @@ if [ -z "$parallel" ]; then
   parallel=1
 fi
 
+# Set default driver to inmem if none specified and no external mode
+if [ -z "$driver" ] && [ "$useExternal" -eq 0 ]; then
+  driver="inmem"
+  echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
+fi
+
 # Conflict detection
 if [ "$useExternal" -eq 1 ] && [ "$driver" == "inmem" ]; then
   echo -e "${RD}Error:${CL} --external and --driver inmem are conflicting options!"
