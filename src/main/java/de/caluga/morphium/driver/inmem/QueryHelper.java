@@ -34,8 +34,36 @@ public class QueryHelper {
     private static final Logger log = LoggerFactory.getLogger(QueryHelper.class);
 
     public static boolean matchesQuery(Map<String, Object> query, Map<String, Object> toCheck, Map<String, Object> collation) {
+        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - query: " + query);
+        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - toCheck: " + toCheck);
         if (query.isEmpty()) {
             return true;
+        }
+
+        // Special handling for map field queries
+        for (String key : query.keySet()) {
+            if (query.get(key) instanceof Map && toCheck.get(key) instanceof Map) {
+                Map<String, Object> queryMap = (Map<String, Object>) query.get(key);
+                Map<String, Object> checkMap = (Map<String, Object>) toCheck.get(key);
+
+                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - Found map field: " + key);
+                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - queryMap: " + queryMap);
+                System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - checkMap: " + checkMap);
+
+                // Check if all key-value pairs in the query map are present in the check map
+                boolean allMatched = true;
+                for (String mapKey : queryMap.keySet()) {
+                    if (!checkMap.containsKey(mapKey) || !compareValues(checkMap.get(mapKey), queryMap.get(mapKey), null)) {
+                        allMatched = false;
+                        break;
+                    }
+                }
+
+                if (allMatched) {
+                    System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - All map keys matched");
+                    return true;
+                }
+            }
         }
 
         // if (query.containsKey("$where")) {
@@ -188,32 +216,71 @@ public class QueryHelper {
                         Object checkValue = toCheck;
 
                         if (keyQuery.contains(".")) {
-                            var pth = keyQuery.split("\\.");
-                            checkValue = toCheck;
+                            // Special handling for map field queries like "stringMap.key1"
+                            String[] parts = keyQuery.split("\\.", 2);
+                            if (parts.length == 2 && toCheck.get(parts[0]) instanceof Map) {
+                                Map<String, Object> mapField = (Map<String, Object>) toCheck.get(parts[0]);
+                                if (mapField.containsKey(parts[1])) {
+                                    checkValue = mapField.get(parts[1]);
+                                } else {
+                                    // Handle nested paths
+                                    var pth = keyQuery.split("\\.");
+                                    checkValue = toCheck;
 
-                            for (String p : pth) {
-                                if (checkValue == null) {
-                                    break;
-                                }
-
-                                if (checkValue instanceof Map) {
-                                    checkValue = ((Map) checkValue).get(p);
-                                } else if (checkValue instanceof List) {
-                                    try {
-                                        int idx = Integer.valueOf(p);
-                                        checkValue = ((List) checkValue).get(Integer.valueOf(p));
-                                    } catch (Exception e) {
-                                        //not an integer, probably some reference _internal_ to the list
-                                        var lst = new ArrayList<>();
-
-                                        for (var o : ((List) checkValue)) {
-                                            if (o instanceof Map) {
-                                                lst.add(((Map) o).get(p));
-                                            }
+                                    for (String p : pth) {
+                                        if (checkValue == null) {
+                                            break;
                                         }
 
-                                        checkValue = lst;
-                                        break;                     //cannot go further usually!
+                                        if (checkValue instanceof Map) {
+                                            checkValue = ((Map) checkValue).get(p);
+                                        } else if (checkValue instanceof List) {
+                                            try {
+                                                int idx = Integer.valueOf(p);
+                                                checkValue = ((List) checkValue).get(Integer.valueOf(p));
+                                            } catch (Exception e) {
+                                                //not an integer, probably some reference _internal_ to the list
+                                                var lst = new ArrayList<>();
+
+                                                for (var o : ((List) checkValue)) {
+                                                    if (o instanceof Map) {
+                                                        lst.add(((Map) o).get(p));
+                                                    }
+                                                }
+
+                                                checkValue = lst;
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Handle nested paths
+                                var pth = keyQuery.split("\\.");
+                                checkValue = toCheck;
+
+                                for (String p : pth) {
+                                    if (checkValue == null) {
+                                        break;
+                                    }
+
+                                    if (checkValue instanceof Map) {
+                                        checkValue = ((Map) checkValue).get(p);
+                                    } else if (checkValue instanceof List) {
+                                        try {
+                                            int idx = Integer.valueOf(p);
+                                            checkValue = ((List) checkValue).get(Integer.valueOf(p));
+                                        } catch (Exception e) {
+                                            //not an integer, probably some reference _internal_ to the list
+                                            var lst = new ArrayList<>();
+
+                                            for (var o : ((List) checkValue)) {
+                                                if (o instanceof Map) {
+                                                    lst.add(((Map) o).get(p));
+                                                }
+                                            }
+
+                                            checkValue = lst;
+                                        }
                                     }
                                 }
                             }
@@ -221,6 +288,7 @@ public class QueryHelper {
                             checkValue = toCheck.get(keyQuery);
                         }
 
+                        System.out.println("[DEBUG_LOG] QueryHelper.matchesQuery - commandKey: " + commandKey);
                         switch (commandKey) {
                             case "$where":
                                 return runWhere(query, toCheck);

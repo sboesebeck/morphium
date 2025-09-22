@@ -644,13 +644,22 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             updateIndex++;
         }
 
-        // MongoDB compatibility: "n" represents total documents affected (matched + upserted)
-        stats.put("n", totalMatched + upserted.size());
+        // MongoDB compatibility: For upserts, "n" should include both matched and upserted documents
+        int n = totalMatched;
+        if (!upserted.isEmpty()) {
+            n += upserted.size();
+        }
+
+        stats.put("n", n);
         stats.put("nModified", totalModified);
         if (!upserted.isEmpty()) {
             stats.put("upserted", upserted);
         }
-        commandResults.add(prepareResult(stats));
+
+        System.out.println("[DEBUG_LOG] UpdateMongoCommand result: " + stats);
+        Map<String, Object> preparedResult = prepareResult(stats);
+        System.out.println("[DEBUG_LOG] UpdateMongoCommand result after prepareResult: " + preparedResult);
+        commandResults.add(preparedResult);
         return ret;
     }
 
@@ -670,8 +679,18 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Map<String, Object> result = new HashMap<>();
         result.put("ok", 1.0);
         result.putAll(stats);
-        System.out.println("InMemoryDriver store result: " + result);
-        commandResults.add(prepareResult(result));
+
+        // Ensure n is set correctly for compatibility with MongoDB
+        if (!result.containsKey("n") && (result.containsKey("matched") || result.containsKey("inserted"))) {
+            int matched = result.containsKey("matched") ? (Integer)result.get("matched") : 0;
+            int inserted = result.containsKey("inserted") ? (Integer)result.get("inserted") : 0;
+            result.put("n", matched + inserted);
+        }
+
+        System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result before prepareResult: " + result);
+        Map<String, Object> preparedResult = prepareResult(result);
+        System.out.println("[DEBUG_LOG] InMemoryDriver runCommand(StoreMongoCommand) result after prepareResult: " + preparedResult);
+        commandResults.add(preparedResult);
         return ret;
     }
 
@@ -1824,6 +1843,41 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         if (query == null) {
             query = Doc.of();
         }
+
+        // Special handling for map field queries like "stringMap.key1"
+        System.out.println("[DEBUG_LOG] Original query: " + query);
+        Map<String, Object> modifiedQuery = new LinkedHashMap<>(query);
+        for (String key : new ArrayList<>(query.keySet())) {
+            if (key.contains(".") && !key.startsWith("$")) {
+                String[] parts = key.split("\\.", 2);
+                if (parts.length == 2) {
+                    System.out.println("[DEBUG_LOG] Found dot notation field: " + key);
+                    System.out.println("[DEBUG_LOG] Split into: " + parts[0] + " and " + parts[1]);
+                    // Create a new query that will match documents where the map field contains the key
+                    modifiedQuery.remove(key);
+
+                    // Convert camelCase to snake_case for the field name
+                    String fieldName = camelToSnakeCase(parts[0]);
+                    System.out.println("[DEBUG_LOG] Converted field name: " + parts[0] + " -> " + fieldName);
+
+                    // Check if the map field already exists in the query
+                    if (!modifiedQuery.containsKey(fieldName)) {
+                        modifiedQuery.put(fieldName, new LinkedHashMap<>());
+                    } else if (!(modifiedQuery.get(fieldName) instanceof Map)) {
+                        // If it exists but is not a map, convert it to a map
+                        Object oldValue = modifiedQuery.get(fieldName);
+                        modifiedQuery.put(fieldName, new LinkedHashMap<>());
+                        ((Map<String, Object>)modifiedQuery.get(fieldName)).put("$eq", oldValue);
+                    }
+
+                    // Add the key-value pair to the map field
+                    ((Map<String, Object>)modifiedQuery.get(fieldName)).put(parts[1], query.get(key));
+                    System.out.println("[DEBUG_LOG] Modified query part: " + fieldName + " = " + modifiedQuery.get(fieldName));
+                }
+            }
+        }
+        query = modifiedQuery;
+        System.out.println("[DEBUG_LOG] Modified query: " + query);
         if (query.containsKey("$and")) {
             // and complex query handling ?!?!?
             List<Map<String, Object >> m = (List<Map<String, Object >> ) query.get("$and");
@@ -2379,11 +2433,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return true;
     }
 
+    private static String camelToSnakeCase(String camelCase) {
+        if (camelCase == null) return null;
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < camelCase.length(); i++) {
+            char c = camelCase.charAt(i);
+            if (Character.isUpperCase(c)) {
+                result.append('_').append(Character.toLowerCase(c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
     public synchronized Map<String, Integer> store(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
         Map<String, Integer> ret = new HashMap<>();
         int upd = 0;
         int inserted = 0;
         int total = objs.size();
+        System.out.println("[DEBUG_LOG] store method called with db=" + db + ", collection=" + collection + ", objs=" + objs);
 
         for (Map<String, Object> o : objs) {
             if (o.get("_id") == null) {
@@ -2435,6 +2504,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         ret.put("updated", upd);
         ret.put("inserted", inserted);
         ret.put("n", upd + inserted);
+        System.out.println("[DEBUG_LOG] store method returning stats: " + ret);
         return ret;
     }
 
