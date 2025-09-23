@@ -61,12 +61,15 @@ public class TestUtils {
                     statusMessage.run();
                 }
 
-                Thread.yield();
+                Thread.sleep(10); // Much more CPU-friendly than Thread.yield()
             }
 
             if (statusMessage != null)
                 statusMessage.run();
             return System.currentTimeMillis() - start;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupt status
+            throw new RuntimeException("Interrupted while waiting for condition", e);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -6,6 +6,8 @@ import de.caluga.morphium.messaging.MessageListener;
 import de.caluga.morphium.messaging.MorphiumMessaging;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
+import de.caluga.test.mongo.suite.base.TestUtils;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -44,8 +46,7 @@ public class CustomMsgTest extends MorphiumTestBase {
                 cm.setCustomBuiltValue("test a avalue");
                 cm.setTopic("test");
                 m1.sendMessage(cm);
-                Thread.sleep(300);
-                org.junit.jupiter.api.Assertions.assertTrue(received);
+                TestUtils.waitForConditionToBecomeTrue(2000, "dit not receive message", ()->received);
                 m1.terminate();
                 m2.terminate();
                 received = false;
@@ -53,7 +54,7 @@ public class CustomMsgTest extends MorphiumTestBase {
         }
     }
 
-    // @Entity(typeId="cmsg", polymorph = true)
+// @Entity(typeId="cmsg", polymorph = true)
     public static class CustomMsg extends Msg {
         private String customBuiltValue;
 
