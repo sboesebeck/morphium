@@ -38,24 +38,97 @@ public class QueryHelper {
             return true;
         }
 
-        // Special handling for map field queries
+        // Special handling for map field queries and array index queries
         for (String key : query.keySet()) {
-            if (query.get(key) instanceof Map && toCheck.get(key) instanceof Map) {
+            if (query.get(key) instanceof Map) {
                 Map<String, Object> queryMap = (Map<String, Object>) query.get(key);
-                Map<String, Object> checkMap = (Map<String, Object>) toCheck.get(key);
 
+                if (toCheck.get(key) instanceof Map) {
+                    // Both query and document have Maps - standard map field query
+                    Map<String, Object> checkMap = (Map<String, Object>) toCheck.get(key);
 
-                // Check if all key-value pairs in the query map are present in the check map
-                boolean allMatched = true;
-                for (String mapKey : queryMap.keySet()) {
-                    if (!checkMap.containsKey(mapKey) || !compareValues(checkMap.get(mapKey), queryMap.get(mapKey), null)) {
-                        allMatched = false;
-                        break;
+                    // Check if all key-value pairs in the query map are present in the check map
+                    boolean allMatched = true;
+                    for (String mapKey : queryMap.keySet()) {
+                        if (!checkMap.containsKey(mapKey) || !compareValues(checkMap.get(mapKey), queryMap.get(mapKey), null)) {
+                            allMatched = false;
+                            break;
+                        }
                     }
-                }
 
-                if (allMatched) {
-                    return true;
+                    if (allMatched) {
+                        return true;
+                    }
+                } else if (toCheck.get(key) instanceof List) {
+                    // Query has Map but document has List - this could be array index access
+                    List<?> checkList = (List<?>) toCheck.get(key);
+
+                    // Check if all query map keys are array index operations
+                    boolean allMatched = true;
+                    for (String mapKey : queryMap.keySet()) {
+                        try {
+                            int idx = Integer.parseInt(mapKey);
+                            Object indexQuery = queryMap.get(mapKey);
+
+                            // Check if the index is within bounds
+                            if (idx < 0 || idx >= checkList.size()) {
+                                // Index out of bounds
+                                if (indexQuery instanceof Map && ((Map<?, ?>) indexQuery).containsKey("$exists")) {
+                                    // For $exists queries on out-of-bounds indices, return false
+                                    Object existsValue = ((Map<?, ?>) indexQuery).get("$exists");
+                                    if (Boolean.TRUE.equals(existsValue) || "true".equals(existsValue) || Integer.valueOf(1).equals(existsValue)) {
+                                        allMatched = false;
+                                        break;
+                                    } else {
+                                        // exists: false on out-of-bounds index should return true
+                                        continue;
+                                    }
+                                } else {
+                                    allMatched = false;
+                                    break;
+                                }
+                            } else {
+                                // Index is within bounds
+                                if (indexQuery instanceof Map && ((Map<?, ?>) indexQuery).containsKey("$exists")) {
+                                    // For $exists queries on valid indices, return true if exists query expects true
+                                    Object existsValue = ((Map<?, ?>) indexQuery).get("$exists");
+                                    if (Boolean.TRUE.equals(existsValue) || "true".equals(existsValue) || Integer.valueOf(1).equals(existsValue)) {
+                                        // Element exists, so $exists: true should match
+                                        continue;
+                                    } else {
+                                        // Element exists, but $exists: false doesn't match
+                                        allMatched = false;
+                                        break;
+                                    }
+                                } else {
+                                    // Non-$exists queries on array elements - handle normally
+                                    Object arrayElement = checkList.get(idx);
+                                    if (arrayElement instanceof Map) {
+                                        if (!matchesQuery((Map<String, Object>) indexQuery, (Map<String, Object>) arrayElement, collation)) {
+                                            allMatched = false;
+                                            break;
+                                        }
+                                    } else {
+                                        // For primitive array elements, create synthetic document
+                                        Map<String, Object> syntheticDoc = Map.of("value", arrayElement);
+                                        Map<String, Object> elementQuery = Map.of("value", indexQuery);
+                                        if (!matchesQuery(elementQuery, syntheticDoc, collation)) {
+                                            allMatched = false;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (NumberFormatException e) {
+                            // Not a numeric index, so this doesn't match
+                            allMatched = false;
+                            break;
+                        }
+                    }
+
+                    if (allMatched) {
+                        return true;
+                    }
                 }
             }
         }
@@ -394,7 +467,32 @@ public class QueryHelper {
                                 return !compareValues(checkValue, commandMap.get(commandKey), coll);
 
                             case "$exists":
-                                boolean exists = fieldExists(toCheck, keyQuery);
+                                boolean exists;
+
+                                if (keyQuery.contains(".")) {
+                                    // For dotted field paths (like array access), the field resolution logic above
+                                    // has already resolved the path. We check if it was resolved successfully:
+                                    // - If checkValue != toCheck, the path was resolved to some value (including null)
+                                    // - If checkValue == toCheck, the path doesn't exist in the document
+                                    exists = (checkValue != toCheck);
+                                } else {
+                                    // For simple field names, use the original fieldExists logic
+                                    exists = fieldExists(toCheck, keyQuery);
+
+                                    // If not found with the given field name, try converting to camelCase
+                                    // This handles cases where the field was stored with a different naming convention
+                                    if (!exists && keyQuery.contains("_")) {
+                                        // Convert snake_case to camelCase for field name parts
+                                        String camelCaseField = convertSnakeToCamelCase(keyQuery);
+                                        exists = fieldExists(toCheck, camelCaseField);
+                                    }
+
+                                    // If still not found, try converting from camelCase to snake_case
+                                    if (!exists && !keyQuery.contains("_")) {
+                                        String snakeCaseField = convertCamelToSnakeCase(keyQuery);
+                                        exists = fieldExists(toCheck, snakeCaseField);
+                                    }
+                                }
 
                                 if (commandMap.get(commandKey).equals(Boolean.TRUE) || commandMap.get(commandKey).equals("true") || commandMap.get(commandKey).equals(1)) {
                                     return exists;
@@ -1220,6 +1318,73 @@ public class QueryHelper {
         }
 
         return false;
+    }
+
+    private static String convertSnakeToCamelCase(String fieldPath) {
+        if (!fieldPath.contains("_")) {
+            return fieldPath;
+        }
+
+        String[] parts = fieldPath.split("\\.");
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                result.append(".");
+            }
+            String part = parts[i];
+            if (part.matches("\\d+")) {
+                // This is an array index, keep as is
+                result.append(part);
+            } else {
+                // Convert snake_case to camelCase
+                String[] words = part.split("_");
+                result.append(words[0]);
+                for (int j = 1; j < words.length; j++) {
+                    if (words[j].length() > 0) {
+                        result.append(Character.toUpperCase(words[j].charAt(0)));
+                        if (words[j].length() > 1) {
+                            result.append(words[j].substring(1));
+                        }
+                    }
+                }
+            }
+        }
+
+        return result.toString();
+    }
+
+    private static String convertCamelToSnakeCase(String fieldPath) {
+        String[] parts = fieldPath.split("\\.");
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) {
+                result.append(".");
+            }
+            String part = parts[i];
+            if (part.matches("\\d+")) {
+                // This is an array index, keep as is
+                result.append(part);
+            } else {
+                // Convert camelCase to snake_case
+                StringBuilder converted = new StringBuilder();
+                for (int j = 0; j < part.length(); j++) {
+                    char c = part.charAt(j);
+                    if (Character.isUpperCase(c)) {
+                        if (j > 0) {
+                            converted.append("_");
+                        }
+                        converted.append(Character.toLowerCase(c));
+                    } else {
+                        converted.append(c);
+                    }
+                }
+                result.append(converted.toString());
+            }
+        }
+
+        return result.toString();
     }
 
     private static boolean runWhere(Map<String, Object> query, Map<String, Object> toCheck) {
