@@ -787,6 +787,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         var pipeline = new ArrayList<Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
         log.debug("Adding changestream for collection {}", getCollectionName(n));
+        morphium.ensureIndicesFor(Msg.class, n);
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true,
             morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);
