@@ -660,6 +660,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return new ArrayList<>();
         }
 
+        // Check if morphium is still valid (not closed)
+        if (morphium.getDriver() == null) {
+            log.debug(id + ": Morphium driver is null, messaging system is shutting down");
+            return new ArrayList<>();
+        }
+
         FindCommand fnd = null;
 
         try {
