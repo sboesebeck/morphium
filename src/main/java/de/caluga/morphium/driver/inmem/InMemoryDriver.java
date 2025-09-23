@@ -1846,37 +1846,23 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         // Special handling for map field queries like "stringMap.key1"
         // System.out.println("[DEBUG_LOG] Original query: " + query);
-        Map<String, Object> modifiedQuery = new LinkedHashMap<>(query);
+        Map<String, Object> renamedQuery = new LinkedHashMap<>(query);
         for (String key : new ArrayList<>(query.keySet())) {
-            if (key.contains(".") && !key.startsWith("$")) {
+            if (!key.startsWith("$") && key.contains(".")) {
                 String[] parts = key.split("\\.", 2);
+
                 if (parts.length == 2) {
-                    // System.out.println("[DEBUG_LOG] Found dot notation field: " + key);
-                    // System.out.println("[DEBUG_LOG] Split into: " + parts[0] + " and " + parts[1]);
-                    // Create a new query that will match documents where the map field contains the key
-                    modifiedQuery.remove(key);
+                    String translatedField = camelToSnakeCase(parts[0]);
+                    String newKey = translatedField + "." + parts[1];
 
-                    // Convert camelCase to snake_case for the field name
-                    String fieldName = camelToSnakeCase(parts[0]);
-                    // System.out.println("[DEBUG_LOG] Converted field name: " + parts[0] + " -> " + fieldName);
-
-                    // Check if the map field already exists in the query
-                    if (!modifiedQuery.containsKey(fieldName)) {
-                        modifiedQuery.put(fieldName, new LinkedHashMap<>());
-                    } else if (!(modifiedQuery.get(fieldName) instanceof Map)) {
-                        // If it exists but is not a map, convert it to a map
-                        Object oldValue = modifiedQuery.get(fieldName);
-                        modifiedQuery.put(fieldName, new LinkedHashMap<>());
-                        ((Map<String, Object>)modifiedQuery.get(fieldName)).put("$eq", oldValue);
+                    if (!newKey.equals(key)) {
+                        Object value = renamedQuery.remove(key);
+                        renamedQuery.put(newKey, value);
                     }
-
-                    // Add the key-value pair to the map field
-                    ((Map<String, Object>)modifiedQuery.get(fieldName)).put(parts[1], query.get(key));
-                    // System.out.println("[DEBUG_LOG] Modified query part: " + fieldName + " = " + modifiedQuery.get(fieldName));
                 }
             }
         }
-        query = modifiedQuery;
+        query = renamedQuery;
         // System.out.println("[DEBUG_LOG] Modified query: " + query);
         if (query.containsKey("$and")) {
             // and complex query handling ?!?!?

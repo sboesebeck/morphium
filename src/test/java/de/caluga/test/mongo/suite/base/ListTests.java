@@ -102,10 +102,10 @@ public class ListTests extends MorphiumTestBase {
         assertEquals(count, lst2.getStringList().size());
 
         for (int i = 0; i < count; i++) {
-            assert(lst2.getEmbeddedObjectList().get(i).equals(lst.getEmbeddedObjectList().get(i))) : "Embedded objects list differ? - " + i;
-            assert(lst2.getLongList().get(i).equals(lst.getLongList().get(i))) : "long list differ? - " + i;
-            assert(lst2.getStringList().get(i).equals(lst.getStringList().get(i))) : "string list differ? - " + i;
-            assert(lst2.getRefList().get(i).equals(lst.getRefList().get(i))) : "reference list differ? - " + i;
+            assertEquals(lst2.getEmbeddedObjectList().get(i), lst.getEmbeddedObjectList().get(i), "Embedded objects list differ? - " + i);
+            assertEquals(lst2.getLongList().get(i), lst.getLongList().get(i), "long list differ? - " + i);
+            assertEquals(lst2.getStringList().get(i), lst.getStringList().get(i), "string list differ? - " + i);
+            assertEquals(lst2.getRefList().get(i), lst.getRefList().get(i), "reference list differ? - " + i);
         }
 
         Thread.sleep(1000);
