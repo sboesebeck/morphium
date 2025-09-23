@@ -113,15 +113,28 @@ function get_test_stats() {
         if [ -f "$logfile" ] && [[ "$logfile" =~ \.log$ ]] && [[ ! "$logfile" =~ slot\.log$ ]]; then
           local test_class=$(basename "$logfile" .log | sed 's/_slot[0-9]*$//')
           local timestamp=$(stat -f "%m" "$logfile" 2>/dev/null || stat -c "%Y" "$logfile" 2>/dev/null || echo "0")
+
+          # Normalize test class names: if we have both short and full names, prefer full names
+          # This handles cases where tests are run as "TestClass" vs "com.package.TestClass"
+          if [[ "$test_class" != *.* ]]; then
+            # Short name - check if there's a corresponding full name in logs
+            local full_name_pattern="*.$test_class"
+            for other_log in $log_pattern; do
+              local other_class=$(basename "$other_log" .log | sed 's/_slot[0-9]*$//')
+              if [[ "$other_class" == $full_name_pattern ]]; then
+                test_class="$other_class"
+                break
+              fi
+            done
+          fi
+
           echo "$timestamp:$test_class:$logfile" >>"$temp_results"
         fi
       done
     done
 
-    # Process in three passes to prioritize test information over build failures:
-    # 1. Successful tests (tests ran and passed)
-    # 2. Failed tests (tests ran but failed)
-    # 3. Build failures (no tests ran)
+    # Process logs by timestamp (newest first) to ensure most recent result is used
+    # This fixes the issue where old failed tests still appear as failed after successful reruns
     local processed_classes=""
 
     # Function to process a single log file
@@ -198,56 +211,13 @@ function get_test_stats() {
       fi
     }
 
-    # Pass 1: Process successful tests (tests ran and passed)
+    # Single pass: Process newest log for each test class (sorted by timestamp descending)
     while IFS=: read -r timestamp test_class logfile; do
       if [[ "$processed_classes" == *"|$test_class|"* ]]; then
-        continue
+        continue # Already processed the newest log for this test class
       fi
 
-      # Check if tests ran and passed
-      if grep -q "Tests run: .*in " "$logfile"; then
-        local test_result_line=$(grep -a "Tests run: .*in " "$logfile" | tail -1)
-        local run_count=$(echo "$test_result_line" | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
-        local fail_count=$(echo "$test_result_line" | sed -n 's/.*Failures: \([0-9]*\).*/\1/p')
-        local err_count=$(echo "$test_result_line" | sed -n 's/.*Errors: \([0-9]*\).*/\1/p')
-        [[ ! "$run_count" =~ ^[0-9]+$ ]] && run_count=0
-        [[ ! "$fail_count" =~ ^[0-9]+$ ]] && fail_count=0
-        [[ ! "$err_count" =~ ^[0-9]+$ ]] && err_count=0
-
-        if [ "$run_count" -gt 0 ] && [ "$fail_count" -eq 0 ] && [ "$err_count" -eq 0 ]; then
-          processed_classes="$processed_classes|$test_class|"
-          process_logfile "$test_class" "$logfile"
-        fi
-      fi
-    done < <(sort -nr "$temp_results")
-
-    # Pass 2: Process failed tests (tests ran but failed) - prioritize over build failures
-    while IFS=: read -r timestamp test_class logfile; do
-      if [[ "$processed_classes" == *"|$test_class|"* ]]; then
-        continue
-      fi
-
-      # Check if tests ran but failed
-      if grep -q "Tests run: .*in " "$logfile"; then
-        local test_result_line=$(grep -a "Tests run: .*in " "$logfile" | tail -1)
-        local run_count=$(echo "$test_result_line" | sed -n 's/.*Tests run: \([0-9]*\).*/\1/p')
-        [[ ! "$run_count" =~ ^[0-9]+$ ]] && run_count=0
-
-        if [ "$run_count" -gt 0 ]; then
-          # Tests actually ran - process this instead of any build failure
-          processed_classes="$processed_classes|$test_class|"
-          process_logfile "$test_class" "$logfile"
-        fi
-      fi
-    done < <(sort -nr "$temp_results")
-
-    # Pass 3: Process build failures (for classes not yet processed)
-    while IFS=: read -r timestamp test_class logfile; do
-      if [[ "$processed_classes" == *"|$test_class|"* ]]; then
-        continue
-      fi
-
-      # This must be a build failure or other issue - process it
+      # Mark this test class as processed and process its newest log
       processed_classes="$processed_classes|$test_class|"
       process_logfile "$test_class" "$logfile"
     done < <(sort -nr "$temp_results")
@@ -280,7 +250,7 @@ nodel=0
 skip=0
 refresh=5
 logLength=15
-numRetries=1
+numRetries=0
 retried=""
 totalRetries=0
 includeTags=""
@@ -443,10 +413,6 @@ if [ -z "$parallel" ]; then
 fi
 
 # Set default driver to inmem if none specified and no external mode
-if [ -z "$driver" ] && [ "$useExternal" -eq 0 ]; then
-  driver="inmem"
-  echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
-fi
 
 # Conflict detection
 if [ "$useExternal" -eq 1 ] && [ "$driver" == "inmem" ]; then
@@ -483,6 +449,7 @@ fi
 # Handle --stats option early to just show statistics and exit
 if [ "$showStats" -eq 1 ]; then
   # Extract only the stats-specific arguments and pass them to get_test_stats
+  echo -e "Calculating stats... ${GN}please wait$CL"
   stats_args=""
   for arg in "${original_args[@]}"; do
     case "$arg" in
@@ -495,6 +462,10 @@ if [ "$showStats" -eq 1 ]; then
   exit 0
 fi
 
+if [ -z "$driver" ] && [ "$useExternal" -eq 0 ]; then
+  driver="inmem"
+  echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
+fi
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
@@ -755,6 +726,13 @@ if [ "$skip" -ne 0 ]; then
       mv files_$PID.tmp $classList
     done
   fi
+fi
+if [ "q$1" = "q" ]; then
+  # no test to run specified
+  echo "running all tests"
+else
+  echo "Limiting to test $1"
+  echo "$1" >>$classList
 fi
 # read
 cnt=$(wc -l <$classList | tr -d ' ')
@@ -1312,7 +1290,7 @@ else
   fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
   err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
   num=$numRetries
-  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ]; then
+  if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ] && [ "q$1" = "q" ]; then
     while [ "$num" -gt 0 ]; do
       echo -e "${YL}Some tests failed$CL - retrying...."
       ./rerunFailedTests.sh

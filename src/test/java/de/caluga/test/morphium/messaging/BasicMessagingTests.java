@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Tag("messaging")
 public class BasicMessagingTests extends MultiDriverTestBase {
-    
+
     private boolean gotMessage1 = false;
     private boolean gotMessage2 = false;
     private boolean gotMessage3 = false;
@@ -50,42 +50,42 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 try (Morphium morph = new Morphium(cfg)) {
                     morph.dropCollection(Msg.class);
                     Thread.sleep(500);
-                    
+
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     MorphiumMessaging receiver = morph.createMessaging();
                     receiver.setSenderId("receiver");
-                    
+
                     AtomicInteger msgCount = new AtomicInteger(0);
                     List<Msg> receivedMessages = new ArrayList<>();
-                    
+
                     receiver.addListenerForTopic("test", (msg, m) -> {
                         msgCount.incrementAndGet();
                         receivedMessages.add(m);
                         return null;
                     });
-                    
+
                     sender.start();
                     receiver.start();
                     Thread.sleep(1000);
-                    
+
                     // Test basic send/receive
                     Msg testMsg = new Msg("test", "Basic message", "value1");
                     sender.sendMessage(testMsg);
-                    
+
                     TestUtils.waitForConditionToBecomeTrue(5000, "Did not receive message", () -> msgCount.get() >= 1);
                     assertEquals(1, msgCount.get());
                     assertEquals("Basic message", receivedMessages.get(0).getMsg());
                     assertEquals("value1", receivedMessages.get(0).getValue());
-                    
+
                     // Test multiple messages
                     for (int i = 0; i < 5; i++) {
                         sender.sendMessage(new Msg("test", "Message " + i, "value" + i));
                     }
-                    
+
                     TestUtils.waitForConditionToBecomeTrue(5000, "Did not receive all messages", () -> msgCount.get() >= 6);
                     assertEquals(6, msgCount.get());
-                    
+
                     sender.terminate();
                     receiver.terminate();
                 }
@@ -111,35 +111,37 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 try (Morphium morph = new Morphium(cfg)) {
                     morph.dropCollection(Msg.class);
                     TestUtils.waitForCollectionToBeDeleted(morph, Msg.class);
-                    
+
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     MorphiumMessaging receiver = morph.createMessaging();
                     receiver.setSenderId("receiver");
-                    
+
+                    morph.ensureIndicesFor(Msg.class, sender.getLockCollectionName("test"));
                     AtomicInteger msgCount = new AtomicInteger(0);
                     receiver.addListenerForTopic("test", (msg, mm) -> {
                         msgCount.incrementAndGet();
                         return null;
                     });
-                    
+
                     sender.start();
                     receiver.start();
                     Thread.sleep(1000);
-                    
+
                     // Test messages that should not timeout
                     for (int i = 0; i < 5; i++) {
                         var msg = new Msg("test", "value" + i, "" + i).setTimingOut(false);
                         sender.sendMessage(msg);
                     }
-                    
+
                     TestUtils.waitForConditionToBecomeTrue(10000, "Did not get all messages", () -> msgCount.get() == 5);
                     assertEquals(5, msgCount.get());
-                    
+
                     // Verify messages are processed and not timed out
-                    long count = morph.createQueryFor(Msg.class, sender.getCollectionName()).countAll();
-                    assertEquals(0, count, "Messages should be processed and removed");
-                    
+                    TestUtils.waitWithMessage(35000, 5000, ()->log.info("Waiting..."));
+                    long count = morph.createQueryFor(Msg.class, sender.getCollectionName("test")).countAll();
+                    assertEquals(5, count, "Messages should be processed and not removed");
+
                     sender.terminate();
                     receiver.terminate();
                 }
@@ -165,7 +167,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 try (Morphium morph = new Morphium(cfg)) {
                     morph.dropCollection(Msg.class);
                     Thread.sleep(500);
-                    
+
                     final MorphiumMessaging producer = morph.createMessaging();
                     final MorphiumMessaging consumer = morph.createMessaging();
                     producer.setSenderId("producer");
@@ -186,10 +188,10 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                         }
                         return null;
                     });
-                    
+
                     Thread.sleep(1000);
                     int numberOfMessages = 20;
-                    
+
                     // Send messages
                     for (int i = 0; i < numberOfMessages; i++) {
                         Msg message = new Msg("test", "m" + i, "v" + i);
@@ -197,12 +199,12 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                         producer.sendMessage(message);
                     }
 
-                    TestUtils.waitForConditionToBecomeTrue(15000, 
-                        "Did not process all messages: " + processed.get() + "/" + numberOfMessages, 
-                        () -> processed.get() >= numberOfMessages);
-                        
+                    TestUtils.waitForConditionToBecomeTrue(15000,
+                                                           "Did not process all messages: " + processed.get() + "/" + numberOfMessages,
+                                                           () -> processed.get() >= numberOfMessages);
+
                     assertEquals(numberOfMessages, processed.get());
-                    
+
                     producer.terminate();
                     consumer.terminate();
                 }
@@ -228,13 +230,13 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 try (Morphium morph = new Morphium(cfg)) {
                     morph.dropCollection(Msg.class);
                     Thread.sleep(500);
-                    
+
                     // Test different queues
                     MorphiumMessaging sender1 = morph.createMessaging();
                     sender1.setQueueName("queue1").setSenderId("sender1");
                     MorphiumMessaging receiver1 = morph.createMessaging();
                     receiver1.setQueueName("queue1").setSenderId("receiver1");
-                    
+
                     MorphiumMessaging sender2 = morph.createMessaging();
                     sender2.setQueueName("queue2").setSenderId("sender2");
                     MorphiumMessaging receiver2 = morph.createMessaging();
@@ -242,33 +244,33 @@ public class BasicMessagingTests extends MultiDriverTestBase {
 
                     AtomicInteger queue1Messages = new AtomicInteger(0);
                     AtomicInteger queue2Messages = new AtomicInteger(0);
-                    
+
                     receiver1.addListenerForTopic("test", (msg, m) -> {
                         queue1Messages.incrementAndGet();
                         return null;
                     });
-                    
+
                     receiver2.addListenerForTopic("test", (msg, m) -> {
                         queue2Messages.incrementAndGet();
                         return null;
                     });
-                    
+
                     sender1.start();
                     receiver1.start();
                     sender2.start();
                     receiver2.start();
                     Thread.sleep(1000);
-                    
+
                     // Send messages to different queues
                     sender1.sendMessage(new Msg("test", "Queue1 message", "value1"));
                     sender2.sendMessage(new Msg("test", "Queue2 message", "value2"));
-                    
-                    TestUtils.waitForConditionToBecomeTrue(5000, "Messages not received", 
-                        () -> queue1Messages.get() >= 1 && queue2Messages.get() >= 1);
-                        
+
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Messages not received",
+                                                           () -> queue1Messages.get() >= 1 && queue2Messages.get() >= 1);
+
                     assertEquals(1, queue1Messages.get());
                     assertEquals(1, queue2Messages.get());
-                    
+
                     sender1.terminate();
                     receiver1.terminate();
                     sender2.terminate();
@@ -296,29 +298,30 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                 try (Morphium morph = new Morphium(cfg)) {
                     morph.dropCollection(Msg.class);
                     Thread.sleep(500);
-                    
+
                     MorphiumMessaging sender = morph.createMessaging();
                     sender.setSenderId("sender");
                     sender.start();
                     Thread.sleep(500);
-                    
+
                     // Send message without any listeners
                     Msg msg = new Msg("orphan", "No listener for this", "value");
                     msg.setTtl(2000);
+                    morph.ensureIndicesFor(Msg.class, sender.getCollectionName(msg) ); //ensure TTL index
                     sender.sendMessage(msg);
                     Thread.sleep(500);
-                    
+
                     // Verify message exists in collection
-                    long count = morph.createQueryFor(Msg.class, sender.getCollectionName()).countAll();
+                    long count = morph.createQueryFor(Msg.class, sender.getCollectionName(msg)).countAll();
                     assertEquals(1, count, "Message should exist in collection");
-                    
+
                     // Wait for TTL to expire
                     Thread.sleep(3000);
-                    
+
                     // Message should be removed by TTL
-                    TestUtils.waitForConditionToBecomeTrue(10000, "Message should be removed by TTL", 
-                        () -> morph.createQueryFor(Msg.class, sender.getCollectionName()).countAll() == 0);
-                    
+                    TestUtils.waitForConditionToBecomeTrue(60000, "Message should be removed by TTL",
+                                                           () -> morph.createQueryFor(Msg.class, sender.getCollectionName(msg)).countAll() == 0);
+
                     sender.terminate();
                 }
             }

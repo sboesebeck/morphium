@@ -46,6 +46,21 @@ public class TestUtils {
     public static long waitForBooleanToBecomeTrue(long maxDuration, String failMessage, AtomicBoolean cond, Runnable statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> { return cond.get();}, statusMessage);
     }
+
+    public static void waitWithMessage(long duration, Runnable status) {
+        waitWithMessage(duration, 1000, status);
+    }
+    public static void waitWithMessage(long duration, long interval, Runnable status) {
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < duration) {
+            status.run();
+            try {
+                Thread.sleep(interval);
+            } catch (InterruptedException e) {
+                //swallow
+            }
+        }
+    }
     public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, Runnable statusMessage) {
         long start = System.currentTimeMillis();
         int last = 0;
