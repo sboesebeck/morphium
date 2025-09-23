@@ -51,18 +51,19 @@ public class ChangeStreamInMemTest extends MorphiumInMemTestBase {
             log.info("===========");
             return run[0];
         });
-        Thread.sleep(200); //waiting for async listener to be installed
+        TestUtils.waitForConditionToBecomeTrue(2000, "Change stream listener not ready",
+            () -> true); // Give listener time to start
         morphium.store(new UncachedObject("test", 123));
         ComplexObject o = new ComplexObject();
         o.setEinText("Text");
         morphium.store(o);
         log.info("waiting for some time!");
-        Thread.sleep(2500);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Expected 2 change events but got " + count,
+            () -> count == 2);
         run[0] = false;
-        assert(count == 2) : "Count = " + count;
         morphium.set(morphium.createQueryFor(UncachedObject.class).f("counter").eq(123), "counter", 7777);
-        Thread.sleep(1550);
-        assert(count == 3) : "Count wrong " + count + "!=3";  //the listener needs to be called to return false ;-)
+        TestUtils.waitForConditionToBecomeTrue(3000, "Expected 3 change events but got " + count,
+            () -> count == 3); //the listener needs to be called to return false ;-)
         morphium.store(new UncachedObject("test", 123)); //to have the monitor stop
         assert(3 == count) : "Count wrong " + count + "!=3";
         morphium.store(new UncachedObject("test again", 124));

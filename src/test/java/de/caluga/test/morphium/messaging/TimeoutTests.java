@@ -111,8 +111,8 @@ public class TimeoutTests extends MultiDriverTestBase {
                     m2.setSenderId("recevier");
                     m2.addListenerForTopic("test", (n, mm) -> null);
                     m2.start();
-                    Thread.sleep(300);
-                    assertEquals(1, m.createQueryFor(Msg.class).countAll());
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Message not stored within timeout",
+                        () -> m.createQueryFor(Msg.class).countAll() == 1);
                     TestUtils.wait(5);
                     assertEquals(0, m.createQueryFor(Msg.class).countAll());
                     m1.terminate();
