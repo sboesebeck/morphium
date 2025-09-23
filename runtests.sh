@@ -667,72 +667,71 @@ if [ -n "$includeTags" ]; then
   rm -f $tmpTagged
 fi
 
-# Handle exclude tags
-if [ -n "$excludeTags" ]; then
-  excludePattern=$(echo "$excludeTags" | sed 's/,/|/g')
-  tmpExcluded=tmp_exclude_files_$PID.txt
-  : >$tmpExcluded
-  # 1) Collect files explicitly annotated with any excluded tag
-  rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >>$tmpExcluded || true
-  # 2) Directory-based patterns for excluded tags
-  IFS=',' read -r -a excludeArr <<<"$excludeTags"
-  for tg in "${excludeArr[@]}"; do
-    case "$tg" in
-    performance)
-      find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpExcluded || true
-      find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpExcluded || true
-      ;;
-    admin)
-      find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpExcluded || true
-      find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpExcluded || true
-      ;;
-    encryption)
-      if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
-        find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpExcluded
-      fi
-      ;;
-    inmemory)
-      if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
-        find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpExcluded
-      fi
-      find src/test/java -name "*InMem*.java" >>$tmpExcluded || true
-      ;;
-    external)
-      # External MongoDB connection tests (excluded by default)
-      find src/test/java -name "*Failover*.java" >>$tmpExcluded || true
-      ;;
-    esac
-  done
-  sort -u $tmpExcluded -o $tmpExcluded
-  if [ -s $tmpExcluded ]; then
-    # Remove excluded files from the files list
-    grep -v -F -f $tmpExcluded $filesList >files_$PID.tmp || cp $filesList files_$PID.tmp
-    mv files_$PID.tmp $filesList
-    # Rebuild class list from filtered files
-    sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
-  fi
-  rm -f $tmpExcluded
-fi
-if [ "$skip" -ne 0 ]; then
-  echo -e "${BL}Info:${CL} Skipping tests already run"
-  if [ -z "$(ls -A 'test.log')" ]; then
-    echo "Nothing to skip"
-  else
-    for i in test.log/*; do
-      i=$(basename $i)
-      i=${i%%.log}
-      echo -e "${BL}info: ${CL}not rerunning $i"
-      grep -v $i $classList >files_$PID.tmp
-      mv files_$PID.tmp $classList
-    done
-  fi
-fi
 if [ "q$1" = "q" ]; then
   # no test to run specified
-  echo "running all tests"
+  # Handle exclude tags
+  if [ -n "$excludeTags" ]; then
+    excludePattern=$(echo "$excludeTags" | sed 's/,/|/g')
+    tmpExcluded=tmp_exclude_files_$PID.txt
+    : >$tmpExcluded
+    # 1) Collect files explicitly annotated with any excluded tag
+    rg -l "@Tag\\(\\\"($excludePattern)\\\"\\)|@Tags\\(.*($excludePattern).*\\)" src/test/java >>$tmpExcluded || true
+    # 2) Directory-based patterns for excluded tags
+    IFS=',' read -r -a excludeArr <<<"$excludeTags"
+    for tg in "${excludeArr[@]}"; do
+      case "$tg" in
+      performance)
+        find src/test/java -name "*Bulk*.java" -o -name "*Buffer*.java" -o -name "*Async*.java" >>$tmpExcluded || true
+        find src/test/java -name "*Speed*.java" -o -name "*Performance*.java" >>$tmpExcluded || true
+        ;;
+      admin)
+        find src/test/java -name "*Index*.java" -o -name "*Transaction*.java" -o -name "*Admin*.java" >>$tmpExcluded || true
+        find src/test/java -name "*ChangeStream*.java" -o -name "*Stats*.java" -o -name "*Config*.java" >>$tmpExcluded || true
+        ;;
+      encryption)
+        if [ -d src/test/java/de/caluga/test/mongo/suite/encrypt ]; then
+          find src/test/java/de/caluga/test/mongo/suite/encrypt -name "*.java" >>$tmpExcluded
+        fi
+        ;;
+      inmemory)
+        if [ -d src/test/java/de/caluga/test/mongo/suite/inmem ]; then
+          find src/test/java/de/caluga/test/mongo/suite/inmem -name "*.java" >>$tmpExcluded
+        fi
+        find src/test/java -name "*InMem*.java" >>$tmpExcluded || true
+        ;;
+      external)
+        # External MongoDB connection tests (excluded by default)
+        find src/test/java -name "*Failover*.java" >>$tmpExcluded || true
+        ;;
+      esac
+    done
+    sort -u $tmpExcluded -o $tmpExcluded
+    if [ -s $tmpExcluded ]; then
+      # Remove excluded files from the files list
+      grep -v -F -f $tmpExcluded $filesList >files_$PID.tmp || cp $filesList files_$PID.tmp
+      mv files_$PID.tmp $filesList
+      # Rebuild class list from filtered files
+      sort -u $filesList | grep "$p" | sed -e 's!/!.!g' | sed -e 's/src.test.java//g' | sed -e 's/.java$//' | sed -e 's/^\.//' >$classList
+    fi
+    rm -f $tmpExcluded
+  fi
+  if [ "$skip" -ne 0 ]; then
+    echo -e "${BL}Info:${CL} Skipping tests already run"
+    if [ -z "$(ls -A 'test.log')" ]; then
+      echo "Nothing to skip"
+    else
+      for i in test.log/*; do
+        i=$(basename $i)
+        i=${i%%.log}
+        echo -e "${BL}info: ${CL}not rerunning $i"
+        grep -v $i $classList >files_$PID.tmp
+        mv files_$PID.tmp $classList
+      done
+    fi
+  fi
 else
   echo "Limiting to test $1"
-  echo "$1" >>$classList
+  echo "$1" >$classList
 fi
 # read
 cnt=$(wc -l <$classList | tr -d ' ')

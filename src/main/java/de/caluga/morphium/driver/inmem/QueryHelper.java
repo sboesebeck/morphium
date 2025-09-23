@@ -470,35 +470,28 @@ public class QueryHelper {
                                 boolean exists;
 
                                 if (keyQuery.contains(".")) {
-                                    // For dotted field paths (like array access), the field resolution logic above
-                                    // has already resolved the path. We check if it was resolved successfully:
-                                    // - If checkValue != toCheck, the path was resolved to some value (including null)
-                                    // - If checkValue == toCheck, the path doesn't exist in the document
-                                    exists = (checkValue != toCheck);
+                                    LookupResult lookup = resolveValuesForPath(toCheck, keyQuery.split("\\."), 0);
+                                    exists = lookup.pathExists;
                                 } else {
-                                    // For simple field names, use the original fieldExists logic
                                     exists = fieldExists(toCheck, keyQuery);
 
-                                    // If not found with the given field name, try converting to camelCase
-                                    // This handles cases where the field was stored with a different naming convention
                                     if (!exists && keyQuery.contains("_")) {
-                                        // Convert snake_case to camelCase for field name parts
                                         String camelCaseField = convertSnakeToCamelCase(keyQuery);
                                         exists = fieldExists(toCheck, camelCaseField);
                                     }
 
-                                    // If still not found, try converting from camelCase to snake_case
                                     if (!exists && !keyQuery.contains("_")) {
                                         String snakeCaseField = convertCamelToSnakeCase(keyQuery);
                                         exists = fieldExists(toCheck, snakeCaseField);
                                     }
                                 }
 
-                                if (commandMap.get(commandKey).equals(Boolean.TRUE) || commandMap.get(commandKey).equals("true") || commandMap.get(commandKey).equals(1)) {
-                                    return exists;
-                                }
+                                Object existsOperand = commandMap.get(commandKey);
+                                boolean expectExists = Boolean.TRUE.equals(existsOperand)
+                                 || "true".equals(existsOperand)
+                                 || Integer.valueOf(1).equals(existsOperand);
 
-                                return !exists;
+                                return expectExists ? exists : !exists;
 
                             case "$nin":
                                 boolean found = false;
@@ -973,53 +966,50 @@ public class QueryHelper {
                         }
                     } else {
                         if (keyQuery.contains(".")) {
-                            // getting the proper value
-                            var path = keyQuery.split("\\.");
-                            Object current = toCheck;
-                            Object value = null;
+                            String[] path = keyQuery.split("\\.");
+                            LookupResult lookup = resolveValuesForPath(toCheck, path, 0);
+                            Object expected = query.get(keyQuery);
 
-                            for (int i = 0; i < path.length; i++) {
-                                var k = path[i];
+                            if (!lookup.pathExists) {
+                                return expected == null;
+                            }
 
-                                if (current instanceof Map && ((Map) current).get(k) == null) {
-                                    if (query.get(keyQuery) == null) {
+                            if (expected == null) {
+                                if (lookup.values.isEmpty()) {
+                                    return true;
+                                }
+
+                                for (Object candidate : lookup.values) {
+                                    if (candidate == null) {
                                         return true;
                                     }
-
-                                    return false;
                                 }
 
-                                if (current instanceof Map && ((Map) current).get(k) instanceof List) {
-                                    List cnd = (List)((Map) current).get(k);
-                                    Integer idx = Integer.valueOf(path[i + 1]);
+                                return false;
+                            }
 
-                                    if (idx >= cnd.size()) {
-                                        current = null;
+                            Collator coll = null;
 
-                                        if (query.get(keyQuery) == null) {
+                            if (collation != null && !collation.isEmpty()) {
+                                coll = getCollator(collation);
+                            }
+
+                            for (Object candidate : lookup.values) {
+                                if (candidate instanceof List) {
+                                    for (Object element : (List) candidate) {
+                                        if (compareValues(element, expected, coll)) {
                                             return true;
                                         }
-
-                                        continue;
                                     }
+                                    continue;
+                                }
 
-                                    value = cnd.get(idx);
-                                    current = cnd.get(idx);
-                                    i++;
-                                } else if (Map.class.isAssignableFrom(((Map) current).get(k).getClass())) {
-                                    current = (Map<String, Object>)((Map) current).get(k);
-                                } else {
-                                    value = ((Map) current).get(k);
+                                if (compareValues(candidate, expected, coll)) {
+                                    return true;
                                 }
                             }
 
-                            if (collation != null && value instanceof String && query.get(keyQuery) instanceof String) {
-                                var c = getCollator(collation);
-                                if (c != null) {
-                                    return c.equals((String) value, (String) query.get(keyQuery));
-                                }
-                            }
-                            return value != null && value.equals(query.get(keyQuery));
+                            return false;
                         }
 
                         if (toCheck.get(keyQuery) == null && query.get(keyQuery) == null) {
@@ -1066,6 +1056,109 @@ public class QueryHelper {
         return ret;
     }
 
+    private static LookupResult resolveValuesForPath(Object current, String[] path, int position) {
+        LookupResult result = new LookupResult();
+
+        if (position >= path.length) {
+            result.pathExists = true;
+
+            if (current instanceof List) {
+                for (Object element : (List) current) {
+                    result.values.add(element);
+                }
+
+                return result;
+            }
+
+            result.values.add(current);
+            return result;
+        }
+
+        if (current instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) current;
+            String key = path[position];
+
+            if (!map.containsKey(key)) {
+                return result;
+            }
+
+            Object next = map.get(key);
+
+            if (next == null) {
+                if (position == path.length - 1) {
+                    result.pathExists = true;
+                    result.values.add(null);
+                }
+
+                return result;
+            }
+
+            LookupResult sub = resolveValuesForPath(next, path, position + 1);
+            result.pathExists = sub.pathExists;
+            result.values.addAll(sub.values);
+            return result;
+        }
+
+        if (current instanceof List) {
+            List<?> list = (List<?>) current;
+            String key = path[position];
+
+            if (isInteger(key)) {
+                int index = Integer.parseInt(key);
+
+                if (index < 0 || index >= list.size()) {
+                    return result;
+                }
+
+                LookupResult sub = resolveValuesForPath(list.get(index), path, position + 1);
+                result.pathExists = sub.pathExists;
+                result.values.addAll(sub.values);
+                return result;
+            }
+
+            boolean anyExists = false;
+
+            for (Object element : list) {
+                LookupResult sub = resolveValuesForPath(element, path, position);
+
+                if (sub.pathExists) {
+                    anyExists = true;
+                }
+
+                result.values.addAll(sub.values);
+            }
+
+            result.pathExists = anyExists;
+            return result;
+        }
+
+        return result;
+    }
+
+    private static boolean isInteger(String value) {
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+
+            if (i == 0 && ch == '-') {
+                if (value.length() == 1) {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!Character.isDigit(ch)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static boolean compareValues(Object left, Object right, Collator coll) {
         Object normalizedLeft = normalizeId(left);
         Object normalizedRight = normalizeId(right);
@@ -1091,6 +1184,11 @@ public class QueryHelper {
         }
 
         return value;
+    }
+
+    private static final class LookupResult {
+        boolean pathExists;
+        final List<Object> values = new ArrayList<>();
     }
 
     private static boolean compareLessThan(Object left, Object right, int offset, Collator coll) {

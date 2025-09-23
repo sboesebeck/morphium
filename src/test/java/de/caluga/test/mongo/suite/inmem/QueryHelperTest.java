@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -174,6 +175,43 @@ public class QueryHelperTest extends MorphiumInMemTestBase {
 
         assertTrue(QueryHelper.matchesQuery(query, doc, null));
 
+    }
+
+    @Test
+    public void referenceListSimpleEqTest() {
+        UncachedObject referenced = new UncachedObject();
+        referenced.setMorphiumId(new MorphiumId());
+        ListContainer container = new ListContainer();
+        container.addRef(referenced);
+
+        Map<String, Object> serialized = morphium.getMapper().serialize(container);
+        Map<String, Object> query = morphium.createQueryFor(ListContainer.class)
+         .f(ListContainer.Fields.refList).eq(referenced).toQueryObject();
+
+        assertTrue(query.containsKey("ref_list.refid"), () -> "Missing ref_list.refid key: " + query.keySet());
+        assertTrue(query.get("ref_list.refid") instanceof ObjectId, () -> "Unexpected value type: " + query.get("ref_list.refid").getClass());
+
+        assertTrue(QueryHelper.matchesQuery(query, serialized, null));
+    }
+
+    @Test
+    public void referenceListQueryMatches() {
+        morphium.dropCollection(ListContainer.class);
+        morphium.dropCollection(UncachedObject.class);
+
+        UncachedObject referenced = new UncachedObject();
+        referenced.setStrValue("ref");
+        referenced.setCounter(42);
+        morphium.store(referenced);
+        waitForWrites();
+
+        ListContainer container = new ListContainer();
+        container.addRef(referenced);
+        morphium.store(container);
+        waitForWrites();
+
+        assertEquals(1, morphium.createQueryFor(ListContainer.class)
+         .f("refList").eq(referenced).countAll());
     }
 
     @Test
