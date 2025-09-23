@@ -66,12 +66,12 @@ public class MessagingTest extends MorphiumTestBase {
                     msg.setProcessedBy(Arrays.asList("Paused"));
                     msg.setExclusive(true);
                     m.sendMessage(msg);
-                    Thread.sleep(200);
-                    assertEquals(0, received.get());
+                    Thread.sleep(200); // Give some time to ensure message is not processed
+                    assertEquals(0, received.get(), "Message should not be received when processed by 'Paused'");
                     msg.setProcessedBy(new ArrayList<>());
                     morph.store(msg, m.getCollectionName(), null);
-                    Thread.sleep(2000);
-                    assertEquals(1, received.get(), "Did not get message?");
+                    TestUtils.waitForConditionToBecomeTrue(5000, "Did not get message",
+                        () -> received.get() == 1);
                     m.terminate();
                     rec.terminate();
                 }

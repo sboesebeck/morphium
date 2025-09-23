@@ -56,12 +56,13 @@ public class UpdateTest extends MultiDriverTestBase {
             toInc.put("counter", 10.0);
             toInc.put("counter2", 0.5);
             morphium.inc(q, toInc, false, true, null);
-            Thread.sleep(1000);
-            assert(q.get().getCounter() == 15) : "counter is:" + q.get().getCounter();
+            final Query<UncachedMultipleCounter> finalQ = q; // Capture for lambda
+            TestUtils.waitForConditionToBecomeTrue(3000, "Counter increment to 15 not completed",
+                () -> finalQ.get().getCounter() == 15);
             assert(q.get().getCounter2() == 3);
             morphium.inc(q, toInc, false, true, null);
-            Thread.sleep(150);
-            assert(q.get().getCounter() == 25) : "counter is:" + q.get().getCounter();
+            TestUtils.waitForConditionToBecomeTrue(1000, "Counter increment to 25 not completed",
+                () -> finalQ.get().getCounter() == 25);
             assert(q.get().getCounter2() == 3.5);
         }
     }

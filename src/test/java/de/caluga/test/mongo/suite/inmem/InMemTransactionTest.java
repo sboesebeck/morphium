@@ -27,8 +27,8 @@ public class InMemTransactionTest extends MorphiumInMemTestBase {
         long l = TestUtils.countUC(morphium);
         assert (l == 11) : "Count wrong: " + l;
         morphium.abortTransaction();
-        Thread.sleep(1000);
-        assertEquals(10, TestUtils.countUC(morphium));
+        TestUtils.waitForConditionToBecomeTrue(3000, "Transaction abort not reflected in count",
+            () -> TestUtils.countUC(morphium) == 10);
 
     }
 

@@ -114,16 +114,16 @@ public class BufferedWriterTest extends MorphiumTestBase {
         morphium.inc(q, toInc, false, true, null);
         waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(1000);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Expected 100 BufferedByTimeObject documents",
+            () -> morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 100);
         assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
         assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(1.1).countAll() == 100);
         q = morphium.createQueryFor(BufferedByTimeObject.class).f("counter").eq(201);
         morphium.inc(q, toInc, true, false, null);
         waitForAsyncOperationsToStart(morphium, 1000);
         TestUtils.waitForWrites(morphium, log);
-        Thread.sleep(1000);
-        assert(morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
+        TestUtils.waitForConditionToBecomeTrue(5000, "Expected 101 BufferedByTimeObject documents",
+            () -> morphium.createQueryFor(BufferedByTimeObject.class).countAll() == 101);
         assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(101).countAll() == 100);
         assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.counter).eq(202).countAll() == 1);
         assert(morphium.createQueryFor(BufferedByTimeObject.class).f(UncachedObject.Fields.dval).eq(0.1).countAll() == 1);
