@@ -72,17 +72,17 @@ public class Msg {
         exclusive = false;
     }
 
-    public Msg(String name, String msg, String value) {
-        this(name, msg, value, 30000, false);
+    public Msg(String topic, String msg, String value) {
+        this(topic, msg, value, 30000, false);
     }
 
-    public Msg(String name, String msg, String value, long ttl) {
-        this(name, msg, value, ttl, false);
+    public Msg(String topic, String msg, String value, long ttl) {
+        this(topic, msg, value, ttl, false);
     }
 
-    public Msg(String name, String msg, String value, long ttl, boolean exclusive) {
+    public Msg(String topic, String msg, String value, long ttl, boolean exclusive) {
         this();
-        this.topic = name;
+        this.topic = topic;
         this.msg = msg;
         this.value = value;
         this.ttl = ttl;
