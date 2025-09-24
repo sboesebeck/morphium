@@ -1493,16 +1493,16 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                             boolean expired;
 
                                             if (val instanceof Date) {
-                                                log.info("value is of type date: {}", val);
+                                                // log.info("value is of type date: {}", val);
                                                 expired = !((Date) val).after(threshold);
                                             } else if (val instanceof Number) {
-                                                log.info("value is of type number: {}", val);
+                                                // log.info("value is of type number: {}", val);
                                                 expired = ((Number) val).longValue() <= threshold.getTime();
                                             } else {
                                                 log.warn("expireAfterSeconds value is not Number or date: {} of type {}", val, val.getClass().getName());
                                                 expired = QueryHelper.matchesQuery(Doc.of(keys[0], Doc.of("$lte", threshold)), existing, null);
                                             }
-                                            log.info("expired: {}", expired);
+                                            // log.info("expired: {}", expired);
 
                                             if (expired) {
                                                 toRemove.add(existing);
