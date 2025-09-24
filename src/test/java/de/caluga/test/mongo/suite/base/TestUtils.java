@@ -25,35 +25,35 @@ public class TestUtils {
     /**
      * wait until cond.get() <= valueToReach
      */
-    public static long waitForIntegerValueMax(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+    public static long waitForIntegerValueMax(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, WaitCallback statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() <= valueToReach;}, statusMessage);
     }
     /**
      * wait until cond.get() >= valueToReach
      */
-    public static long waitForIntegerValueMin(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+    public static long waitForIntegerValueMin(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, WaitCallback statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() >= valueToReach;}, statusMessage);
     }
     /**
      * wait until cond.get() == valueToReach
      */
-    public static long waitForIntegerValue(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, Runnable statusMessage) {
+    public static long waitForIntegerValue(long maxDuration, String failMessage, AtomicInteger cond, int valueToReach, WaitCallback statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return cond.get() == valueToReach;}, statusMessage);
     }
-    public static long waitForBooleanToBecomeFalse(long maxDuration, String failMessage, AtomicBoolean cond, Runnable statusMessage) {
+    public static long waitForBooleanToBecomeFalse(long maxDuration, String failMessage, AtomicBoolean cond, WaitCallback statusMessage) {
         return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> {return !cond.get();}, statusMessage);
     }
-    public static long waitForBooleanToBecomeTrue(long maxDuration, String failMessage, AtomicBoolean cond, Runnable statusMessage) {
-        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> { return cond.get();}, statusMessage);
+    public static long waitForBooleanToBecomeTrue(long maxDuration, String failMessage, AtomicBoolean cond, WaitCallback statusCB) {
+        return waitForConditionToBecomeTrue(maxDuration, failMessage, ()-> { return cond.get();}, statusCB);
     }
 
-    public static void waitWithMessage(long duration, Runnable status) {
+    public static void waitWithMessage(long duration, WaitCallback status) {
         waitWithMessage(duration, 1000, status);
     }
-    public static void waitWithMessage(long duration, long interval, Runnable status) {
+    public static void waitWithMessage(long duration, long interval, WaitCallback status) {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < duration) {
-            status.run();
+            status.stillWaiting(System.currentTimeMillis() - start);
             try {
                 Thread.sleep(interval);
             } catch (InterruptedException e) {
@@ -61,27 +61,36 @@ public class TestUtils {
             }
         }
     }
-    public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, Runnable statusMessage) {
+    public static long waitForConditionToBecomeTrue(long maxDuration, String failMessage, Condition tst, WaitCallback statusMessage) {
+        Logger log = LoggerFactory.getLogger(TestUtils.class);
+        return waitForConditionToBecomeTrue(maxDuration, (dur, e)-> { log.info(failMessage, e);}, tst, statusMessage, null);
+    }
+    public static long waitForConditionToBecomeTrue(long maxDuration, FailCallback failCB, Condition tst, WaitCallback statusMessage) {
+        return waitForConditionToBecomeTrue(maxDuration, failCB, tst, statusMessage, null);
+    }
+    public static long waitForConditionToBecomeTrue(long maxDuration, FailCallback failCB, Condition tst, WaitCallback statusCB, FinishCallback finalCB) {
         long start = System.currentTimeMillis();
         int last = 0;
 
         try {
             while (!tst.test()) {
                 if (System.currentTimeMillis() - start > maxDuration) {
-                    throw new AssertionError(failMessage);
+                    throw new AssertionError(failCB);
                 }
 
-                if (statusMessage != null && ((System.currentTimeMillis() - start) / 1000) > last) {
+                if (statusCB != null && ((System.currentTimeMillis() - start) / 1000) > last) {
                     last = (int) (System.currentTimeMillis() - start) / 1000;
-                    statusMessage.run();
+                    statusCB.stillWaiting(System.currentTimeMillis() - start);
                 }
 
                 Thread.sleep(10); // Much more CPU-friendly than Thread.yield()
             }
 
-            if (statusMessage != null)
-                statusMessage.run();
-            return System.currentTimeMillis() - start;
+            var dur = System.currentTimeMillis() - start;
+            if (finalCB != null) {
+                finalCB.finished(dur);
+            }
+            return dur;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // Restore interrupt status
             throw new RuntimeException("Interrupted while waiting for condition", e);
@@ -282,5 +291,16 @@ public class TestUtils {
      */
     public static <T> T waitForObject(Supplier<T> supplier, long maxDelay) throws InterruptedException {
         return (T) TestUtils.waitForObject(supplier, 10L, 30L, maxDelay);
+    }
+
+
+    public interface WaitCallback {
+        public void stillWaiting(long dur);
+    }
+    public interface FinishCallback {
+        public void finished(long dur);
+    }
+    public interface FailCallback {
+        public void fail(long dur, Throwable e);
     }
 }
