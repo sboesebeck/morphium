@@ -106,7 +106,6 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
             assertTrue(mapValue.containsKey(StatusInfoListener.morphiumConfigKey));
             assertTrue(mapValue.containsKey(StatusInfoListener.morphiumCachestatsKey));
             assertFalse(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
-            assertFalse(mapValue.containsKey(StatusInfoListener.globalListenersKey));
         }
 
         log.info("all fine... exiting");
@@ -212,16 +211,12 @@ public class StatusInfoListenerTests extends MorphiumTestBase {
     private void checkMessagingStats(Msg m, Map<String, Object> mapValue) {
         if (m.getSender().equals("m1")) {
             assertTrue(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
-            assertTrue(mapValue.containsKey(StatusInfoListener.globalListenersKey));
-            assertEquals(1, ((List) mapValue.get(StatusInfoListener.globalListenersKey)).size());
             assertEquals(2, ((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size()); //own listener + statusinfo
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
             assertFalse(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));
             assertTrue(mapValue.containsKey(StatusInfoListener.messagingThreadpoolstatsKey));
         } else if (m.getSender().equals("m2")) {
             assertTrue(mapValue.containsKey(StatusInfoListener.messageListenersbyNameKey));
-            assertTrue(mapValue.containsKey(StatusInfoListener.globalListenersKey));
-            assertEquals(0, ((List) mapValue.get(StatusInfoListener.globalListenersKey)).size());
             assertEquals(3, ((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).size());
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test1"));
             assertTrue(((Map) mapValue.get(StatusInfoListener.messageListenersbyNameKey)).containsKey("test2"));

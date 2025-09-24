@@ -12,7 +12,6 @@ public class StatusInfoListener implements MessageListener<Msg> {
     private Logger log = LoggerFactory.getLogger(StatusInfoListener.class);
     public final static String messagingThreadpoolstatsKey = "messaging_threadpoolstats";
     public final static String messageListenersbyNameKey = "message_listeners_by_name";
-    public final static String globalListenersKey = "global_listeners";
     public final static String morphiumCachestatsKey = "morphium.cachestats";
     public final static String morphiumConfigKey = "morphium.config";
     public final static String morphiumDriverStatsKey = "morphium.driver.stats";
