@@ -1455,30 +1455,66 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             try {
                 for (String db : database.keySet()) {
                     for (String coll : database.get(db).keySet()) {
+                        // log.info("Checking collection {} - size {}", coll, getCollection(db, coll).size());
+                        if (getCollection(db, coll).isEmpty()) {
+                            continue;
+                        }
                         var idx = getIndexes(db, coll);
 
                         for (var i : idx) {
                             Map<String, Object> options = (Map<String, Object>) i.get("$options");
 
                             if (options != null && options.containsKey("expireAfterSeconds")) {
-                                // log.info("Found collection candidate for expire..." + db + "." + coll);
+                                // log.info("Found collection candidate for expire...{}.{}", db, coll);
+
                                 var k = new HashMap<>(i);
                                 k.remove("$options");
                                 var keys = k.keySet().toArray(new String[] {});
+
 
                                 if (keys.length > 1) {
                                     log.error("Too many keys for expire-index!!!");
                                 } else {
                                     try {
-                                        var candidates = find(db, coll, Doc.of(keys[0], Doc.of("$lte", new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000))), null,
-                                                              null, null, 0, 0, true);
+                                        Date threshold = new Date(System.currentTimeMillis() - ((int) options.get("expireAfterSeconds")) * 1000);
+                                        List<Map<String, Object>> snapshot = new ArrayList<>(getCollection(db, coll));
+                                        List<Map<String, Object>> toRemove = new ArrayList<>();
+                                        // log.info("Checking {} candidates for key {}", snapshot.size(), keys[0]);
 
-                                        for (Map<String, Object> o : candidates) {
-                                            if (!o.containsKey(keys[0])) {
+                                        for (Map<String, Object> existing : snapshot) {
+                                            Object val = existing.get(keys[0]);
+
+                                            if (val == null) {
+                                                // log.info("Objects value for {} is null", keys[0]);
                                                 continue;
                                             }
+                                            // log.info("Objects value for {} is {}", keys[0], val);
 
-                                            getCollection(db, coll).remove(o);
+                                            boolean expired;
+
+                                            if (val instanceof Date) {
+                                                log.info("value is of type date: {}", val);
+                                                expired = !((Date) val).after(threshold);
+                                            } else if (val instanceof Number) {
+                                                log.info("value is of type number: {}", val);
+                                                expired = ((Number) val).longValue() <= threshold.getTime();
+                                            } else {
+                                                log.warn("expireAfterSeconds value is not Number or date: {} of type {}", val, val.getClass().getName());
+                                                expired = QueryHelper.matchesQuery(Doc.of(keys[0], Doc.of("$lte", threshold)), existing, null);
+                                            }
+                                            log.info("expired: {}", expired);
+
+                                            if (expired) {
+                                                toRemove.add(existing);
+                                            }
+                                        }
+
+                                        if (!toRemove.isEmpty()) {
+                                            for (Map<String, Object> o : toRemove) {
+                                                getCollection(db, coll).remove(o);
+                                            }
+
+                                            updateIndexData(db, coll, null);
                                         }
                                     } catch (Exception e) {
                                         log.error("Error", e);

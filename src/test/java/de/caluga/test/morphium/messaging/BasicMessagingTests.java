@@ -138,7 +138,7 @@ public class BasicMessagingTests extends MultiDriverTestBase {
                     assertEquals(5, msgCount.get());
 
                     // Verify messages are processed and not timed out
-                    TestUtils.waitWithMessage(35000, 5000, ()->log.info("Waiting..."));
+                    TestUtils.waitWithMessage(35000, 5000, (dur)->log.info("Waiting...{}s", dur / 1000));
                     long count = morph.createQueryFor(Msg.class, sender.getCollectionName("test")).countAll();
                     assertEquals(5, count, "Messages should be processed and not removed");
 

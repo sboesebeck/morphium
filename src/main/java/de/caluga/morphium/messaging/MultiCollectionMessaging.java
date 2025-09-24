@@ -677,12 +677,24 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 unlock(message);
             } else {
                 message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(message, getCollectionName(message), Msg.Fields.deleteAt, message.getDeleteAt());
+                morphium.setInEntity(message, getCollectionName(message), Msg.Fields.deleteAt, new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+
+                // if (message.getDeleteAfterProcessingTime() > 0 && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
+                //     long delay = Math.max(message.getDeleteAfterProcessingTime(), 10_000);
+                //     java.util.concurrent.CompletableFuture.runAsync(() -> {
+                //         try {
+                //             morphium.createQueryFor(Msg.class, getCollectionName(message))
+                //                     .f(Msg.Fields.msgId).eq(message.getMsgId()).remove();
+                //         } catch (Exception e) {
+                //             log.warn("Failed to remove message after processing", e);
+                //         }
+                //     }, java.util.concurrent.CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS));
+                // }
 
                 if (message.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName(message)).f("_id")
                             .eq(message.getMsgId())
-                            .set(MsgLock.Fields.deleteAt, message.getDeleteAt());
+                            .set(MsgLock.Fields.deleteAt, new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
                 }
             }
         }
@@ -787,7 +799,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         var pipeline = new ArrayList<Map<String, Object>>();
         pipeline.add(UtilsMap.of("$match", match));
         log.debug("Adding changestream for collection {}", getCollectionName(n));
-        morphium.ensureIndicesFor(Msg.class, n);
+        morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true,
             morphium.getConfig().connectionSettings().getMaxWaitTime(),
             pipeline);

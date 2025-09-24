@@ -609,6 +609,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
                 morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
 
+                if (obj.getDeleteAfterProcessingTime() > 0 && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
+                    long delay = Math.max(obj.getDeleteAfterProcessingTime(), 10_000);
+                    java.util.concurrent.CompletableFuture.runAsync(() -> {
+                        try {
+                            morphium.createQueryFor(Msg.class, getCollectionName())
+                                    .f(Msg.Fields.msgId).eq(obj.getMsgId()).remove();
+                        } catch (Exception e) {
+                            log.warn("Failed to remove message after processing", e);
+                        }
+                    }, java.util.concurrent.CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS));
+                }
+
                 if (obj.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId()).set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
                 }
