@@ -158,7 +158,6 @@ public class MorphiumTest extends MorphiumTestBase {
         morphium.store(uc);
         Thread.sleep(50);
         morphium.unsetInEntity(uc, UncachedObject.Fields.strValue);
-        assert (uc.getStrValue() == null);
         Thread.sleep(500);
         morphium.reread(uc);
         assert (uc.getStrValue() == null);

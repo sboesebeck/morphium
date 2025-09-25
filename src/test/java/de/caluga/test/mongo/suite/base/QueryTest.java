@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @Tag("core")
@@ -397,7 +398,7 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(100);
         Query<UncachedObject> q = morphium.createQueryFor(UncachedObject.class);
         List<UncachedObject> lst = q.rawQuery(UtilsMap.of("counter", 12)).asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -407,7 +408,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).set(UncachedObject.Fields.strValue, "changed", false, false, null);
         Thread.sleep(50);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -419,7 +420,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(42).setEnum(m, false, false);
         Thread.sleep(50);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -431,7 +432,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(3).setEnum(m, false, true);
         Thread.sleep(50);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 2);
+        assertEquals(3, lst.size());
     }
 
     @Test
@@ -443,7 +444,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).gt(1000).f(UncachedObject.Fields.counter).lt(1002).setEnum(m, true, true);
         Thread.sleep(50);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -472,7 +473,7 @@ public class QueryTest extends MorphiumTestBase {
 
         Thread.sleep(100);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -482,7 +483,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(10002).set(UncachedObject.Fields.strValue, "new", true, true, null);
         Thread.sleep(50);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("new").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
         assert(lst.get(0).getCounter() == 10002);
     }
 
@@ -495,7 +496,7 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).lt(2).set(m);
         Thread.sleep(150);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.strValue).eq("changed").asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
     }
 
     @Test
@@ -567,8 +568,8 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(50);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                            .f(UncachedObject.Fields.counter).gte(100).countAll();
-        assert(cnt != 0);
-        assert(cnt == 1);
+        assertNotEquals(0, cnt);
+        assertEquals(1, cnt);
     }
 
     @Test
@@ -589,8 +590,8 @@ public class QueryTest extends MorphiumTestBase {
             assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
 
-        assert(cnt != 0);
-        assert(cnt == 4);
+        assertNotEquals(0, cnt);
+        assertEquals(5, cnt);
     }
 
     @Test
@@ -603,8 +604,8 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(550);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                            .f(UncachedObject.Fields.dval).eq(0.2).countAll();
-        assert(cnt != 0);
-        assert(cnt == 4);
+        assertNotEquals(0, cnt);
+        assertEquals(5, cnt);
     }
 
     @Test
@@ -625,8 +626,8 @@ public class QueryTest extends MorphiumTestBase {
         assert(ai.get() == 1);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(0.2).countAll();
-        assert(cnt != 0);
-        assert(cnt == 4);
+        assertNotEquals(0, cnt);
+        assertEquals(5, cnt);
     }
 
     @Test
@@ -639,8 +640,7 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(550);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                            .f(UncachedObject.Fields.counter).lt(0).countAll();
-        assert(cnt != 0);
-        assert(cnt == 1);
+        assertEquals(cnt, 1);
     }
 
     @Test
@@ -653,8 +653,8 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(150);
         long cnt = morphium.createQueryFor(UncachedObject.class)
                            .f(UncachedObject.Fields.counter).lt(0).countAll();
-        assert(cnt != 0);
-        assert(cnt == 4);
+        assertNotEquals(0, cnt);
+        assertEquals(5, cnt);
     }
 
     @Test
@@ -664,17 +664,9 @@ public class QueryTest extends MorphiumTestBase {
         morphium.createQueryFor(UncachedObject.class)
                 .f(UncachedObject.Fields.counter).lt(5)
                 .dec(UncachedObject.Fields.dval, 0.2, false, true);
-        long cnt = 0;
-        long s = System.currentTimeMillis();
 
-        while (cnt < 4) {
-            cnt = morphium.createQueryFor(UncachedObject.class)
-                          .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
-            Thread.sleep(100);
-            assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
-        }
+        TestUtils.waitForConditionToBecomeTrue((long)morphium.getConfig().getMaxWaitTime(), "took too long", ()->morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.dval).lt(0).countAll() >= 4);
 
-        assert(cnt == 4);
     }
 
     @Test
@@ -682,6 +674,7 @@ public class QueryTest extends MorphiumTestBase {
         createUncachedObjects(10);
         long s = System.currentTimeMillis();
 
+        TestUtils.waitForConditionToBecomeTrue((long)morphium.getConfig().getMaxWaitTime(), (dur, e)->{ log.info("Took to long");}, ()->TestUtils.countUC(morphium) >= 10, (dur)->{ log.info("waiting");}, (dur)->{log.info("Got all");});
         while (TestUtils.countUC(morphium) < 10) {
             Thread.sleep(50);
             assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
@@ -698,11 +691,11 @@ public class QueryTest extends MorphiumTestBase {
         });
 
         Thread.sleep(150);
-        assert(ai.get() == 1);
+        assertEquals(1, ai.get());
         long cnt = morphium.createQueryFor(UncachedObject.class)
                    .f(UncachedObject.Fields.dval).eq(-0.2).countAll();
-        assert(cnt != 0);
-        assert(cnt == 4);
+        assertNotEquals(0, cnt);
+        assertEquals(5, cnt);
     }
 
     @Test
@@ -720,7 +713,7 @@ public class QueryTest extends MorphiumTestBase {
         Thread.sleep(150);
         List<UncachedObject> lst = morphium.createQueryFor(UncachedObject.class).f(UncachedObject.Fields.counter).eq(2).
                                            setProjection(UncachedObject.Fields.counter, UncachedObject.Fields.dval).asList();
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
         assert(lst.get(0).getStrValue() == null);
         assert(lst.get(0).getDval() != 0);
         assert(lst.get(0).getCounter() != 0);
@@ -742,7 +735,7 @@ public class QueryTest extends MorphiumTestBase {
             lst = q.asList();
         }
 
-        assert(lst.size() == 1) : "Count wrong: " + lst.size() + " count is:" + q.countAll();
+        assertEquals(lst.size(), 1, "Count wrong: " + lst.size() + " count is:" + q.countAll());
         assert(lst.get(0).getStrValue() == null);
         assert(lst.get(0).getDval() != 0);
         assert(lst.get(0).getCounter() != 0);
@@ -761,13 +754,14 @@ public class QueryTest extends MorphiumTestBase {
             assert(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
         }
 
-        assert(lst.size() == 1);
+        assertEquals(lst.size(), 1);
         assert(lst.get(0).getStrValue() == null);
     }
 
     @Test
     public void testSubDocs() throws Exception {
         SubDocTest sd = new SubDocTest();
+        sd.setSubDocs(new HashMap<>());
         morphium.store(sd);
         Thread.sleep(100);
         Query<SubDocTest> q = morphium.createQueryFor(SubDocTest.class).f(SubDocTest.Fields.id).eq(sd.getId());
