@@ -35,6 +35,7 @@ import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
 
 import org.bson.types.ObjectId;
+import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.openjdk.jol.vm.VM;
 import org.slf4j.Logger;
@@ -739,10 +740,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                                 );
 
             log.info("MapReduce completed with {} results", results.size());
+            log.debug("MapReduce result payload: {}", results);
 
             // Format results according to MongoDB MapReduce response format
             Map<String, Object> response = new HashMap<>();
-            response.put("result", results);
+            response.put("results", results);
             response.put("timeMillis", 0); // Could be enhanced to track actual time
             response.put("counts", Map.of(
                                          "input", results.size(),
@@ -4038,49 +4040,30 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         "  jsEmitResults.push(result); " +
                         "}");
 
-            // Test emit function
-            try {
-                engine.eval("emit('globalTest', 'globalTestValue')");
-                Object jsArraySize = engine.eval("jsEmitResults.length");
-                log.info("Global emit test successful, jsEmitResults size: {}", jsArraySize);
-            } catch (Exception e) {
-                log.error("Global emit test failed: {}", e.getMessage());
-            }
+            // Provide an ObjectId() function compatible with MongoDB map/reduce scripts
+            engine.eval("function ObjectId() { " +
+                        "  var hex = '0123456789abcdef';" +
+                        "  var id = '';" +
+                        "  for (var i = 0; i < 24; i++) {" +
+                        "    id += hex.charAt(Math.floor(Math.random() * 16));" +
+                        "  }" +
+                        "  return id;" +
+                        "}");
+
+            // Prepare the map function once
+            engine.eval("var mapFunc = " + mapFunction + ";");
 
             // Phase 1: Map phase - execute map function for each document
             log.info("Starting map phase with {} documents", documents.size());
             for (Map<String, Object> doc : documents) {
                 log.debug("Processing document: {}", doc);
-                // Set current document in JavaScript context
-                engine.put("this", doc);
-                for (Map.Entry<String, Object> entry : doc.entrySet()) {
-                    engine.put(entry.getKey(), entry.getValue());
-                }
-
-                // Execute map function
-                log.debug("Executing map function: {}", mapFunction);
+                // Execute map function with document bound to `this`
                 try {
-                    // Test JavaScript execution
-                    Object testResult = engine.eval("this.counter");
-                    log.debug("Test JS access to this.counter: {}", testResult);
-
-                    // Test emit function availability
-                    Object emitFunctionTest = engine.eval("emit");
-                    log.debug("Test emit function availability: {}", emitFunctionTest);
-
-                    // Test direct emit call
-                    try {
-                        engine.eval("emit('testKey', 'testValue')");
-                        log.info("Direct emit() call successful");
-                    } catch (Exception e) {
-                        log.error("Direct emit() call failed: {}", e.getMessage());
-                    }
-
-                    // Execute the original map function directly (emit is now defined)
-                    String executableMapFunction = "var mapFunc = " + mapFunction + "; mapFunc();";
-                    log.debug("Executing map function: {}", executableMapFunction);
-                    Object result = engine.eval(executableMapFunction);
-                    log.debug("Map function result: {}", result);
+                    String jsonDoc = Utils.toJsonString(doc);
+                    String escapedJson = jsonDoc.replace("\\", "\\\\").replace("'", "\\'");
+                    String executable = "var __mapDoc = JSON.parse('" + escapedJson + "'); mapFunc.call(__mapDoc);";
+                    log.debug("Executing map function for document");
+                    engine.eval(executable);
                 } catch (Exception e) {
                     log.error("JavaScript execution error: {}", e.getMessage(), e);
                 }
@@ -4093,61 +4076,86 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             log.info("Map phase completed with {} emissions", finalJsArraySize);
 
             // Convert JavaScript array to Java List using standard ScriptEngine approach
+            JSONParser jsonParser = new JSONParser();
             Object jsArrayLength = engine.eval("jsEmitResults.length");
             if (jsArrayLength instanceof Number) {
                 int arrayLength = ((Number) jsArrayLength).intValue();
                 log.info("Converting {} JavaScript results to Java", arrayLength);
 
                 for (int i = 0; i < arrayLength; i++) {
-                    Object jsResult = engine.eval("jsEmitResults[" + i + "]");
                     Object key = engine.eval("jsEmitResults[" + i + "]._id");
-                    Object value = engine.eval("jsEmitResults[" + i + "].value");
+                    String valueJson = (String) engine.eval("JSON.stringify(jsEmitResults[" + i + "].value)");
 
                     Map<String, Object> javaResult = new HashMap<>();
                     javaResult.put("_id", key);
-                    javaResult.put("value", value);
+                    javaResult.put("valueJson", valueJson);
                     mapResults.add(javaResult);
-                    log.debug("Converted result {}: key={}, value={}", i, key, value);
+                    log.debug("Converted result {}: key={}, valueJson={}", i, key, valueJson);
                 }
             }
 
             // Phase 2: Group by key
-            Map<Object, List<Object>> groupedResults = new HashMap<>();
+            Map<Object, List<String>> groupedResults = new HashMap<>();
             for (Map<String, Object> mapResult : mapResults) {
                 Object key = mapResult.get("_id");
-                Object value = mapResult.get("value");
+                String valueJson = (String) mapResult.get("valueJson");
 
-                groupedResults.computeIfAbsent(key, k -> new ArrayList<>()).add(value);
+                groupedResults.computeIfAbsent(key, k -> new ArrayList<>()).add(valueJson);
+            }
+
+            if (reduceFunction != null && !reduceFunction.trim().isEmpty()) {
+                engine.eval("var reduceFunc = " + reduceFunction + ";");
+            }
+
+            if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
+                engine.eval("var finalizeFunc = " + finalizeFunction + ";");
             }
 
             // Phase 3: Reduce phase - execute reduce function for each key
             List<Map<String, Object>> finalResults = new ArrayList<>();
-            for (Map.Entry<Object, List<Object>> entry : groupedResults.entrySet()) {
+            for (Map.Entry<Object, List<String>> entry : groupedResults.entrySet()) {
                 Object key = entry.getKey();
-                List<Object> values = entry.getValue();
+                List<String> values = entry.getValue();
 
                 Object reducedValue;
-                if (values.size() == 1) {
-                    // If only one value, no reduction needed
-                    reducedValue = values.get(0);
+                if (reduceFunction == null || reduceFunction.trim().isEmpty()) {
+                    reducedValue = values.size() == 1 ? values.get(0) : new ArrayList<>(values);
                 } else {
-                    // Execute reduce function
-                    engine.put("key", key);
-                    engine.put("values", values);
-                    reducedValue = engine.eval("(" + reduceFunction + ")(key, values)");
+                    engine.put("__javaKey__", key);
+                    StringBuilder valuesArrayJson = new StringBuilder("[");
+                    for (int i = 0; i < values.size(); i++) {
+                        if (i > 0) {
+                            valuesArrayJson.append(',');
+                        }
+                        valuesArrayJson.append(values.get(i));
+                    }
+                    valuesArrayJson.append(']');
+                    engine.put("__valuesJson__", valuesArrayJson.toString());
+                    reducedValue = engine.eval("reduceFunc(__javaKey__, JSON.parse(__valuesJson__))");
                 }
 
                 // Apply finalize function if provided
                 if (finalizeFunction != null && !finalizeFunction.trim().isEmpty()) {
-                    engine.put("key", key);
-                    engine.put("reducedVal", reducedValue);
-                    reducedValue = engine.eval("(" + finalizeFunction + ")(key, reducedVal)");
+                    engine.put("__javaKey__", key);
+                    engine.put("__reducedValue__", reducedValue);
+                    reducedValue = engine.eval("finalizeFunc(__javaKey__, __reducedValue__)");
                 }
 
                 // Create result document
                 Map<String, Object> result = new HashMap<>();
                 result.put("_id", key);
-                result.put("value", reducedValue);
+                if (reducedValue instanceof Map) {
+                    result.put("value", reducedValue);
+                } else {
+                    try {
+                        engine.put("__reducedJson__", reducedValue);
+                        String reducedJson = (String) engine.eval("JSON.stringify(__reducedJson__)");
+                        Object parsed = jsonParser.parse(reducedJson);
+                        result.put("value", parsed);
+                    } catch (ParseException pe) {
+                        throw new MorphiumDriverException("Failed to parse reduce result", pe);
+                    }
+                }
                 finalResults.add(result);
             }
 
