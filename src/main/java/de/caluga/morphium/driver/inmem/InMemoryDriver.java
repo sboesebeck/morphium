@@ -172,6 +172,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<Long, FindCommand> cursors = new ConcurrentHashMap<>();
     // state for MorphiumCursor-based iterations
     private final Map<Long, InMemoryCursor> iterationCursors = new ConcurrentHashMap<>();
+    // command-level cursor buffers (simulate MongoDB batches)
+    private final Map<Long, CursorResultBuffer> activeQueryCursors = new ConcurrentHashMap<>();
+    private final AtomicLong cursorIdSequence = new AtomicLong(1);
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(2);
     private boolean running = true;
     private int expireCheck = 10000;
@@ -420,22 +423,48 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException {
         stats.get(DriverStatsKey.REPLY_PROCESSED).incrementAndGet();
         var data = commandResults.remove(0);
-        List<Map<String, Object >> batch = new ArrayList<>();
+
+        if (data.containsKey("cursor")) {
+            Map<String, Object> cursorDoc = (Map<String, Object>) data.get("cursor");
+
+            if (cursorDoc.containsKey("firstBatch")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> firstBatch = cursorDoc.get("firstBatch") != null ?
+                        new ArrayList<>((List<Map<String, Object>>) cursorDoc.get("firstBatch")) : new ArrayList<>();
+                long cursorId = cursorDoc.get("id") instanceof Number ? ((Number) cursorDoc.get("id")).longValue() : 0L;
+                String namespace = cursorDoc.get("ns") instanceof String ? (String) cursorDoc.get("ns") : "";
+
+                int effectiveBatchSize = batchsize > 0 ? batchsize : firstBatch.size();
+
+                if (cursorId != 0) {
+                    CursorResultBuffer buffer = activeQueryCursors.get(cursorId);
+
+                    if ((effectiveBatchSize <= 0) && buffer != null && buffer.defaultBatchSize > 0) {
+                        effectiveBatchSize = buffer.defaultBatchSize;
+                    }
+                }
+
+                if (effectiveBatchSize <= 0) {
+                    effectiveBatchSize = firstBatch.size() > 0 ? firstBatch.size() : 101;
+                }
+
+                return new InMemoryFindCursor(cursorId, namespace, firstBatch, effectiveBatchSize);
+            }
+
+            if (cursorDoc.containsKey("nextBatch")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> nextBatch = cursorDoc.get("nextBatch") != null ?
+                        (List<Map<String, Object>>) cursorDoc.get("nextBatch") : List.of();
+                return new SingleBatchCursor(nextBatch);
+            }
+        }
+
+        List<Map<String, Object>> batch = new ArrayList<>();
 
         if (data.containsKey("results")) {
-            batch = ((List<Map<String, Object >>) data.get("results"));
+            batch = (List<Map<String, Object>>) data.get("results");
         }
-        else if (data.containsKey("cursor")) {
-            var cursor = (Map<String, Object>) data.get("cursor");
 
-            if (cursor.containsKey("firstBatch")) {
-                batch = (List<Map<String, Object >>) cursor.get("firstBatch");
-            }
-
-            else if (cursor.containsKey("nextBatch")) {
-                batch = (List<Map<String, Object >>) cursor.get("nextBatch");
-            }
-        }
         return new SingleBatchCursor(batch);
     }
 
@@ -740,7 +769,6 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                                                 );
 
             log.info("MapReduce completed with {} results", results.size());
-            log.debug("MapReduce result payload: {}", results);
 
             // Format results according to MongoDB MapReduce response format
             Map<String, Object> response = new HashMap<>();
@@ -907,15 +935,17 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // cmd.getClass().getSimpleName() + ")");
         int ret = commandNumber.incrementAndGet();
         List<Map<String, Object >> result = runFind(cmd);
-        long cursorId = (long) 0;
+
+        if (result == null) {
+            result = new ArrayList<>();
+        }
 
         if (cmd.isTailable() != null && cmd.isTailable()) {
-            // tailable cursor
-            cursorId = (long) ret;
+            long cursorId = ret;
             cursors.put(cursorId, cmd);
+            final List<Map<String, Object>> tailableResult = result;
 
-            if (result == null || result.isEmpty()) {
-                // waiting for some changes
+            if (result.isEmpty()) {
                 WatchCommand watchCmd = new WatchCommand(this)
                 .setDb(cmd.getDb())
                 .setColl(cmd.getColl())
@@ -925,8 +955,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
-                        result.add(data);
+                        tailableResult.add(data);
                     }
+
                     @Override
                     public boolean isContinued() {
                         return false;
@@ -936,16 +967,42 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 watch(watchCmd);
                 watchCmd.releaseConnection();
             }
+
+            Map<String, Object> response = prepareResult();
+            addCursor(cmd.getDb(), cmd.getColl(), response, result);
+            ((Map) response.get("cursor")).put("id", cursorId);
+            commandResults.add(response);
+            return ret;
         }
 
-        var m = prepareResult();
-        addCursor(cmd.getDb(), cmd.getColl(), m, result);
+        int requestedBatchSize = cmd.getBatchSize() != null ? cmd.getBatchSize() : 0;
 
-        if (cursorId != 0) {
-            ((Map) m.get("cursor")).put("id", cursorId);
+        if (requestedBatchSize <= 0) {
+            requestedBatchSize = getDefaultBatchSize() > 0 ? getDefaultBatchSize() : Math.min(result.size(), 101);
         }
 
-        commandResults.add(m);
+        if (cmd.isSingleBatch() != null && cmd.isSingleBatch()) {
+            requestedBatchSize = result.size();
+        }
+
+        List<Map<String, Object>> firstBatch = new ArrayList<>();
+
+        if (!result.isEmpty()) {
+            int end = Math.min(requestedBatchSize, result.size());
+            firstBatch.addAll(result.subList(0, end));
+        }
+
+        String namespace = cmd.getDb() + "." + cmd.getColl();
+        long cursorId = registerCursorBuffer(namespace, result, requestedBatchSize);
+
+        Map<String, Object> cursorDoc = new HashMap<>();
+        cursorDoc.put("firstBatch", firstBatch);
+        cursorDoc.put("ns", namespace);
+        cursorDoc.put("id", cursorId);
+
+        Map<String, Object> response = prepareResult();
+        response.put("cursor", cursorDoc);
+        commandResults.add(response);
         return ret;
     }
 
@@ -976,15 +1033,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         // log.error(cmd.getCommandName() + " - incoming (" +
         // cmd.getClass().getSimpleName() + ") - should not be used inMem!");
         int ret = commandNumber.incrementAndGet();
-        var m = prepareResult();
-        m.put("ok", 0);
 
         if (cursors.containsKey(cmd.getCursorId())) {
             FindCommand fnd = cursors.get(cmd.getCursorId());
             List<Map<String, Object >> result = new ArrayList<>();
+            final List<Map<String, Object>> tailableResult = result;
 
-            if (result == null || result.isEmpty()) {
-                // waiting for some changes
+            if (result.isEmpty()) {
                 WatchCommand watchCmd = new WatchCommand(this)
                 .setDb(fnd.getDb())
                 .setColl(fnd.getColl())
@@ -994,8 +1049,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 .setCb(new DriverTailableIterationCallback() {
                     @Override
                     public void incomingData(Map<String, Object> data, long dur) {
-                        result.add((Map<String, Object>) data.get("fullDocument"));
+                        tailableResult.add((Map<String, Object>) data.get("fullDocument"));
                     }
+
                     @Override
                     public boolean isContinued() {
                         return false;
@@ -1005,16 +1061,32 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 watch(watchCmd);
                 watchCmd.releaseConnection();
             }
-            // fnd.setLimit(fnd.getLimit()-result.size());
-            // long cursorId = cmd.getCursorId();
-            // if (fnd.getLimit()<=0){
-            // cursorId=0;
-            // cursors.remove(cmd.getCursorId());
-            // }
-            m.put("cursor", Doc.of("nextBatch", result, "ns", cmd.getDb() + "." + cmd.getColl(), "id", cmd.getCursorId()));
+
+            Map<String, Object> response = prepareResult();
+            response.put("cursor", Doc.of("nextBatch", result, "ns", cmd.getDb() + "." + cmd.getColl(), "id", cmd.getCursorId()));
+            commandResults.add(response);
+            return ret;
         }
 
-        commandResults.add(m);
+        long cursorId = cmd.getCursorId();
+        int requestedBatchSize = cmd.getBatchSize() != null ? cmd.getBatchSize() : 0;
+        List<Map<String, Object>> nextBatch = drainNextBatch(cursorId, requestedBatchSize);
+        String namespace = namespaceForCursor(cursorId);
+
+        if (namespace == null) {
+            namespace = cmd.getDb() + "." + cmd.getColl();
+        }
+
+        long nextId = activeQueryCursors.containsKey(cursorId) ? cursorId : 0L;
+
+        Map<String, Object> cursorDoc = new HashMap<>();
+        cursorDoc.put("nextBatch", nextBatch);
+        cursorDoc.put("ns", namespace);
+        cursorDoc.put("id", nextId);
+
+        Map<String, Object> response = prepareResult();
+        response.put("cursor", cursorDoc);
+        commandResults.add(response);
         return ret;
     }
 
@@ -1276,6 +1348,62 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private Map<String, Object> addCursor(String db, String coll, Map<String, Object> result, List<Map<String, Object >> data) {
         result.put("cursor", Doc.of("firstBatch", data, "ns", db + "." + coll, "id", 0L));
         return result;
+    }
+
+    private long registerCursorBuffer(String namespace, List<Map<String, Object>> allResults, int batchSize) {
+        if (allResults == null || allResults.isEmpty()) {
+            return 0L;
+        }
+
+        if (batchSize <= 0) {
+            batchSize = Math.min(allResults.size(), 101);
+        }
+
+        if (allResults.size() <= batchSize) {
+            return 0L;
+        }
+
+        Deque<Map<String, Object>> remaining = new ArrayDeque<>(allResults.subList(batchSize, allResults.size()));
+        long cursorId = cursorIdSequence.getAndIncrement();
+        activeQueryCursors.put(cursorId, new CursorResultBuffer(remaining, namespace, batchSize));
+        return cursorId;
+    }
+
+    private List<Map<String, Object>> drainNextBatch(long cursorId, int requestedBatchSize) {
+        CursorResultBuffer buffer = activeQueryCursors.get(cursorId);
+
+        if (buffer == null) {
+            return Collections.emptyList();
+        }
+
+        synchronized (buffer) {
+            int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
+
+            if (size <= 0) {
+                size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
+            }
+
+            List<Map<String, Object>> batch = new ArrayList<>(Math.min(size, buffer.remaining.size()));
+
+            for (int i = 0; i < size && !buffer.remaining.isEmpty(); i++) {
+                batch.add(buffer.remaining.pollFirst());
+            }
+
+            if (buffer.remaining.isEmpty()) {
+                activeQueryCursors.remove(cursorId);
+            }
+
+            return batch;
+        }
+    }
+
+    private String namespaceForCursor(long cursorId) {
+        CursorResultBuffer buffer = activeQueryCursors.get(cursorId);
+        return buffer == null ? null : buffer.namespace;
+    }
+
+    private void closeCursor(long cursorId) {
+        activeQueryCursors.remove(cursorId);
     }
 
     private Map<String, Object> prepareResult() {
@@ -4200,6 +4328,179 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     // creates a zipped json stream containing all data.
     public void writeDump(File f) {
+    }
+
+    private static class CursorResultBuffer {
+        private final Deque<Map<String, Object>> remaining;
+        private final String namespace;
+        private final int defaultBatchSize;
+
+        CursorResultBuffer(Deque<Map<String, Object>> remaining, String namespace, int defaultBatchSize) {
+            this.remaining = remaining;
+            this.namespace = namespace;
+            this.defaultBatchSize = defaultBatchSize;
+        }
+    }
+
+    private class InMemoryFindCursor extends MorphiumCursor {
+        private int internalIndex = 0;
+        private int index = 0;
+
+        InMemoryFindCursor(long cursorId, String namespace, List<Map<String, Object>> firstBatch, int batchSize) {
+            setCursorId(cursorId);
+            setBatchSize(batchSize > 0 ? batchSize : (firstBatch.size() > 0 ? firstBatch.size() : 101));
+            setBatch(firstBatch != null ? new ArrayList<>(firstBatch) : new ArrayList<>());
+            applyNamespace(namespace);
+        }
+
+        private void applyNamespace(String namespace) {
+            if (namespace == null || namespace.isEmpty()) {
+                setDb("");
+                setCollection("");
+                return;
+            }
+
+            int dotIdx = namespace.indexOf('.');
+
+            if (dotIdx < 0) {
+                setDb(namespace);
+                setCollection("$cmd");
+            } else {
+                setDb(namespace.substring(0, dotIdx));
+                setCollection(namespace.substring(dotIdx + 1));
+            }
+        }
+
+        @Override
+        public synchronized boolean hasNext() {
+            if (getBatch() != null && internalIndex < getBatch().size()) {
+                return true;
+            }
+
+            if (getCursorId() == 0) {
+                return false;
+            }
+
+            loadNextBatch();
+            return getBatch() != null && internalIndex < getBatch().size();
+        }
+
+        @Override
+        public synchronized Map<String, Object> next() {
+            if (!hasNext()) {
+                return null;
+            }
+
+            Map<String, Object> doc = getBatch().get(internalIndex++);
+            index++;
+            return doc;
+        }
+
+        @Override
+        public synchronized void close() {
+            if (getCursorId() != 0) {
+                closeCursor(getCursorId());
+                setCursorId(0);
+            }
+
+            setBatch(Collections.emptyList());
+            internalIndex = 0;
+        }
+
+        @Override
+        public synchronized int available() {
+            if (getBatch() == null) {
+                return 0;
+            }
+            return Math.max(0, getBatch().size() - internalIndex);
+        }
+
+        @Override
+        public synchronized List<Map<String, Object>> getAll() throws MorphiumDriverException {
+            List<Map<String, Object>> res = new ArrayList<>();
+
+            while (hasNext()) {
+                res.add(next());
+            }
+
+            return res;
+        }
+
+        @Override
+        public synchronized void ahead(int jump) throws MorphiumDriverException {
+            if (jump < 0) {
+                throw new IllegalArgumentException("jump must be >= 0");
+            }
+
+            internalIndex += jump;
+            index += jump;
+
+            while (getBatch() != null && internalIndex >= getBatch().size()) {
+                int diff = internalIndex - getBatch().size();
+
+                if (getCursorId() == 0) {
+                    internalIndex = getBatch() != null ? getBatch().size() : 0;
+                    break;
+                }
+
+                loadNextBatch();
+
+                if (getBatch() == null || getBatch().isEmpty()) {
+                    internalIndex = 0;
+                    break;
+                }
+
+                internalIndex = diff;
+            }
+        }
+
+        @Override
+        public synchronized void back(int jump) throws MorphiumDriverException {
+            if (jump < 0) {
+                throw new IllegalArgumentException("jump must be >= 0");
+            }
+
+            internalIndex -= jump;
+            index -= jump;
+
+            if (internalIndex < 0) {
+                throw new IllegalArgumentException("cannot jump back over batch boundaries!");
+            }
+        }
+
+        @Override
+        public int getCursor() {
+            return index;
+        }
+
+        @Override
+        public MongoConnection getConnection() {
+            return InMemoryDriver.this;
+        }
+
+        @Override
+        public Iterator<Map<String, Object>> iterator() {
+            return this;
+        }
+
+        private void loadNextBatch() {
+            if (getCursorId() == 0) {
+                setBatch(Collections.emptyList());
+                internalIndex = 0;
+                return;
+            }
+
+            List<Map<String, Object>> next = drainNextBatch(getCursorId(), getBatchSize());
+
+            if (next.isEmpty()) {
+                setCursorId(0);
+                setBatch(Collections.emptyList());
+            } else {
+                setBatch(new ArrayList<>(next));
+            }
+
+            internalIndex = 0;
+        }
     }
 
     private static class InMemoryCursor {
