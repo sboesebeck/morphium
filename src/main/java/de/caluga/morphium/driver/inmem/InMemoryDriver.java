@@ -139,13 +139,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     // DBName => Collection => List of documents
-    private final Map<String, Map<String, List<Map<String, Object >> >> database = new ConcurrentHashMap<>();
+    private static final Map<String, Map<String, List<Map<String, Object >> >> GLOBAL_DATABASE = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object >> >> database = GLOBAL_DATABASE;
     private int idleSleepTime = 20;
     /**
      * index definitions by db and collection name
      * DB -> Collection -> List of Map Index defintion (field -> 1/-1/hashed)
      */
-    private final Map<String, Map<String, List<Map<String, Object >> >> indicesByDbCollection = new ConcurrentHashMap<>();
+    private static final Map<String, Map<String, List<Map<String, Object >> >> GLOBAL_INDICES_BY_DB_COLLECTION = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, List<Map<String, Object >> >> indicesByDbCollection = GLOBAL_INDICES_BY_DB_COLLECTION;
 
     /**
      * Map DB->Collection->FieldNames->Keys....
@@ -159,8 +161,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final AtomicLong changeStreamSequence = new AtomicLong();
     private final Map<String, CopyOnWriteArrayList<ChangeStreamSubscription>> changeStreamSubscribers = new ConcurrentHashMap<>();
     private final ConcurrentLinkedDeque<ChangeStreamEventInfo> changeStreamHistory = new ConcurrentLinkedDeque<>();
-    private static final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
-    private final Map<String, Map<String, Map<String, Integer >>> cappedCollections = new ConcurrentHashMap<>(); // db->coll->Settings
+    private final int CHANGE_STREAM_HISTORY_LIMIT = 1024;
+    private final Map<String, Map<String, Map<String, Integer >>> cappedCollections = new ConcurrentHashMap<>();
     // size/max
     private final List<Object> monitors = new CopyOnWriteArrayList<>();
     private BlockingQueue<Runnable> eventQueue =  new LinkedBlockingDeque<>();
@@ -430,7 +432,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (cursorDoc.containsKey("firstBatch")) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> firstBatch = cursorDoc.get("firstBatch") != null ?
-                        new ArrayList<>((List<Map<String, Object>>) cursorDoc.get("firstBatch")) : new ArrayList<>();
+                    new ArrayList<>((List<Map<String, Object>>) cursorDoc.get("firstBatch")) : new ArrayList<>();
                 long cursorId = cursorDoc.get("id") instanceof Number ? ((Number) cursorDoc.get("id")).longValue() : 0L;
                 String namespace = cursorDoc.get("ns") instanceof String ? (String) cursorDoc.get("ns") : "";
 
@@ -454,7 +456,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (cursorDoc.containsKey("nextBatch")) {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> nextBatch = cursorDoc.get("nextBatch") != null ?
-                        (List<Map<String, Object>>) cursorDoc.get("nextBatch") : List.of();
+                                                      (List<Map<String, Object>>) cursorDoc.get("nextBatch") : List.of();
                 return new SingleBatchCursor(nextBatch);
             }
         }
@@ -3026,49 +3028,101 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                         //$push:{"field":"value"}
                         //$pushAll:{"field":["value","value",...]}
                         for (Map.Entry<String, Object> entry : cmd.entrySet()) {
-                            List v = (List) obj.get(entry.getKey());
+                            String field = entry.getKey();
+                            List v;
+                            boolean created = false;
 
-                            if (v == null) {
-                                v = new ArrayList();
-                                obj.put(entry.getKey(), v);
-                                modified.add(obj.get("_id"));
+                            if (field.contains(".")) {
+                                Object existing = getByPath(obj, field);
+
+                                if (existing == null) {
+                                    v = new ArrayList<>();
+                                    setByPath(obj, field, v);
+                                    created = true;
+                                } else if (existing instanceof List) {
+                                    v = (List) existing;
+                                } else {
+                                    throw new MorphiumDriverException("Cannot apply " + operand + " to non-array field '" + field + "'");
+                                }
+                            } else {
+                                Object existing = obj.get(field);
+
+                                if (existing == null) {
+                                    v = new ArrayList<>();
+                                    obj.put(field, v);
+                                    created = true;
+                                } else if (existing instanceof List) {
+                                    v = (List) existing;
+                                } else {
+                                    throw new MorphiumDriverException("Cannot apply " + operand + " to non-array field '" + field + "'");
+                                }
                             }
 
-                            if (entry.getValue() instanceof Map) {
-                                if (((Map) entry.getValue()).get("$each") != null) {
-                                    // noinspection unchecked
-                                    if (operand.equals("$addToSet")) {
-                                        for (Object elem : (List)((Map) entry.getValue()).get("$each")) {
-                                            if (!v.contains(elem)) {
-                                                v.add(elem);
-                                            }
-                                        }
-                                    } else {
-                                        v.addAll((List)((Map) entry.getValue()).get("$each"));
-                                    }
-                                } else {
-                                    // noinspection unchecked
-                                    if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
-                                        break;
-                                    }
+                            boolean changed = created;
+                            Object rawValue = entry.getValue();
 
-                                    if (operand.equals("$pushAll") && entry.getValue() instanceof List) {
-                                        v.addAll(((List) entry.getValue()));
-                                    } else {
-                                        v.add(entry.getValue());
+                            List<Object> valuesToAdd = new ArrayList<>();
+                            Integer position = null;
+                            Integer slice = null;
+
+                            if (rawValue instanceof Map valueMap && valueMap.containsKey("$each")) {
+                                Object eachVal = valueMap.get("$each");
+
+                                if (!(eachVal instanceof List)) {
+                                    throw new MorphiumDriverException("$each requires an array value");
+                                }
+
+                                valuesToAdd.addAll((List<Object>) eachVal);
+
+                                if (valueMap.containsKey("$position") && valueMap.get("$position") instanceof Number) {
+                                    position = ((Number) valueMap.get("$position")).intValue();
+                                }
+
+                                if (valueMap.containsKey("$slice") && valueMap.get("$slice") instanceof Number) {
+                                    slice = ((Number) valueMap.get("$slice")).intValue();
+                                }
+                            } else if (operand.equals("$pushAll") && rawValue instanceof List) {
+                                valuesToAdd.addAll((List<Object>) rawValue);
+                            } else {
+                                valuesToAdd.add(rawValue);
+                            }
+
+                            if (operand.equals("$addToSet")) {
+                                for (Object elem : valuesToAdd) {
+                                    if (!v.contains(elem)) {
+                                        v.add(elem);
+                                        changed = true;
                                     }
                                 }
                             } else {
-                                // noinspection unchecked
-                                if (operand.equals("$addToSet") && v.contains(entry.getValue())) {
-                                    break;
+                                if (position != null) {
+                                    int insertAt = Math.min(Math.max(position, 0), v.size());
+                                    for (Object elem : valuesToAdd) {
+                                        v.add(insertAt++, elem);
+                                    }
+                                } else {
+                                    v.addAll(valuesToAdd);
                                 }
 
-                                if (operand.equals("$pushAll") && entry.getValue() instanceof List) {
-                                    v.addAll(((List) entry.getValue()));
-                                } else {
-                                    v.add(entry.getValue());
+                                if (!valuesToAdd.isEmpty()) {
+                                    changed = true;
                                 }
+
+                                if (slice != null) {
+                                    if (slice >= 0) {
+                                        while (v.size() > slice) {
+                                            v.remove(v.size() - 1);
+                                        }
+                                    } else {
+                                        while (v.size() > Math.abs(slice)) {
+                                            v.remove(0);
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (changed) {
+                                modified.add(obj.get("_id"));
                             }
                         }
 
