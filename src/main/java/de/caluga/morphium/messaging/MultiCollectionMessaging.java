@@ -238,7 +238,19 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return running.get();
         });
         directMessagesMonitor.start();
-        pollAndProcess();
+        if (!isUseChangeStream()) {
+            log.info("Start polling as changestreams are disabled");
+            decouplePool.scheduleWithFixedDelay(()-> {
+                try {
+                    pollAndProcess();
+                } catch (Throwable e) {
+                    log.info("Error in polling thread", e);
+                }
+            }, 1000, getPause(), TimeUnit.MILLISECONDS);
+        } else {
+            log.info("Polling at start - changestream enabled");
+            pollAndProcess();
+        }
     }
 
     @Override
@@ -424,27 +436,27 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         return lockMessage(m, lockId, null);
     }
 
-    private boolean lockMessage(MorphiumId id, String msgName, String lockId) {
-        MsgLock lck = new MsgLock(id);
-        lck.setLockId(lockId);
-        lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
-        InsertMongoCommand cmd = null;
+    // private boolean lockMessage(MorphiumId id, String msgName, String lockId) {
+    //     MsgLock lck = new MsgLock(id);
+    //     lck.setLockId(lockId);
+    //     lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
+    //     InsertMongoCommand cmd = null;
 
-        try {
-            cmd = new InsertMongoCommand(
-                            morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
-            cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase())
-               .setDocuments(List.of(morphium.getMapper().serialize(lck)));
-            cmd.execute();
-            return true;
-        } catch (Exception e) {
-            return false;
-        } finally {
-            if (cmd != null) {
-                cmd.releaseConnection();
-            }
-        }
-    }
+    //     try {
+    //         cmd = new InsertMongoCommand(
+    //                         morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+    //         cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase())
+    //            .setDocuments(List.of(morphium.getMapper().serialize(lck)));
+    //         cmd.execute();
+    //         return true;
+    //     } catch (Exception e) {
+    //         return false;
+    //     } finally {
+    //         if (cmd != null) {
+    //             cmd.releaseConnection();
+    //         }
+    //     }
+    // }
 
     public boolean lockMessage(Msg m, String lockId, Date delAt) {
         MsgLock lck = new MsgLock(m);
