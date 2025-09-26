@@ -755,9 +755,10 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         log.info("Still waiting for incoming messages: {}", counts.get());
                         Thread.sleep(1000);
                     }
-
-                    Thread.sleep(2000);
-                    assertThat(counts.get()).describedAs("Dig get too many {}", counts.get()).isEqualTo(50);
+                    log.info("All messages received");
+                    TestUtils.wait("Waiting some time", 3);
+                    log.info("Now we got {} messages", counts.get());
+                    assertEquals(50, counts.get());
                     counts.set(0);
 
                     for (int i = 0; i < 10; i++) {
@@ -766,7 +767,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     }
 
                     while (counts.get() < 10 * recs.size()) {
-                        log.info("Still waiting for incoming messages: {}", counts.get());
+                        log.info("Still waiting for incoming messages: {} of {}", counts.get(), 10 * recs.size());
                         Thread.sleep(1000);
                     }
 
