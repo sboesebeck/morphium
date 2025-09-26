@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.driver.MorphiumId;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 import de.caluga.morphium.messaging.Msg;
 import de.caluga.test.mongo.suite.base.MultiDriverTestBase;
 import org.junit.jupiter.api.Tag;
@@ -251,7 +252,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                             if (m == null) {
                                 log.warn("Hmm.. Did not get message... retrying...");
                                 Thread.sleep(100);
-                                m = morphium.findById(Msg.class, e.getValue().get(i));
+                                m = morph.findById(Msg.class, e.getValue().get(i), sender.getCollectionName("bcast"));
                                 assertNotNull(m, "Message not found");
                             }
 

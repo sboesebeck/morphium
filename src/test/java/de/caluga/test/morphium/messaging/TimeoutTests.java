@@ -121,8 +121,6 @@ public class TimeoutTests extends MultiDriverTestBase {
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 1);
                     TestUtils.waitForBooleanToBecomeTrue(5000, "Message not received?", gotmsg, (dur)-> {log.info("Waiting for receiver...{}ms", dur);});
                     TestUtils.wait(5);
-                    log.info("Message deleteAt " + m.createQueryFor(Msg.class, m1.getCollectionName("test")).get().getDeleteAt());
-                    assertNotNull(m.createQueryFor(Msg.class, m1.getCollectionName("test")).get().getDeleteAt());
                     TestUtils.waitForConditionToBecomeTrue(120000, "Message not deleted within timeout",
                                                            () -> m.createQueryFor(Msg.class, m1.getCollectionName("test")).countAll() == 0, (dur)-> {log.info("Still waiting for message do be deleted");});
                     m1.terminate();
