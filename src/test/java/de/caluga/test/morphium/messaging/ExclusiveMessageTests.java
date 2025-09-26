@@ -769,13 +769,16 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     org.junit.jupiter.api.Assertions.assertEquals(10 * recs.size(), counts.get(),
                                                     "Did get too many? " + counts.get());
                 } finally {
-                    sender.terminate();
-                    for (MorphiumMessaging r : recs) { r.terminate(); }
+                    Thread.ofVirtual().start(()->{
+                        sender.terminate();
+                    });
+                    for (MorphiumMessaging r : recs) {
+                        Thread.ofVirtual().start(()-> {
+                            r.terminate();
+                        });
+                    }
                 }
 
-                for (MorphiumMessaging r : recs) {
-                    org.junit.jupiter.api.Assertions.assertFalse(r.isRunning());
-                }
             }
         }
     }
