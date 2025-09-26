@@ -18,13 +18,17 @@ tst=$(for i in test.log/*.log; do
   for m in $(cat $i | grep "\\[ERROR\\]" | grep -A 10 "\\[ERROR\\] Errors:" | grep "\\[ERROR\\]   " | cut -f1 -d: | cut -c11- | cut -f1 -d"»" | cut -f1 -d"("); do
     echo "$pkg.$m"
   done
-done | fzf)
+done | sort -u | fzf)
 #tst=$(cat test.log/*.log | grep "\\[ERROR\\]" | grep -A 10 "\\[ERROR\\] Failures:" | grep "\\[ERROR\\]   " | cut -f1 -d: | cut -c11- | sort | fzf)
 echo "Chose $tst"
 
 cls=${tst%.*}
 m=${tst##*.}
 
+if [ "q$cls" = "q" ]; then
+  echo "Abort..."
+  exit
+fi
 echo "Method $m in Class $cls"
 # f=$(./runtests.sh --stats --noreason --nosum | grep -v "Calculating" | fzf)
 
