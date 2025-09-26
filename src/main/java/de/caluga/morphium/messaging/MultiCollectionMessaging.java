@@ -536,40 +536,47 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
             processingMessages.add(m.getMsgId());
             Runnable r = () -> {
+                Msg current = morphium.reread(m, getCollectionName(m));
+                if (current == null) {
+                    unlock(m);
+                    processingMessages.remove(m.getMsgId());
+                    return;
+                }
+
                 try {
-                    if (pausedTopics.contains(m.getTopic()))
+                    if (pausedTopics.contains(current.getTopic()))
                         return;
 
                     if (l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(m);
+                        updateProcessedBy(current);
                     }
-                    var ret = l.onMessage(this, m);
+                    var ret = l.onMessage(this, current);
                     if (!running.get())
                         return;
                     if (effectiveSettings.isAutoAnswer() && ret == null) {
-                        ret = new Msg(m.getTopic(), "received", "");
+                        ret = new Msg(current.getTopic(), "received", "");
 
                     }
                     if (!l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(m);
+                        updateProcessedBy(current);
                     }
-                    checkDeleteAfterProcessing(m);
+                    checkDeleteAfterProcessing(current);
 
                     if (ret != null) {
                         ret.setSender(getSenderId());
-                        ret.setRecipient(m.getSender());
-                        ret.setInAnswerTo(m.getMsgId());
+                        ret.setRecipient(current.getSender());
+                        ret.setInAnswerTo(current.getMsgId());
                         sendMessage(ret);
                     }
                 } catch (MessageRejectedException mre) {
                     log.warn("Message rejected");
-                    updateProcessedBy(m);
-                    unlock(m);
+                    updateProcessedBy(current);
+                    unlock(current);
                 } catch (Throwable err) {
                     log.error("Error during message processing", err);
+                } finally {
+                    processingMessages.remove(m.getMsgId());
                 }
-
-                processingMessages.remove(m.getMsgId());
             };
             queueOrRun(r);
 
@@ -849,37 +856,45 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             return;
                         }
                     }
-                    if (l.markAsProcessedBeforeExec()) {
-                        updateProcessedBy(doc);
+                    Msg current = morphium.reread(doc, getCollectionName(doc));
+                    if (current == null) {
+                        unlock(doc);
+                        processingMessages.remove(doc.getMsgId());
+                        return;
                     }
+
                     try {
-                        var ret = l.onMessage(this, doc);
+                        if (l.markAsProcessedBeforeExec()) {
+                            updateProcessedBy(current);
+                        }
+                        var ret = l.onMessage(this, current);
                         if (!running.get())
                             return;
                         if (ret == null && effectiveSettings.isAutoAnswer()) {
-                            ret = new Msg(doc.getTopic(), "received", "");
+                            ret = new Msg(current.getTopic(), "received", "");
                         }
-                        if (doc.isDeleteAfterProcessing()) {
-                            checkDeleteAfterProcessing(doc);
+                        if (current.isDeleteAfterProcessing()) {
+                            checkDeleteAfterProcessing(current);
                         } else {
                             if (!l.markAsProcessedBeforeExec()) {
-                                updateProcessedBy(doc);
+                                updateProcessedBy(current);
                             }
                         }
                         if (ret != null) {
                             // send answer
-                            ret.setInAnswerTo(doc.getMsgId());
-                            ret.setRecipients(List.of(doc.getSender()));
+                            ret.setInAnswerTo(current.getMsgId());
+                            ret.setRecipients(List.of(current.getSender()));
                             sendMessage(ret);
                         }
                     } catch (MessageRejectedException mre) {
-                        unlock(doc);
+                        unlock(current);
                         log.warn("Message rejected", mre);
                     } catch (Exception e) {
-                        unlock(doc);
+                        unlock(current);
                         log.error("Error processing message", e);
+                    } finally {
+                        processingMessages.remove(doc.getMsgId());
                     }
-                    processingMessages.remove(doc.getMsgId());
                 } catch (Exception e) {
                     log.error("Error during change event processing", e);
                 }
