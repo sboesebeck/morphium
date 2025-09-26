@@ -544,6 +544,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 }
 
                 try {
+                    if (current.getProcessedBy().contains(getSenderId())) {
+                        if (current.isExclusive()) {
+                            unlock(current);
+                        }
+                        return;
+                    }
+
                     if (pausedTopics.contains(current.getTopic()))
                         return;
 
@@ -853,6 +860,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     processingMessages.add(doc.getMsgId());
                     if (doc.isExclusive()) {
                         if (!lockMessage(doc, getSenderId())) {
+                            processingMessages.remove(doc.getMsgId());
                             return;
                         }
                     }
@@ -864,6 +872,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     }
 
                     try {
+                        if (current.getProcessedBy().contains(getSenderId())) {
+                            if (current.isExclusive()) {
+                                unlock(current);
+                            }
+                            return;
+                        }
+
                         if (l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(current);
                         }

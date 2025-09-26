@@ -751,10 +751,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                                            .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
                     }
 
-                    while (counts.get() < 50) {
-                        log.info("Still waiting for incoming messages: {}", counts.get());
-                        Thread.sleep(1000);
-                    }
+                    TestUtils.waitForConditionToBecomeTrue(45000, "Did not reach message count", ()->counts.get() >= 50, (dur)-> { log.info("Waiting to reach 50, still at {}", counts.get());});
                     log.info("All messages received");
                     TestUtils.wait("Waiting some time", 3);
                     log.info("Now we got {} messages", counts.get());
@@ -766,10 +763,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, false));
                     }
 
-                    while (counts.get() < 10 * recs.size()) {
-                        log.info("Still waiting for incoming messages: {} of {}", counts.get(), 10 * recs.size());
-                        Thread.sleep(1000);
-                    }
+                    TestUtils.waitForConditionToBecomeTrue(45000, "Did not reach message count", ()->counts.get() >= 10 * recs.size(),  (dur)-> { log.info("not yes {} messages, still got {}", recs.size() * 10, counts.get() );});
 
                     Thread.sleep(2000);
                     org.junit.jupiter.api.Assertions.assertEquals(10 * recs.size(), counts.get(),
