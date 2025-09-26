@@ -523,7 +523,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 return;
                             }
 
-                            log.debug("Msg!=null =>dirty read");
+                            // log.debug("Msg!=null =>dirty read");
                         }
 
                         //do not process if no listener registered for this message
