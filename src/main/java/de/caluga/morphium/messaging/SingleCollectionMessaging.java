@@ -384,17 +384,37 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     fnd.releaseConnection();
                 }
                 if (msg == null) return running;
-                if (msg.get("sender").equals("id")) {
+                if (msg.get("sender").equals(id)) {
                     return running;
                 }
-                ProcessingQueueElement el = new ProcessingQueueElement();
-                el.setPriority((Integer) msg.get("priority"));
-                el.setId((MorphiumId) msg.get("_id"));
-                el.setTimestamp((Long) msg.get("timestamp"));
+                MorphiumId messageId = (MorphiumId) msg.get("_id");
+
+                // Check both processing queue and idsInProgress to prevent duplicates
                 synchronized (processing) {
+                    // First check if already in progress (most important for preventing duplicates)
+                    if (idsInProgress.contains(messageId)) {
+                        // if (log.isDebugEnabled()) {
+                        //     log.debug("Message {} already in progress, skipping change stream event", messageId);
+                        // }
+                        return running;
+                    }
+
+                    // Create processing element
+                    ProcessingQueueElement el = new ProcessingQueueElement();
+                    el.setPriority((Integer) msg.get("priority"));
+                    el.setId(messageId);
+                    el.setTimestamp((Long) msg.get("timestamp"));
+
+                    // Check if not already queued for processing
                     if (!processing.contains(el)) {
-                        //                        log.info("ChangeStream: adding el "+el.getPriority()+"/"+el.getTimestamp());
+                        // if (log.isDebugEnabled()) {
+                        //     log.debug("ChangeStream: adding message {} to processing queue", messageId);
+                        // }
                         processing.add(el);
+                        // } else {
+                        //     if (log.isDebugEnabled()) {
+                        //         log.debug("Message {} already queued for processing, skipping", messageId);
+                        //     }
                     }
                 }
             }
@@ -503,7 +523,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                                 return;
                             }
 
-                            log.debug("Msg==null =>diry read");
+                            log.debug("Msg!=null =>dirty read");
                         }
 
                         //do not process if no listener registered for this message
@@ -782,11 +802,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         for (ProcessingQueueElement el : messages) {
             synchronized (processing) {
-                if (!processing.contains(el) && !idsInProgress.contains(el)) {
+                if (!processing.contains(el) && !idsInProgress.contains(el.getId())) {
+                    // if (log.isDebugEnabled()) {
+                    //     log.debug("findMessages: adding message {} to processing queue", el.getId());
+                    // }
                     processing.add(el);
+                    // } else {
+                    //     if (log.isDebugEnabled()) {
+                    //         log.debug("findMessages: message {} already queued or in progress", el.getId());
+                    //     }
                 }
-
-                int oldPrio = -10;
             }
         }
     }
@@ -1584,7 +1609,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         @Override
         public int hashCode() {
-            return Objects.hash(priority, id, timestamp);
+            return Objects.hash(id);
         }
     }
 

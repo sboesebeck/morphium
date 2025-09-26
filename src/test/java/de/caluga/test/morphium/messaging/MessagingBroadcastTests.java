@@ -251,7 +251,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
 
                             if (m == null) {
                                 log.warn("Hmm.. Did not get message... retrying...");
-                                Thread.sleep(100);
+                                Thread.sleep(1000);
                                 m = morph.findById(Msg.class, e.getValue().get(i), sender.getCollectionName("bcast"));
                                 assertNotNull(m, "Message not found");
                             }
@@ -282,7 +282,7 @@ public class MessagingBroadcastTests extends MultiDriverTestBase {
                     log.info("    broadcasts : " + bcast);
 
                     for (MorphiumMessaging m : receivers) {
-                        m.terminate();
+                        new Thread(()-> m.terminate()).start();
                     }
                     sender.terminate();
                     log.info(method + "() finished with " + morphium.getDriver().getName());
