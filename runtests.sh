@@ -894,7 +894,6 @@ function monitor_parallel_progress() {
 
     local total_running=0
     local total_completed=0
-    local total_tests=0
     local total_failed=0
 
     for ((slot = 1; slot <= parallel; slot++)); do
@@ -904,7 +903,6 @@ function monitor_parallel_progress() {
           progress_line=$(cat "test.log/slot_$slot/progress")
           IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
 
-          ((total_tests += total_tests_slot))
           ((total_completed += current_test))
           ((total_failed += failed_tests))
 
@@ -914,7 +912,7 @@ function monitor_parallel_progress() {
           elif [ "$status" == "COMPLETED" ]; then
             echo -e "Slot ${YL}$slot${CL}: ${BL}READY${CL} Last: $test_name (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
           elif [ "$status" == "DONE" ]; then
-            echo -e "Slot ${YL}$slot${CL}: ${GN}DONE${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+            echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
           fi
         else
           echo -e "Slot ${YL}$slot${CL}: ${YL}STARTING${CL}..."
@@ -924,7 +922,6 @@ function monitor_parallel_progress() {
           progress_line=$(cat "test.log/slot_$slot/progress")
           IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
           echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
-          ((total_tests += total_tests_slot))
           ((total_completed += current_test))
           ((total_failed += failed_tests))
         fi
@@ -1051,17 +1048,10 @@ function run_parallel_tests() {
   # Set up signal handling for clean shutdown
   trap cleanup_parallel_execution SIGINT SIGTERM
 
-  # Calculate total test methods (consistent with serial mode)
+  # Calculate total test methods (use the same calculation as serial mode for consistency)
   total_test_classes=$(wc -l <$classList | tr -d ' ')
-  disabled=$(rg -C1 "^ *@Disabled" | grep -C1 "@Test" | cut -f1 -d: | wc -l)
-  disabled3=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances"\)' | cut -f1 -d: | wc -l)
-  disabled2=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | cut -f1 -d: | wc -l)
-  disabled1=$(rg -C1 "^ *@Disabled" | grep -C2 "@Test" | grep -C2 -E '@MethodSource\("getMorphiumInstances.*Only"\)' | cut -f1 -d: | wc -l)
-  testMethods=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E "@Test" | grep -vc '^ *//' | tr -d '\n' || echo "0")
-  testMethods3=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstances"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
-  testMethods2=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstancesNo.*"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
-  testMethods1=$(cat $classList | xargs -I {} grep {} $filesList | xargs grep -E '@MethodSource\("getMorphiumInstances.*Only"\)' | grep -vc '^ *//' | tr -d '\n' || echo "0")
-  ((total_test_methods = testMethods + 2 * testMethods3 + testMethods2 * 2 + testMethods1 - disabled - disabled3 * 3 - disabled2 * 2 - disabled1))
+  # Use the same calculation as the global testMethods variable from line 751
+  total_test_methods=$testMethods
 
   # Split test list into chunks (still use class count for chunk distribution)
   tests_per_slot=$((total_test_classes / parallel))
