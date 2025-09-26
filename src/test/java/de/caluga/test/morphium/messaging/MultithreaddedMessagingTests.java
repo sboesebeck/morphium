@@ -243,7 +243,6 @@ public class MultithreaddedMessagingTests extends MultiDriverTestBase {
         }
     }
 
-    @Test
     @ParameterizedTest
     @MethodSource("getMorphiumInstancesNoSingle")
     public void waitingForMessagesIfMultithreadded(Morphium morphium) throws Exception {
