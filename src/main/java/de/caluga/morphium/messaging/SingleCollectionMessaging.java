@@ -435,8 +435,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        //        in.put("$eq", "insert"); //, "delete", "update"));
-        in.put("$in", Arrays.asList("insert", "update"));
+        in.put("$in", Arrays.asList("insert"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
@@ -888,7 +887,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // outdated message
         if (msg.isTimingOut() && msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
             // Delete outdated msg!
-            log.debug(getSenderId() + ": Found outdated message - deleting it!");
+            if (log.isDebugEnabled()) {
+                long age = System.currentTimeMillis() - msg.getTimestamp();
+                log.debug("{}: Found outdated message - deleting it! ttl={} age={} id={} topic={}",
+                    getSenderId(), msg.getTtl(), age, msg.getMsgId(), msg.getTopic());
+            }
             morphium.delete(msg, getCollectionName());
             unlockIfExclusive(msg);
             return;
@@ -915,7 +918,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        // Runnable r = ()->{
+        if (!msg.isExclusive() && !tryClaimMessage(msg)) {
+            requestPoll.incrementAndGet();
+            return;
+        }
+
         boolean wasProcessed = false;
         boolean wasRejected = false;
         List<MessageRejectedException> rejections = new ArrayList<>();
@@ -937,7 +944,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                if (l.markAsProcessedBeforeExec()) {
+                if (msg.isExclusive() && l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(msg);
                 }
 
@@ -986,7 +993,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
         }
 
-        if (wasProcessed && !msg.getProcessedBy().contains(id)) {
+        if (msg.isExclusive() && wasProcessed && !msg.getProcessedBy().contains(id)) {
             updateProcessedBy(msg);
         }
 
@@ -1002,6 +1009,37 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // remove _own_ lock
             deleteLock(msg.getMsgId());
         }
+    }
+
+    private boolean tryClaimMessage(Msg msg) {
+        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+            return false;
+        }
+
+        Query<Msg> query = morphium.createQueryFor(Msg.class, getCollectionName());
+        query.f(Msg.Fields.msgId).eq(msg.getMsgId()).f(Msg.Fields.processedBy).ne(id);
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            morphium.addToSet(query, Msg.Fields.processedBy.name(), id);
+            msg = morphium.reread(msg, getCollectionName());
+
+            if (msg != null && msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
+                return true;
+            }
+
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("{}: failed to claim msg {} after retries", id, msg != null ? msg.getMsgId() : null);
+        }
+
+        return false;
     }
 
     private void deleteLock(MorphiumId msgId) {
