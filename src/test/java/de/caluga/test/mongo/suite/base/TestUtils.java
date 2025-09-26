@@ -131,7 +131,7 @@ public class TestUtils {
         return m2;
     }
 
-    public static void checkMessage(Logger log, String msg) {
+    public static void check(Logger log, String msg) {
         log.info("{}: ✅", msg);
     }
 

@@ -3170,7 +3170,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
         }
-        indexDataByDBCollection.get(db).remove(collection);
+        if (indexDataByDBCollection.containsKey(db)) {
+            indexDataByDBCollection.get(db).remove(collection);
+        }
         updateIndexData(db, collection, null);
         Doc res = Doc.of("matched", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
         if (!upsertedIds.isEmpty()) {

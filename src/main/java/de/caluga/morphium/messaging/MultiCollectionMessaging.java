@@ -951,6 +951,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     @Override
+    public void close() {
+        terminate();
+    }
+    @Override
     public void terminate() {
         running.set(false);
         for (var e : monitorsByTopic.entrySet()) {
@@ -973,7 +977,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         m.setSenderHost(hostname);
         m.setSender(getSenderId());
         if (m.getRecipients() == null || m.getRecipients().isEmpty()) {
-            morphium.store(m, getCollectionName(m), aCallback);
+            if (async) {
+                morphium.store(m, getCollectionName(m), aCallback);
+            } else {
+                morphium.store(m, getCollectionName(m), null);
+            }
+
         } else {
             for (String rec : m.getRecipients()) {
                 if (async) {
