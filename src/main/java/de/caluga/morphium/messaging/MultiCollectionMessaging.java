@@ -976,13 +976,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 ;
             }
         }
-        directMessagesMonitor.terminate();
-        threadPool.shutdownNow();
-        decouplePool.shutdownNow();
-        monitorsByTopic.clear();
-        waitingForAnswers.clear();
-        waitingForCallbacks.clear();
-        allMessagings.remove(this);
+        if (directMessagesMonitor != null) directMessagesMonitor.terminate();
+        if (threadPool != null) threadPool.shutdownNow();
+        if (decouplePool != null) decouplePool.shutdownNow();
+        if (monitorsByTopic != null) monitorsByTopic.clear();
+        if (waitingForAnswers != null) waitingForAnswers.clear();
+        if (waitingForCallbacks != null) waitingForCallbacks.clear();
+        if (allMessagings != null) allMessagings.remove(this);
     }
 
     private void persistMessage(Msg m, boolean async) {
