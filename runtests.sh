@@ -90,11 +90,11 @@ function get_test_stats() {
   if [ -d "test.log" ]; then
     # Check if we have slot directories (parallel execution)
     if ls test.log/slot_* >/dev/null 2>&1; then
-      # Parallel execution - prioritize copied logs in main directory, fallback to slot logs
+      # Parallel execution - ALWAYS prioritize main directory logs to avoid double counting
       if ls test.log/*.log >/dev/null 2>&1; then
-        log_pattern="test.log/*.log" # Use copied logs if available
+        log_pattern="test.log/*.log" # Use main directory logs (avoid slot logs to prevent duplicates)
       else
-        log_pattern="test.log/slot_*/*.log" # Fallback to slot logs
+        log_pattern="test.log/slot_*/*.log" # Fallback to slot logs only if main directory is empty
       fi
     else
       # Sequential execution - standard pattern
@@ -895,35 +895,67 @@ function monitor_parallel_progress() {
     local total_running=0
     local total_completed=0
     local total_failed=0
+    local unique_failed_tests=()
 
     for ((slot = 1; slot <= parallel; slot++)); do
+      local slot_status=""
+      local slot_current_test=0
+      local slot_total_tests=0
+      local slot_failed_tests=0
+      local slot_test_name=""
+
+      # Check if slot is still running
+      local slot_running=false
       if [ -e "slot_${slot}.pid" ] && kill -0 $(<"slot_${slot}.pid") 2>/dev/null; then
+        slot_running=true
         all_done=false
-        if [ -e "test.log/slot_$slot/progress" ]; then
-          progress_line=$(cat "test.log/slot_$slot/progress")
-          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
+      fi
 
-          ((total_completed += current_test))
-          ((total_failed += failed_tests))
+      # Read progress information if available
+      if [ -e "test.log/slot_$slot/progress" ]; then
+        progress_line=$(cat "test.log/slot_$slot/progress")
+        IFS=':' read -r slot_status slot_test_name slot_current_test slot_total_tests slot_failed_tests <<<"$progress_line"
 
-          if [ "$status" == "RUNNING" ]; then
+        # Add to totals (avoid double counting by reading each slot's progress only once per iteration)
+        ((total_completed += slot_current_test))
+        ((total_failed += slot_failed_tests))
+
+        # Display slot status
+        if [ "$slot_running" == "true" ]; then
+          if [ "$slot_status" == "RUNNING" ]; then
             ((total_running++))
-            echo -e "Slot ${YL}$slot${CL}: ${GN}RUNNING${CL} $test_name (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
-          elif [ "$status" == "COMPLETED" ]; then
-            echo -e "Slot ${YL}$slot${CL}: ${BL}READY${CL} Last: $test_name (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
-          elif [ "$status" == "DONE" ]; then
-            echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
+            echo -e "Slot ${YL}$slot${CL}: ${GN}RUNNING${CL} $slot_test_name (${BL}$slot_current_test${CL}/${MG}$slot_total_tests${CL}) Failed: ${RD}$slot_failed_tests${CL}"
+          else
+            echo -e "Slot ${YL}$slot${CL}: ${BL}READY${CL} Last: $slot_test_name (${BL}$slot_current_test${CL}/${MG}$slot_total_tests${CL}) Failed: ${RD}$slot_failed_tests${CL}"
           fi
         else
-          echo -e "Slot ${YL}$slot${CL}: ${YL}STARTING${CL}..."
+          echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$slot_current_test${CL}/${MG}$slot_total_tests${CL}) Failed: ${RD}$slot_failed_tests${CL}"
+        fi
+
+        # Collect unique failed tests for display
+        if [ -e "test.log/slot_$slot/failed_tests" ] && [ $slot_failed_tests -gt 0 ]; then
+          while IFS= read -r failed_test; do
+            if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
+              test_name="${BASH_REMATCH[1]}"
+              # Check if this test is already in our unique list
+              local already_listed=false
+              for existing_test in "${unique_failed_tests[@]}"; do
+                if [[ "$existing_test" == "$test_name" ]]; then
+                  already_listed=true
+                  break
+                fi
+              done
+              if [ "$already_listed" == "false" ]; then
+                unique_failed_tests+=("$test_name (slot $slot)")
+              fi
+            fi
+          done <"test.log/slot_$slot/failed_tests"
         fi
       else
-        if [ -e "test.log/slot_$slot/progress" ]; then
-          progress_line=$(cat "test.log/slot_$slot/progress")
-          IFS=':' read -r status test_name current_test total_tests_slot failed_tests <<<"$progress_line"
-          echo -e "Slot ${YL}$slot${CL}: ${GN}FINISHED${CL} (${BL}$current_test${CL}/${MG}$total_tests_slot${CL}) Failed: ${RD}$failed_tests${CL}"
-          ((total_completed += current_test))
-          ((total_failed += failed_tests))
+        if [ "$slot_running" == "true" ]; then
+          echo -e "Slot ${YL}$slot${CL}: ${YL}STARTING${CL}..."
+        else
+          echo -e "Slot ${YL}$slot${CL}: ${CN}NO PROGRESS DATA${CL}"
         fi
       fi
     done
@@ -931,18 +963,11 @@ function monitor_parallel_progress() {
     echo "=========================================================================================================="
     echo -e "Overall: ${BL}$total_completed${CL}/${MG}$total_test_methods${CL} test methods completed, ${GN}$total_running${CL} slots running, ${RD}$total_failed${CL} failed"
 
-    # Show failed tests in real-time
-    if [ $total_failed -gt 0 ]; then
+    # Show unique failed tests in real-time
+    if [ ${#unique_failed_tests[@]} -gt 0 ]; then
       echo -e "\n${RD}Failed tests so far:${CL}"
-      for ((slot = 1; slot <= parallel; slot++)); do
-        if [ -e "test.log/slot_$slot/failed_tests" ]; then
-          while IFS= read -r failed_test; do
-            if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
-              test_name="${BASH_REMATCH[1]}"
-              echo -e "  ${RD}•${CL} $test_name (slot $slot)"
-            fi
-          done <"test.log/slot_$slot/failed_tests"
-        fi
+      for failed_test in "${unique_failed_tests[@]}"; do
+        echo -e "  ${RD}•${CL} $failed_test"
       done
     fi
 
@@ -985,8 +1010,8 @@ function cleanup_parallel_execution() {
   done
 
   # Show failed tests summary before cleanup
-  local total_failed=0
-  local failed_tests_list=()
+  local unique_failed_tests=()
+  local failed_tests_with_slots=()
 
   echo -e "\n${YL}Test Results Summary:${CL}"
   echo "=========================================================================================================="
@@ -996,43 +1021,72 @@ function cleanup_parallel_execution() {
       while IFS= read -r failed_test; do
         if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
           test_name="${BASH_REMATCH[1]}"
-          failed_tests_list+=("$test_name (slot $slot)")
-          ((total_failed++))
+
+          # Check if this test is already in our unique list
+          local already_listed=false
+          for existing_test in "${unique_failed_tests[@]}"; do
+            if [[ "$existing_test" == "$test_name" ]]; then
+              already_listed=true
+              break
+            fi
+          done
+
+          if [ "$already_listed" == "false" ]; then
+            unique_failed_tests+=("$test_name")
+            failed_tests_with_slots+=("$test_name (slot $slot)")
+          fi
         fi
       done <"test.log/slot_$slot/failed_tests"
     fi
   done
+
+  local total_failed=${#unique_failed_tests[@]}
 
   if [ $total_failed -eq 0 ]; then
     echo -e "${GN}No test failures detected before abort${CL}"
   else
     echo -e "${RD}✗ $total_failed test(s) failed before abort:${CL}"
     echo
-    for failed_test in "${failed_tests_list[@]}"; do
+    for failed_test in "${failed_tests_with_slots[@]}"; do
       echo -e "  ${RD}•${CL} $failed_test"
     done
     echo
     echo -e "${YL}Failed test logs can be found in:${CL}"
-    for failed_test in "${failed_tests_list[@]}"; do
+    for failed_test in "${failed_tests_with_slots[@]}"; do
       test_name=$(echo "$failed_test" | cut -d' ' -f1)
-      slot_num=$(echo "$failed_test" | grep -o "slot [0-9]*" | cut -d' ' -f2)
-      echo -e "  ${BL}test.log/slot_$slot_num/${test_name}.log${CL}"
+      echo -e "  ${BL}test.log/${test_name}.log${CL}"
     done
   fi
   echo "=========================================================================================================="
 
   # Copy completed logs to main directory for getStats.sh compatibility
   echo -e "${BL}Preserving completed test logs...${CL}"
+
+  # Use same logic as normal completion: find best log for each test class
+  declare -A cleanup_best_logs
+  declare -A cleanup_test_slots
+
   for ((slot = 1; slot <= parallel; slot++)); do
     if [ -d "test.log/slot_$slot" ]; then
       for log_file in test.log/slot_$slot/*.log; do
         if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
-          base_name=$(basename "$log_file" .log)
-          # Copy to main directory with slot suffix to avoid conflicts
-          cp "$log_file" "test.log/${base_name}_slot${slot}.log"
+          test_class=$(basename "$log_file" .log)
+
+          # If we haven't seen this test class yet, or if this slot's test passed and previous failed
+          if [[ ! "${cleanup_best_logs[$test_class]+isset}" ]] ||
+             { ! grep -q "BUILD FAILURE" "$log_file" && grep -q "BUILD FAILURE" "${cleanup_best_logs[$test_class]}" 2>/dev/null; } ||
+             { grep -q "BUILD SUCCESS" "$log_file" && ! grep -q "BUILD SUCCESS" "${cleanup_best_logs[$test_class]}" 2>/dev/null; }; then
+            cleanup_best_logs[$test_class]="$log_file"
+            cleanup_test_slots[$test_class]=$slot
+          fi
         fi
       done
     fi
+  done
+
+  # Copy the best log for each test class (without slot suffix)
+  for test_class in "${!cleanup_best_logs[@]}"; do
+    cp "${cleanup_best_logs[$test_class]}" "test.log/${test_class}.log"
   done
 
   # Cleanup temporary files
@@ -1095,30 +1149,66 @@ function run_parallel_tests() {
   # Aggregate results and show summary
   echo -e "${GN}Aggregating results...${CL}"
 
-  local total_failed=0
-  local failed_tests_list=()
+  local unique_failed_tests=()
+  local failed_tests_with_slots=()
+
+  # First pass: collect all unique test classes and determine the best log for each
+  declare -A best_logs  # test_class -> best_log_path
+  declare -A test_slots # test_class -> slot_number (for reference)
 
   for ((slot = 1; slot <= parallel; slot++)); do
     if [ -d "test.log/slot_$slot" ]; then
-      # Copy log files
       for log_file in test.log/slot_$slot/*.log; do
         if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
-          cp "$log_file" "test.log/$(basename "$log_file" .log)_slot${slot}.log"
+          test_class=$(basename "$log_file" .log)
+
+          # If we haven't seen this test class yet, or if this slot's test passed and previous failed
+          if [[ ! "${best_logs[$test_class]+isset}" ]] ||
+             { ! grep -q "BUILD FAILURE" "$log_file" && grep -q "BUILD FAILURE" "${best_logs[$test_class]}" 2>/dev/null; } ||
+             { grep -q "BUILD SUCCESS" "$log_file" && ! grep -q "BUILD SUCCESS" "${best_logs[$test_class]}" 2>/dev/null; }; then
+            best_logs[$test_class]="$log_file"
+            test_slots[$test_class]=$slot
+          fi
         fi
       done
+    fi
+  done
 
-      # Collect failed tests
+  # Second pass: copy the best log for each test class (without slot suffix)
+  for test_class in "${!best_logs[@]}"; do
+    cp "${best_logs[$test_class]}" "test.log/${test_class}.log"
+  done
+
+  # Third pass: collect failed tests with deduplication
+  for ((slot = 1; slot <= parallel; slot++)); do
+    if [ -d "test.log/slot_$slot" ]; then
+
+      # Collect failed tests with deduplication
       if [ -e "test.log/slot_$slot/failed_tests" ]; then
         while IFS= read -r failed_test; do
           if [[ "$failed_test" =~ ^FAILED:(.+)$ ]]; then
             test_name="${BASH_REMATCH[1]}"
-            failed_tests_list+=("$test_name (slot $slot)")
-            ((total_failed++))
+
+            # Check if this test is already in our unique list
+            local already_listed=false
+            for existing_test in "${unique_failed_tests[@]}"; do
+              if [[ "$existing_test" == "$test_name" ]]; then
+                already_listed=true
+                break
+              fi
+            done
+
+            if [ "$already_listed" == "false" ]; then
+              unique_failed_tests+=("$test_name")
+              failed_tests_with_slots+=("$test_name (slot $slot)")
+            fi
           fi
         done <"test.log/slot_$slot/failed_tests"
       fi
     fi
   done
+
+  local total_failed=${#unique_failed_tests[@]}
 
   # Show results summary
   echo "=========================================================================================================="
@@ -1127,15 +1217,14 @@ function run_parallel_tests() {
   else
     echo -e "${RD}✗ $total_failed test(s) failed:${CL}"
     echo
-    for failed_test in "${failed_tests_list[@]}"; do
+    for failed_test in "${failed_tests_with_slots[@]}"; do
       echo -e "  ${RD}•${CL} $failed_test"
     done
     echo
     echo -e "${YL}Failed test logs can be found in:${CL}"
-    for failed_test in "${failed_tests_list[@]}"; do
+    for failed_test in "${failed_tests_with_slots[@]}"; do
       test_name=$(echo "$failed_test" | cut -d' ' -f1)
-      slot_num=$(echo "$failed_test" | grep -o "slot [0-9]*" | cut -d' ' -f2)
-      echo -e "  ${BL}test.log/${test_name}_slot${slot_num}.log${CL}"
+      echo -e "  ${BL}test.log/${test_name}.log${CL}"
     done
   fi
   echo "=========================================================================================================="
@@ -1168,10 +1257,16 @@ else
         echo $! >$testPid
       fi
       while true; do
-        testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-        unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-        fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-        err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+        testsRun=$(cat failed.txt | grep "Total tests run" | cut -d: -f2 | tr -d ' ' | head -1)
+        unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
+        fail=$(cat failed.txt | grep "Tests failed" | cut -d: -f2 | tr -d ' ' | head -1)
+        err=$(cat failed.txt | grep "Tests with errors" | cut -d: -f2 | tr -d ' ' | head -1)
+
+        # Ensure numeric values and defaults
+        [[ ! "$testsRun" =~ ^[0-9]+$ ]] && testsRun=0
+        [[ ! "$unsuc" =~ ^[0-9]+$ ]] && unsuc=0
+        [[ ! "$fail" =~ ^[0-9]+$ ]] && fail=0
+        [[ ! "$err" =~ ^[0-9]+$ ]] && err=0
         ((d = $(date +%s) - start))
         # echo "Checking $fn"
         fn=$(echo "$t" | tr "." "/")
@@ -1274,20 +1369,62 @@ else
   ######################################################
   get_test_stats >failed.txt 2>/dev/null
 
-  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+  testsRun=$(cat failed.txt | grep "Total tests run" | cut -d: -f2 | tr -d ' ' | head -1)
+  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
+  fail=$(cat failed.txt | grep "Tests failed" | cut -d: -f2 | tr -d ' ' | head -1)
+  err=$(cat failed.txt | grep "Tests with errors" | cut -d: -f2 | tr -d ' ' | head -1)
+
+  # Ensure numeric values and defaults
+  [[ ! "$testsRun" =~ ^[0-9]+$ ]] && testsRun=0
+  [[ ! "$unsuc" =~ ^[0-9]+$ ]] && unsuc=0
+  [[ ! "$fail" =~ ^[0-9]+$ ]] && fail=0
+  [[ ! "$err" =~ ^[0-9]+$ ]] && err=0
   num=$numRetries
   if [ "$unsuc" -gt 0 ] && [ "$num" -gt 0 ] && [ "q$1" = "q" ]; then
     while [ "$num" -gt 0 ]; do
       echo -e "${YL}Some tests failed$CL - retrying...."
-      ./rerunFailedTests.sh
+
+      # Use built-in rerun failed functionality instead of external script
+      failed=$(get_test_stats --noreason --nosum 2>/dev/null || echo "")
+      if [ -n "$failed" ]; then
+        # Convert failed tests to class list format and rerun them
+        failed_classes=""
+        for f in $failed; do
+          cls=${f%#*}
+          if [ -z "$failed_classes" ]; then
+            failed_classes="$cls"
+          else
+            failed_classes="$failed_classes\n$cls"
+          fi
+        done
+
+        # Create temporary class list with just the failed tests
+        echo -e "$failed_classes" | sort -u >"${classList}.retry"
+
+        # Rerun failed tests
+        for retry_t in $(<"${classList}.retry"); do
+          if grep "$retry_t" $disabledList >/dev/null; then
+            continue
+          fi
+          echo "Retrying $retry_t"
+          if [ "$m" == "." ]; then
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t" >"test.log/$retry_t.log" 2>&1
+          else
+            mvn -Dsurefire.useFile=false $TEST_MVN_PROPS test -Dtest="$retry_t#$m" >"test.log/$retry_t.log" 2>&1
+          fi
+        done
+
+        rm -f "${classList}.retry"
+      fi
+
       ((num = num - 1))
       ((totalRetries = totalRetries + 1))
       retried="$retried\n$t"
       get_test_stats >failed.txt 2>/dev/null
-      unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
+      unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
+
+      # Ensure numeric values and defaults
+      [[ ! "$unsuc" =~ ^[0-9]+$ ]] && unsuc=0
       if [ "$unsuc" -eq 0 ]; then
         break
       fi
@@ -1296,10 +1433,16 @@ else
   fi
   get_test_stats >failed.txt 2>/dev/null
 
-  testsRun=$(cat failed.txt | grep "Total tests run" | cut -f2 -d:)
-  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -f2 -d:)
-  fail=$(cat failed.txt | grep "Tests failed" | cut -f2 -d:)
-  err=$(cat failed.txt | grep "Tests with errors" | cut -f2 -d:)
+  testsRun=$(cat failed.txt | grep "Total tests run" | cut -d: -f2 | tr -d ' ' | head -1)
+  unsuc=$(cat failed.txt | grep "Total unsuccessful" | cut -d: -f2 | tr -d ' ' | head -1)
+  fail=$(cat failed.txt | grep "Tests failed" | cut -d: -f2 | tr -d ' ' | head -1)
+  err=$(cat failed.txt | grep "Tests with errors" | cut -d: -f2 | tr -d ' ' | head -1)
+
+  # Ensure numeric values and defaults
+  [[ ! "$testsRun" =~ ^[0-9]+$ ]] && testsRun=0
+  [[ ! "$unsuc" =~ ^[0-9]+$ ]] && unsuc=0
+  [[ ! "$fail" =~ ^[0-9]+$ ]] && fail=0
+  [[ ! "$err" =~ ^[0-9]+$ ]] && err=0
   rm -f $runLock
   sleep 5
   t=""
