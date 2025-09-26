@@ -182,7 +182,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;
     private String replicaSetName;
-
+    private final AtomicInteger activeConnections = new AtomicInteger(0);
     public Map<String, List<Map<String, Object >>> getDatabase(String dbn) {
         return database.get(dbn);
     }
@@ -496,6 +496,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
             }
         } catch (Exception e) {
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
             throw new RuntimeException(e);
         }
 
@@ -1424,12 +1430,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public MongoConnection getReadConnection(ReadPreference rp) {
+        activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
         return this;
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
+        activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
         return this;
     }
@@ -1839,15 +1847,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public void close() {
-        exec.shutdownNow();
+        int remaining = activeConnections.decrementAndGet();
+        log.debug("Connection closed, remaining connections: {}", remaining);
 
-        for (Object m : monitors) {
-            synchronized (m) {
-                m.notifyAll();
+        if (remaining <= 0) {
+            // Only shutdown scheduler when NO connections are active
+            log.info("All connections closed, shutting down InMemory driver scheduler");
+            if (exec != null && !exec.isShutdown()) {
+                exec.shutdown();
             }
+            for (Object m : monitors) {
+                synchronized (m) {
+                    m.notifyAll();
+                }
+            }
+            database.clear();
+
         }
 
-        database.clear();
     }
 
 
@@ -2614,6 +2631,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 // enforce unique indexes before insert
                 enforceUniqueOrThrow(db, collection, o);
                 getCollection(db, collection).add(o);
+                notifyWatchers(db, collection, "insert", o);
                 inserted++;
                 continue;
             }
@@ -3170,9 +3188,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 }
             }
         }
-        if (indexDataByDBCollection.containsKey(db)) {
-            indexDataByDBCollection.get(db).remove(collection);
-        }
+        indexDataByDBCollection.get(db).remove(collection);
         updateIndexData(db, collection, null);
         Doc res = Doc.of("matched", (Object) matchedCount, "nModified", modifiedCount, "modified", modifiedCount);
         if (!upsertedIds.isEmpty()) {
