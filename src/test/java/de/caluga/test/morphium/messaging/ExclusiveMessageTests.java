@@ -67,7 +67,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         long start = System.currentTimeMillis();
                         while (true) {
                             Thread.sleep(50);
-                            mm = m.reread(mm);
+                            mm = m.reread(mm, m1.getCollectionName(mm));
                             assertNotNull(mm);
                             if (mm.getProcessedBy() != null && mm.getProcessedBy().size() != 0) break;
                             assertTrue(System.currentTimeMillis() - start < 10000, "timeout waiting for processing");
@@ -406,6 +406,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
 
     @Test
+    @Tag("external")
     public void exclusivityTest() throws Exception {
         for (String msgImpl : MorphiumTestBase.messagingsToTest) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
@@ -479,112 +480,112 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
                 try {
                     MessageListener messageListener = (msg, m)-> {
-                try {
-                    Thread.sleep((long)(500 * Math.random()));
-                } catch (InterruptedException e) {
-                }
-
-                received.incrementAndGet();
-                recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
-                recieveCount.get(msg.getSenderId()).incrementAndGet();
-
-                if (ids.containsKey(m.getMsgId().toString()) && m.isExclusive()) {
-                    log.error("Duplicate recieved message " + msg.getSenderId() + " " + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
-
-                    if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
-                        log.error("--- duplicate was processed before by me!");
-                    } else {
-                        log.error("--- duplicate processed by someone else");
-                    }
-
-                    dups.incrementAndGet();
-                } else if (!m.isExclusive()) {
-                    recIdsByReceiver.putIfAbsent(msg.getSenderId(), new ArrayList<>());
-
-                    if (recIdsByReceiver.get(msg.getSenderId()).contains(m.getMsgId())) {
-                        log.error(msg.getSenderId() + ": Duplicate processing of broadcast message of same receiver! ");
-                        m = msg.getMorphium().reread(m);
-
-                        if (m == null) {
-                            log.error("... is deleted???");
-                        } else if (m.getProcessedBy().contains(msg.getSenderId())) {
-                            log.error("... but is properly marked!");
+                        try {
+                            Thread.sleep((long)(500 * Math.random()));
+                        } catch (InterruptedException e) {
                         }
 
-                        dups.incrementAndGet();
-                    } else {
-                        recIdsByReceiver.get(msg.getSenderId()).add(m.getMsgId());
+                        received.incrementAndGet();
+                        recieveCount.putIfAbsent(msg.getSenderId(), new AtomicInteger());
+                        recieveCount.get(msg.getSenderId()).incrementAndGet();
+
+                        if (ids.containsKey(m.getMsgId().toString()) && m.isExclusive()) {
+                            log.error("Duplicate recieved message " + msg.getSenderId() + " " + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
+
+                            if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
+                                log.error("--- duplicate was processed before by me!");
+                            } else {
+                                log.error("--- duplicate processed by someone else");
+                            }
+
+                            dups.incrementAndGet();
+                        } else if (!m.isExclusive()) {
+                            recIdsByReceiver.putIfAbsent(msg.getSenderId(), new ArrayList<>());
+
+                            if (recIdsByReceiver.get(msg.getSenderId()).contains(m.getMsgId())) {
+                                log.error(msg.getSenderId() + ": Duplicate processing of broadcast message of same receiver! ");
+                                m = msg.getMorphium().reread(m);
+
+                                if (m == null) {
+                                    log.error("... is deleted???");
+                                } else if (m.getProcessedBy().contains(msg.getSenderId())) {
+                                    log.error("... but is properly marked!");
+                                }
+
+                                dups.incrementAndGet();
+                            } else {
+                                recIdsByReceiver.get(msg.getSenderId()).add(m.getMsgId());
+                            }
+                        }
+
+                        // log.info("Processed msg excl: " + m.isExclusive());
+                        ids.put(m.getMsgId().toString(), System.currentTimeMillis());
+                        recById.put(m.getMsgId().toString(), msg.getSenderId());
+                        return null;
+                    };
+                    receiver.addListenerForTopic("m", messageListener);
+                    receiver2.addListenerForTopic("m", messageListener);
+                    receiver3.addListenerForTopic("m", messageListener);
+                    receiver4.addListenerForTopic("m", messageListener);
+                    int amount = 150;
+                    int broadcastAmount = 50;
+
+                    for (int i = 0; i < amount; i++) {
+                        int rec = received.get();
+                        long messageCount = receiver.getPendingMessagesCount();
+
+                        if (i % 10 == 0) {
+                            log.info("Send " + i + " recieved: " + rec + " queue: " + messageCount);
+                        }
+
+                        Msg m = new Msg("m", "m", "v" + i, 30000, true);
+                        m.setExclusive(true);
+                        sender.sendMessage(m);
                     }
-                }
 
-                // log.info("Processed msg excl: " + m.isExclusive());
-                ids.put(m.getMsgId().toString(), System.currentTimeMillis());
-                recById.put(m.getMsgId().toString(), msg.getSenderId());
-                return null;
-            };
-            receiver.addListenerForTopic("m", messageListener);
-            receiver2.addListenerForTopic("m", messageListener);
-            receiver3.addListenerForTopic("m", messageListener);
-            receiver4.addListenerForTopic("m", messageListener);
-            int amount = 150;
-            int broadcastAmount = 50;
+                    for (int i = 0; i < broadcastAmount; i++) {
+                        int rec = received.get();
+                        long messageCount = receiver.getPendingMessagesCount();
 
-            for (int i = 0; i < amount; i++) {
-                int rec = received.get();
-                long messageCount = receiver.getPendingMessagesCount();
+                        if (i % 100 == 0) {
+                            log.info("Send broadcast " + i + " recieved: " + rec + " queue: " + messageCount);
+                        }
 
-                if (i % 10 == 0) {
-                    log.info("Send " + i + " recieved: " + rec + " queue: " + messageCount);
-                }
+                        Msg m = new Msg("m", "m", "v" + i, 30000, false);
+                        sender.sendMessage(m);
+                    }
 
-                Msg m = new Msg("m", "m", "v" + i, 30000, true);
-                m.setExclusive(true);
-                sender.sendMessage(m);
-            }
+                    long waitUntil = System.currentTimeMillis() + 60000;
 
-            for (int i = 0; i < broadcastAmount; i++) {
-                int rec = received.get();
-                long messageCount = receiver.getPendingMessagesCount();
+                    while (received.get() != amount + broadcastAmount * 4) {
+                        int rec = received.get();
+                        long messageCount = receiver.getPendingMessagesCount();
+                        log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
+                                               (amount + broadcastAmount * 4 - rec - messageCount)));
+                        log.info(String.format("Number of ids: %d", ids.size()));
+                        org.junit.jupiter.api.Assertions.assertEquals(0, dups.get(), "got duplicate message");
 
-                if (i % 100 == 0) {
-                    log.info("Send broadcast " + i + " recieved: " + rec + " queue: " + messageCount);
-                }
+                        for (MorphiumMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
+                            log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
+                        }
 
-                Msg m = new Msg("m", "m", "v" + i, 30000, false);
-                sender.sendMessage(m);
-            }
+                        Thread.sleep(1000);
+                        assertTrue(System.currentTimeMillis() < waitUntil, "Took too long!");
+                    }
 
-            long waitUntil = System.currentTimeMillis() + 60000;
+                    int rec = received.get();
+                    long messageCount = sender.getPendingMessagesCount();
+                    log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
+                    org.junit.jupiter.api.Assertions.assertEquals(amount + broadcastAmount * 4, received.get(), "should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get());
 
-            while (received.get() != amount + broadcastAmount * 4) {
-                int rec = received.get();
-                long messageCount = receiver.getPendingMessagesCount();
-                log.info(String.format("Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount, broadcastAmount, rec, messageCount,
-                                       (amount + broadcastAmount * 4 - rec - messageCount)));
-                log.info(String.format("Number of ids: %d", ids.size()));
-                org.junit.jupiter.api.Assertions.assertEquals(0, dups.get(), "got duplicate message");
+                    for (String id : recieveCount.keySet()) {
+                        log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
+                    }
 
-                for (MorphiumMessaging m : Arrays.asList(receiver, receiver2, receiver3, receiver4)) {
-                    log.info(m.getSenderId() + " active Tasks: " + m.getRunningTasks());
-                }
-
-                Thread.sleep(1000);
-                assertTrue(System.currentTimeMillis() < waitUntil, "Took too long!");
-            }
-
-            int rec = received.get();
-            long messageCount = sender.getPendingMessagesCount();
-            log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
-            org.junit.jupiter.api.Assertions.assertEquals(amount + broadcastAmount * 4, received.get(), "should have received " + (amount + broadcastAmount * 4) + " but actually got " + received.get());
-
-            for (String id : recieveCount.keySet()) {
-                log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
-            }
-
-            log.info("R1 active: " + receiver.getRunningTasks());
-            log.info("R2 active: " + receiver2.getRunningTasks());
-            log.info("R3 active: " + receiver3.getRunningTasks());
-            log.info("R4 active: " + receiver4.getRunningTasks());
+                    log.info("R1 active: " + receiver.getRunningTasks());
+                    log.info("R2 active: " + receiver2.getRunningTasks());
+                    log.info("R3 active: " + receiver3.getRunningTasks());
+                    log.info("R4 active: " + receiver4.getRunningTasks());
                 } finally {
                     sender.terminate();
                     receiver.terminate();
