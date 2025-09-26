@@ -1,5 +1,6 @@
 package de.caluga.morphium.messaging;
 
+import java.io.Closeable;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +8,7 @@ import java.util.Map;
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.config.MessagingSettings;
 
-public interface MorphiumMessaging {
+public interface MorphiumMessaging extends Closeable {
     List<MorphiumMessaging> getAlternativeMessagings();
 
     void start();
@@ -78,6 +79,7 @@ public interface MorphiumMessaging {
     boolean isRunning();
 
     void terminate();
+    void close();
 
 
     void queueMessage(Msg m);

@@ -79,24 +79,24 @@ public class MessagingTest extends MorphiumTestBase {
                         Thread.sleep(100);
                         Query<Msg> q = morph.createQueryFor(Msg.class, messaging1.getCollectionName(msg));
                         assertEquals(1, q.countAll()); //stored in the colleciton for messaging1
-                        TestUtils.checkMessage(log, "Message stored and found in messaging1");
+                        TestUtils.check(log, "Message stored and found in messaging1");
                         q.setCollectionName(messaging2.getCollectionName(msg));
                         assertEquals(0, q.countAll()); //not found in collection for messaging2
-                        TestUtils.checkMessage(log, "Message stored and not found in messaging2");
+                        TestUtils.check(log, "Message stored and not found in messaging2");
                         msg = new Msg("test", "msg", "value", 30000);
                         msg.setExclusive(false);
                         messaging2.sendMessage(msg);
                         Thread.sleep(100);
                         q = morph.createQueryFor(Msg.class, messaging2.getCollectionName(msg));
                         assertEquals(1, q.countAll());  //stored in collection for messaging2
-                        TestUtils.checkMessage(log, "Message stored and found in messaging2");
+                        TestUtils.check(log, "Message stored and found in messaging2");
                         q = morph.createQueryFor(Msg.class, messaging1.getCollectionName(msg));
                         assertEquals(1, q.countAll());  //not stored in collection for messaging1 - still 1
-                        TestUtils.checkMessage(log, "Message stored and not found in messaging1");
+                        TestUtils.check(log, "Message stored and not found in messaging1");
                         Thread.sleep(500);
                         assertFalse(gotMessage1);
                         assertFalse(gotMessage2);
-                        TestUtils.checkMessage(log, "Messages should not be received");
+                        TestUtils.check(log, "Messages should not be received");
 
                     } finally {
                         messaging1.terminate();

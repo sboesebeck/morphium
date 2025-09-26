@@ -1139,6 +1139,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     @Override
+    public void close() {
+        terminate();
+    }
+    @Override
     public void terminate() {
         log.info("Terminate messaging");
         running = false;
