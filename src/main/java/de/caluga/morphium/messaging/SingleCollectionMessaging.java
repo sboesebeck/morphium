@@ -397,6 +397,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 if (exclusive != null && exclusive) {
                     @SuppressWarnings("unchecked")
                     List<String> processedBy = (List<String>) msg.get("processed_by");
+                    // Only skip if explicitly marked as processed by someone
                     if (processedBy != null && !processedBy.isEmpty()) {
                         // Exclusive message already processed, skip
                         return running;
@@ -498,30 +499,23 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         //Main processing thread!
         while (running) {
             try {
-                ProcessingQueueElement prEl = null;
+                var prEl = processing.poll(1000, TimeUnit.MILLISECONDS);
 
-                // Atomically poll and mark as in progress to prevent race conditions
+                if (prEl == null) {
+                    continue;
+                }
+
+                // Check if already in progress and atomically mark as in progress
+                boolean shouldProcess = false;
                 synchronized (processing) {
-                    prEl = processing.poll();
-                    if (prEl != null) {
-                        if (idsInProgress.contains(prEl.getId())) {
-                            // Already in progress, skip this element
-                            continue;
-                        }
+                    if (!idsInProgress.contains(prEl.getId())) {
                         idsInProgress.add(prEl.getId());
+                        shouldProcess = true;
                     }
                 }
 
-                if (prEl == null) {
-                    // Wait a bit before polling again
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        if (running) {
-                            Thread.currentThread().interrupt();
-                        }
-                        break;
-                    }
+                if (!shouldProcess) {
+                    // Already in progress, skip this element
                     continue;
                 }
 
