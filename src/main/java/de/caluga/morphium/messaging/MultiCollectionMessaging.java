@@ -628,16 +628,24 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         if (!running.get())
             return;
         // log.info("PollAndProcess - ignoring {} msids", processingMessages.size());
+        // Use more efficient query patterns
+        List<MorphiumId> processingIds = new ArrayList<>(processingMessages);
+
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q1.f(Msg.Fields.exclusive).eq(true) // exclusive message
-          .f(Msg.Fields.processedBy).eq(null) // not processed yet
-          .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) // not processed by me
+          .f("processed_by.0").notExists() // not processed yet (more efficient than eq(null))
           .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+        if (!processingIds.isEmpty()) {
+            q1.f(Msg.Fields.msgId).nin(processingIds); // not processed by me
+        }
+
         Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
-        q2.f(Msg.Fields.exclusive).eq(false) // exclusive message
+        q2.f(Msg.Fields.exclusive).eq(false) // non-exclusive message
           .f(Msg.Fields.processedBy).ne(getSenderId()) // not processed by me
-          .f(Msg.Fields.msgId).nin(new ArrayList(processingMessages)) // not processed by me
           .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+        if (!processingIds.isEmpty()) {
+            q2.f(Msg.Fields.msgId).nin(processingIds); // not processing already
+        }
 
         Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q.sort(Msg.Fields.priority);
@@ -859,15 +867,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     }
                     processingMessages.add(doc.getMsgId());
                     if (doc.isExclusive()) {
+                        // Check if already processed before attempting to lock
+                        if (doc.getProcessedBy() != null && !doc.getProcessedBy().isEmpty()) {
+                            return;
+                        }
                         if (!lockMessage(doc, getSenderId())) {
-                            processingMessages.remove(doc.getMsgId());
                             return;
                         }
                     }
                     Msg current = morphium.reread(doc, getCollectionName(doc));
                     if (current == null) {
                         unlock(doc);
-                        processingMessages.remove(doc.getMsgId());
                         return;
                     }
 
