@@ -373,7 +373,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 try {
                     fnd.setFilter(Doc.of("_id", id));
                     fnd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-                    fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1));
+                    fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1, "exclusive", 1, "processed_by", 1));
                     List<Map<String, Object>> msgs = fnd.execute();
                     if (!msgs.isEmpty()) {
                         msg = msgs.get(0);
@@ -384,18 +384,29 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     fnd.releaseConnection();
                 }
                 if (msg == null) return running;
-                if (msg.get("sender").equals(id)) {
+
+                // Skip if I am the sender
+                if (msg.get("sender").equals(this.id)) {
                     return running;
                 }
+
                 MorphiumId messageId = (MorphiumId) msg.get("_id");
+
+                // Additional validation for exclusive messages
+                Boolean exclusive = (Boolean) msg.get("exclusive");
+                if (exclusive != null && exclusive) {
+                    @SuppressWarnings("unchecked")
+                    List<String> processedBy = (List<String>) msg.get("processed_by");
+                    if (processedBy != null && !processedBy.isEmpty()) {
+                        // Exclusive message already processed, skip
+                        return running;
+                    }
+                }
 
                 // Check both processing queue and idsInProgress to prevent duplicates
                 synchronized (processing) {
                     // First check if already in progress (most important for preventing duplicates)
                     if (idsInProgress.contains(messageId)) {
-                        // if (log.isDebugEnabled()) {
-                        //     log.debug("Message {} already in progress, skipping change stream event", messageId);
-                        // }
                         return running;
                     }
 
@@ -407,14 +418,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                     // Check if not already queued for processing
                     if (!processing.contains(el)) {
-                        // if (log.isDebugEnabled()) {
-                        //     log.debug("ChangeStream: adding message {} to processing queue", messageId);
-                        // }
                         processing.add(el);
-                        // } else {
-                        //     if (log.isDebugEnabled()) {
-                        //         log.debug("Message {} already queued for processing, skipping", messageId);
-                        //     }
                     }
                 }
             }
@@ -435,7 +439,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        in.put("$in", Arrays.asList("insert"));
+        //        in.put("$eq", "insert"); //, "delete", "update"));
+        in.put("$in", Arrays.asList("insert", "update"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
@@ -493,30 +498,44 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         //Main processing thread!
         while (running) {
             try {
-                var prEl = processing.poll(1000, TimeUnit.MILLISECONDS);
+                ProcessingQueueElement prEl = null;
+
+                // Atomically poll and mark as in progress to prevent race conditions
+                synchronized (processing) {
+                    prEl = processing.poll();
+                    if (prEl != null) {
+                        if (idsInProgress.contains(prEl.getId())) {
+                            // Already in progress, skip this element
+                            continue;
+                        }
+                        idsInProgress.add(prEl.getId());
+                    }
+                }
 
                 if (prEl == null) {
+                    // Wait a bit before polling again
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        if (running) {
+                            Thread.currentThread().interrupt();
+                        }
+                        break;
+                    }
                     continue;
                 }
 
-                synchronized (processing) {
-                    if (idsInProgress.contains(prEl.getId())) {
-                        continue;
-                    }
-
-                    idsInProgress.add(prEl.getId());
-                }
-
+                final ProcessingQueueElement finalPrEl = prEl;
                 Runnable r = () -> {
                     try {
-                        var msg = morphium.findById(Msg.class, prEl.getId(), getCollectionName());
+                        var msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
                         //message was deleted or dirty read
                         //dirty read only possible, because  msg read ReadPreferenceLevel is NEAREST
 
                         if (msg == null) {
-                            var q = morphium.createQueryFor(Msg.class).setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(prEl.getId());
+                            var q = morphium.createQueryFor(Msg.class).setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
                             q.setCollectionName(getCollectionName());
-                            msg = q.get();//morphium.findById(Msg.class, prEl.getId(), getCollectionName());
+                            msg = q.get();//morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
 
                             if (msg == null) {
                                 return;
@@ -598,7 +617,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         }
                     } finally {
                         synchronized (processing) {
-                            idsInProgress.remove(prEl.getId());
+                            idsInProgress.remove(finalPrEl.getId());
                         }
                     }
                 };
@@ -820,7 +839,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         if (lockMessage(obj, id, obj.getDeleteAt())) {
             processMessage(obj);
         } else {
-            requestPoll.incrementAndGet();
+            // Failed to acquire lock, message is being processed by another instance
+            // or was already processed. Do not trigger another poll as this is expected.
+            if (log.isDebugEnabled()) {
+                log.debug("Failed to acquire lock for exclusive message {}, likely being processed by another instance", obj.getMsgId());
+            }
         }
     }
 
@@ -887,11 +910,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // outdated message
         if (msg.isTimingOut() && msg.getTtl() < System.currentTimeMillis() - msg.getTimestamp()) {
             // Delete outdated msg!
-            if (log.isDebugEnabled()) {
-                long age = System.currentTimeMillis() - msg.getTimestamp();
-                log.debug("{}: Found outdated message - deleting it! ttl={} age={} id={} topic={}",
-                    getSenderId(), msg.getTtl(), age, msg.getMsgId(), msg.getTopic());
-            }
+            log.debug(getSenderId() + ": Found outdated message - deleting it!");
             morphium.delete(msg, getCollectionName());
             unlockIfExclusive(msg);
             return;
@@ -918,11 +937,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        if (!msg.isExclusive() && !tryClaimMessage(msg)) {
-            requestPoll.incrementAndGet();
-            return;
-        }
-
+        // Runnable r = ()->{
         boolean wasProcessed = false;
         boolean wasRejected = false;
         List<MessageRejectedException> rejections = new ArrayList<>();
@@ -944,7 +959,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     break;
                 }
 
-                if (msg.isExclusive() && l.markAsProcessedBeforeExec()) {
+                if (l.markAsProcessedBeforeExec()) {
                     updateProcessedBy(msg);
                 }
 
@@ -993,7 +1008,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             }
         }
 
-        if (msg.isExclusive() && wasProcessed && !msg.getProcessedBy().contains(id)) {
+        if (wasProcessed && !msg.getProcessedBy().contains(id)) {
             updateProcessedBy(msg);
         }
 
@@ -1009,37 +1024,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // remove _own_ lock
             deleteLock(msg.getMsgId());
         }
-    }
-
-    private boolean tryClaimMessage(Msg msg) {
-        if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
-            return false;
-        }
-
-        Query<Msg> query = morphium.createQueryFor(Msg.class, getCollectionName());
-        query.f(Msg.Fields.msgId).eq(msg.getMsgId()).f(Msg.Fields.processedBy).ne(id);
-
-        for (int attempt = 0; attempt < 5; attempt++) {
-            morphium.addToSet(query, Msg.Fields.processedBy.name(), id);
-            msg = morphium.reread(msg, getCollectionName());
-
-            if (msg != null && msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
-                return true;
-            }
-
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-
-        if (log.isDebugEnabled()) {
-            log.debug("{}: failed to claim msg {} after retries", id, msg != null ? msg.getMsgId() : null);
-        }
-
-        return false;
     }
 
     private void deleteLock(MorphiumId msgId) {
