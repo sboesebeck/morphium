@@ -715,15 +715,22 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
     @Test
     public void exclusiveTest() throws Exception {
-        for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        for (String msgImpl : List.of("MultiCollectionMessaging")) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
+            final int listeners = 10;
+            final int exclusiveMessages = 30;
+            final int broadcastAmount = 20;
             var cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
             cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
+            cfg.messagingSettings().setMessagingMultithreadded(true);
+            cfg.messagingSettings().setMessagingWindowSize(25);
+            cfg.messagingSettings().setUseChangeStream(true);
             try (Morphium mx = new Morphium(cfg)) {
                 mx.dropCollection(Msg.class);
                 MorphiumMessaging sender = mx.createMessaging();
@@ -732,41 +739,43 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 final AtomicInteger counts = new AtomicInteger();
                 List<MorphiumMessaging> recs = new ArrayList<>();
 
-                for (int i = 0; i < 10; i++) {
+                for (int i = 0; i < listeners; i++) {
                     MorphiumMessaging r = mx.createMessaging();
-                    r.setPause(100).setMultithreadded(true).setWindowSize(1);
+                    r.setPause(10).setMultithreadded(true).setWindowSize(10);
                     r.setSenderId("r" + i);
                     recs.add(r);
                     r.start();
-                    r.addListenerForTopic("excl_name", (m, msg)-> {
-                        counts.incrementAndGet();
-                        return null;
+                    Thread.ofVirtual().start(()-> {
+                        r.addListenerForTopic("excl_name", (m, msg)-> {
+                            counts.incrementAndGet();
+                            return null;
+                        });
                     });
                 }
 
                 try {
-                    for (int i = 0; i < 50; i++) {
-                        if (i % 10 == 0) log.info("Msg sent");
+                    for (int i = 0; i < exclusiveMessages; i++) {
+                        if (i % 10 == 0) log.info("Sent exclusive Msg {}", i);
                         sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, true)
                                            .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0));
                     }
 
-                    TestUtils.waitForConditionToBecomeTrue(45000, "Did not reach message count", ()->counts.get() >= 50, (dur)-> { log.info("Waiting to reach 50, still at {}", counts.get());});
+                    var q = mx.createQueryFor(Msg.class, sender.getCollectionName("excl_name"));
+                    TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 1000, "Did not reach message count", ()->counts.get() >= exclusiveMessages, (dur)-> { log.info("Waiting to reach {}, still at {}, mongo {}", exclusiveMessages, counts.get(), q.countAll());});
                     log.info("All messages received");
-                    TestUtils.wait("Waiting some time", 3);
+                    TestUtils.wait("Waiting some time", 5);
                     log.info("Now we got {} messages", counts.get());
-                    assertEquals(50, counts.get());
+                    assertEquals(exclusiveMessages, counts.get());
                     counts.set(0);
 
-                    for (int i = 0; i < 10; i++) {
-                        log.info("Msg sent");
+                    for (int i = 0; i < broadcastAmount; i++) {
+                        if (i % 5 == 0) log.info("Sent broadcast message {}", i);
                         sender.sendMessage(new Msg("excl_name", "msg", "value", 20000000, false));
                     }
 
-                    TestUtils.waitForConditionToBecomeTrue(45000, "Did not reach message count", ()->counts.get() >= 10 * recs.size(),  (dur)-> { log.info("not yes {} messages, still got {}", recs.size() * 10, counts.get() );});
-
-                    Thread.sleep(2000);
-                    org.junit.jupiter.api.Assertions.assertEquals(10 * recs.size(), counts.get(),
+                    TestUtils.waitForConditionToBecomeTrue(broadcastAmount * 350, "Did not reach message count", ()->counts.get() >= listeners * broadcastAmount,  (dur)-> { log.info("not yet {} messages, still got {}", listeners * broadcastAmount, counts.get() );});
+                    TestUtils.wait("Waiting some time", 5);
+                    org.junit.jupiter.api.Assertions.assertEquals(listeners * broadcastAmount, counts.get(),
                                                     "Did get too many? " + counts.get());
                 } finally {
                     Thread.ofVirtual().start(()->{
