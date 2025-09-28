@@ -811,7 +811,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     }
 
                     var q = mx.createQueryFor(Msg.class, sender.getCollectionName("excl_name"));
-                    TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 1000, "Did not reach message count",
+                    TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 200, "Did not reach message count",
                             () -> counts.get() >= exclusiveMessages, (dur) -> {
                                 log.info("Waiting to reach {}, still at {}, mongo {}", exclusiveMessages, counts.get(),
                                         q.countAll());
