@@ -866,7 +866,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
         if (lockMessage(obj, id, obj.getDeleteAt())) {
-            processMessage(obj);
+            // Double-check with fresh read after acquiring lock
+            Msg freshMsg = morphium.findById(Msg.class, obj.getMsgId(), getCollectionName());
+            if (freshMsg != null && (freshMsg.getProcessedBy() == null || freshMsg.getProcessedBy().size() == 0)) {
+                processMessage(freshMsg);
+            } else {
+                // Message was processed by someone else between lock acquire and now
+                unlockIfExclusive(obj);
+            }
         } else {
             // Failed to acquire lock, message is being processed by another instance
             // or was already processed. Do not trigger another poll as this is expected.
