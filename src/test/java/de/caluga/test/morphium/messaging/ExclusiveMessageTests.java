@@ -750,7 +750,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
     @Test
     public void exclusiveTest() throws Exception {
         // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
-        for (String msgImpl : List.of("MultiCollectionMessaging")) {
+        for (String msgImpl : List.of("StandardMessaging")) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
             final int listeners = 10;
@@ -783,6 +783,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     MorphiumMessaging r = mx.createMessaging();
                     r.setPause(10).setMultithreadded(true).setWindowSize(10);
                     r.setSenderId("r" + i);
+                    r.setUseChangeStream(true);
                     recs.add(r);
                     r.start();
                     Thread.ofVirtual().start(() -> {
