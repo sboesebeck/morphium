@@ -866,14 +866,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @SuppressWarnings("CommentedOutCode")
     private void lockAndProcess(Msg obj) {
         if (lockMessage(obj, id, obj.getDeleteAt())) {
-            // Double-check with fresh read after acquiring lock
-            Msg freshMsg = morphium.findById(Msg.class, obj.getMsgId(), getCollectionName());
-            if (freshMsg != null && (freshMsg.getProcessedBy() == null || freshMsg.getProcessedBy().size() == 0)) {
-                processMessage(freshMsg);
-            } else {
-                // Message was processed by someone else between lock acquire and now
-                unlockIfExclusive(obj);
-            }
+            processMessage(obj);
         } else {
             // Failed to acquire lock, message is being processed by another instance
             // or was already processed. Do not trigger another poll as this is expected.
@@ -1075,7 +1068,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         Query<Msg> idq = morphium.createQueryFor(Msg.class, getCollectionName());
         idq.f(Msg.Fields.msgId).eq(msg.getMsgId());
-        msg.getProcessedBy().add(id);
+        // Don't modify local copy until database update succeeds
         Map<String, Object> qobj = idq.toQueryObject();
         Map<String, Object> set = Doc.of("processed_by", id);
         Map<String, Object> update = Doc.of("$addToSet", set);
@@ -1103,6 +1096,9 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     // } else {
                     // log.debug("message deleted by someone else!!!");
                 }
+            } else {
+                // Database update succeeded, now update local copy
+                msg.getProcessedBy().add(id);
             }
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
