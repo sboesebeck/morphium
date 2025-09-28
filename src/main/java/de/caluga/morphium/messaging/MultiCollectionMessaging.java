@@ -96,14 +96,14 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         @Override
         public void onOperationError(AsyncOperationType type, Query q,
-                                     long duration, String error, Throwable t, Msg entity, Object... param) {
+                long duration, String error, Throwable t, Msg entity, Object... param) {
             log.error("Could not store {}", error, t);
         }
 
         @Override
         public void onOperationSucceeded(AsyncOperationType type, Query<Msg> q,
-                                         long duration, List<Msg> result, Msg entity,
-                                         Object... param) {
+                long duration, List<Msg> result, Msg entity,
+                Object... param) {
 
         }
     };
@@ -145,7 +145,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public void start() {
         running.set(true);
         decouplePool.scheduleWithFixedDelay(() -> {
-            // Process poll triggers - always handle DMs, regular messages based on change stream status
+            // Process poll triggers - always handle DMs, regular messages based on change
+            // stream status
             for (var name : pollTrigger.keySet()) {
                 if (pollTrigger.get(name).get() != 0) {
                     if (name.startsWith("dm_")) {
@@ -174,9 +175,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         morphium.ensureIndicesFor(Msg.class, dmCollectionName);
 
         List<Map<String, Object>> pipeline = List
-                                             .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
+                .of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "insert"))));
         directMessagesMonitor = new ChangeStreamMonitor(morphium, dmCollectionName, true,
-            morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
+                morphium.getConfig().connectionSettings().getMaxWaitTime(), pipeline);
         directMessagesMonitor.addListener((evt) -> {
             // All messages coming in here are for me!
             Map<String, Object> doc = evt.getFullDocument();
@@ -223,10 +224,10 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                                     deleted = true;
                                 } else {
                                     msg.setDeleteAt(
-                                                    new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
+                                            new Date(System.currentTimeMillis() + msg.getDeleteAfterProcessingTime()));
                                     msg.addProcessedId(getSenderId());
                                     morphium.updateUsingFields(msg, dmCollectionName, new AsyncCallbackAdapter(),
-                                                               Msg.Fields.deleteAt, Msg.Fields.processedBy);
+                                            Msg.Fields.deleteAt, Msg.Fields.processedBy);
                                 }
                             }
                             if (!deleted && !l.markAsProcessedBeforeExec()) {
@@ -246,7 +247,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         directMessagesMonitor.start();
         if (!isUseChangeStream()) {
             log.info("Start polling as changestreams are disabled");
-            decouplePool.scheduleWithFixedDelay(()-> {
+            decouplePool.scheduleWithFixedDelay(() -> {
                 try {
                     pollAndProcess();
                 } catch (Throwable e) {
@@ -317,7 +318,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             // avoid duplication
             if (!monitorsByTopic.containsKey(effectiveSettings.getMessagingStatusInfoListenerName())
                     || !monitorsByTopic.get(effectiveSettings.getMessagingStatusInfoListenerName())
-                    .contains(statusInfoListener)) {
+                            .contains(statusInfoListener)) {
                 addListenerForTopic(effectiveSettings.getMessagingStatusInfoListenerName(), statusInfoListener);
             }
         } else {
@@ -346,12 +347,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         String prefix = "messaging.threadpool.";
         return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
-               .add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
-               .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize())
-               .add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+                .add(prefix + "task_count", threadPool.getTaskCount())
+                .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
+                .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+                .add(prefix + "pool_size", (long) threadPool.getPoolSize())
+                .add(prefix + "active_count", (long) threadPool.getActiveCount())
+                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     @Override
@@ -396,7 +397,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             }
             pollAndProcessDms(name);
         });
-        if (started == null) return 0L;
+        if (started == null)
+            return 0L;
         return System.currentTimeMillis() - started;
     }
 
@@ -444,25 +446,25 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     }
 
     // private boolean lockMessage(MorphiumId id, String msgName, String lockId) {
-    //     MsgLock lck = new MsgLock(id);
-    //     lck.setLockId(lockId);
-    //     lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
-    //     InsertMongoCommand cmd = null;
+    // MsgLock lck = new MsgLock(id);
+    // lck.setLockId(lockId);
+    // lck.setDeleteAt(new Date(System.currentTimeMillis() + 600000));
+    // InsertMongoCommand cmd = null;
 
-    //     try {
-    //         cmd = new InsertMongoCommand(
-    //                         morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
-    //         cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase())
-    //            .setDocuments(List.of(morphium.getMapper().serialize(lck)));
-    //         cmd.execute();
-    //         return true;
-    //     } catch (Exception e) {
-    //         return false;
-    //     } finally {
-    //         if (cmd != null) {
-    //             cmd.releaseConnection();
-    //         }
-    //     }
+    // try {
+    // cmd = new InsertMongoCommand(
+    // morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+    // cmd.setColl(getLockCollectionName(msgName)).setDb(morphium.getDatabase())
+    // .setDocuments(List.of(morphium.getMapper().serialize(lck)));
+    // cmd.execute();
+    // return true;
+    // } catch (Exception e) {
+    // return false;
+    // } finally {
+    // if (cmd != null) {
+    // cmd.releaseConnection();
+    // }
+    // }
     // }
 
     public boolean lockMessage(Msg m, String lockId, Date delAt) {
@@ -480,9 +482,9 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         try {
             cmd = new InsertMongoCommand(
-                            morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+                    morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
             cmd.setColl(getLockCollectionName(m)).setDb(morphium.getDatabase())
-               .setDocuments(List.of(morphium.getMapper().serialize(lck)));
+                    .setDocuments(List.of(morphium.getMapper().serialize(lck)));
             cmd.execute();
             return true;
         } catch (Exception e) {
@@ -637,16 +639,16 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q1.f(Msg.Fields.exclusive).eq(true) // exclusive message
-          .f("processed_by.0").notExists() // not processed yet (more efficient than eq(null))
-          .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+                .f("processed_by.0").notExists() // not processed yet (more efficient than eq(null))
+                .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
         if (!processingIds.isEmpty()) {
             q1.f(Msg.Fields.msgId).nin(processingIds); // not processed by me
         }
 
         Query<Msg> q2 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
         q2.f(Msg.Fields.exclusive).eq(false) // non-exclusive message
-          .f(Msg.Fields.processedBy).ne(getSenderId()) // not processed by me
-          .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
+                .f(Msg.Fields.processedBy).ne(getSenderId()) // not processed by me
+                .f(Msg.Fields.sender).ne(getSenderId()); // not sent by me
         if (!processingIds.isEmpty()) {
             q2.f(Msg.Fields.msgId).nin(processingIds); // not processing already
         }
@@ -716,24 +718,28 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return true;
             } else {
                 message.setDeleteAt(new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
-                morphium.setInEntity(message, getCollectionName(message), Msg.Fields.deleteAt, new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+                morphium.setInEntity(message, getCollectionName(message), Msg.Fields.deleteAt,
+                        new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
 
-                // if (message.getDeleteAfterProcessingTime() > 0 && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
-                //     long delay = Math.max(message.getDeleteAfterProcessingTime(), 10_000);
-                //     java.util.concurrent.CompletableFuture.runAsync(() -> {
-                //         try {
-                //             morphium.createQueryFor(Msg.class, getCollectionName(message))
-                //                     .f(Msg.Fields.msgId).eq(message.getMsgId()).remove();
-                //         } catch (Exception e) {
-                //             log.warn("Failed to remove message after processing", e);
-                //         }
-                //     }, java.util.concurrent.CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS));
+                // if (message.getDeleteAfterProcessingTime() > 0 && morphium.getDriver()
+                // instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
+                // long delay = Math.max(message.getDeleteAfterProcessingTime(), 10_000);
+                // java.util.concurrent.CompletableFuture.runAsync(() -> {
+                // try {
+                // morphium.createQueryFor(Msg.class, getCollectionName(message))
+                // .f(Msg.Fields.msgId).eq(message.getMsgId()).remove();
+                // } catch (Exception e) {
+                // log.warn("Failed to remove message after processing", e);
+                // }
+                // }, java.util.concurrent.CompletableFuture.delayedExecutor(delay,
+                // java.util.concurrent.TimeUnit.MILLISECONDS));
                 // }
 
                 if (message.isExclusive()) {
                     morphium.createQueryFor(MsgLock.class, getLockCollectionName(message)).f("_id")
                             .eq(message.getMsgId())
-                            .set(MsgLock.Fields.deleteAt, new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
+                            .set(MsgLock.Fields.deleteAt,
+                                    new Date(System.currentTimeMillis() + message.getDeleteAfterProcessingTime()));
                 }
             }
         }
@@ -750,7 +756,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                     while (threadPool.getActiveCount() > effectiveSettings.getMessagingWindowSize()) {
                         Thread.onSpinWait(); // CPU-friendly busy wait hint
                         LockSupport.parkNanos(TimeUnit.MILLISECONDS
-                                              .toNanos(morphium.getConfig().driverSettings().getIdleSleepTime())); // log.debug(String.format("Active
+                                .toNanos(morphium.getConfig().driverSettings().getIdleSleepTime())); // log.debug(String.format("Active
                         // count %s >
                         // windowsize %s",
                         // threadPool.getActiveCount(),
@@ -796,7 +802,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
         try {
             cmd = new UpdateMongoCommand(
-                            morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+                    morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName(msg)).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             if (!running.get())
@@ -807,17 +813,17 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
             // if (ret.get("nModified") == null && ret.get("modified") == null
-            //         || Integer.valueOf(0).equals(ret.get("nModified"))) {
-            //     if (morphium.reread(msg, getCollectionName(msg)) != null) {
-            //         if (!msg.getProcessedBy().contains(id)) {
-            //             log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
-            //             log.warn(id + ": " + Utils.toJsonString(ret));
-            //             log.warn(id + ": msg: " + msg.toString());
-            //         }
+            // || Integer.valueOf(0).equals(ret.get("nModified"))) {
+            // if (morphium.reread(msg, getCollectionName(msg)) != null) {
+            // if (!msg.getProcessedBy().contains(id)) {
+            // log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
+            // log.warn(id + ": " + Utils.toJsonString(ret));
+            // log.warn(id + ": msg: " + msg.toString());
+            // }
 
-            //         // } else {
-            //         // log.debug("message deleted by someone else!!!");
-            //     }
+            // // } else {
+            // // log.debug("message deleted by someone else!!!");
+            // }
             // }
         } catch (MorphiumDriverException e) {
             log.error("Error updating processed by - this might lead to duplicate execution!", e);
@@ -841,8 +847,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         log.debug("Adding changestream for collection {}", getCollectionName(n));
         morphium.ensureIndicesFor(Msg.class, getCollectionName(n));
         ChangeStreamMonitor cm = new ChangeStreamMonitor(morphium, getCollectionName(n), true,
-            morphium.getConfig().connectionSettings().getMaxWaitTime(),
-            pipeline);
+                morphium.getConfig().connectionSettings().getMaxWaitTime(),
+                pipeline);
         cm.addListener((evt) -> {
             Runnable r = () -> {
 
@@ -871,6 +877,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
                     // Use atomic add operation - if already present, skip processing
                     if (!processingMessages.add(doc.getMsgId())) {
+                        log.info("could notr add to processingMessages");
                         return;
                     }
                     if (doc.isExclusive()) {
@@ -884,17 +891,18 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                             return;
                         }
                     }
-                    Msg current = morphium.reread(doc, getCollectionName(doc));
+                    Msg current = doc; // morphium.reread(doc, getCollectionName(doc));
                     if (current == null) {
+                        log.info("Reread failed");
                         processingMessages.remove(doc.getMsgId());
                         return;
                     }
 
                     try {
-                        if (current.getProcessedBy().contains(getSenderId())) {
-                            // Don't unlock here - let lock timeout naturally
-                            return;
-                        }
+                        // if (current.getProcessedBy().contains(getSenderId())) {
+                        // // Don't unlock here - let lock timeout naturally
+                        // return;
+                        // }
 
                         if (l.markAsProcessedBeforeExec()) {
                             updateProcessedBy(current);
@@ -935,8 +943,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             return running.get();
         });
         ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(n), false,
-            effectiveSettings.getMessagingPollPause(), List.of(Doc.of("$match", Doc.of("operationType",
-                Doc.of("$eq", "delete")))));
+                effectiveSettings.getMessagingPollPause(), List.of(Doc.of("$match", Doc.of("operationType",
+                        Doc.of("$eq", "delete")))));
         lockMonitor.addListener((evt) -> {
             var id = evt.getId();
             if (morphium.createQueryFor(Msg.class).setCollectionName(getCollectionName(n)).f(Msg.Fields.msgId).eq(id)
@@ -1013,6 +1021,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
     public void close() {
         terminate();
     }
+
     @Override
     public void terminate() {
         running.set(false);
@@ -1023,13 +1032,20 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 ;
             }
         }
-        if (directMessagesMonitor != null) directMessagesMonitor.terminate();
-        if (threadPool != null) threadPool.shutdownNow();
-        if (decouplePool != null) decouplePool.shutdownNow();
-        if (monitorsByTopic != null) monitorsByTopic.clear();
-        if (waitingForAnswers != null) waitingForAnswers.clear();
-        if (waitingForCallbacks != null) waitingForCallbacks.clear();
-        if (allMessagings != null) allMessagings.remove(this);
+        if (directMessagesMonitor != null)
+            directMessagesMonitor.terminate();
+        if (threadPool != null)
+            threadPool.shutdownNow();
+        if (decouplePool != null)
+            decouplePool.shutdownNow();
+        if (monitorsByTopic != null)
+            monitorsByTopic.clear();
+        if (waitingForAnswers != null)
+            waitingForAnswers.clear();
+        if (waitingForCallbacks != null)
+            waitingForCallbacks.clear();
+        if (allMessagings != null)
+            allMessagings.remove(this);
     }
 
     private void persistMessage(Msg m, boolean async) {
@@ -1072,7 +1088,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
         try {
             for (var msgName : monitorsByTopic.keySet()) {
                 Query<Msg> q1 = morphium.createQueryFor(Msg.class, getCollectionName(msgName));
-                // pending = not processed by anyone (exclusive) or not processed by me (broadcast)
+                // pending = not processed by anyone (exclusive) or not processed by me
+                // (broadcast)
                 q1.f(Msg.Fields.sender).ne(getSenderId()).f("processed_by.0").notExists();
                 total += q1.countAll();
             }
@@ -1133,13 +1150,13 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
 
             if (null == firstAnswer && throwExceptionOnTimeout) {
                 throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
-                                                  + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                        + requestMsgId + " in time (" + timeoutInMs + "ms)");
             }
 
             return firstAnswer;
         } catch (InterruptedException e) {
             log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId
-                      + " interrupted.", e);
+                    + " interrupted.", e);
         } finally {
             waitingForAnswers.remove(requestMsgId);
         }
@@ -1181,7 +1198,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
                     throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic()
-                                                      + "/" + requestMsgId + "in time (" + timeout + ")");
+                            + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
 
                 if (System.currentTimeMillis() - start > timeout) {
@@ -1193,7 +1210,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 }
 
                 LockSupport.parkNanos(
-                                TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
+                        TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
                 // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
             }
         } finally {
@@ -1219,7 +1236,8 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
      * @parameter cb - the message callback
      */
     @Override
-    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, SingleCollectionMessaging.AsyncMessageCallback cb) {
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,
+            SingleCollectionMessaging.AsyncMessageCallback cb) {
         if (!running.get()) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }
@@ -1333,12 +1351,12 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
             setSenderId(effectiveSettings.getSenderId());
         }
         threadPool = new ThreadPoolExecutor(
-                        effectiveSettings.getThreadPoolMessagingCoreSize(),
-                        effectiveSettings.getThreadPoolMessagingMaxSize(),
-                        effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory());
+                effectiveSettings.getThreadPoolMessagingCoreSize(),
+                effectiveSettings.getThreadPoolMessagingMaxSize(),
+                effectiveSettings.getThreadPoolMessagingKeepAliveTime(),
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(),
+                Thread.ofVirtual().name("msg-thr-", 0).factory());
     }
 
 }
