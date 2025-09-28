@@ -46,7 +46,7 @@ import java.util.concurrent.locks.LockSupport;
  * MessageRejectedException.c
  */
 
-@SuppressWarnings({"ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait"})
+@SuppressWarnings({ "ConstantConditions", "unchecked", "UnusedDeclaration", "UnusedReturnValue", "BusyWait" })
 @Messaging(name = "StandardMessaging", description = "Standard message queueing implementation")
 public class SingleCollectionMessaging extends Thread implements ShutdownListener, MorphiumMessaging {
     private static final Logger log = LoggerFactory.getLogger(SingleCollectionMessaging.class);
@@ -76,7 +76,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private ChangeStreamMonitor changeStreamMonitor;
     private static Vector<SingleCollectionMessaging> allMessagings = new Vector<>();
 
-    //answers for messages
+    // answers for messages
     private final Map<MorphiumId, Queue<Msg>> waitingForAnswers = new ConcurrentHashMap<>();
     private final Map<MorphiumId, CallbackRequest> waitingForCallbacks = new ConcurrentHashMap<>();
 
@@ -85,7 +85,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     private final AtomicInteger requestPoll = new AtomicInteger(0);
     private final List<MorphiumId> idsInProgress = new Vector<>();
     private MessagingSettings settings = null;
-
 
     public SingleCollectionMessaging() {
         allMessagings.add(this);
@@ -108,6 +107,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         // listenerByName = new HashMap<>();
         requestPoll.set(1);
     }
+
     /**
      * attaches to the default queue named "msg"
      *
@@ -119,7 +119,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple) {
         this(m, null, pause, processMultiple);
 
-        if (!processMultiple) setWindowSize(1);
+        if (!processMultiple)
+            setWindowSize(1);
     }
 
     public SingleCollectionMessaging(Morphium m, int pause) {
@@ -134,16 +135,17 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
+    public SingleCollectionMessaging(Morphium m, int pause, boolean processMultiple, boolean multithreadded,
+            int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
 
-        if (!processMultiple) setWindowSize(1);
+        if (!processMultiple)
+            setWindowSize(1);
     }
 
     public SingleCollectionMessaging(Morphium m, int pause, boolean multithreadded, int windowSize) {
         this(m, null, pause, multithreadded, windowSize);
     }
-
 
     /**
      * @Deprecated - processMultiple is unused
@@ -152,44 +154,55 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple) {
         this(m, queueName, pause, false, m.getConfig().getMessagingWindowSize());
 
-        if (!processMultiple) setWindowSize(1);
+        if (!processMultiple)
+            setWindowSize(1);
     }
 
     public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize) {
-        this(m, queueName, pause, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
+        this(m, queueName, pause, multithreadded, windowSize,
+                m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
     }
 
     /**
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize) {
-        this(m, queueName, pause, multithreadded, windowSize, m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
+            boolean multithreadded, int windowSize) {
+        this(m, queueName, pause, multithreadded, windowSize,
+                m.isReplicaSet() || m.getDriver().getName().equals(InMemoryDriver.driverName));
 
-        if (!processMultiple) setWindowSize(1);
+        if (!processMultiple)
+            setWindowSize(1);
     }
 
     /**
      * @Deprecated - processMultiple is unused
      */
     @Deprecated
-    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple, boolean multithreadded, int windowSize, boolean useChangeStream) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean processMultiple,
+            boolean multithreadded, int windowSize, boolean useChangeStream) {
         this(m, queueName, pause, multithreadded, windowSize, useChangeStream);
 
-        if (!processMultiple) setWindowSize(1);
+        if (!processMultiple)
+            setWindowSize(1);
     }
 
-
     /**
-     * @param  m:              the morphium instance to use
+     * @param m:               the morphium instance to use
      * @param queueName:       The name of the messaging queue
      * @param windowSize:      how many messages to mark for processing at once
-     * @param useChangeStream: whether to use changeStream (reccommended!) or not. Attention: changestream cannot be used on single
-     *                         mongodb instances or mongos sharded clusters - needs to be a replicaset!
-     *                         morphium automatically sets this value accordingly depending on your configuration
-     * @prarm pause: when waiting for incoming messages, especially when multithreadded == false, how long to wait between polls
+     * @param useChangeStream: whether to use changeStream (reccommended!) or not.
+     *                         Attention: changestream cannot be used on single
+     *                         mongodb instances or mongos sharded clusters - needs
+     *                         to be a replicaset!
+     *                         morphium automatically sets this value accordingly
+     *                         depending on your configuration
+     * @prarm pause: when waiting for incoming messages, especially when
+     *        multithreadded == false, how long to wait between polls
      */
-    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize, boolean useChangeStream) {
+    public SingleCollectionMessaging(Morphium m, String queueName, int pause, boolean multithreadded, int windowSize,
+            boolean useChangeStream) {
         this();
         var cfg = m.getConfig().createCopy();
         cfg.messagingSettings().setMessageQueueName(queueName);
@@ -200,15 +213,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         init(m, cfg.messagingSettings());
     }
 
-
     public void init(Morphium m) {
         init(m, m.getConfig().createCopy().messagingSettings());
     }
+
     public void init(Morphium m, MessagingSettings settings) {
         morphium = m;
         this.settings = settings;
         statusInfoListenerEnabled = settings.isMessagingStatusInfoListenerEnabled();
-        decouplePool = new ScheduledThreadPoolExecutor(windowSize, Thread.ofVirtual().name("decouple_thr-", 0).factory());
+        decouplePool = new ScheduledThreadPoolExecutor(windowSize,
+                Thread.ofVirtual().name("decouple_thr-", 0).factory());
 
         if (settings.getMessagingStatusInfoListenerName() != null) {
             statusInfoListenerName = settings.getMessagingStatusInfoListenerName();
@@ -220,6 +234,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         setPause(settings.getMessagingPollPause());
         setMultithreadded(settings.isMessagingMultithreadded());
     }
+
     @Override
     public List<MorphiumMessaging> getAlternativeMessagings() {
         List<MorphiumMessaging> ret = new ArrayList<>(allMessagings);
@@ -310,36 +325,39 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     // @Override
     // public List<String> getGlobalListeners() {
-    //     List<MessageListener> localCopy = new ArrayList<>(listeners);
-    //     List<String> ret = new ArrayList<>();
+    // List<MessageListener> localCopy = new ArrayList<>(listeners);
+    // List<String> ret = new ArrayList<>();
 
-    //     for (MessageListener lst : localCopy) {
-    //         ret.add(lst.getClass().getName());
-    //     }
+    // for (MessageListener lst : localCopy) {
+    // ret.add(lst.getClass().getName());
+    // }
 
-    //     return ret;
+    // return ret;
     // }
 
     @Override
     public Map<String, Long> getThreadPoolStats() {
-        if (threadPool == null) return Map.of();
+        if (threadPool == null)
+            return Map.of();
 
         String prefix = "messaging.threadpool.";
-        return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize())).add(prefix + "task_count", threadPool.getTaskCount())
-               .add(prefix + "core_size", (long) threadPool.getCorePoolSize()).add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
-               .add(prefix + "pool_size", (long) threadPool.getPoolSize()).add(prefix + "active_count", (long) threadPool.getActiveCount())
-               .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
+        return UtilsMap.of(prefix + "largest_poolsize", Long.valueOf(threadPool.getLargestPoolSize()))
+                .add(prefix + "task_count", threadPool.getTaskCount())
+                .add(prefix + "core_size", (long) threadPool.getCorePoolSize())
+                .add(prefix + "maximum_pool_size", (long) threadPool.getMaximumPoolSize())
+                .add(prefix + "pool_size", (long) threadPool.getPoolSize())
+                .add(prefix + "active_count", (long) threadPool.getActiveCount())
+                .add(prefix + "completed_task_count", threadPool.getCompletedTaskCount());
     }
 
     private void initThreadPool() {
         threadPool = new ThreadPoolExecutor(
-                        settings.getThreadPoolMessagingCoreSize(),
-                        settings.getThreadPoolMessagingMaxSize(),
-                        settings.getThreadPoolMessagingKeepAliveTime(),
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<>(),
-                        Thread.ofVirtual().name("msg-thr-", 0).factory()
-        );
+                settings.getThreadPoolMessagingCoreSize(),
+                settings.getThreadPoolMessagingMaxSize(),
+                settings.getThreadPoolMessagingKeepAliveTime(),
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(),
+                Thread.ofVirtual().name("msg-thr-", 0).factory());
     }
 
     @Override
@@ -355,14 +373,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private boolean handleChangeStreamEvent(ChangeStreamEvent evt) {
+        log.info("incoming CSE...");
         if (!running) {
             return false;
         }
 
         try {
-            if (evt == null || evt.getOperationType() == null) {
-                return running;
-            }
+            // if (evt == null || evt.getOperationType() == null) {
+            // return running;
+            // }
 
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
@@ -373,7 +392,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 try {
                     fnd.setFilter(Doc.of("_id", id));
                     fnd.setColl(getCollectionName()).setDb(morphium.getDatabase());
-                    fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1, "exclusive", 1, "processed_by", 1));
+                    fnd.setProjection(Doc.of("_id", 1, "priority", 1, "sender", 1, "timestamp", 1, "exclusive", 1,
+                            "processed_by", 1));
                     List<Map<String, Object>> msgs = fnd.execute();
                     if (!msgs.isEmpty()) {
                         msg = msgs.get(0);
@@ -383,7 +403,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 finally {
                     fnd.releaseConnection();
                 }
-                if (msg == null) return running;
+                if (msg == null)
+                    return running;
 
                 // Skip if I am the sender
                 if (msg.get("sender").equals(this.id)) {
@@ -422,9 +443,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         processing.add(el);
                     }
                 }
-            }
-
-            else {
+            } else {
                 log.error("Some other id?!?!?" + id.getClass().getName());
             }
         }
@@ -440,13 +459,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         List<Map<String, Object>> pipeline = new ArrayList<>();
         Map<String, Object> match = new LinkedHashMap<>();
         Map<String, Object> in = new LinkedHashMap<>();
-        //        in.put("$eq", "insert"); //, "delete", "update"));
+        // in.put("$eq", "insert"); //, "delete", "update"));
         in.put("$in", Arrays.asList("insert", "update"));
         match.put("operationType", in);
         pipeline.add(UtilsMap.of("$match", match));
-        ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, pause, List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
+        ChangeStreamMonitor lockMonitor = new ChangeStreamMonitor(morphium, getLockCollectionName(), false, pause,
+                List.of(Doc.of("$match", Doc.of("operationType", Doc.of("$eq", "delete")))));
         lockMonitor.addListener(evt -> {
-            //some lock removed
+            // some lock removed
+            log.info("Lock CSE");
             requestPoll.incrementAndGet();
             return running;
         });
@@ -454,6 +475,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         changeStreamMonitor.addListener(evt -> handleChangeStreamEvent(evt));
         changeStreamMonitor.start();
         lockMonitor.start();
+        log.info("changestream running");
     }
 
     public void run() {
@@ -464,16 +486,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
 
         if (useChangeStream) {
+            log.info("Changestream init");
             initChangeStreams();
         }
 
         // always run this find in addition to changestream
         try {
             AtomicLong lastRun = new AtomicLong(System.currentTimeMillis());
-            final int pauseDings = getMorphium().getConfig().connectionSettings().getMaxWaitTime() / 3;
             decouplePool.scheduleWithFixedDelay(() -> {
+
                 try {
-                    if (requestPoll.get() > 0 || !useChangeStream || System.currentTimeMillis() - lastRun.get() > pauseDings) {
+                    if (requestPoll.get() > 0 || !useChangeStream) {
+                        log.info("Polling");
                         lastRun.set(System.currentTimeMillis());
                         morphium.inc(StatisticKeys.PULL);
                         StatisticValue sk = morphium.getStats().get(StatisticKeys.PULLSKIP);
@@ -496,7 +520,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             log.error("Executor died?!?!");
         }
 
-        //Main processing thread!
+        // Main processing thread!
         while (running) {
             try {
                 var prEl = processing.poll(1000, TimeUnit.MILLISECONDS);
@@ -523,13 +547,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 Runnable r = () -> {
                     try {
                         var msg = morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
-                        //message was deleted or dirty read
-                        //dirty read only possible, because  msg read ReadPreferenceLevel is NEAREST
+                        // message was deleted or dirty read
+                        // dirty read only possible, because msg read ReadPreferenceLevel is NEAREST
 
                         if (msg == null) {
-                            var q = morphium.createQueryFor(Msg.class).setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
+                            var q = morphium.createQueryFor(Msg.class)
+                                    .setReadPreferenceLevel(ReadPreferenceLevel.PRIMARY).f("_id").eq(finalPrEl.getId());
                             q.setCollectionName(getCollectionName());
-                            msg = q.get();//morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
+                            msg = q.get();// morphium.findById(Msg.class, finalPrEl.getId(), getCollectionName());
 
                             if (msg == null) {
                                 return;
@@ -538,32 +563,32 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             // log.debug("Msg!=null =>dirty read");
                         }
 
-                        //do not process if no listener registered for this message
-                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic()) ) {
+                        // do not process if no listener registered for this message
+                        if (!msg.isAnswer() && !getListenerNames().containsKey(msg.getTopic())) {
                             return;
                         }
 
-                        //I sent the message
+                        // I sent the message
                         if (msg.getSender().equals(id)) {
                             return;
                         }
 
-                        //exclusive message already processed
+                        // exclusive message already processed
                         if (msg.isExclusive() && msg.getProcessedBy() != null && msg.getProcessedBy().size() != 0) {
                             return;
                         }
 
-                        //I did already process this message
+                        // I did already process this message
                         if (msg.getProcessedBy() != null && msg.getProcessedBy().contains(id)) {
                             return;
                         }
 
-                        //recipient specified, but i am not it
+                        // recipient specified, but i am not it
                         if (msg.getRecipients() != null && !msg.getRecipients().contains(id)) {
                             return;
                         }
 
-                        //Check answers
+                        // Check answers
                         if (msg.isAnswer()) {
                             final Queue<Msg> answersForMessage = waitingForAnswers.get(msg.getInAnswerTo());
 
@@ -599,11 +624,11 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                             }
                         }
 
-                        if (!getListenerNames().containsKey(msg.getTopic()) ) {
+                        if (!getListenerNames().containsKey(msg.getTopic())) {
                             return;
                         }
 
-                        //really do handle message
+                        // really do handle message
                         if (msg.isExclusive()) {
                             lockAndProcess(msg);
                         } else {
@@ -617,7 +642,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 };
                 queueOrRun(r);
             } catch (Exception e) {
-                //swallow
+                // swallow
             }
         }
 
@@ -641,7 +666,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 obj.setDeleteAt(new Date(System.currentTimeMillis() + obj.getDeleteAfterProcessingTime()));
                 morphium.setInEntity(obj, getCollectionName(), Msg.Fields.deleteAt, obj.getDeleteAt());
 
-                if (obj.getDeleteAfterProcessingTime() > 0 && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
+                if (obj.getDeleteAfterProcessingTime() > 0
+                        && morphium.getDriver() instanceof de.caluga.morphium.driver.inmem.InMemoryDriver) {
                     long delay = Math.max(obj.getDeleteAfterProcessingTime(), 10_000);
                     java.util.concurrent.CompletableFuture.runAsync(() -> {
                         try {
@@ -650,11 +676,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                         } catch (Exception e) {
                             log.warn("Failed to remove message after processing", e);
                         }
-                    }, java.util.concurrent.CompletableFuture.delayedExecutor(delay, java.util.concurrent.TimeUnit.MILLISECONDS));
+                    }, java.util.concurrent.CompletableFuture.delayedExecutor(delay,
+                            java.util.concurrent.TimeUnit.MILLISECONDS));
                 }
 
                 if (obj.isExclusive()) {
-                    morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId()).set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
+                    morphium.createQueryFor(MsgLock.class, getLockCollectionName()).f("_id").eq(obj.getMsgId())
+                            .set(MsgLock.Fields.deleteAt, obj.getDeleteAt());
                 }
             }
         }
@@ -715,13 +743,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         try {
             Query<Msg> q = morphium.createQueryFor(Msg.class, getCollectionName());
 
-            if (listenerByName.isEmpty() ) {
+            if (listenerByName.isEmpty()) {
                 // No listeners - only answers will be processed
-                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo).in(waitingForAnswers.keySet()).limit(windowSize).idList();
+                return q.q().f(Msg.Fields.sender).ne(id).f(Msg.Fields.processedBy).ne(id).f(Msg.Fields.inAnswerTo)
+                        .in(waitingForAnswers.keySet()).limit(windowSize).idList();
             }
 
             // locking messages.. and getting broadcasts
-            var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck").idList();
+            var idsToIgnore = morphium.createQueryFor(MsgLock.class).setCollectionName(getCollectionName() + "_lck")
+                    .idList();
 
             synchronized (processing) {
                 for (var p : processing) {
@@ -735,7 +765,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             var q1 = q.q().f(Msg.Fields.exclusive).eq(true).f("processed_by.0").notExists();
             // q2: non-exclusive messages, cannot be locked, not processed by me yet
             var q2 = q.q().f(Msg.Fields.exclusive).ne(true).f(Msg.Fields.processedBy).ne(id);
-            q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients).in(Arrays.asList(null, id));
+            q.f("_id").nin(idsToIgnore).f(Msg.Fields.sender).ne(id).f(Msg.Fields.recipients)
+                    .in(Arrays.asList(null, id));
             Set<String> pausedMessagesKeys = pauseMessages.keySet();
 
             if (!pauseMessages.isEmpty()) {
@@ -744,14 +775,16 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             q.or(q1, q2);
             // not searching for paused messages
-            // Only handle messages we have listener for - not working, because of answers...
+            // Only handle messages we have listener for - not working, because of
+            // answers...
             q.setLimit(windowSize);
             q.sort(Msg.Fields.priority, Msg.Fields.timestamp);
             List<ProcessingQueueElement> queueElements = new ArrayList<>();
             // just trigger unprocessed messages for Changestream...
             int ws = windowSize;
             // get IDs of messages to process
-            fnd = new FindCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
+            fnd = new FindCommand(
+                    morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(Msg.class)));
             fnd.setDb(morphium.getDatabase());
             fnd.setFilter(q.toQueryObject());
             fnd.setProjection(Doc.of("_id", 1, "priority", 1, "timestamp", 1));
@@ -761,19 +794,20 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             fnd.setSkip(q.getSkip());
             fnd.setColl(getCollectionName());
             var result = fnd.execute();
-            //to make it work with SingleMongoConnection!
+            // to make it work with SingleMongoConnection!
             fnd.releaseConnection();
             fnd = null;
 
             if (!result.isEmpty()) {
                 for (Map<String, Object> el : result) {
-                    queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"), (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
+                    queueElements.add(new ProcessingQueueElement((Integer) el.get("priority"),
+                            (Long) el.get("timestamp"), (MorphiumId) el.get("_id")));
                 }
             }
 
             if (q.countAll() != queueElements.size()) {
-                //still messages left in mongodb for processing
-                //or some messages were delete -> check to be sure
+                // still messages left in mongodb for processing
+                // or some messages were delete -> check to be sure
                 requestPoll.incrementAndGet();
             }
 
@@ -816,13 +850,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             synchronized (processing) {
                 if (!processing.contains(el) && !idsInProgress.contains(el.getId())) {
                     // if (log.isDebugEnabled()) {
-                    //     log.debug("findMessages: adding message {} to processing queue", el.getId());
+                    // log.debug("findMessages: adding message {} to processing queue", el.getId());
                     // }
                     processing.add(el);
                     // } else {
-                    //     if (log.isDebugEnabled()) {
-                    //         log.debug("findMessages: message {} already queued or in progress", el.getId());
-                    //     }
+                    // if (log.isDebugEnabled()) {
+                    // log.debug("findMessages: message {} already queued or in progress",
+                    // el.getId());
+                    // }
                 }
             }
         }
@@ -836,7 +871,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // Failed to acquire lock, message is being processed by another instance
             // or was already processed. Do not trigger another poll as this is expected.
             if (log.isDebugEnabled()) {
-                log.debug("Failed to acquire lock for exclusive message {}, likely being processed by another instance", obj.getMsgId());
+                log.debug("Failed to acquire lock for exclusive message {}, likely being processed by another instance",
+                        obj.getMsgId());
             }
         }
     }
@@ -870,8 +906,10 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         InsertMongoCommand cmd = null;
 
         try {
-            cmd = new InsertMongoCommand(morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
-            cmd.setColl(getLockCollectionName()).setDb(morphium.getDatabase()).setDocuments(List.of(morphium.getMapper().serialize(lck)));
+            cmd = new InsertMongoCommand(
+                    morphium.getDriver().getPrimaryConnection(morphium.getWriteConcernForClass(MsgLock.class)));
+            cmd.setColl(getLockCollectionName()).setDb(morphium.getDatabase())
+                    .setDocuments(List.of(morphium.getMapper().serialize(lck)));
             cmd.execute();
             return true;
         } catch (Exception e) {
@@ -883,15 +921,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
-    private void processMessage(Msg ms) {
-        if (ms == null) {
-            return;
-        }
-
-        var msg = morphium.reread(ms, getCollectionName());
-
+    private void processMessage(Msg msg) {
         if (msg == null) {
-            unlockIfExclusive(ms);
             return;
         }
 
@@ -1021,7 +1052,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     private void deleteLock(MorphiumId msgId) {
-        morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(msgId).f("lock_id").eq(id).remove();
+        morphium.createQueryFor(MsgLock.class).setCollectionName(getLockCollectionName()).f("_id").eq(msgId)
+                .f("lock_id").eq(id).remove();
     }
 
     // private void removeProcessingFor(Msg msg) {}
@@ -1043,7 +1075,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         UpdateMongoCommand cmd = null;
 
         try {
-            cmd = new UpdateMongoCommand(morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
+            cmd = new UpdateMongoCommand(
+                    morphium.getDriver().getPrimaryConnection(getMorphium().getWriteConcernForClass(Msg.class)));
             cmd.setColl(getCollectionName()).setDb(morphium.getDatabase());
             cmd.addUpdate(qobj, update, null, false, false, null, null, null);
             Map<String, Object> ret = cmd.execute();
@@ -1051,7 +1084,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             cmd = null;
 
             // log.debug("Updating processed by for "+id+" on message "+msg.getMsgId());
-            if (ret.get("nModified") == null && ret.get("modified") == null || Integer.valueOf(0).equals(ret.get("nModified"))) {
+            if (ret.get("nModified") == null && ret.get("modified") == null
+                    || Integer.valueOf(0).equals(ret.get("nModified"))) {
                 if (morphium.reread(msg, getCollectionName()) != null) {
                     if (!msg.getProcessedBy().contains(id)) {
                         log.warn(id + ": Could not update processed_by in msg " + msg.getMsgId());
@@ -1080,12 +1114,15 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 try {
                     // throtteling to windowSize - do not create more threads than windowSize
                     while (threadPool.getActiveCount() > windowSize) {
-                        // log.debug(String.format("Active count %s > windowsize %s", threadPool.getActiveCount(), windowSize));
-                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos((morphium.getConfig().driverSettings().getIdleSleepTime())));
-                        //Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
+                        // log.debug(String.format("Active count %s > windowsize %s",
+                        // threadPool.getActiveCount(), windowSize));
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS
+                                .toNanos((morphium.getConfig().driverSettings().getIdleSleepTime())));
+                        // Thread.sleep(morphium.getConfig().driverSettings().getIdleSleepTime());
                     }
 
-                    //                    log.debug(id+": Active count: "+threadPool.getActiveCount()+" / "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
+                    // log.debug(id+": Active count: "+threadPool.getActiveCount()+" /
+                    // "+getWindowSize()+" - "+threadPool.getMaximumPoolSize());
                     threadPool.execute(r);
                     queued = true;
                 } catch (Throwable ignored) {
@@ -1108,6 +1145,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         return collectionName;
     }
+
     @Override
     public String getCollectionName(String msgName) {
         return getCollectionName();
@@ -1121,7 +1159,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     @Override
     public void addListenerForTopic(String n, MessageListener l) {
         if (listenerByName.get(n) == null) {
-            HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+            HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
             c.put(n, new ArrayList<>());
             listenerByName = c;
         }
@@ -1141,7 +1179,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             return;
         }
 
-        HashMap<String, List<MessageListener>> c = (HashMap)((HashMap) listenerByName).clone();
+        HashMap<String, List<MessageListener>> c = (HashMap) ((HashMap) listenerByName).clone();
         c.get(n).remove(l);
         if (c.get(n).isEmpty()) {
             c.remove(n);
@@ -1183,6 +1221,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public void close() {
         terminate();
     }
+
     @Override
     public void terminate() {
         log.info("Terminate messaging");
@@ -1220,7 +1259,6 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
         }
     }
 
-
     @Override
     public void queueMessage(final Msg m) {
         if (morphium.getDriver().getName().equals(SingleMongoConnectDriver.driverName)) {
@@ -1247,10 +1285,13 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             // noinspection unused,unused
             cb = new AsyncOperationCallback() {
                 @Override
-                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result, Object entity, Object... param) {
+                public void onOperationSucceeded(AsyncOperationType type, Query q, long duration, List result,
+                        Object entity, Object... param) {
                 }
+
                 @Override
-                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t, Object entity, Object... param) {
+                public void onOperationError(AsyncOperationType type, Query q, long duration, String error, Throwable t,
+                        Object entity, Object... param) {
                     log.error("Error storing msg", t);
                 }
             };
@@ -1320,7 +1361,7 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 changeStreamMonitor.terminate();
             }
         } catch (Exception e) {
-            //e.printStackTrace();
+            // e.printStackTrace();
             // swallow
         }
     }
@@ -1332,7 +1373,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
     /**
      * Sends a message asynchronously and sends all incoming answers via callback.
-     * If sent message is exclusive, only one answer will be processed, otherwise all incoming answers up to timeout
+     * If sent message is exclusive, only one answer will be processed, otherwise
+     * all incoming answers up to timeout
      * will be processed.
      *
      * @parameter theMessage to be sent
@@ -1340,7 +1382,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
      * @parameter cb - the message callback
      */
     @Override
-    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs, SingleCollectionMessaging.AsyncMessageCallback cb) {
+    public <T extends Msg> void sendAndAwaitAsync(T theMessage, long timeoutInMs,
+            SingleCollectionMessaging.AsyncMessageCallback cb) {
         if (!running) {
             throw new SystemShutdownException("Messaging shutting down - abort sending!");
         }
@@ -1386,12 +1429,14 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
             T firstAnswer = (T) blockingQueue.poll(timeoutInMs, TimeUnit.MILLISECONDS);
 
             if (null == firstAnswer && throwExceptionOnTimeout) {
-                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " in time (" + timeoutInMs + "ms)");
+                throw new MessageTimeoutException("Did not receive answer for message " + theMessage.getTopic() + "/"
+                        + requestMsgId + " in time (" + timeoutInMs + "ms)");
             }
 
             return firstAnswer;
         } catch (InterruptedException e) {
-            log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId + " interrupted.", e);
+            log.error("Did not receive answer for message " + theMessage.getTopic() + "/" + requestMsgId
+                    + " interrupted.", e);
         } finally {
             waitingForAnswers.remove(requestMsgId);
         }
@@ -1405,7 +1450,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     }
 
     @Override
-    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout, boolean throwExceptionOnTimeout) {
+    public <T extends Msg> List<T> sendAndAwaitAnswers(T theMessage, int numberOfAnswers, long timeout,
+            boolean throwExceptionOnTimeout) {
         MorphiumId requestMsgId = theMessage.getMsgId();
 
         if (requestMsgId == null) {
@@ -1431,7 +1477,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
                 // Did not receive any message in time
                 if (throwExceptionOnTimeout && System.currentTimeMillis() - start > timeout && (answerList.isEmpty())) {
-                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic() + "/" + requestMsgId + "in time (" + timeout + ")");
+                    throw new MessageTimeoutException("Did not receive any answer for message " + theMessage.getTopic()
+                            + "/" + requestMsgId + "in time (" + timeout + ")");
                 }
 
                 if (System.currentTimeMillis() - start > timeout) {
@@ -1442,7 +1489,8 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                     throw new SystemShutdownException("Messaging shutting down - abort waiting!");
                 }
 
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
+                LockSupport.parkNanos(
+                        TimeUnit.MILLISECONDS.toNanos(morphium.getConfig().driverSettings().getIdleSleepTime()));
             }
         } finally {
             returnValue = new ArrayList(waitingForAnswers.remove(requestMsgId));
@@ -1602,22 +1650,28 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
         @Override
         public int compareTo(ProcessingQueueElement o) {
-            if (o.getPriority() < priority) return 1;
+            if (o.getPriority() < priority)
+                return 1;
 
-            if (o.getPriority() > priority) return -1;
+            if (o.getPriority() > priority)
+                return -1;
 
-            if (o.getTimestamp() < timestamp) return 1;
+            if (o.getTimestamp() < timestamp)
+                return 1;
 
-            if (o.getTimestamp() > timestamp) return -1;
+            if (o.getTimestamp() > timestamp)
+                return -1;
 
             return o.getId().compareTo(id);
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
+            if (this == o)
+                return true;
 
-            if (o == null || getClass() != o.getClass()) return false;
+            if (o == null || getClass() != o.getClass())
+                return false;
 
             ProcessingQueueElement that = (ProcessingQueueElement) o;
             return Objects.equals(id, that.id);
@@ -1637,10 +1691,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
     public <T extends Msg> String getLockCollectionName(T topic) {
         return getLockCollectionName();
     }
+
     @Override
     public String getLockCollectionName(String topic) {
         return getLockCollectionName();
     }
+
     @Override
     public String getDMCollectionName(String sender) {
         return getCollectionName();

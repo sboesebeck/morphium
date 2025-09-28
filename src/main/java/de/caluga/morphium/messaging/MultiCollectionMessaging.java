@@ -545,7 +545,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 return;
             }
             Runnable r = () -> {
-                Msg current = morphium.reread(m, getCollectionName(m));
+                Msg current = m; // morphium.reread(m, getCollectionName(m));
                 if (current == null) {
                     processingMessages.remove(m.getMsgId());
                     return;
@@ -850,6 +850,7 @@ public class MultiCollectionMessaging implements MorphiumMessaging {
                 morphium.getConfig().connectionSettings().getMaxWaitTime(),
                 pipeline);
         cm.addListener((evt) -> {
+            log.info("Incoming CSE");
             Runnable r = () -> {
 
                 try {
