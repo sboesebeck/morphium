@@ -851,9 +851,12 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
                 }
             }
 
-            if (q.countAll() != queueElements.size()) {
+            long totalCount = q.countAll();
+            if (totalCount != queueElements.size()) {
                 // still messages left in mongodb for processing
                 // or some messages were delete -> check to be sure
+                log.debug("{}: Found {} messages in queue, {} total in DB, {} in idsToIgnore",
+                         id, queueElements.size(), totalCount, idsToIgnore.size());
                 requestPoll.incrementAndGet();
             }
 

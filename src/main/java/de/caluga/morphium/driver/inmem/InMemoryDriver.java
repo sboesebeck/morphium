@@ -1579,10 +1579,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         Runnable r = ()-> {
             // Notification of watchers.
             try {
+                // Process all available events in this execution
                 while (true) {
                     Runnable r1 = eventQueue.poll();
 
-                    if (r1 == null) return;
+                    if (r1 == null) break;  // Exit when queue is empty, not return
 
                     try {
                         r1.run();
@@ -1594,7 +1595,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 log.error("Error", e);
             }
         };
-        exec.scheduleWithFixedDelay(r, 100, 1, TimeUnit.MILLISECONDS); // check for events every 500ms
+        exec.scheduleWithFixedDelay(r, 100, 1, TimeUnit.MILLISECONDS); // check for events every 1ms
         scheduleExpire();
     }
 
@@ -2032,7 +2033,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
-    private List<Map<String, Object >> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
+    private synchronized List<Map<String, Object >> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
                                             int limit, boolean internal) throws MorphiumDriverException {
         List<Map<String, Object >> partialHitData = new ArrayList<>();
 
@@ -2161,7 +2162,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (!internal) {
                 while (true) {
                     try {
-                        o = new HashMap<>(o);
+                        // Deep copy the document to prevent shared references between threads
+                        o = deepCopyDoc(o);
 
                         if (o.get("_id") instanceof ObjectId) {
                             o.put("_id", new MorphiumId((ObjectId) o.get("_id")));
@@ -2313,9 +2315,24 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             if (v instanceof Map) {
                 v = deepCopyDoc((Map<String, Object>) v);
             } else if (v instanceof List) {
-                v = new ArrayList<>((List) v);
+                v = deepCopyList((List) v);
             }
             out.put(e.getKey(), v);
+        }
+        return out;
+    }
+
+    private static List deepCopyList(List src) {
+        List<Object> out = new ArrayList<>();
+        for (Object item : src) {
+            if (item instanceof Map) {
+                out.add(deepCopyDoc((Map<String, Object>) item));
+            } else if (item instanceof List) {
+                out.add(deepCopyList((List) item));
+            } else {
+                // Primitive types, Strings, Numbers, etc. are immutable and safe to share
+                out.add(item);
+            }
         }
         return out;
     }
