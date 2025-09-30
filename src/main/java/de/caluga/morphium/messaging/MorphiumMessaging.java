@@ -58,6 +58,7 @@ public interface MorphiumMessaging extends Closeable {
     <T extends Msg> String getLockCollectionName(T topic);
     String getLockCollectionName(String topic);
 
+    boolean lockMessage(Msg m, String lockId, Date delAt);
     String getCollectionName();
     String getCollectionName(String topic);
     <T extends Msg> String getCollectionName(T msg);
