@@ -64,9 +64,9 @@ public class AnsweringNCTests extends MorphiumTestBase {
                     m2 = morph.createMessaging();
                     onlyAnswers = morph.createMessaging();
                     try {
-                        m1.start();
-                        m2.start();
-                        onlyAnswers.start();
+                        m1.setUseChangeStream(false).start();
+                        m2.setUseChangeStream(false).start();
+                        onlyAnswers.setUseChangeStream(false).start();
             Thread.sleep(100);
 
             log.info("m1 ID: " + m1.getSenderId());
@@ -122,13 +122,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
                 return null;
             });
 
-                        Msg question = new Msg("QMsg", "This is the message text", "A question param");
+                        Msg question = new Msg("test", "This is the message text", "A question param");
                         question.setMsgId(new MorphiumId());
                         lastMsgId = question.getMsgId();
                         onlyAnswers.sendMessage(question);
                         log.info("Send Message with id: " + question.getMsgId());
                         Thread.sleep(3000);
-                        long cnt = morph.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                        long cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             log.info("Answers in mongo: " + cnt);
             assert (cnt == 2);
             assert (gotMessage3) : "no answer got back?";
@@ -143,13 +143,13 @@ public class AnsweringNCTests extends MorphiumTestBase {
 
             assert (!gotMessage3 && !gotMessage1 && !gotMessage2) : "Message processing repeat?";
 
-                        question = new Msg("QMsg", "This is the message text", "A question param", 30000, true);
+                        question = new Msg("test", "This is the message text", "A question param", 30000, true);
                         question.setMsgId(new MorphiumId());
                         lastMsgId = question.getMsgId();
                         onlyAnswers.sendMessage(question);
                         log.info("Send Message with id: " + question.getMsgId());
                         Thread.sleep(1000);
-                        cnt = morph.createQueryFor(Msg.class, onlyAnswers.getCollectionName()).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
+                        cnt = morph.createQueryFor(Msg.class, onlyAnswers.getDMCollectionName(onlyAnswers.getSenderId())).f(Msg.Fields.inAnswerTo).eq(question.getMsgId()).countAll();
             assert (cnt == 1);
 
                     } finally {
