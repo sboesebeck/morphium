@@ -691,6 +691,9 @@ public abstract class MorphiumBase {
         }
     }
 
+    public <T> void store(T o, String collection) {
+        save(o, collection, null);
+    }
     public <T> void store(T o, String collection, final AsyncOperationCallback<T> callback) {
         save(o, collection, callback);
     }

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -147,45 +148,36 @@ public class ChangeStreamTest extends MultiDriverTestBase {
     public void changeStreamInsertTest(Morphium morphium) throws Exception {
         try (morphium) {
             log.info(String.format("=====================> Running Test with %s <===============================", morphium.getDriver().getName()));
+            start = System.currentTimeMillis();
             //morphium.dropCollection(UncachedObject.class);
             final var run = new AtomicBoolean(true);
             final var count = new AtomicInteger(0);
             final var written = new AtomicInteger(0);
-            new Thread(()-> {
+            Thread.ofPlatform().start(()-> {
+                Random r = new Random(System.currentTimeMillis());
                 while (run.get()) {
                     try {
-                        Thread.sleep(2500);
+                        Thread.sleep(r.nextLong(1000));
                     } catch (InterruptedException e) {
                     }
 
                     log.info("Writing...");
-                    MorphiumConfig cfg = MorphiumConfig.fromProperties(morphium.getConfig().asProperties());
-                    Morphium m2 = morphium;
 
-                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                        cfg.setCredentialsEncryptionKey("1234567890abcdef");
-                        cfg.setCredentialsDecryptionKey("1234567890abcdef");
-                        m2 = new Morphium(cfg);
-                    }
 
-                    m2.store(new UncachedObject("value", 123));
+                    morphium.store(new UncachedObject("value", 123));
                     written.incrementAndGet();
 
-                    if ((morphium.getDriver() instanceof SingleMongoConnectDriver)) {
-                        m2.close();
-                    }
                 }
-            }).start();
-            start = System.currentTimeMillis();
+            });
             morphium.watch(UncachedObject.class, true, evt-> {
                 printevent(morphium, evt);
                 count.incrementAndGet();
                 return System.currentTimeMillis() - start < 8500;
             });
-            assert(count.get() >= written.get() - 1 && count.get() <= written.get());
-            log.info("Stopped!");
+
             run.set(false);
-            Thread.sleep(2500);
+            assertTrue(count.get() >= written.get() - 1 && count.get() <= written.get());
+            log.info("Stopped!");
         }
     }
 
@@ -314,23 +306,30 @@ public class ChangeStreamTest extends MultiDriverTestBase {
             morphium.dropCollection(UncachedObject.class, "uncached_object", null);
             ChangeStreamMonitor m = new ChangeStreamMonitor(morphium, "uncached_object", false, null);
             m.start();
+
             final AtomicInteger cnt = new AtomicInteger(0);
             m.addListener(evt-> {
                 printevent(morphium, evt);
-                cnt.set(cnt.get() + 1);
+                cnt.incrementAndGet();
                 return true;
             });
-            Thread.sleep(1000);
+            TestUtils.wait("Waiting...", 5);
 
             for (int i = 0; i < 100; i++) {
-                log.info("Storing " + i);
-                morphium.store(new UncachedObject("value " + i, i), "uncached_object", null);
+                String v = "Value " + i;
+                final int c = i;
+                Thread.ofVirtual().start(()-> {
+                    log.info("Storing " + c);
+                    morphium.store(new UncachedObject(v, c), "uncached_object", null);
+                });
             }
 
-            Thread.sleep(5000);
+
+            //assert(cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
+            TestUtils.waitForIntegerValue(5000, "Did not get events", cnt, 100, (dur)->log.info("waiting for 100 events got {}", cnt.get()));
             m.terminate();
-            assert(cnt.get() >= 100 && cnt.get() <= 101) : "count is wrong: " + cnt.get();
-            morphium.store(new UncachedObject("killing", 0));
+            Thread.sleep(1000);
+            assertEquals(100, cnt.get());
         }
     }
 

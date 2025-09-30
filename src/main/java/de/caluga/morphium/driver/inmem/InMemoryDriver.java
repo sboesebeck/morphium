@@ -15,6 +15,7 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.text.Collator;
@@ -483,27 +484,35 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             throw new IllegalArgumentException("DB cannot be null");
         }
 
+        // try {
         try {
-            try {
-                Method method = this.getClass().getDeclaredMethod("runCommand", cmd.getClass());
-                var o = method.invoke(this, cmd);
-                stats.get(DriverStatsKey.REPLY_RECEIVED);
+            Method method = this.getClass().getDeclaredMethod("runCommand", cmd.getClass());
+            var o = method.invoke(this, cmd);
+            stats.get(DriverStatsKey.REPLY_RECEIVED);
 
-                if (o instanceof Integer) {
-                    return (Integer) o;
-                }
-            } catch (NoSuchMethodException ex) {
-                log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
+            if (o instanceof Integer) {
+                return (Integer) o;
             }
-        } catch (Exception e) {
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException e1) {
-                // TODO Auto-generated catch block
-                e1.printStackTrace();
-            }
+        } catch (NoSuchMethodException nsmex) {
+            // log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
+            throw new RuntimeException(nsmex);
+        } catch (IllegalAccessException e) {
+            // log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
             throw new RuntimeException(e);
+        } catch (InvocationTargetException e) {
+            // log.error("No method for command " + cmd.getClass().getSimpleName() + " - " + cmd.getCommandName());
+            throw new RuntimeException(e);
+
         }
+        // } catch (Exception e) {
+        // try {
+        //     log.error("got exception", e);
+        // } catch (InterruptedException e1) {
+        //     // TODO Auto-generated catch block
+        //     // e1.printStackTrace();
+        // }
+        // throw new RuntimeException(e);
+        // }
 
         return 0;
     }
@@ -1444,10 +1453,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @Override
     public void releaseConnection(MongoConnection con) {
+        activeConnections.decrementAndGet();
     }
 
     @Override
     public void closeConnection(MongoConnection con) {
+        activeConnections.decrementAndGet();
     }
 
     @Override

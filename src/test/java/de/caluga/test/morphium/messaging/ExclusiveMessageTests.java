@@ -8,17 +8,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import de.caluga.morphium.messaging.*;
+
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import com.oracle.truffle.js.nodes.access.GetPrototypeFromConstructorNode;
+
 import de.caluga.morphium.Morphium;
 import de.caluga.morphium.MorphiumConfig;
+import de.caluga.morphium.UtilsMap;
+import de.caluga.morphium.changestream.ChangeStreamMonitor;
 import de.caluga.morphium.driver.MorphiumId;
 import de.caluga.morphium.query.Query;
 import de.caluga.test.mongo.suite.base.MorphiumTestBase;
@@ -41,11 +51,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             // Propagate encryption/auth settings that are not exported by createCopy
             cfg.encryptionSettings()
-                    .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+               .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
             cfg.encryptionSettings().setCredentialsDecryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             try (Morphium m = new Morphium(cfg)) {
                 m.dropCollection(Msg.class);
                 Thread.sleep(100);
@@ -269,11 +279,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             var cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings()
-                    .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+               .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
             cfg.encryptionSettings().setCredentialsDecryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             MorphiumMessaging sender = null;
             MorphiumMessaging sender2 = null;
             MorphiumMessaging m1 = null;
@@ -388,7 +398,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
                     Thread.sleep(100);
                     org.junit.jupiter.api.Assertions
-                            .assertTrue(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
+                    .assertTrue(System.currentTimeMillis() - s < morphium.getConfig().getMaxWaitTime());
                 }
 
                 org.junit.jupiter.api.Assertions.assertEquals(1, rec, "rec is " + rec);
@@ -409,7 +419,7 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
                 for (MorphiumMessaging ms : Arrays.asList(m1, m2, m3)) {
                     org.junit.jupiter.api.Assertions.assertEquals(0, ms.getNumberOfMessages(),
-                            "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages());
+                                                    "Number of messages " + ms.getSenderId() + " is " + ms.getNumberOfMessages());
                 }
             } finally {
                 if (m1 != null)
@@ -437,11 +447,11 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
             var cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings()
-                    .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+               .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
             cfg.encryptionSettings().setCredentialsDecryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
             try (Morphium mx = new Morphium(cfg)) {
                 MorphiumMessaging sender = mx.createMessaging();
                 sender.setPause(100).setMultithreadded(true).setWindowSize(1);
@@ -517,21 +527,21 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
 
                         if (ids.containsKey(m.getMsgId().toString()) && m.isExclusive()) {
                             log.error("Duplicate recieved message " + msg.getSenderId() + " "
-                                    + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
+                                      + (System.currentTimeMillis() - ids.get(m.getMsgId().toString())) + "ms ago");
 
                             if (recById.get(m.getMsgId().toString()).equals(msg.getSenderId())) {
                                 log.error("--- duplicate was processed before by me!");
                             } else {
                                 log.error("--- duplicate processed by someone else");
                             }
-
+                            log.error("Duplicate processing: ", new RuntimeException());
                             dups.incrementAndGet();
                         } else if (!m.isExclusive()) {
                             recIdsByReceiver.putIfAbsent(msg.getSenderId(), new ArrayList<>());
 
                             if (recIdsByReceiver.get(msg.getSenderId()).contains(m.getMsgId())) {
                                 log.error(msg.getSenderId()
-                                        + ": Duplicate processing of broadcast message of same receiver! ");
+                                          + ": Duplicate processing of broadcast message of same receiver! ");
                                 m = msg.getMorphium().reread(m);
 
                                 if (m == null) {
@@ -589,9 +599,9 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                         int rec = received.get();
                         long messageCount = receiver.getPendingMessagesCount();
                         log.info(String.format(
-                                "Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount,
-                                broadcastAmount, rec, messageCount,
-                                (amount + broadcastAmount * 4 - rec - messageCount)));
+                                                 "Send excl: %d  brodadcast: %d recieved: %d queue: %d currently processing: %d", amount,
+                                                 broadcastAmount, rec, messageCount,
+                                                 (amount + broadcastAmount * 4 - rec - messageCount)));
                         log.info(String.format("Number of ids: %d", ids.size()));
                         org.junit.jupiter.api.Assertions.assertEquals(0, dups.get(), "got duplicate message");
 
@@ -607,8 +617,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     long messageCount = sender.getPendingMessagesCount();
                     log.info("Send " + amount + " recieved: " + rec + " queue: " + messageCount);
                     org.junit.jupiter.api.Assertions.assertEquals(amount + broadcastAmount * 4, received.get(),
-                            "should have received " + (amount + broadcastAmount * 4) + " but actually got "
-                                    + received.get());
+                                                    "should have received " + (amount + broadcastAmount * 4) + " but actually got "
+                                                    + received.get());
 
                     for (String id : recieveCount.keySet()) {
                         log.info("Reciever " + id + " message count: " + recieveCount.get(id).get());
@@ -747,23 +757,83 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
         }
     }
 
+
+
+    @Test
+    public void msgLockTest() throws Exception {
+
+        int amount = 130;
+        List<Msg> msgs = new Vector<>();
+        List<Msg> locked = new Vector<>();
+        MorphiumMessaging msgn = morphium.createMessaging();
+        for (int i = 0; i < amount; i++) {
+
+            Msg m = new Msg("test", "value", "value", 33000);
+            m.setSender("me");
+            m.setSenderHost("localhost");
+            morphium.store(m, msgn.getCollectionName(m));
+            msgs.add(m);
+
+        }
+
+
+        log.info("Created {} msgs", amount);
+
+        List<Thread> thr = new ArrayList<>();
+        for (int i = 0; i < amount * 2; i++) {
+            String tn = "Thr" + i;
+            var thread = Thread.ofVirtual().start(()-> {
+
+                int idx = 0;
+                int cycle = 0;
+                while (true) {
+                    if (msgn.lockMessage(msgs.get(idx), tn, null)) {
+                        locked.add(msgs.get(idx));
+                        break;
+                    }
+                    idx++;
+                    if (idx >= msgs.size()) {
+                        idx = 0;
+                        cycle++;
+                    }
+                    if (cycle >= 2) {
+                        log.info("Did not get lock at all");
+                        break;
+                    }
+                }
+                log.info("{} got lock for #{} - exiting", tn, idx);
+                return;
+            });
+            thr.add(thread);
+        }
+        int idx = 0;
+        for (var t : thr) {
+            t.join();
+            log.info("Thread {} joined...", idx++);
+        }
+        assertEquals(msgs.size(), locked.size());
+
+    }
+
     @Test
     public void exclusiveTest() throws Exception {
         // for (String msgImpl : MorphiumTestBase.messagingsToTest) {
+        // for (String msgImpl : List.of("MultiCollectionMessaging")) {
         for (String msgImpl : List.of("StandardMessaging")) {
             de.caluga.test.OutputHelper.figletOutput(log, msgImpl);
             log.info("Using messaging implementation: {}", msgImpl);
-            final int listeners = 10;
-            final int exclusiveMessages = 123;
-            final int broadcastAmount = 50;
+            final int listeners = 14;
+            final int exclusiveMessages = 137;
+            final int broadcastAmount = 72;
+            final AtomicInteger insertEvents = new AtomicInteger(0);
             var cfg = morphium.getConfig().createCopy();
             cfg.messagingSettings().setMessagingImplementation(msgImpl);
             cfg.encryptionSettings()
-                    .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+               .setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
             cfg.encryptionSettings().setCredentialsDecryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
             cfg.encryptionSettings().setCredentialsEncryptionKey(
-                    morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+                               morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
 
             cfg.messagingSettings().setMessagingMultithreadded(true);
             cfg.messagingSettings().setMessagingWindowSize(25);
@@ -778,7 +848,8 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                 List<MorphiumMessaging> recs = new ArrayList<>();
                 List<MorphiumId> msgIds = new ArrayList<>();
                 List<MorphiumId> sent = new ArrayList<>();
-
+                Map<String, List<Msg>> recByRecId = new ConcurrentHashMap<>();
+                List<Thread> threads = new ArrayList();
                 for (int i = 0; i < listeners; i++) {
                     MorphiumMessaging r = mx.createMessaging();
                     r.setPause(10).setMultithreadded(true).setWindowSize(10);
@@ -786,56 +857,87 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     r.setUseChangeStream(true);
                     recs.add(r);
                     r.start();
-                    Thread.ofVirtual().start(() -> {
-                        r.addListenerForTopic("excl_name", (m, msg) -> {
-                            counts.incrementAndGet();
-                            if (msg.isExclusive()) {
-                                if (msgIds.contains(msg.getMsgId())) {
-                                    log.error("Duplicate processing of msg {}", msgIds.indexOf(msg.getMsgId()));
+
+                    r.addListenerForTopic("excl_name", (m, msg) -> {
+                        counts.incrementAndGet();
+                        if (msg.isExclusive()) {
+                            if (msgIds.contains(msg.getMsgId())) {
+                                log.error("Duplicate processing of msg {}", msgIds.indexOf(msg.getMsgId()));
+                                if (msg.getProcessedBy().contains(m.getSenderId())) {
+                                    log.info("{} -> processed by me {}", msg.getProcessedBy(), m.getSenderId());
+                                } else {
+                                    log.info("{} -> was processed by someone else than me {}", msg.getProcessedBy(), m.getSenderId());
                                 }
                             }
-                            msgIds.add(msg.getMsgId());
-                            return null;
-                        });
+                        } else {
+                            recByRecId.putIfAbsent(m.getSenderId(), new Vector<>());
+                            recByRecId.get(m.getSenderId()).add(msg);
+                        }
+                        msgIds.add(msg.getMsgId());
+                        try {
+                            Thread.sleep(150);
+                        } catch (InterruptedException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+                        return null;
                     });
                 }
+                List<Map<String, Object>> pipeline = new ArrayList<>();
+                Map<String, Object> match = new LinkedHashMap<>();
+                Map<String, Object> in = new LinkedHashMap<>();
+                in.put("$in", Arrays.asList("insert"));
+                match.put("operationType", in);
+                pipeline.add(UtilsMap.of("$match", match));
+                var changeStreamMonitor = new ChangeStreamMonitor(mx, sender.getCollectionName("excl_name"), false, 100, pipeline);
 
+                changeStreamMonitor.addListener((evt)-> {
+
+                    insertEvents.incrementAndGet();
+                    return true;
+                });
+
+                changeStreamMonitor.start();
+
+
+                TestUtils.wait("waiting for receivers", 10);
                 try {
                     for (int i = 0; i < exclusiveMessages; i++) {
                         if (i % 10 == 0)
                             log.info("Sent exclusive Msg {}", i);
                         var msg = new Msg("excl_name", "msg", "value", 20000000, true)
-                                .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0);
+                        .setDeleteAfterProcessing(true).setDeleteAfterProcessingTime(0);
                         sender.sendMessage(msg);
                         sent.add(msg.getMsgId());
                     }
 
                     var q = mx.createQueryFor(Msg.class, sender.getCollectionName("excl_name"));
                     TestUtils.waitForConditionToBecomeTrue(exclusiveMessages * 200, "Did not reach message count",
-                            () -> counts.get() >= exclusiveMessages, (dur) -> {
-                                log.info("Waiting to reach {}, still at {}, mongo {}", exclusiveMessages, counts.get(),
-                                        q.countAll());
-                                StringBuffer b = new StringBuffer();
-                                if (counts.get() > exclusiveMessages - 5) {
-                                    for (MorphiumId id : sent) {
-                                        if (id == null)
-                                            continue;
-                                        // log.info(id.toString());
-                                        if (!msgIds.contains(id)) {
-                                            log.info("Missing sent msg #{}", sent.indexOf(id));
-                                            b.append("x");
-                                        } else {
-                                            b.append("-");
-                                        }
-                                    }
-                                    log.info("Stats: {}", b.toString());
+                    () -> counts.get() >= exclusiveMessages, (dur) -> {
+                        log.info("Waiting to reach {}, still at {}, mongo {}", exclusiveMessages, counts.get(),
+                                 q.countAll());
+                        StringBuffer b = new StringBuffer();
+                        if (counts.get() > exclusiveMessages - 5) {
+                            for (MorphiumId id : sent) {
+                                if (id == null)
+                                    continue;
+                                // log.info(id.toString());
+                                if (!msgIds.contains(id)) {
+                                    log.info("Missing sent msg #{}", sent.indexOf(id));
+                                    b.append("x");
+                                } else {
+                                    b.append("-");
                                 }
-                            });
+                            }
+                            log.info("Stats: {}", b.toString());
+                        }
+                    });
                     log.info("All messages received");
                     TestUtils.wait("Waiting some time", 5);
                     log.info("Now we got {} messages", counts.get());
                     assertEquals(exclusiveMessages, counts.get());
                     counts.set(0);
+                    insertEvents.set(0);
 
                     for (int i = 0; i < broadcastAmount; i++) {
                         if (i % 5 == 0)
@@ -844,13 +946,32 @@ public class ExclusiveMessageTests extends MorphiumTestBase {
                     }
 
                     TestUtils.waitForConditionToBecomeTrue(broadcastAmount * 350, "Did not reach message count",
-                            () -> counts.get() >= listeners * broadcastAmount, (dur) -> {
-                                log.info("not yet {} messages, still got {}", listeners * broadcastAmount,
-                                        counts.get());
-                            });
+                    () -> counts.get() >= listeners * broadcastAmount, (dur) -> {
+                        log.info("sent {} message, not yet {} messages received, still got {}, mongo {} - events {}", broadcastAmount, listeners * broadcastAmount,
+                                 counts.get(), q.countAll(), insertEvents.get());
+                        for (var entry : recByRecId.entrySet()) {
+                            if (entry.getValue().size() < broadcastAmount) {
+                                log.info("Rec {} has only {} msg received", entry.getKey(), entry.getValue().size());
+                                var qu = mx.createQueryFor(Msg.class, sender.getCollectionName("excl_name")).f(Msg.Fields.exclusive).eq(false).f(Msg.Fields.processedBy).ne(entry.getKey());
+                                log.info("Unprocessed messages in mongo for rec {}: {}", entry.getKey(), qu.countAll());
+                            }
+
+                            Map<String, AtomicInteger> cnts = new HashMap<>();
+                            for (var msg : entry.getValue()) {
+                                cnts.putIfAbsent(msg.getMsgId().toString(), new AtomicInteger(0));
+                                cnts.get(msg.getMsgId().toString()).incrementAndGet();
+                            }
+                            for (var key : cnts.keySet()) {
+                                if (cnts.get(key).get() > 1) {
+                                    log.error("Sender {} received msg {} {}x", entry.getKey(), key, cnts.get(key));
+                                }
+                            }
+
+                        }
+                    });
                     TestUtils.wait("Waiting some time", 5);
                     org.junit.jupiter.api.Assertions.assertEquals(listeners * broadcastAmount, counts.get(),
-                            "Did get too many? " + counts.get());
+                                                    "Did get too many? " + counts.get());
                 } finally {
                     Thread.ofVirtual().start(() -> {
                         sender.terminate();
