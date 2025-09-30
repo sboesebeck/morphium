@@ -466,6 +466,16 @@ if [ -z "$driver" ] && [ "$useExternal" -eq 0 ]; then
   driver="inmem"
   echo -e "${YL}Info:${CL} No driver specified, defaulting to --driver inmem (use --external for external MongoDB drivers)"
 fi
+
+# Auto-exclude external tests when using inmem driver
+if [ "$driver" == "inmem" ]; then
+  if [ -z "$excludeTags" ]; then
+    excludeTags="external"
+  elif [[ ! "$excludeTags" == *"external"* ]]; then
+    excludeTags="$excludeTags,external"
+  fi
+  echo -e "${BL}Info:${CL} InMemory driver selected - automatically excluding 'external' tagged tests"
+fi
 # Handle --rerunfailed option early to bypass interactive prompts
 if [ "$rerunfailed" -eq 1 ]; then
   echo -e "${MG}Rerunning${CL} ${CN}failed tests...${CL}"
@@ -1089,6 +1099,14 @@ function cleanup_parallel_execution() {
     cp "${cleanup_best_logs[$test_class]}" "test.log/${test_class}.log"
   done
 
+  # Remove slot directories after copying logs
+  echo -e "${BL}Cleaning up slot directories...${CL}"
+  for ((slot = 1; slot <= parallel; slot++)); do
+    if [ -d "test.log/slot_$slot" ]; then
+      rm -rf "test.log/slot_$slot"
+    fi
+  done
+
   # Cleanup temporary files
   rm -f test_chunk_*.txt
 
@@ -1229,7 +1247,15 @@ function run_parallel_tests() {
   fi
   echo "=========================================================================================================="
 
-  # Cleanup
+  # Clean up slot directories after all processing is complete
+  echo -e "${BL}Cleaning up slot directories...${CL}"
+  for ((slot = 1; slot <= parallel; slot++)); do
+    if [ -d "test.log/slot_$slot" ]; then
+      rm -rf "test.log/slot_$slot"
+    fi
+  done
+
+  # Cleanup temporary files
   rm -f test_chunk_*.txt
   echo -e "${GN}Parallel execution completed${CL}"
 }
