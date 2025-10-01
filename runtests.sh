@@ -1072,32 +1072,39 @@ function cleanup_parallel_execution() {
   # Copy completed logs to main directory for getStats.sh compatibility
   echo -e "${BL}Preserving completed test logs...${CL}"
 
-  # Use same logic as normal completion: find best log for each test class
-  declare -A cleanup_best_logs
-  declare -A cleanup_test_slots
+  # Create a temporary directory for processing
+  mkdir -p test.log/temp_cleanup
 
-  for ((slot = 1; slot <= parallel; slot++)); do
+  # Find all log files in slots and copy them to temp, keeping only the best version of each test
+  for ((slot = 1; slot <= parallel; slot)); do
     if [ -d "test.log/slot_$slot" ]; then
       for log_file in test.log/slot_$slot/*.log; do
         if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
           test_class=$(basename "$log_file" .log)
+          dest_file="test.log/temp_cleanup/${test_class}.log"
 
-          # If we haven't seen this test class yet, or if this slot's test passed and previous failed
-          if [[ ! "${cleanup_best_logs[$test_class]+isset}" ]] ||
-             { ! grep -q "BUILD FAILURE" "$log_file" && grep -q "BUILD FAILURE" "${cleanup_best_logs[$test_class]}" 2>/dev/null; } ||
-             { grep -q "BUILD SUCCESS" "$log_file" && ! grep -q "BUILD SUCCESS" "${cleanup_best_logs[$test_class]}" 2>/dev/null; }; then
-            cleanup_best_logs[$test_class]="$log_file"
-            cleanup_test_slots[$test_class]=$slot
+          # If destination doesn't exist, just copy it
+          if [ ! -e "$dest_file" ]; then
+            cp "$log_file" "$dest_file"
+          else
+            # If this version passed and the existing failed, replace it
+            if ! grep -q "BUILD FAILURE" "$log_file" 2>/dev/null && grep -q "BUILD FAILURE" "$dest_file" 2>/dev/null; then
+              cp "$log_file" "$dest_file"
+            # If this version succeeded and the existing didn't, replace it
+            elif grep -q "BUILD SUCCESS" "$log_file" 2>/dev/null && ! grep -q "BUILD SUCCESS" "$dest_file" 2>/dev/null; then
+              cp "$log_file" "$dest_file"
+            fi
           fi
         fi
       done
     fi
   done
 
-  # Copy the best log for each test class (without slot suffix)
-  for test_class in "${!cleanup_best_logs[@]}"; do
-    cp "${cleanup_best_logs[$test_class]}" "test.log/${test_class}.log"
-  done
+  # Move cleaned logs from temp to main test.log directory
+  if [ -d "test.log/temp_cleanup" ]; then
+    mv test.log/temp_cleanup/*.log test.log/ 2>/dev/null || true
+    rmdir test.log/temp_cleanup
+  fi
 
   # Remove slot directories after copying logs
   echo -e "${BL}Cleaning up slot directories...${CL}"
@@ -1171,21 +1178,27 @@ function run_parallel_tests() {
   local failed_tests_with_slots=()
 
   # First pass: collect all unique test classes and determine the best log for each
-  declare -A best_logs  # test_class -> best_log_path
-  declare -A test_slots # test_class -> slot_number (for reference)
+  # Use temp directory approach instead of associative arrays for better compatibility
+  mkdir -p test.log/temp_aggregate
 
   for ((slot = 1; slot <= parallel; slot++)); do
     if [ -d "test.log/slot_$slot" ]; then
       for log_file in test.log/slot_$slot/*.log; do
         if [ -e "$log_file" ] && [[ ! "$log_file" =~ slot\.log$ ]]; then
           test_class=$(basename "$log_file" .log)
+          dest_file="test.log/temp_aggregate/${test_class}.log"
 
-          # If we haven't seen this test class yet, or if this slot's test passed and previous failed
-          if [[ ! "${best_logs[$test_class]+isset}" ]] ||
-             { ! grep -q "BUILD FAILURE" "$log_file" && grep -q "BUILD FAILURE" "${best_logs[$test_class]}" 2>/dev/null; } ||
-             { grep -q "BUILD SUCCESS" "$log_file" && ! grep -q "BUILD SUCCESS" "${best_logs[$test_class]}" 2>/dev/null; }; then
-            best_logs[$test_class]="$log_file"
-            test_slots[$test_class]=$slot
+          # If destination doesn't exist, just copy it
+          if [ ! -e "$dest_file" ]; then
+            cp "$log_file" "$dest_file"
+          else
+            # If this version passed and the existing failed, replace it
+            if ! grep -q "BUILD FAILURE" "$log_file" 2>/dev/null && grep -q "BUILD FAILURE" "$dest_file" 2>/dev/null; then
+              cp "$log_file" "$dest_file"
+            # If this version succeeded and the existing didn't, replace it
+            elif grep -q "BUILD SUCCESS" "$log_file" 2>/dev/null && ! grep -q "BUILD SUCCESS" "$dest_file" 2>/dev/null; then
+              cp "$log_file" "$dest_file"
+            fi
           fi
         fi
       done
@@ -1193,9 +1206,10 @@ function run_parallel_tests() {
   done
 
   # Second pass: copy the best log for each test class (without slot suffix)
-  for test_class in "${!best_logs[@]}"; do
-    cp "${best_logs[$test_class]}" "test.log/${test_class}.log"
-  done
+  if [ -d "test.log/temp_aggregate" ]; then
+    mv test.log/temp_aggregate/*.log test.log/ 2>/dev/null || true
+    rmdir test.log/temp_aggregate
+  fi
 
   # Third pass: collect failed tests with deduplication
   for ((slot = 1; slot <= parallel; slot++)); do
