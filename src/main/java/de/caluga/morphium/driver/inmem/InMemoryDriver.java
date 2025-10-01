@@ -142,6 +142,8 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     // DBName => Collection => List of documents
     private static final Map<String, Map<String, List<Map<String, Object >> >> GLOBAL_DATABASE = new ConcurrentHashMap<>();
     private final Map<String, Map<String, List<Map<String, Object >> >> database = GLOBAL_DATABASE;
+    // ReadWriteLocks per collection for fine-grained concurrency control
+    private static final Map<String, java.util.concurrent.locks.ReadWriteLock> COLLECTION_LOCKS = new ConcurrentHashMap<>();
     private int idleSleepTime = 20;
     /**
      * index definitions by db and collection name
@@ -1387,31 +1389,26 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     private List<Map<String, Object>> drainNextBatch(long cursorId, int requestedBatchSize) {
-        CursorResultBuffer buffer = activeQueryCursors.get(cursorId);
+        List<Map<String, Object>> result = new ArrayList<>();
 
-        if (buffer == null) {
-            return Collections.emptyList();
-        }
+        activeQueryCursors.computeIfPresent(cursorId, (id, buffer) -> {
+            synchronized (buffer) {
+                int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
 
-        synchronized (buffer) {
-            int size = requestedBatchSize > 0 ? requestedBatchSize : buffer.defaultBatchSize;
+                if (size <= 0) {
+                    size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
+                }
 
-            if (size <= 0) {
-                size = buffer.defaultBatchSize > 0 ? buffer.defaultBatchSize : 101;
+                for (int i = 0; i < size && !buffer.remaining.isEmpty(); i++) {
+                    result.add(buffer.remaining.pollFirst());
+                }
+
+                // Return null to remove the cursor if empty, otherwise keep it
+                return buffer.remaining.isEmpty() ? null : buffer;
             }
+        });
 
-            List<Map<String, Object>> batch = new ArrayList<>(Math.min(size, buffer.remaining.size()));
-
-            for (int i = 0; i < size && !buffer.remaining.isEmpty(); i++) {
-                batch.add(buffer.remaining.pollFirst());
-            }
-
-            if (buffer.remaining.isEmpty()) {
-                activeQueryCursors.remove(cursorId);
-            }
-
-            return batch;
-        }
+        return result;
     }
 
     private String namespaceForCursor(long cursorId) {
@@ -1441,14 +1438,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     public MongoConnection getReadConnection(ReadPreference rp) {
         activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-        return this;
+        return new InMemConnectionWrapper(this);
     }
 
     @Override
     public MongoConnection getPrimaryConnection(WriteConcern wc) {
         activeConnections.incrementAndGet();
         stats.get(DriverStatsKey.CONNECTIONS_BORROWED).incrementAndGet();
-        return this;
+        return new InMemConnectionWrapper(this);
     }
 
     @Override
@@ -1858,25 +1855,53 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return 0;
     }
 
+    /**
+     * Close method for when InMemoryDriver itself is used as a connection.
+     * This happens in some legacy code paths.
+     *
+     * NOTE: This should NOT affect the driver's scheduler or database!
+     * For proper driver shutdown, use shutdown(boolean clearData) instead.
+     */
     public void close() {
         int remaining = activeConnections.decrementAndGet();
         log.debug("Connection closed, remaining connections: {}", remaining);
 
-        if (remaining <= 0) {
-            // Only shutdown scheduler when NO connections are active
-            log.info("All connections closed, shutting down InMemory driver scheduler");
-            if (exec != null && !exec.isShutdown()) {
-                exec.shutdown();
-            }
-            for (Object m : monitors) {
-                synchronized (m) {
-                    m.notifyAll();
-                }
-            }
-            database.clear();
+        // Just decrement the counter - don't touch scheduler or database!
+        // The scheduler is driver-level and should only be stopped via shutdown().
+        // The database is global/static and should only be cleared via shutdown(true) or resetData().
+    }
 
+    /**
+     * Shutdown the InMemoryDriver completely.
+     * This stops the scheduler and optionally clears all data.
+     *
+     * Use this for cleanup after tests, NOT close()!
+     * close() is for individual connections and should not affect the driver.
+     *
+     * @param clearData if true, clears all database data (calls resetData())
+     */
+    public void shutdown(boolean clearData) {
+        log.info("Shutting down InMemoryDriver (clearData={})", clearData);
+
+        // Shutdown the scheduler - this is driver-level, not connection-level
+        if (exec != null && !exec.isShutdown()) {
+            exec.shutdown();
         }
 
+        // Notify any waiting threads
+        for (Object m : monitors) {
+            synchronized (m) {
+                m.notifyAll();
+            }
+        }
+
+        // Optionally clear all data
+        if (clearData) {
+            resetData();
+        }
+
+        // Reset connection counter
+        activeConnections.set(0);
     }
 
 
@@ -2032,10 +2057,21 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         return find(db, collection, query, sort, projection, null, skip, limit, false);
     }
 
+    private java.util.concurrent.locks.ReadWriteLock getCollectionLock(String db, String collection) {
+        String key = db + "." + collection;
+        return COLLECTION_LOCKS.computeIfAbsent(key, k -> new java.util.concurrent.locks.ReentrantReadWriteLock());
+    }
+
     @SuppressWarnings({"RedundantThrows", "UnusedParameters"})
-    private synchronized List<Map<String, Object >> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
+    private List<Map<String, Object >> find(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> projection, Map<String, Object> collation, int skip,
                                             int limit, boolean internal) throws MorphiumDriverException {
-        List<Map<String, Object >> partialHitData = new ArrayList<>();
+        // Only acquire read lock if not called internally (internal calls already hold write lock)
+        java.util.concurrent.locks.ReadWriteLock lock = internal ? null : getCollectionLock(db, collection);
+        if (lock != null) {
+            lock.readLock().lock();
+        }
+        try {
+            List<Map<String, Object >> partialHitData = new ArrayList<>();
 
         if (query == null) {
             query = Doc.of();
@@ -2249,6 +2285,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             // todo add projection
         }
         return new ArrayList<>(ret);
+        } finally {
+            if (lock != null) {
+                lock.readLock().unlock();
+            }
+        }
     }
 
     // ---------- Projection helpers (dot-path include/exclude, $slice, $elemMatch) ----------
@@ -2750,8 +2791,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
     @SuppressWarnings("ConstantConditions")
 
-    public synchronized Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
+    public Map<String, Object> update(String db, String collection, Map<String, Object> query, Map<String, Object> sort, Map<String, Object> op, boolean multiple, boolean upsert,
             Map<String, Object> collation, Map<String, Object> wc) throws MorphiumDriverException {
+        // Acquire write lock for this collection to block all reads and other writes
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.writeLock().lock();
+        try {
         List<Map<String, Object >> lst = find(db, collection, query, sort, null, collation, 0, multiple ? 0 : 1, true);
         int matchedCount = (lst == null) ? 0 : lst.size();
         boolean insert = false;
@@ -3223,6 +3268,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             res.put("upsertedIds", upsertedIds);
         }
         return res;
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private void notifyWatchers(String db, String collection, String op, Map doc) {
@@ -3710,8 +3758,12 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
     }
 
-    public synchronized Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)
+    public Map<String, Object> delete (String db, String collection, Map<String, Object> query, Map<String, Object> sort, boolean multiple, Map<String, Object> collation, WriteConcern wc)
     throws MorphiumDriverException {
+        // Acquire write lock for this collection to block all reads and other writes
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.writeLock().lock();
+        try {
         List<Map<String, Object >> toDel = new ArrayList<>(find(db, collection, query, null, UtilsMap.of("_id", 1), collation, 0, multiple ? 0 : 1, true));
 
         int deleted = 0;
@@ -3764,11 +3816,15 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         return Doc.of("n", deleted, "ok", 1.0);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private List<Map<String, Object >> getCollection(String db, String collection) throws MorphiumDriverException {
-        if (!getDB(db).containsKey(collection)) {
-            getDB(db).put(collection, new CopyOnWriteArrayList<>());
+        Map<String, List<Map<String, Object>>> dbMap = getDB(db);
+        if (!dbMap.containsKey(collection)) {
+            dbMap.put(collection, new CopyOnWriteArrayList<>());
 
             try {
                 createIndex(db, collection, Doc.of("_id", 1), Doc.of("name", "_id_1"));
@@ -3777,10 +3833,14 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
-        return getDB(db).get(collection);
+        return dbMap.get(collection);
     }
 
-    public synchronized void drop(String db, String collection, WriteConcern wc) {
+    public void drop(String db, String collection, WriteConcern wc) {
+        // Acquire write lock for this collection to block all reads and other writes
+        java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
+        lock.writeLock().lock();
+        try {
         getDB(db).remove(collection);
 
         if (indexDataByDBCollection.containsKey(db)) {
@@ -3792,6 +3852,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         }
 
         notifyWatchers(db, collection, "drop", null);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public synchronized void drop(String db, WriteConcern wc) {
@@ -4713,6 +4776,132 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
         public void setCollation(Collation collation) {
             this.collation = collation;
+        }
+    }
+
+    /**
+     * Wrapper for individual connections to the InMemoryDriver.
+     * This separates connection lifecycle from driver lifecycle:
+     * - Closing a connection just decrements the connection counter
+     * - The driver's scheduler and global database remain active
+     * - Only driver.shutdown() actually stops the driver
+     */
+    private class InMemConnectionWrapper implements MongoConnection {
+        private final InMemoryDriver driver;
+        private boolean closed = false;
+
+        InMemConnectionWrapper(InMemoryDriver driver) {
+            this.driver = driver;
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+
+            int remaining = driver.activeConnections.decrementAndGet();
+            log.debug("Connection closed, remaining connections: {}", remaining);
+
+            // Just decrement counter - don't touch scheduler or database!
+            // The scheduler is driver-level and runs for the lifetime of the driver.
+            // The database is global/static and shared across all driver instances.
+        }
+
+        @Override
+        public int sendCommand(MongoCommand cmd) throws MorphiumDriverException {
+            if (closed) throw new IllegalStateException("Connection closed");
+            return driver.sendCommand(cmd);
+        }
+
+        @Override
+        public int getSourcePort() {
+            return driver.getSourcePort();
+        }
+
+        // Additional InMemoryDriver-specific methods (not part of MongoConnection interface)
+        public void setTransactionContext(MorphiumTransactionContext ctx) {
+            driver.setTransactionContext(ctx);
+        }
+
+        public MorphiumTransactionContext getTransactionContext() {
+            return driver.getTransactionContext();
+        }
+
+        // Delegate all other MongoConnection methods to driver
+
+        @Override
+        public void setCredentials(String authDb, String userName, String password) {
+            driver.setCredentials(authDb, userName, password);
+        }
+
+        @Override
+        public HelloResult connect(MorphiumDriver drv, String host, int port) throws IOException, MorphiumDriverException {
+            return driver.connect(drv, host, port);
+        }
+
+        @Override
+        public MorphiumDriver getDriver() {
+            return driver.getDriver();
+        }
+
+        @Override
+        public boolean isConnected() {
+            return driver.isConnected();
+        }
+
+        @Override
+        public String getConnectedTo() {
+            return driver.getConnectedTo();
+        }
+
+        @Override
+        public String getConnectedToHost() {
+            return driver.getConnectedToHost();
+        }
+
+        @Override
+        public int getConnectedToPort() {
+            return driver.getConnectedToPort();
+        }
+
+        @Override
+        public void closeIteration(MorphiumCursor crs) throws MorphiumDriverException {
+            driver.closeIteration(crs);
+        }
+
+        @Override
+        public Map<String, Object> killCursors(String db, String coll, long... ids) throws MorphiumDriverException {
+            return driver.killCursors(db, coll, ids);
+        }
+
+        @Override
+        public OpMsg readNextMessage(int timeout) throws MorphiumDriverException {
+            return driver.readNextMessage(timeout);
+        }
+
+        @Override
+        public Map<String, Object> readSingleAnswer(int id) throws MorphiumDriverException {
+            return driver.readSingleAnswer(id);
+        }
+
+        @Override
+        public void watch(WatchCommand settings) throws MorphiumDriverException {
+            driver.watch(settings);
+        }
+
+        @Override
+        public List<Map<String, Object>> readAnswerFor(int queryId) throws MorphiumDriverException {
+            return driver.readAnswerFor(queryId);
+        }
+
+        @Override
+        public MorphiumCursor getAnswerFor(int queryId, int batchsize) throws MorphiumDriverException {
+            return driver.getAnswerFor(queryId, batchsize);
+        }
+
+        @Override
+        public List<Map<String, Object>> readAnswerFor(MorphiumCursor crs) throws MorphiumDriverException {
+            return driver.readAnswerFor(crs);
         }
     }
 
