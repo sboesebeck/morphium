@@ -75,9 +75,9 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         assertEquals(insertResult.get("n"), 1);
         new InsertMongoCommand(drv).setColl(coll).setDb(db);
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", 14, "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", 14, "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
+                                         ));
         insertResult = insert.execute();
         assertEquals(insertResult.get("n"), 3);
 
@@ -125,9 +125,9 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
+                                         ));
         var insertResult = insert.execute();
 
         Query<Map> q = new Query<>(null, Map.class, null);
@@ -147,19 +147,22 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "timestamp", new Date()),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "timestamp", new Date()),
-                Doc.of("_id", new MorphiumId(), "value", 15, "timestamp", new Date())
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "timestamp", new Date()),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "timestamp", new Date())
+                                         ));
         var insertResult = insert.execute();
         CreateIndexesCommand indexesCommand = new CreateIndexesCommand(drv)
-                .setDb(db).setColl(coll)
-                .addIndex(new IndexDescription().setKey(Doc.of("timestamp", 1)).setExpireAfterSeconds(8));
+        .setDb(db).setColl(coll)
+        .addIndex(new IndexDescription().setKey(Doc.of("timestamp", 1)).setExpireAfterSeconds(8));
         indexesCommand.execute();
         Thread.sleep(1500);
-        var idx = drv.getIndexes(db, coll);
+        int cnt = 0;
         while (drv.find(db, coll, Doc.of(), null, null, 0, 0).size() > 0) {
             log.info("Waiting for elements to be removed: " + drv.find(db, coll, Doc.of(), null, null, 0, 0).size());
             Thread.sleep(1000);
+            cnt++;
+            assertTrue(cnt > 65);
+
         }
         drv.close();
     }
@@ -173,19 +176,19 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
                 var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
                 insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
-                        Doc.of("_id", new MorphiumId(), "value", 14),
-                        Doc.of("_id", new MorphiumId(), "value", 15)
-                ));
+                                                  Doc.of("_id", new MorphiumId(), "value", 14),
+                                                  Doc.of("_id", new MorphiumId(), "value", 15)
+                                                 ));
                 var insertResult = insert.execute();
                 CreateIndexesCommand indexesCommand = new CreateIndexesCommand(drv)
-                        .setDb(db).setColl(coll)
-                        .addIndex(new IndexDescription().setKey(Doc.of("value", 1)).setUnique(true));
+                .setDb(db).setColl(coll)
+                .addIndex(new IndexDescription().setKey(Doc.of("value", 1)).setUnique(true));
                 indexesCommand.execute();
                 insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
                 insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13),
-                        Doc.of("_id", new MorphiumId(), "value", 17),
-                        Doc.of("_id", new MorphiumId(), "value", 19)
-                ));
+                                                  Doc.of("_id", new MorphiumId(), "value", 17),
+                                                  Doc.of("_id", new MorphiumId(), "value", 19)
+                                                 ));
                 insert.execute();
             }
         });
@@ -199,9 +202,9 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3")
+                                         ));
         var insertResult = insert.execute();
 
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
@@ -227,17 +230,17 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         String collection = "survey";
         var insert1 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
         insert1.setDocuments(Arrays.asList(Doc.of("_id", "1", "results",
-                Arrays.asList(Doc.of("item", "A", "score", 5), Doc.of("item", "B", "score", 8)))));
+                                           Arrays.asList(Doc.of("item", "A", "score", 5), Doc.of("item", "B", "score", 8)))));
         insert1.execute();
         var insert2 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
         insert2.setDocuments(Arrays.asList(Doc.of("_id", "2", "results",
-                Arrays.asList(Doc.of("item", "C", "score", 8), Doc.of("item", "B", "score", 4)))));
+                                           Arrays.asList(Doc.of("item", "C", "score", 8), Doc.of("item", "B", "score", 4)))));
         insert2.execute();
 
         // db.survey.updateMany({ }, { $pull: { results: { score: 8 , item: "B" } } })
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
         update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("results", Doc.of("score", 8, "item", "B"))),
-                null, false, true, null, null, null);
+                         null, false, true, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
@@ -273,7 +276,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         // db.profiles.updateOne( { _id: 1 }, { $pull: { votes: { $gte: 6 } } } )
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
         update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("votes", Doc.of("$gte", 6))),
-                null, false, false, null, null, null);
+                         null, false, false, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
@@ -301,18 +304,18 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         String collection = "stores";
         var insert1 = new InsertMongoCommand(drv).setColl(collection).setDb(db);
         insert1.setDocuments(Arrays.asList(Doc.of("_id", "1", "fruits", Arrays.asList("apples", "pears", "oranges", "grapes", "bananas"),
-                "vegetables", Arrays.asList("carrots", "celery", "squash", "carrots"))));
+                                           "vegetables", Arrays.asList("carrots", "celery", "squash", "carrots"))));
         insert1.execute();
         var insert2 = new InsertMongoCommand(drv).setColl("stores").setDb(db);
         insert2.setDocuments(Arrays.asList(Doc.of("_id", "2", "fruits", Arrays.asList("plums", "kiwis", "oranges", "bananas", "apples"),
-                "vegetables", Arrays.asList("broccoli", "zucchini", "carrots", "onions"))));
+                                           "vegetables", Arrays.asList("broccoli", "zucchini", "carrots", "onions"))));
         insert2.execute();
 
         //db.stores.updateMany( { },
         //   { $pull: { fruits: { $in: [ "apples", "oranges" ] }, vegetables: "carrots" } })
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(collection);
         update.addUpdate(Doc.of(), Doc.of("$pull", Doc.of("fruits", Doc.of("$in", Arrays.asList("apples", "oranges")),
-                "vegetables", "carrots")), null, false, true, null, null, null);
+                                          "vegetables", "carrots")), null, false, true, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
@@ -344,7 +347,7 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
     }
 
-        @Test
+    @Test
     public void testUpdate_pullAll() throws Exception {
         InMemoryDriver drv = new InMemoryDriver();
         drv.connect();
@@ -352,15 +355,15 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         String morphiumId = "12345";
         //   db.testcoll.insertOne({_id: "12345", scores: [0,2,5,5,1,0], prices: [1.2, 1.4, 1.8, 2.0], empty: []})
-        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0,2,5,5,1,0), "prices", Arrays.asList(1.2,1.4,1.8,2.0),
-                "empty", Arrays.asList())));
+        insert.setDocuments(Arrays.asList(Doc.of("_id", morphiumId, "scores", Arrays.asList(0, 2, 5, 5, 1, 0), "prices", Arrays.asList(1.2, 1.4, 1.8, 2.0),
+                                          "empty", Arrays.asList())));
         var insertResult = insert.execute();
 
         UpdateMongoCommand update = new UpdateMongoCommand(drv).setDb(db).setColl(coll);
         //   db.testcoll.updateAll({_id: "12345"}, {$pullAll: {"scores": [0,5], "prices": [1.2, 1.6, 1.7], "empty": [1, 2]}} )
-        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0,5),
-                "prices", Arrays.asList(1.2,1.6,1.7),
-                "empty", Arrays.asList(1, 2))), null, false, false, null, null, null);
+        update.addUpdate(Doc.of("_id", morphiumId), Doc.of("$pullAll", Doc.of("scores", Arrays.asList(0, 5),
+                         "prices", Arrays.asList(1.2, 1.6, 1.7),
+                         "empty", Arrays.asList(1, 2))), null, false, false, null, null, null);
         log.info("Update:" + Utils.toJsonString(update.asMap().toString()));
         var updateResult = update.execute();
 
@@ -392,28 +395,28 @@ public class InMemDriverTest extends MorphiumInMemTestBase {
 
         var insert = new InsertMongoCommand(drv).setColl(coll).setDb(db);
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
+                                         ));
         var insertResult = insert.execute();
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
+                                         ));
         insertResult = insert.execute();
         var ret = drv.find(db, coll, Doc.of(), null, null, 0, 0);
         log.info("Got result: " + ret.size());
         assertEquals(5, ret.size());
         insert.setDocuments(Arrays.asList(Doc.of("_id", new MorphiumId(), "value", 13, "strVal", "Hello"),
-                Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
-                Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
-                Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
-        ));
+                                          Doc.of("_id", new MorphiumId(), "value", "Hello2", "strVal", "Hello2"),
+                                          Doc.of("_id", new MorphiumId(), "value", 15, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 132, "strVal", "Hello3"),
+                                          Doc.of("_id", new MorphiumId(), "value", 1, "strVal", "Hello3")
+                                         ));
         insertResult = insert.execute();
         ret = drv.find(db, coll, Doc.of(), null, null, 0, 0);
         assertTrue(ret.size() == 5);
