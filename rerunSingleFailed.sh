@@ -32,4 +32,5 @@ fi
 echo "Method $m in Class $cls"
 # f=$(./runtests.sh --stats --noreason --nosum | grep -v "Calculating" | fzf)
 
-mvn -Dtest=$cls#$m "$@" compile test-compile test
+echo "mvn -Dtest=$cls#$m $@ clean test" | pbcopy
+mvn -Dtest=$cls#$m "$@" clean test
