@@ -398,10 +398,18 @@ public class SingleCollectionMessaging extends Thread implements ShutdownListene
 
             var id = ((Map) evt.getDocumentKey()).get("_id");
 
+            // Note: docIdsFromChangestream is used for debugging duplicate events only
+            // It does not prevent processing - that's handled by idsInProgress check below
             if (docIdsFromChangestream.contains(id)) {
-                log.error("Already got this document id!!!!!");
+                if (log.isDebugEnabled()) {
+                    log.debug("Duplicate change stream event for id: {}", id);
+                }
             }
             docIdsFromChangestream.add(id);
+            // Keep only recent 1000 IDs to prevent memory growth
+            while (docIdsFromChangestream.size() > 1000) {
+                docIdsFromChangestream.remove(0);
+            }
             if (id instanceof MorphiumId) {
 
                 int cnt = 0;

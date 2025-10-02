@@ -64,32 +64,48 @@ public class SequenceGenerator {
         this.morphium = mrph;
         id = UUID.randomUUID().toString();
 
+        String db = morphium.getConfig().connectionSettings().getDatabase();
+
+        log.info("SequenceGenerator init: db={}, name={}, startValue={}, inc={}, thread={}",
+            db, name, startValue, inc, Thread.currentThread().getName());
+
+        // Always try to insert the sequence - let duplicate detection handle the race condition
+        // This ensures atomicity: only ONE thread will successfully create the sequence
         try {
-            if (!morphium.getDriver().exists(morphium.getConfig().connectionSettings().getDatabase(), morphium.getMapper().getCollectionName(Sequence.class))
-                    || morphium.createQueryFor(Sequence.class).f("_id").eq(name).countAll() == 0) {
-                // sequence does not exist yet
-                if (log.isDebugEnabled()) {
-                    log.debug("Sequence does not exist yet... inserting");
-                }
-
-                Sequence s = new Sequence();
-                s.setCurrentValue(startValue - inc); // making sure first value will be startValue!
-                s.setName(name);
-                morphium.storeNoCache(s);
+            Sequence s = new Sequence();
+            s.setCurrentValue(startValue - inc); // making sure first value will be startValue!
+            s.setName(name);
+            // Use insert() instead of storeNoCache() to ensure duplicate detection
+            // storeNoCache() uses upsert which would silently overwrite
+            morphium.insert(s);
+            log.info("Sequence '{}' inserted successfully in db '{}' with initial value={}, thread={}",
+                name, db, (startValue - inc), Thread.currentThread().getName());
+        } catch (Exception e) {
+            // Ignore duplicate key errors - another thread already created it
+            // This is expected when multiple threads try to initialize the same sequence
+            log.info("Sequence '{}' already exists in db '{}' (this is normal in concurrent scenarios), thread={}: {}",
+                name, db, Thread.currentThread().getName(), e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Full exception:", e);
             }
-
-            morphium.ensureIndicesFor(Sequence.class);
-            morphium.ensureIndicesFor(SeqLock.class);
-        } catch (MorphiumDriverException e) {
-            throw new RuntimeException(e);
         }
+
+        morphium.ensureIndicesFor(Sequence.class);
+        morphium.ensureIndicesFor(SeqLock.class);
     }
 
     public long getCurrentValue() {
         Sequence s = morphium.createQueryFor(Sequence.class).f("_id").eq(name).get();
 
-        if (s == null || s.getCurrentValue() == null) {
-            // new sequence - get default
+        if (s == null) {
+            log.warn("getCurrentValue() - Sequence '{}' is NULL, calling getNextValue(), thread={}",
+                name, Thread.currentThread().getName());
+            return getNextValue();
+        }
+
+        if (s.getCurrentValue() == null) {
+            log.warn("getCurrentValue() - Sequence '{}' exists but currentValue is NULL, calling getNextValue(), thread={}",
+                name, Thread.currentThread().getName());
             return getNextValue();
         }
 
@@ -104,7 +120,7 @@ public class SequenceGenerator {
         lock.setLockedBy(id);
 
         while (true) {
-            if (System.currentTimeMillis() - start > 100000) {
+            if (System.currentTimeMillis() - start > 100_000) {
                 throw new RuntimeException(String.format("Getting lock on seqence %s failed!", name));
             }
 
@@ -149,12 +165,52 @@ public class SequenceGenerator {
         }
 
         // long st = System.currentTimeMillis();
-        Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
-        var val = seq.get();//.getCurrentValue();
-        morphium.inc(val, "current_value", inc);
-        morphium.delete(lock);
-        // log.info(String.format("inc: %s ms", System.currentTimeMillis() - st));
-        return val.getCurrentValue();
+        try {
+            Query<Sequence> seq = morphium.createQueryFor(Sequence.class).f("_id").eq(name);
+            var val = seq.get();//.getCurrentValue();
+            int count = 0;
+            while (val == null) {
+
+                //cannot be - retry
+                if (count++ > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
+                    throw new RuntimeException("Could not read from Sequence");
+                }
+                try {
+                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
+                } catch (InterruptedException e) {
+                }
+
+                val = seq.get();
+            }
+            morphium.inc(val, "current_value", inc);
+            // log.info(String.format("inc: %s ms", System.currentTimeMillis() - st));
+            // WARNING: morphium.inc() updates the local object by adding to its current value,
+            // but in concurrent scenarios the local value may be stale. Re-read from DB to get correct value.
+
+            // Retry reading the sequence with backoff in case of race conditions
+            count = 0;
+            while (true) {
+                val = seq.get();
+                if (val != null) {
+                    break;
+                }
+
+                // Sequence disappeared - retry with backoff
+                if (count++ > morphium.getConfig().connectionSettings().getRetriesOnNetworkError()) {
+                    throw new RuntimeException("Sequence disappeared after increment!");
+                }
+
+                try {
+                    Thread.sleep(morphium.getConfig().connectionSettings().getSleepBetweenNetworkErrorRetries());
+                } catch (InterruptedException e) {
+                }
+            }
+
+            return val.getCurrentValue();
+        } finally {
+            // Always delete the lock, even if an exception occurs
+            morphium.delete(lock);
+        }
     }
 
     public int getInc() {
