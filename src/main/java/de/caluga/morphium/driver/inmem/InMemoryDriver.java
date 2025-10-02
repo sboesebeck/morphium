@@ -320,7 +320,9 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         cappedCollections.clear();
 
         for (var o : monitors) {
-            o.notifyAll();
+            synchronized (o) {
+                o.notifyAll();
+            }
         }
 
         monitors.clear();
