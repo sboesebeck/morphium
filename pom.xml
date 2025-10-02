@@ -41,7 +41,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <mongodbDriver.version>4.7.1</mongodbDriver.version>
     <!--  This is required for later correct replacement of argline -->
-    <argLine />
+    <argLine/>
   </properties>
   <build>
     <sourceDirectory>src/main/java</sourceDirectory>
@@ -212,12 +212,12 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-core</artifactId>
-      <version>1.4.14</version>
+      <version>1.5.19</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.4.14</version>
+      <version>1.5.14</version>
     </dependency>
     <dependency>
       <groupId>com.colofabrix.scala</groupId>
