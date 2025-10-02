@@ -86,7 +86,7 @@ public class MorphiumTestBase {
             String db = buildDbName(cls, mth, number.incrementAndGet());
             cfg.connectionSettings().setDatabase(db);
             morphium = new Morphium(cfg);
-            log.info("Morphium instanciated");
+            log.info("Morphium instantiated with database: {} (instance: {})", db, System.identityHashCode(morphium));
         }
 
         // int num = number.incrementAndGet();
@@ -111,6 +111,7 @@ public class MorphiumTestBase {
 
     @AfterEach
     public void tearDown() throws Exception {
+        log.info("Shutting down...");
         if (morphium == null) {
             return;
         }

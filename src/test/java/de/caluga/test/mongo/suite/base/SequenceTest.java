@@ -5,6 +5,7 @@ import de.caluga.morphium.MorphiumConfig;
 import de.caluga.morphium.Sequence;
 import de.caluga.morphium.SequenceGenerator;
 import de.caluga.morphium.Sequence.SeqLock;
+import de.caluga.morphium.driver.inmem.InMemoryDriver;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ public class SequenceTest extends MorphiumTestBase {
     @Test
     public void singleSequenceTest() {
         morphium.dropCollection(Sequence.class);
+        morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg = new SequenceGenerator(morphium, "tstseq", 1, 1);
         long v = sg.getNextValue();
         assertEquals(1, v, "Value wrong: " + v);
@@ -40,6 +42,7 @@ public class SequenceTest extends MorphiumTestBase {
     @Test
     public void multiSequenceTest() {
         morphium.dropCollection(Sequence.class);
+        morphium.dropCollection(SeqLock.class);
         SequenceGenerator sg1 = new SequenceGenerator(morphium, "tstseq1", 1, 1);
         SequenceGenerator sg2 = new SequenceGenerator(morphium, "tstseq2", 1, 1);
         long v = sg1.getNextValue();
@@ -187,6 +190,7 @@ public class SequenceTest extends MorphiumTestBase {
     @Test
     public void massiveParallelMulticonnectSingleSequenceTest() throws Exception {
         morphium.dropCollection(Sequence.class);
+        morphium.dropCollection(SeqLock.class);
         Thread.sleep(100); //wait for the drop to be persisted
         //creating lots of sequences, with separate MongoDBConnections
         //reading from the same sequence
@@ -196,7 +200,20 @@ public class SequenceTest extends MorphiumTestBase {
         final AtomicInteger errors = new AtomicInteger(0);
 
         for (int i = 0; i < 25; i++) {
-            Morphium m = new Morphium(MorphiumConfig.fromProperties(morphium.getConfig().asProperties()));
+            Morphium m;
+            if (morphium.getDriver().getName().equals(InMemoryDriver.driverName)) {
+                log.info("Running in mem - several morphiums would defy the purpose here");
+                m = morphium;
+            } else {
+                MorphiumConfig cfg = morphium.getConfig().createCopy();
+                cfg.encryptionSettings().setCredentialsEncrypted(morphium.getConfig().encryptionSettings().getCredentialsEncrypted());
+                cfg.encryptionSettings().setCredentialsDecryptionKey(morphium.getConfig().encryptionSettings().getCredentialsDecryptionKey());
+                cfg.encryptionSettings().setCredentialsEncryptionKey(morphium.getConfig().encryptionSettings().getCredentialsEncryptionKey());
+
+                m = new Morphium(cfg);
+
+            }
+            final boolean isShared = (m == morphium);
             Thread t = new Thread(() -> {
                 SequenceGenerator sg1 = new SequenceGenerator(m, "testsequence", 1, 0);
 
@@ -223,7 +240,10 @@ public class SequenceTest extends MorphiumTestBase {
                         }
                     }
                 }
-                m.close();
+                // Only close if it's not the shared morphium instance
+                if (!isShared) {
+                    m.close();
+                }
             });
             threads.add(t);
             t.start();
