@@ -183,6 +183,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     private final Map<Long, CursorResultBuffer> activeQueryCursors = new ConcurrentHashMap<>();
     private final AtomicLong cursorIdSequence = new AtomicLong(1);
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(10);
+    // Executor for dispatching change stream events asynchronously
+    // This prevents insert/update/delete operations from blocking on event delivery
+    // Using cached thread pool with virtual threads to handle high event volumes without blocking
+    private final java.util.concurrent.ExecutorService eventDispatcher =
+        java.util.concurrent.Executors.newCachedThreadPool(
+            Thread.ofVirtual().name("event-dispatcher-", 0).factory()
+        );
     private boolean running = true;
     private int expireCheck = 10000;
     private ScheduledFuture<?> expire;
@@ -1908,6 +1915,19 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             }
         }
 
+        // Shutdown the event dispatcher
+        if (eventDispatcher != null && !eventDispatcher.isShutdown()) {
+            eventDispatcher.shutdownNow();
+            try {
+                if (!eventDispatcher.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.warn("InMemoryDriver eventDispatcher did not terminate in time");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for eventDispatcher termination");
+            }
+        }
+
         // Notify any waiting threads
         for (Object m : monitors) {
             synchronized (m) {
@@ -2566,9 +2586,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
     }
 
     public List<Map<String, Object >> insert(String db, String collection, List<Map<String, Object >> objs, Map<String, Object> wc) throws MorphiumDriverException {
+        log.debug("insert() called: db={}, coll={}, thread={}", db, collection, Thread.currentThread().getName());
         java.util.concurrent.locks.ReadWriteLock lock = getCollectionLock(db, collection);
         lock.writeLock().lock();
         List<Map<String, Object >> writeErrors;
+        List<Map<String, Object>> docSnapshots = new ArrayList<>();
         try {
             int errors = 0;
             objs = new ArrayList<>(objs);
@@ -2685,13 +2707,20 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
             indexData.get("_id").putIfAbsent(buckedId, new ArrayList<>());
             indexData.get("_id").get(buckedId).add(o);
         }
+
+        // Create deep copy snapshots of documents BEFORE releasing write lock
+        // This prevents race conditions where documents are modified before change stream events are built
+        for (Map<String, Object> o : objs) {
+            docSnapshots.add(deepCopyDoc(o));
+        }
         } finally {
             lock.writeLock().unlock();
         }
 
-        // Notify watchers AFTER releasing the write lock to prevent deadlocks and dirty reads
-        for (Map<String, Object> o : objs) {
-            notifyWatchers(db, collection, "insert", o);
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks
+        // Using snapshots ensures the change stream events reflect the state at insert time
+        for (Map<String, Object> snapshot : docSnapshots) {
+            notifyWatchers(db, collection, "insert", snapshot);
         }
 
         return writeErrors;
@@ -2762,7 +2791,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
-        // Notify watchers AFTER releasing the write lock
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks
         for (PendingNotification notification : pendingNotifications) {
             notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
                          notification.updatedFields, notification.removedFields, notification.beforeDocument);
@@ -2888,7 +2917,7 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         } finally {
             lock.writeLock().unlock();
         }
-        // Notify watchers AFTER releasing the write lock
+        // Notify watchers AFTER releasing the write lock to prevent deadlocks
         for (PendingNotification notification : pendingNotifications) {
             notifyWatchers(notification.db, notification.collection, notification.op, notification.doc,
                          notification.updatedFields, notification.removedFields, notification.beforeDocument);
@@ -3483,10 +3512,25 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 eventInfo.db, eventInfo.collection,
                 changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection) != null ? changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection).size() : 0);
 
-        deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db), eventInfo);
+        // Check if executor is shutdown before submitting tasks
+        if (eventDispatcher.isShutdown()) {
+            log.debug("InMemoryDriver is shut down, skipping change stream event dispatch");
+            return;
+        }
 
-        if (eventInfo.collection != null) {
-            deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection), eventInfo);
+        // Submit the ENTIRE dispatch to the eventDispatcher thread
+        // This ensures insert/update/delete threads NEVER block on event delivery
+        // The eventDispatcher then queues events to each subscription's executor
+        try {
+            eventDispatcher.execute(() -> {
+                deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db), eventInfo);
+
+                if (eventInfo.collection != null) {
+                    deliverToSubscribers(changeStreamSubscribers.get(eventInfo.db + "." + eventInfo.collection), eventInfo);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            log.debug("InMemoryDriver executor rejected task (likely shutting down), skipping event dispatch");
         }
     }
 
@@ -3741,6 +3785,13 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
         private final Object monitor;
         private volatile boolean active = true;
         private String namespaceKey;
+        // Each subscription gets its own single-threaded executor (virtual thread)
+        // This matches MongoDB: each watcher runs in its own thread, sees events in order,
+        // and multiple watchers can process events in parallel
+        private final java.util.concurrent.ExecutorService subscriptionExecutor =
+            java.util.concurrent.Executors.newSingleThreadExecutor(
+                Thread.ofVirtual().name("changestream-watch-", 0).factory()
+            );
 
         private ChangeStreamSubscription(String db, String collection, DriverTailableIterationCallback callback, List<Map<String, Object>> pipeline,
                                          WatchCommand.FullDocumentEnum fullDocumentMode, WatchCommand.FullDocumentBeforeChangeEnum beforeChangeMode,
@@ -3778,6 +3829,11 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
 
             active = false;
 
+            // Shutdown this subscription's executor
+            if (subscriptionExecutor != null && !subscriptionExecutor.isShutdown()) {
+                subscriptionExecutor.shutdown();
+            }
+
             synchronized (monitor) {
                 monitor.notifyAll();
             }
@@ -3806,17 +3862,31 @@ public class InMemoryDriver implements MorphiumDriver, MongoConnection {
                 return;
             }
 
-            try {
-                log.debug("Calling callback.incomingData() for {}.{}", info.db, info.collection);
-                callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
-                log.debug("Callback completed successfully");
-            } catch (Exception e) {
-                log.error("Error calling change-stream callback", e);
+            // Execute callback on this subscription's own thread
+            // This matches MongoDB: each watcher has its own thread, events are ordered per watcher,
+            // but different watchers can process events in parallel
+            if (subscriptionExecutor.isShutdown()) {
+                log.debug("Subscription executor is shut down, skipping callback");
+                return;
             }
 
-            if (!callback.isContinued()) {
-                log.debug("Callback indicated not to continue, deactivating subscription");
-                deactivate();
+            try {
+                subscriptionExecutor.execute(() -> {
+                    try {
+                        log.debug("Calling callback.incomingData() for {}.{}, thread={}", info.db, info.collection, Thread.currentThread().getName());
+                        callback.incomingData(processed, System.currentTimeMillis() - info.createdAt);
+                        log.debug("Callback completed successfully, thread={}", Thread.currentThread().getName());
+                    } catch (Exception e) {
+                        log.error("Error calling change-stream callback, thread={}", Thread.currentThread().getName(), e);
+                    }
+
+                    if (!callback.isContinued()) {
+                        log.debug("Callback indicated not to continue, deactivating subscription");
+                        deactivate();
+                    }
+                });
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                log.debug("Subscription executor rejected task (likely shutting down), skipping callback");
             }
         }
 
